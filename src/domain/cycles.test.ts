@@ -1,5 +1,5 @@
 import type { LocalDate } from '@/types';
-import { currentCycleWindow, cyclesElapsedSince, nextCycleWindow } from './cycles';
+import { currentCycleWindow, cyclesElapsedSince, freshCycleWindow, nextCycleWindow } from './cycles';
 
 const d = (s: string) => s as LocalDate;
 
@@ -60,11 +60,31 @@ describe('cyclesElapsedSince — the boundary-walk half of SCHEMA.md §8 reconci
 
   test('a mid-cycle cadence change finalises the in-progress cycle immediately: the caller\'s job is just to archive whatever window it currently holds before switching cadence — this module supplies that same window unchanged when asked, so nothing here re-derives a longer window post-switch', () => {
     const inProgress = currentCycleWindow('monthly', d('2024-03-10'));
-    // The mutation layer would archive `inProgress` as-is (is_short_cycle=true) THEN call
-    // currentCycleWindow with the NEW cadence to start the fresh cycle — cycles.ts supplies
-    // pure boundary math either way, never partial-decides when to switch.
-    const freshUnderNewCadence = currentCycleWindow('weekly', d('2024-03-10'));
+    // The mutation layer archives `inProgress` as-is (is_short_cycle=true, ending TODAY, not
+    // its natural end) THEN starts the fresh cycle via `freshCycleWindow` — see that
+    // function's own tests below for why NOT `currentCycleWindow` (review pass 2, item N3).
+    const freshUnderNewCadence = freshCycleWindow('weekly', d('2024-03-20'));
     expect(freshUnderNewCadence.cadence).toBe('weekly');
     expect(inProgress.cadence).toBe('monthly');
+  });
+});
+
+describe('freshCycleWindow — review pass 2, blocking item N3', () => {
+  test('starts EXACTLY at the given date, never snapped back to the calendar period start', () => {
+    const w = freshCycleWindow('monthly', d('2024-03-20')); // mid-month
+    expect(w.startDate).toBe('2024-03-20'); // NOT 2024-03-01 (what currentCycleWindow would give)
+    expect(w.endDate).toBe('2024-03-31'); // still the natural period end
+  });
+
+  test('weekly: starts at the given date, ends at that week\'s natural Sunday', () => {
+    const w = freshCycleWindow('weekly', d('2024-03-20')); // a Wednesday
+    expect(w.startDate).toBe('2024-03-20');
+    expect(w.endDate).toBe('2024-03-24'); // that week's Sunday, NOT a full 7-day span from the 20th
+  });
+
+  test('is deterministic — same cadence + startDate always yields the same id', () => {
+    const a = freshCycleWindow('monthly', d('2024-03-20'));
+    const b = freshCycleWindow('monthly', d('2024-03-20'));
+    expect(a.id).toBe(b.id);
   });
 });

@@ -34,6 +34,21 @@ export function nextCycleWindow(w: CycleWindow): CycleWindow {
 }
 
 /**
+ * A LEADING PARTIAL window: starts exactly at `startDate` (never snapped back to the
+ * calendar period start, unlike `currentCycleWindow`) and runs to that cadence's natural
+ * period end containing `startDate` — the shape SCHEMA §8 pins for a cycle that "begins" mid
+ * period (a mid-cycle cadence change) and "runs to that cadence's next natural boundary".
+ * Review pass 2, blocking item N3: `finalizeCycleForCadenceChange` was starting the fresh
+ * window at the calendar period start via `currentCycleWindow`, overlapping the just-archived
+ * short record by up to a full period (the same days landing in two permanent records).
+ * Same shape M1's genesis seed uses (`src/db/cycleWindowSeed.ts`).
+ */
+export function freshCycleWindow(cadence: CycleCadence, startDate: LocalDate): CycleWindow {
+  const naturalEnd = currentCycleWindow(cadence, startDate).endDate;
+  return { id: windowId(cadence, startDate), cadence, startDate, endDate: naturalEnd };
+}
+
+/**
  * Every cycle window that has FULLY elapsed (its `endDate` is before `today`), walking
  * forward from `w` itself. SCHEMA.md §8's boundary loop is `while (currentCycle.end_date <
  * today): archive; reset; advance` — this is that walk's pure boundary-list half; the

@@ -29,13 +29,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { on } from '@/lib/events';
 import { xpForLevel } from '@/domain';
-import type { AppEvent, Instant, LocalDate, Step, Task, TaskWithSteps } from '@/types';
+import type { AppEvent, Instant, LocalDate, Step, Task, TaskWithSteps, Weekday } from '@/types';
 
 import { fake } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import { QUERY_KEYS } from './index';
-import { useLogState, useMoveOccurrence, useUpdateSettings, __testing__ } from './mutations';
-import { useTaskOccurrences, useTasks } from './reads';
+import { useLogState, useMarkOffDay, useMoveOccurrence, useToggleStep, useUpdateSettings, __testing__ } from './mutations';
+import { useConsistency, useTaskOccurrences, useTasks } from './reads';
 
 const { reconcileCycleBoundaries, finalizeCycleForCadenceChange } = __testing__;
 
@@ -374,11 +374,236 @@ describe('reconcileCycleBoundaries / finalizeCycleForCadenceChange — items 1 a
     const allKeys = fake.cycleRecords().map((r) => `${r.cadence}:${r.startDate}:${r.endDate}`);
     expect(new Set(allKeys).size).toBe(allKeys.length); // still no duplicates/overlaps
     expect(fake.cycleRecords().length).toBeGreaterThan(3); // genuinely grew from real weekly boundaries
+    assertNoOverlappingRecords(fake.cycleRecords()); // real interval check, not just key uniqueness (N3)
 
     // cycle_state matches the actual live (non-elapsed) window.
     const pointer = fake.currentCycleState();
     expect(pointer).not.toBeNull();
     expect(pointer!.endDate >= clock.today).toBe(true);
+  });
+});
+
+/**
+ * A real `[start, end]` interval-disjointness check (review pass 2, N3 note: "your test only
+ * checked key uniqueness, not interval disjointness, which is why it passed"). Two ranges
+ * overlap iff `aStart <= bEnd && bStart <= aEnd`.
+ */
+function assertNoOverlappingRecords(records: readonly { startDate: LocalDate; endDate: LocalDate }[]): void {
+  for (let i = 0; i < records.length; i++) {
+    for (let j = i + 1; j < records.length; j++) {
+      const a = records[i]!;
+      const b = records[j]!;
+      const overlaps = a.startDate <= b.endDate && b.startDate <= a.endDate;
+      if (overlaps) {
+        throw new Error(`records overlap: [${a.startDate},${a.endDate}] vs [${b.startDate},${b.endDate}]`);
+      }
+    }
+  }
+}
+
+describe('N1 — moved-then-completed occurrence must agree between the mutation path and every read (review pass 2)', () => {
+  test('acceptance (i): move today -> tomorrow, complete the target the next day — the read shows ideal, exactly one XP award, and numerator === denominator - missed holds', async () => {
+    // Created ON the move's source date so `all-time` consistency only ever sees the 2 days
+    // this test cares about — a task created earlier would legitimately accumulate real
+    // missed days in between, which isn't what this test is about.
+    const task = makeTask({ cadence: { kind: 'daily' }, createdAt: '2024-06-01T00:00:00.000Z' as Instant });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-01' as LocalDate, toDate: '2024-06-02' as LocalDate });
+    });
+
+    clock.today = '2024-06-02'; // advance the clock to "the next day"
+    const { result: logResult } = await rh(() => useLogState(), client);
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-02' as LocalDate, chip: 'done' });
+    });
+    const res = outcome as { ok: true; value: { xpAwarded: number } };
+    expect(res.ok).toBe(true);
+    expect(res.value.xpAwarded).toBe(10);
+
+    const { result: occResult } = await rh(
+      () => useTaskOccurrences(task.id, { from: '2024-06-01' as LocalDate, to: '2024-06-02' as LocalDate }),
+      client,
+    );
+    await waitFor(() => expect(occResult.current.isSuccess).toBe(true));
+    const occs = occResult.current.data ?? [];
+    expect(occs.find((o) => o.date === '2024-06-02')?.outcome).toBe('ideal'); // NOT pending/missed
+
+    expect(fake.xpAwards()).toHaveLength(1); // exactly one award, not zero and not two
+
+    const { result: consistencyResult } = await rh(() => useConsistency({ scope: 'per-task', window: 'all-time', taskId: task.id }), client);
+    await waitFor(() => expect(consistencyResult.current.isSuccess).toBe(true));
+    const c = consistencyResult.current.data!;
+    expect(c.numerator).toBe(c.denominator - c.breakdown.missed); // the system-wide invariant
+    // The moved-away source date (06-01) is `not-due` (excluded entirely, per F7), so the
+    // ONLY occurrence in this task's whole history is the completed target (06-02) — never
+    // counted as missed, which is the whole point of N1.
+    expect(c.breakdown.missed).toBe(0);
+    expect(c.denominator).toBe(1);
+  });
+
+  test('acceptance (ii): moving to an off-cadence target date still awards XP and reads ideal once completed', async () => {
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] as Weekday[] } }); // Mondays only
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    // 2024-06-03 is a Monday; move it to Wednesday 2024-06-05, off-cadence.
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-03' as LocalDate, toDate: '2024-06-05' as LocalDate });
+    });
+
+    clock.today = '2024-06-05';
+    const { result: logResult } = await rh(() => useLogState(), client);
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-05' as LocalDate, chip: 'done' });
+    });
+    const res = outcome as { ok: true; value: { xpAwarded: number; outcome: string } };
+    expect(res.ok).toBe(true);
+    expect(res.value.xpAwarded).toBe(10);
+    expect(res.value.outcome).toBe('ideal');
+  });
+});
+
+describe('N2 — marking a day off must never retract earned XP (review pass 2)', () => {
+  test('acceptance: Done (+10) -> mark task-day off -> lifetime XP still includes the 10 and the award row survives; unmark -> still exactly one award, original cycle id', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const { result: logResult } = await rh(() => useLogState(), client);
+    await act(async () => {
+      await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-01' as LocalDate, chip: 'done' });
+    });
+    expect(fake.xpAwards()).toHaveLength(1);
+    const originalCycleId = fake.xpAwards()[0]!.cycleId;
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10);
+
+    const { result: offResult } = await rh(() => useMarkOffDay(), client);
+    await act(async () => {
+      await offResult.current.mutateAsync({ date: '2024-06-01' as LocalDate, taskId: task.id, mark: true });
+    });
+
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10); // NOT retracted
+    expect(fake.xpAwards()).toHaveLength(1); // the award row survives
+
+    await act(async () => {
+      await offResult.current.mutateAsync({ date: '2024-06-01' as LocalDate, taskId: task.id, mark: false });
+    });
+    expect(fake.xpAwards()).toHaveLength(1); // still exactly one award, never duplicated
+    expect(fake.xpAwards()[0]!.cycleId).toBe(originalCycleId); // no silent cycle-attribution migration
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10);
+  });
+});
+
+describe('N3 — the fresh window after a cadence change must not overlap the just-archived short record (review pass 2)', () => {
+  test('acceptance: the fresh pointer starts exactly on today, the short record ends the day before — disjoint by construction', async () => {
+    clock.today = '2024-03-20'; // mid-month
+    fake.seedSettings({ cycleCadence: 'monthly' });
+
+    const result = await finalizeCycleForCadenceChange('weekly');
+    expect(result.ok).toBe(true);
+
+    const pointer = fake.currentCycleState();
+    expect(pointer?.startDate).toBe('2024-03-20'); // NOT 2024-03-17 (the calendar week start)
+
+    const shortRecord = fake.cycleRecords().find((r) => r.isShortCycle);
+    // Ends YESTERDAY, not today — today belongs to the fresh cycle only (see
+    // `finalizeCycleForCadenceChange`'s disjointness note).
+    expect(shortRecord?.endDate).toBe('2024-03-19');
+
+    // The real interval check: the short record and the fresh pointer must not overlap.
+    assertNoOverlappingRecords([
+      { startDate: shortRecord!.startDate, endDate: shortRecord!.endDate },
+      { startDate: pointer!.startDate, endDate: pointer!.endDate },
+    ]);
+  });
+
+  test('degenerate case: the live window itself started today — nothing to short-archive, only the fresh window is set', async () => {
+    clock.today = '2024-03-20';
+    fake.seedSettings({ cycleCadence: 'monthly' });
+    fake.seedCycleState({ currentCycleId: 'cycle:monthly:2024-03-20' as never, cadence: 'monthly', startDate: '2024-03-20' as LocalDate, endDate: '2024-03-31' as LocalDate });
+
+    const result = await finalizeCycleForCadenceChange('weekly');
+    expect(result.ok).toBe(true);
+    expect(fake.cycleRecords()).toHaveLength(0); // zero elapsed days under the old cadence
+    expect(fake.currentCycleState()?.startDate).toBe('2024-03-20');
+    expect(fake.currentCycleState()?.cadence).toBe('weekly');
+  });
+});
+
+describe('N4 — partial failure must never double-archive (review pass 2)', () => {
+  test('acceptance: fail the second of three pending archives -> re-run reconciliation -> exactly three records exist, no duplicates', async () => {
+    clock.today = '2024-01-15';
+    fake.seedSettings({ cycleCadence: 'monthly' });
+    await reconcileCycleBoundaries(); // establish the pointer at the January window
+
+    clock.today = '2024-04-20'; // Jan, Feb, Mar have all since elapsed — three pending archives
+    fake.failAppendCycleRecordOnCall(2); // the second archive attempt fails
+    const first = await reconcileCycleBoundaries();
+    expect(first.ok).toBe(false);
+    expect(fake.cycleRecords()).toHaveLength(1); // only the first (January) archive succeeded
+
+    const second = await reconcileCycleBoundaries(); // retry
+    expect(second.ok).toBe(true);
+    expect(fake.cycleRecords()).toHaveLength(3); // exactly three, no duplicates
+    const keys = fake.cycleRecords().map((r) => `${r.cadence}:${r.startDate}:${r.endDate}`);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  test('acceptance: fail cycleState.set after the short-cycle append -> re-run the cadence change -> still exactly one short record', async () => {
+    clock.today = '2024-03-20';
+    fake.seedSettings({ cycleCadence: 'monthly' });
+    await reconcileCycleBoundaries(); // establish the pointer
+
+    fake.failNextCycleStateSet(); // the pointer write after the short-cycle append fails
+    const first = await finalizeCycleForCadenceChange('weekly');
+    expect(first.ok).toBe(false);
+    expect(fake.cycleRecords().filter((r) => r.isShortCycle)).toHaveLength(1);
+
+    const second = await finalizeCycleForCadenceChange('weekly'); // retry
+    expect(second.ok).toBe(true);
+    expect(fake.cycleRecords().filter((r) => r.isShortCycle)).toHaveLength(1); // still exactly one
+  });
+});
+
+describe('N5 — level:up must be emitted exactly once per crossing (review pass 2)', () => {
+  test('acceptance: a step toggle that crosses a level records exactly one level:up event', async () => {
+    const task = makeTask();
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const events: AppEvent[] = [];
+    const off = on('level:up', (e) => events.push(e));
+
+    const { result } = await rh(() => useToggleStep(), client);
+    // 9 prior ideal days (90 XP), seeded directly so this test isolates the CROSSING toggle.
+    for (let i = 1; i <= 9; i++) {
+      const date = `2024-05-${String(i).padStart(2, '0')}` as LocalDate;
+      // eslint-disable-next-line no-await-in-loop
+      await fake.repos.progress.appendXpAward({
+        id: `seed-${i}` as never,
+        taskId: task.id,
+        date,
+        kind: 'ideal',
+        amount: 10,
+        cycleId: 'seed-cycle' as never,
+        createdAt: clock.now as Instant,
+      });
+    }
+    expect(await fake.repos.progress.lifetimeXp()).toBe(90);
+
+    await act(async () => {
+      await result.current.mutateAsync({ taskId: task.id, date: '2024-05-10' as LocalDate, stepId: task.idealSteps[0]!.id });
+    });
+
+    expect(events).toHaveLength(1);
+    off();
   });
 });
 

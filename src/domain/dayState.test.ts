@@ -162,10 +162,62 @@ describe('resolveOccurrence — F7 snooze/move (review pass 1, blocking item 6)'
     expect(tomorrow.outcome).toBe('pending');
   });
 
-  test('a moved-in occurrence carries its own chip/step data, not the target date\'s (there is none)', () => {
+  test('with NO real log on the target date, a moved-in occurrence carries its own chip/step data', () => {
     const moved = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02'), chipState: 'done', isManualOverride: true });
     const target = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-02'), log: null, offMarks: [], movedInLog: moved });
     expect(target.outcome).toBe('ideal');
+  });
+
+  test('N1 (review pass 2): a REAL log on the target date always wins over a moved-in record — the moved-then-completed flow', () => {
+    // Snooze today -> tomorrow (the source log carries movedToDate, chip left at 'todo').
+    const movedIn = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02'), chipState: null, isManualOverride: false });
+    // The next day, the user taps Done directly on the target date — a genuine new log row
+    // keyed by (task, 2024-06-02), NOT the moved one.
+    const targetLog = log({ date: d('2024-06-02'), movedToDate: null, chipState: 'done', isManualOverride: true });
+    const resolved = resolveOccurrence({
+      task,
+      date: d('2024-06-02'),
+      today: d('2024-06-03'),
+      log: targetLog,
+      offMarks: [],
+      movedInLog: movedIn,
+    });
+    // Must read `ideal` (the user's real completion), never `pending`/`missed` (the stale
+    // moved-in record) — this is what makes the mutation path (which awards XP off exactly
+    // this resolution) and every read agree.
+    expect(resolved.outcome).toBe('ideal');
+    expect(resolved.chipState).toBe('done');
+  });
+
+  test('N1: due-ness still comes from the moved-in record even once a real (still-unlogged) target log exists', () => {
+    const offCadenceTask = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] } }); // Mondays only
+    const movedIn = log({ date: d('2024-06-03'), movedToDate: d('2024-06-05') }); // Mon -> Wed
+    // A real, still-empty target row (e.g. created by a step toggle that didn't complete
+    // anything) must not make the day fall back to "not-due" on an off-cadence Wednesday.
+    const targetLog = log({ date: d('2024-06-05'), movedToDate: null, chipState: null, isManualOverride: false });
+    const resolved = resolveOccurrence({
+      task: offCadenceTask,
+      date: d('2024-06-05'),
+      today: d('2024-06-05'),
+      log: targetLog,
+      offMarks: [],
+      movedInLog: movedIn,
+    });
+    expect(resolved.outcome).toBe('pending'); // due (via the move), unlogged
+  });
+});
+
+describe('resolveOccurrence — F7 tie-break edges (review pass 2, non-blocking notes)', () => {
+  const task = makeTask();
+
+  test('a chained move (A moved to B, and B itself moved on to C) vacates B without resurrecting A\'s data at C', () => {
+    // A's row carries movedToDate=B; B's OWN row also carries movedToDate=C. Resolving B:
+    // B's own log has movedToDate set, so B vacates (not-due) regardless of any moved-in
+    // record aimed at it — a chain is deliberately NOT resolved transitively in one call;
+    // `src/queries/internal.ts` is documented as looking up only single-hop moves.
+    const bLog = log({ date: d('2024-06-02'), movedToDate: d('2024-06-03'), chipState: 'done' });
+    const resolvedB = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-02'), log: bLog, offMarks: [] });
+    expect(resolvedB.outcome).toBe('not-due');
   });
 });
 

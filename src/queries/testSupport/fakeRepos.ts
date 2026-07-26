@@ -56,6 +56,10 @@ export interface FakeRepos {
   seedSettings(patch: Partial<Settings>): void;
   seedCycleState(state: CycleState | null): void;
   failNextAppendXpAward(): void;
+  /** Fails only the Nth (1-based) call to `appendCycleRecord` — for N4's partial-failure tests. */
+  failAppendCycleRecordOnCall(callNumber: number): void;
+  /** Fails only the next call to `cycleState.set` — for N4's pointer-write-failure tests. */
+  failNextCycleStateSet(): void;
   xpAwards(): readonly XpAward[];
   cycleRecords(): readonly CycleRecord[];
   unlocks(): readonly AchievementUnlock[];
@@ -75,6 +79,9 @@ export function createFakeRepos(): FakeRepos {
   let cycleState: CycleState | null = null;
   let settings: Settings = defaultSettings();
   let failAppendOnce = false;
+  let failAppendCycleRecordAtCall: number | null = null;
+  let appendCycleRecordCallCount = 0;
+  let failCycleStateSetOnce = false;
 
   const repos: Repositories = {
     tasks: {
@@ -162,6 +169,10 @@ export function createFakeRepos(): FakeRepos {
       listCycleRecords: async () => cycleRecords,
       getCycleRecord: async (id) => cycleRecords.find((r) => r.id === id) ?? null,
       appendCycleRecord: async (r) => {
+        appendCycleRecordCallCount += 1;
+        if (failAppendCycleRecordAtCall === appendCycleRecordCallCount) {
+          return err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+        }
         cycleRecords.push(r);
         return ok(undefined);
       },
@@ -183,6 +194,10 @@ export function createFakeRepos(): FakeRepos {
     cycleState: {
       get: async () => cycleState,
       set: async (s) => {
+        if (failCycleStateSetOnce) {
+          failCycleStateSetOnce = false;
+          return err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+        }
         cycleState = s;
         return ok(undefined);
       },
@@ -202,6 +217,9 @@ export function createFakeRepos(): FakeRepos {
       cycleState = null;
       settings = defaultSettings();
       failAppendOnce = false;
+      failAppendCycleRecordAtCall = null;
+      appendCycleRecordCallCount = 0;
+      failCycleStateSetOnce = false;
     },
     seedTask(t) {
       tasks.set(t.id, t);
@@ -214,6 +232,12 @@ export function createFakeRepos(): FakeRepos {
     },
     failNextAppendXpAward() {
       failAppendOnce = true;
+    },
+    failAppendCycleRecordOnCall(callNumber) {
+      failAppendCycleRecordAtCall = callNumber;
+    },
+    failNextCycleStateSet() {
+      failCycleStateSetOnce = true;
     },
     xpAwards: () => [...xpAwards.values()],
     cycleRecords: () => cycleRecords,

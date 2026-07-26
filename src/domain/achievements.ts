@@ -5,6 +5,13 @@
  * Labels below are exact copy from S27 (SCHEMA.md §7) — verbatim, not re-cased or re-worded.
  * Conditions marked *(design-witnessed)* are confirmed by S27's own ledger; the rest are
  * architect-authored defaults a designer may re-word freely without touching this logic.
+ *
+ * PROVENANCE NOTE for M5 (review pass 2 non-blocking item): only the `label` fields above are
+ * design-pinned rendered copy. `description`/`lockedHint` are this catalogue's OWN working
+ * copy for reconciliation/testing purposes, close to but not verbatim S27's locked-detail
+ * lines ("Locked — show up 7 days total, ideal or fallback." etc., ALLSCREENS 2407-2414). M5
+ * must render its own screen copy from `src/features/progress/copy.ts`, not from these two
+ * fields — they are not the pinned strings.
  */
 import type { AchievementDef, AchievementUnlock, Id, Instant, LocalDate, Occurrence } from '@/types';
 import { addDays, addMonths, addYears, isSameOrBefore, startOfWeek } from './dateMath';

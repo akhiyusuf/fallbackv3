@@ -72,12 +72,16 @@ export function resolveOccurrence(input: {
   /** See `occurrence.ts`'s `isDue` doc comment — the device-local creation-day bound, supplied by the caller. */
   notBefore?: LocalDate;
   /**
-   * F7 snooze/move (review pass 1, blocking item 6). A log row from a DIFFERENT date whose
-   * own `movedToDate` equals `date` — i.e. an occurrence that was relocated INTO this date.
-   * "Snooze/move affects the occurrence, not the cadence" (MODULES M4): the occurrence's
-   * whole record (chip/steps/doses) travels with it, so when present this date is treated
-   * as due even if the cadence wouldn't naturally place it here, and the moved log's own
-   * data — not `log`'s — drives the outcome.
+   * F7 snooze/move (review pass 1, blocking item 6; precedence fixed in review pass 2,
+   * blocking item N1). A log row from a DIFFERENT date whose own `movedToDate` equals
+   * `date` — i.e. an occurrence that was relocated INTO this date. "Snooze/move affects the
+   * occurrence, not the cadence" (MODULES M4): a moved-in record confers DUE-NESS on a date
+   * the cadence wouldn't naturally place it, and supplies the INITIAL chip/step data — but a
+   * REAL user action on the target date (`log`, this date's own row) always wins over it. A
+   * user tapping Done on the target date after a move is not shadowed by the stale moved-in
+   * record; see `resolveOneOccurrence` in `src/queries/internal.ts`, which is the ONLY place
+   * both `log` and `movedInLog` are looked up, so every caller (read or mutation) resolves
+   * through this exact same precedence — never two independent implementations.
    */
   movedInLog?: DayLog | null;
 }): Occurrence {
@@ -89,13 +93,17 @@ export function resolveOccurrence(input: {
     return notDueOccurrence(task, date, log.chipState);
   }
 
-  const due = movedInLog != null ? true : isDue(task, date, notBefore);
+  // A moved-in record confers due-ness even off-cadence; otherwise fall back to the normal
+  // cadence check (which also covers the ordinary case where `log` is a real due-date log).
+  const due = movedInLog != null || isDue(task, date, notBefore);
   if (!due) {
     return notDueOccurrence(task, date, log?.chipState ?? null);
   }
 
-  // A moved-IN occurrence carries its own record with it; otherwise this date's own log applies.
-  const effectiveLog = movedInLog ?? log;
+  // PRECEDENCE (N1): a real log for THIS date always wins over a moved-in record. The
+  // moved-in record's only job, once a real log exists here, was to confer due-ness above —
+  // it never shadows what the user actually did on the date they're looking at.
+  const effectiveLog = log ?? movedInLog;
 
   const dueIdealIds = dueIdealStepIds(task, date, notBefore);
   const completedStepIds = effectiveLog ? effectiveLog.completedStepIds.filter((id) => dueIdealIds.includes(id)) : [];

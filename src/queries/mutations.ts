@@ -23,18 +23,17 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
-import { now } from '@/lib/date';
+import { addDays, diffDays, now } from '@/lib/date';
 import { repos } from '@/db';
 import {
   autoChipState,
-  currentCycleWindow,
   cyclesElapsedSince,
   dueIdealStepIds,
+  freshCycleWindow,
   isXpEligible,
   levelFor,
   nextCycleWindow,
   reconcileAchievements,
-  resolveOccurrence,
   validateTaskDraft,
   xpForOccurrence,
 } from '@/domain';
@@ -56,7 +55,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { resolveAllOccurrences, todayLocal } from './internal';
+import { MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -82,23 +81,41 @@ function stateToWindow(s: CycleState): CycleWindow {
   return { id: s.currentCycleId, cadence: s.cadence, startDate: s.startDate, endDate: s.endDate };
 }
 
-/** The `null`-fallback derivation runs at most once — see this file's header. */
-async function getOrInitCycleState(settings: Settings): Promise<CycleState> {
+/**
+ * The `null`-fallback derivation. `persisted: false` means the pointer could not be written
+ * back — the caller must NOT proceed to archive against it (review pass 2, blocking item N4):
+ * archiving now would be replayed identically from the same anchor-derived window on every
+ * future call, since nothing recorded that this attempt ever happened.
+ */
+async function getOrInitCycleState(settings: Settings): Promise<{ state: CycleState; persisted: boolean }> {
   const existing = await repos.cycleState.get();
-  if (existing) return existing;
-  const derived = currentCycleWindow(settings.cycleCadence, settings.tenureAnchorDate);
+  if (existing) return { state: existing, persisted: true };
+  // Same leading-partial shape N3 fixed for a cadence change: the very first cycle a store
+  // ever has begins exactly at the anchor day, not the calendar period containing it
+  // (non-blocking note — aligns with M1's genesis seed, `src/db/cycleWindowSeed.ts`).
+  const derived = freshCycleWindow(settings.cycleCadence, settings.tenureAnchorDate);
   const state = windowToState(derived);
-  await repos.cycleState.set(state); // best-effort; a write failure just means we re-derive next time
-  return state;
+  const setResult = await repos.cycleState.set(state);
+  return { state, persisted: setResult.ok };
 }
 
 /**
  * Archives ONE cycle window as a `CycleRecord`, windowed to `[w.startDate, recordEndDate]`
- * (which is `w.endDate` for a naturally-elapsed cycle, or `today` for a mid-cycle cadence
- * change's short cycle). Returns the persisted record's own id — never the window id, which
- * references no `cycle_record` row (review pass 1 non-blocking note).
+ * (which is `w.endDate` for a naturally-elapsed cycle, or YESTERDAY for a mid-cycle cadence
+ * change's short cycle — see `finalizeCycleForCadenceChange`'s disjointness note, N3).
+ * Returns the persisted record's own id — never the window id, which references no
+ * `cycle_record` row (review pass 1 non-blocking note).
+ *
+ * Idempotency guard (review pass 2, blocking item N4): checks for an existing record at this
+ * exact `(cadence, startDate, recordEndDate)` before appending. This is what keeps a retry
+ * safe when a PREVIOUS attempt appended successfully but then failed to advance the pointer
+ * (see `reconcileCycleBoundaries`) — without it, the retry would re-archive the same window.
  */
 async function archiveCycleWindow(w: CycleWindow, recordEndDate: LocalDate, isShortCycle: boolean): Promise<Result<Id>> {
+  const existingRecords = await repos.progress.listCycleRecords();
+  const already = existingRecords.find((r) => r.cadence === w.cadence && r.startDate === w.startDate && r.endDate === recordEndDate);
+  if (already) return ok(already.id);
+
   const today = todayLocal();
   const occs = await resolveAllOccurrences(repos, recordEndDate, today);
   const windowed = aggregateConsistency({ occurrences: occs, window: { from: w.startDate, to: recordEndDate }, today });
@@ -125,25 +142,32 @@ async function archiveCycleWindow(w: CycleWindow, recordEndDate: LocalDate, isSh
 /**
  * SCHEMA §8's boundary loop, driven off the authoritative `cycle_state` pointer: while the
  * live window has fully elapsed, archive it (full-length, never short) and advance the
- * pointer. Idempotent by construction — once the pointer is advanced past every elapsed
- * window, a second call finds nothing left to archive, no history scan required (review pass
- * 1, blocking item 2).
+ * pointer.
+ *
+ * Advances the pointer after EACH successful archive, not once after the whole loop (review
+ * pass 2, blocking item N4 — "never a double archive"): if archive N+1 fails, the pointer is
+ * already past window N, so a retry resumes at N+1 instead of re-archiving N. Combined with
+ * `archiveCycleWindow`'s own existence guard, a failed pointer WRITE after a successful
+ * archive is also safe to retry.
  */
 async function reconcileCycleBoundaries(): Promise<Result<void>> {
   const settings = await repos.settings.get();
   const today = todayLocal();
-  const state = await getOrInitCycleState(settings);
-  const liveWindow = stateToWindow(state);
+  const { state, persisted } = await getOrInitCycleState(settings);
+  if (!persisted) return ok(undefined); // cannot safely archive against an unpersisted pointer
+
+  let liveWindow = stateToWindow(state);
   const elapsed = cyclesElapsedSince(liveWindow, today);
-  if (elapsed.length === 0) return ok(undefined);
 
   for (const w of elapsed) {
-    const result = await archiveCycleWindow(w, w.endDate, false);
-    if (!result.ok) return err(result.error);
+    const archiveResult = await archiveCycleWindow(w, w.endDate, false);
+    if (!archiveResult.ok) return err(archiveResult.error); // pointer NOT advanced past w — safe retry
+
+    const next = nextCycleWindow(w);
+    const setResult = await repos.cycleState.set(windowToState(next));
+    if (!setResult.ok) return err(setResult.error); // archived, but retry will find it via the guard above
+    liveWindow = next;
   }
-  const nextWindow = nextCycleWindow(elapsed[elapsed.length - 1] as CycleWindow);
-  const setResult = await repos.cycleState.set(windowToState(nextWindow));
-  if (!setResult.ok) return err(setResult.error);
   return ok(undefined);
 }
 
@@ -152,8 +176,17 @@ async function reconcileCycleBoundaries(): Promise<Result<void>> {
  * IMMEDIATELY, as a possibly-short record, archive-before-reset — MODULES M2's own
  * non-negotiable. Catches up any FULLY elapsed cycles under the OLD cadence first (so a
  * cadence change after a long absence doesn't skip genuine boundaries), then archives
- * whatever's left in progress as short, ending TODAY rather than its natural end date, and
- * starts a fresh window under the NEW cadence from today.
+ * whatever's left in progress as short, and starts a fresh window under the NEW cadence
+ * starting EXACTLY today.
+ *
+ * DISJOINTNESS (review pass 2, blocking item N3): the short record ends YESTERDAY, not
+ * today — `today` belongs to the fresh cycle only. Ending the short record AT today (as pass
+ * 1 did, even after switching from `currentCycleWindow` to `freshCycleWindow`) still left the
+ * two records sharing that one calendar day, since `freshCycleWindow` starts ON today too;
+ * `[oldStart, today]` and `[today, natural end]` are not disjoint. `[oldStart, yesterday]` and
+ * `[today, natural end]` are. The degenerate case — the live window itself started today (a
+ * cadence change on day one of a cycle, or two changes in one day) — has zero elapsed days
+ * under the old cadence, so nothing is archived at all; only the fresh window is set.
  */
 async function finalizeCycleForCadenceChange(newCadence: CycleCadence): Promise<Result<void>> {
   const settings = await repos.settings.get();
@@ -163,13 +196,17 @@ async function finalizeCycleForCadenceChange(newCadence: CycleCadence): Promise<
   if (!caughtUp.ok) return caughtUp;
 
   const today = todayLocal();
-  const state = await getOrInitCycleState(settings); // re-read: may have just advanced above
+  const { state, persisted } = await getOrInitCycleState(settings); // re-read: may have just advanced above
+  if (!persisted) return err({ code: 'WRITE_FAILED', message: 'Could not establish the current cycle pointer.' });
   const liveWindow = stateToWindow(state);
 
-  const archiveResult = await archiveCycleWindow(liveWindow, today, true);
-  if (!archiveResult.ok) return err(archiveResult.error);
+  const shortCycleEnd = addDays(today, -1);
+  if (shortCycleEnd >= liveWindow.startDate) {
+    const archiveResult = await archiveCycleWindow(liveWindow, shortCycleEnd, true);
+    if (!archiveResult.ok) return err(archiveResult.error);
+  }
 
-  const fresh = currentCycleWindow(newCadence, today);
+  const fresh = freshCycleWindow(newCadence, today);
   const setResult = await repos.cycleState.set(windowToState(fresh));
   if (!setResult.ok) return err(setResult.error);
   return ok(undefined);
@@ -184,13 +221,22 @@ interface ReconcileResult {
   readonly badgesUnlocked: readonly string[];
 }
 
-/** Steps 3-5 of the API.md §3 sequence, for ONE changed (task, date) occurrence. */
+/**
+ * Steps 3-5 of the API.md §3 sequence, for ONE changed (task, date) occurrence.
+ *
+ * Resolves via `resolveOneOccurrence` — the SAME move-aware resolution `internal.ts` uses for
+ * every read (review pass 2, blocking item N1). This function previously called
+ * `resolveOccurrence` directly without the `movedInLog` lookup, so a moved-then-completed
+ * occurrence could award XP and celebrate for an outcome that every read displayed
+ * differently (a completed day the reads called `missed`). There is now exactly one place
+ * that resolves a `(task, date)` occurrence from persisted data; this function and every read
+ * hook both call it.
+ */
 async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<ReconcileResult> {
   const task = await repos.tasks.get(taskId);
   if (!task) return { occurrence: null, xpAwarded: 0, levelUp: null, badgesUnlocked: [] };
   const today = todayLocal();
-  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(taskId, date, date), repos.offDays.listRange(date, date)]);
-  const occurrence = resolveOccurrence({ task, date, today, log: logs[0] ?? null, offMarks });
+  const occurrence = await resolveOneOccurrence(repos, task, date, today);
 
   // Step 3 — XP. Every write's Result is checked (review pass 1, item 7): a failed award or
   // retraction reports as unchanged, never as a false success.
@@ -199,8 +245,20 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
   let xpChanged = false;
 
   if (isXpEligible(occurrence)) {
-    const settings = await repos.settings.get();
-    const cycleState = await getOrInitCycleState(settings);
+    // Preserve the ORIGINAL cycle attribution when an award for this exact occurrence
+    // already exists (review pass 2, N2's "original cycle id" acceptance clause): an
+    // off-mark/unmark round trip, or any other re-affirmation of an already-earned
+    // occurrence, must not silently re-stamp it with whatever cycle happens to be live NOW —
+    // only a genuinely NEW award is stamped with the current pointer. `appendXpAward`'s
+    // UNIQUE(task_id, date) makes this an upsert either way (SCHEMA §7's documented
+    // ideal->fallback "downgrade... updates the row's kind/amount", not its cycle_id).
+    const existingAward = (await repos.progress.listXpAwards(date, date)).find((a) => a.taskId === taskId);
+    let cycleId = existingAward?.cycleId;
+    if (!cycleId) {
+      const settings = await repos.settings.get();
+      const { state: cycleState } = await getOrInitCycleState(settings);
+      cycleId = cycleState.currentCycleId;
+    }
     const amount = xpForOccurrence(occurrence);
     const appendResult = await repos.progress.appendXpAward({
       id: newId(),
@@ -208,16 +266,20 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
       date,
       kind: occurrence.outcome as 'ideal' | 'fallback',
       amount,
-      cycleId: cycleState.currentCycleId,
+      cycleId,
       createdAt: now(),
     });
     if (appendResult.ok) {
       xpAwarded = amount;
       xpChanged = true;
     }
-  } else {
-    // CR-2 — see this file's header for the exact boundary. Safe unconditionally: a delete
-    // that finds no row (this occurrence was never eligible) is a documented no-op.
+  } else if (occurrence.outcome !== 'off') {
+    // CR-2 — see this file's header for the exact boundary: an undone mis-tap (chip -> todo,
+    // reads `pending`/`missed`) or the move-vacated case (reads `not-due`). Review pass 2,
+    // blocking item N2: marking a day OFF must never retract earned XP (SCHEMA §7 / PRD
+    // §3.4 — "never an XP penalty"), so `off` is explicitly excluded here even though it is
+    // not XP-eligible either. Safe otherwise unconditionally: a delete that finds no row
+    // (this occurrence was never eligible) is a documented no-op.
     const retractResult = await repos.progress.retractXpAward(taskId, date);
     if (retractResult.ok) xpChanged = true;
   }
@@ -249,6 +311,8 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
     }
   }
 
+  // `level:up` is emitted HERE ONLY — every caller of `reconcileOccurrence` relies on this
+  // single emit (review pass 2, blocking item N5). Do not re-emit it in a calling mutation.
   if (levelUp) emit({ type: 'level:up', level: levelUp.level });
 
   // Step 5 — cycle boundaries (archive always precedes any implicit reset). Best-effort: a
@@ -420,10 +484,13 @@ export function useToggleStep() {
       });
       if (!persistResult.ok) return err(persistResult.error);
 
+      // `level:up` is emitted once, inside `reconcileOccurrence` alone (review pass 2,
+      // blocking item N5 — this hook was re-emitting it for the same crossing, producing a
+      // duplicate milestone notification via M7's scheduler). Every mutation that calls
+      // `reconcileOccurrence` follows this same convention: reconcile emits, callers don't.
       const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
       emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
       if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
-      if (levelUp) emit({ type: 'level:up', level: levelUp.level });
       return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
     },
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
@@ -507,11 +574,23 @@ export function useLogAsNeededUse() {
  * naturally place it. Reconciling the source date also retracts any XP that occurrence had
  * already earned (CR-2) — moving something un-does its old date's completion, consistent with
  * "affects the occurrence, not the cadence": the occurrence itself relocated.
+ *
+ * A move beyond `MOVE_SEARCH_PAD_DAYS` is rejected up front (review pass 2 non-blocking
+ * note): `internal.ts`'s move lookup only searches a bounded window around a resolve range,
+ * so a further move would silently vanish from every future read while its source date stays
+ * vacated — better to refuse it here than produce that silent data loss.
  */
 export function useMoveOccurrence() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { taskId: Id; fromDate: LocalDate; toDate: LocalDate }) => {
+      const distance = Math.abs(diffDays(input.toDate, input.fromDate));
+      if (distance > MOVE_SEARCH_PAD_DAYS) {
+        return err({
+          code: 'VALIDATION_FAILED' as const,
+          message: `Cannot move an occurrence more than ${MOVE_SEARCH_PAD_DAYS} days from its original date.`,
+        });
+      }
       const existing = (await repos.logs.listForTask(input.taskId, input.fromDate, input.fromDate))[0] ?? null;
       const nowIso = now();
       const persistResult = await repos.logs.upsert({
