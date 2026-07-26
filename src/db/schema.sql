@@ -1,0 +1,1 @@
+-- M1. Canonical DDL for schema v1. Normative prose: docs/SCHEMA.md.
