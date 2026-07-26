@@ -1,0 +1,61 @@
+/* ==========================================================================
+   Verdant — Color Tokens
+   Notion warm document base + Duolingo saturated signal colors.
+   ========================================================================== */
+
+:root {
+  /* --- Document base (from Notion) --- */
+  --bg:            #ffffff;
+  --bg-alt:        #fbfaf8;
+  --surface:       #f1efea;
+  --text:          #37352f;
+  --text-muted:    #6f6b62;
+  --text-dim:      #a09c92;
+  --border:        #e9e7e2;
+  --border-strong: #d6d3cc;
+
+  /* --- Progress + CTA (from Duolingo) --- */
+  --accent:        #58cc02;
+  --accent-hover:  #4cad00;
+  --accent-deep:   #3d8a00;
+  --accent-soft:   #e8f8d8;
+
+  /* --- Secondary signals (from Duolingo) — confined to their context --- */
+  --streak:        #ff9600;
+  --danger:        #ff4b4b;
+  --xp:            #1cb0f6;
+
+  /* --- Semantic aliases --- */
+  --surface-page:      var(--bg);
+  --surface-doc:       var(--bg-alt);
+  --surface-sunken:    var(--surface);
+  --surface-card:      var(--bg-alt);
+  --surface-card-hover:var(--surface);
+
+  --text-body:         var(--text);
+  --text-secondary:    var(--text-muted);
+  --text-placeholder:  var(--text-dim);
+  --text-on-accent:    #ffffff;
+
+  --border-default:    var(--border);
+  --border-hover:      var(--border-strong);
+  --focus-ring:        var(--accent);
+
+  --cta-fill:          var(--accent);
+  --cta-fill-hover:    var(--accent-hover);
+  --cta-shadow:        var(--accent-deep);
+}
+
+/* --- Dark mode — softer than Notion's pitch dark --- */
+[data-theme="dark"] {
+  --bg:            #25241f;
+  --bg-alt:        #2c2b25;
+  --surface:      #322f29;
+  --text:          #f1efea;
+  --text-muted:    #b7b2a8;
+  --text-dim:      #837e74;
+  --border:        #3e3a32;
+  --border-strong: #4b463d;
+
+  --accent-soft:   #33421f;
+}

@@ -1,0 +1,7 @@
+/* ==========================================================================
+   Verdant — Webfonts
+   Inter (Google Fonts). Inter is the specified family for the whole system;
+   loaded from the Google Fonts CDN (variable, weights 400–800).
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");

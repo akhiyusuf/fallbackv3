@@ -1,0 +1,48 @@
+/* ==========================================================================
+   Verdant — Typography Tokens
+   Inter throughout. No serif. Heavier display weights (Duolingo),
+   Notion's reading ramp for body.
+   ========================================================================== */
+
+:root {
+  --font-sans:    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Weights */
+  --fw-regular:  400; /* @kind font */
+  --fw-medium:   500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold:     700; /* @kind font */
+  --fw-black:    800; /* @kind font */
+
+  /* Type scale — 12 / 14 / 16 / 18 / 20 / 24 / 32 / 40 / 56 */
+  --fs-xs:   12px;
+  --fs-sm:   14px;
+  --fs-base: 16px;
+  --fs-md:   18px;
+  --fs-lg:   20px;
+  --fs-xl:   24px;
+  --fs-2xl:  32px;
+  --fs-3xl:  40px;
+  --fs-4xl:  56px;
+
+  /* Line heights */
+  --lh-tight:   1.15; /* @kind font */
+  --lh-heading: 1.25; /* @kind font */
+  --lh-body:    1.6;  /* @kind font */
+  --lh-ui:      1.4;  /* @kind font */
+
+  /* Letter spacing */
+  --ls-tight:  -0.02em; /* @kind font */
+  --ls-normal: 0;       /* @kind font */
+  --ls-wide:   0.02em;  /* @kind font */
+
+  /* Semantic roles */
+  --text-display:  var(--fw-bold)     var(--fs-3xl)/var(--lh-tight)   var(--font-display);
+  --text-h1:       var(--fw-bold)     var(--fs-3xl)/var(--lh-tight)   var(--font-display);
+  --text-h2:       var(--fw-bold)     var(--fs-2xl)/var(--lh-heading) var(--font-sans);
+  --text-h3:       var(--fw-semibold) var(--fs-xl)/var(--lh-heading)  var(--font-sans);
+  --text-h4:       var(--fw-semibold) var(--fs-lg)/var(--lh-heading)  var(--font-sans);
+  --text-body-role:var(--fw-regular)  var(--fs-base)/var(--lh-body)   var(--font-sans);
+  --text-label:    var(--fw-semibold) var(--fs-sm)/var(--lh-ui)       var(--font-sans);
+}

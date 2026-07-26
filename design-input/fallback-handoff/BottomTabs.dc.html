@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/verdant-design-system-a81bbec3-fce7-4e77-a685-289422f95a9a/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/verdant-design-system-a81bbec3-fce7-4e77-a685-289422f95a9a/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/verdant-design-system-a81bbec3-fce7-4e77-a685-289422f95a9a/tokens/typography.css">
+  <link rel="stylesheet" href="fallback-theme.css">
+</helmet>
+<nav style="display:flex;align-items:stretch;border-top:1px solid var(--border);background:var(--bg);flex:none;padding-bottom:20px;font-family:var(--font-sans)">
+  <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="5">
+    <a href="{{ tab.href }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 0 5px;text-decoration:none;color:{{ tab.color }}">
+      <i data-lucide="{{ tab.icon }}" width="23" height="23"></i>
+      <span style="font-size:11px;font-weight:{{ tab.weight }};letter-spacing:.01em">{{ tab.label }}</span>
+    </a>
+  </sc-for>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:72},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;today&quot;,&quot;options&quot;:[&quot;today&quot;,&quot;routines&quot;,&quot;events&quot;,&quot;courses&quot;,&quot;todos&quot;],&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active || "today";
+    const items = [
+      { key: "today",    label: "Today",    icon: "sun",            href: "#S09" },
+      { key: "routines", label: "Routines", icon: "repeat",         href: "#S10" },
+      { key: "events",   label: "Events",   icon: "calendar",       href: "#S11" },
+      { key: "courses",  label: "Courses",  icon: "list-checks", href: "#S12" },
+      { key: "todos",    label: "To-dos",   icon: "sticky-note",    href: "#S13" },
+    ];
+    return {
+      tabs: items.map(t => ({
+        label: t.label, icon: t.icon, href: t.href,
+        color: t.key === active ? "var(--accent)" : "var(--text-dim)",
+        weight: t.key === active ? 700 : 600,
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

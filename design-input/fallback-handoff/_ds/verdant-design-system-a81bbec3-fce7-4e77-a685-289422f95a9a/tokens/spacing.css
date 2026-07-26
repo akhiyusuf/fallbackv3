@@ -1,0 +1,22 @@
+/* ==========================================================================
+   Verdant — Spacing Tokens
+   8px base scale: 8 / 16 / 24 / 32 / 48 / 64 / 96
+   ========================================================================== */
+
+:root {
+  --space-0:   0;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   16px;
+  --space-4:   24px;
+  --space-5:   32px;
+  --space-6:   48px;
+  --space-7:   64px;
+  --space-8:   96px;
+
+  /* Layout widths */
+  --reading-column: 720px;   /* Notion lesson / document column */
+  --practice-card:  480px;   /* Duolingo practice card stack */
+  --app-shell:      1180px;  /* app max width */
+  --nav-rail:       240px;   /* left nav rail */
+}

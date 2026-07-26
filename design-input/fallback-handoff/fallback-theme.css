@@ -1,0 +1,44 @@
+/* ==========================================================================
+   Fallback — app theme layer over Verdant.
+   Linked AFTER Verdant's colors.css so these overrides win.
+   Accent = Forge Orange (recolours CTAs / progress / active nav / add only).
+   The ideal / fallback / off / gold / danger signals keep their own hues.
+   ========================================================================== */
+:root {
+  /* Accent — Forge Orange (was Verdant leaf green) */
+  --accent:        #F2601A;
+  --accent-hover:  #DE5310;
+  --accent-deep:   #B4400A;   /* tactile bottom shadow */
+  --accent-soft:   #FCEADD;
+
+  /* keep the semantic CTA aliases pointed at the orange */
+  --cta-fill:       var(--accent);
+  --cta-fill-hover: var(--accent-hover);
+  --cta-shadow:     var(--accent-deep);
+  --focus-ring:     var(--accent);
+
+  --danger-soft:    #FFECEC;   /* soft danger badge bg */
+  --danger-deep:    #D63030;   /* tactile shadow under danger fills */
+
+  /* --- Fallback-specific state signals (not part of Verdant) --- */
+  --ideal:        #8FBC6B;   /* bright muted leaf — did the full / ideal thing */
+  --ideal-deep:   #5F8A3E;
+  --ideal-soft:   #EFF5E7;
+
+  --fallback:     #7FB2D4;   /* bright muted blue — did the fallback, still showed up */
+  --fallback-deep:#4E82A8;
+  --fallback-soft:#EAF2F8;
+
+  --off:          #A8A294;   /* bright muted grey — whole-day / whole-task off */
+  --off-deep:     #7B766C;
+  --off-soft:     #EEEBE5;
+
+  --celebration-gold: #DCB863;  /* bright muted gold — milestone badges, S27–S30 ONLY */
+  --gold-deep:        #A8853B;
+  --gold-soft:        #F7F0E0;
+
+  --icon-on-signal: #ffffff;
+
+  /* XP numerals follow the muted blue so no saturated signal fights the accent */
+  --xp: #7FB2D4;
+}
