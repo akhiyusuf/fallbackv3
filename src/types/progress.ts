@@ -28,10 +28,15 @@ export interface XpState {
   readonly currentCycle: CycleWindow;
 }
 
-/** Append-only ledger row. Every award is attributable to one occurrence. */
+/**
+ * Append-only ledger row. Every award is attributable to one occurrence.
+ * The row OUTLIVES its task: deleting a task nulls `taskId` (ON DELETE SET NULL) but never
+ * removes the award, so lifetime XP and level stay monotonic. See SCHEMA.md §2.3.
+ */
 export interface XpAward {
   readonly id: Id;
-  readonly taskId: Id;
+  /** null once the originating task has been deleted. The XP was still genuinely earned. */
+  readonly taskId: Id | null;
   readonly date: LocalDate;
   readonly kind: 'ideal' | 'fallback';
   readonly amount: number;

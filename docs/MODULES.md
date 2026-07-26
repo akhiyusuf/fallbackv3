@@ -35,6 +35,28 @@ WAVE 2  (5 builders in parallel)
 **frozen**. Wave-2 builders import them and never modify them. A needed change to a frozen
 surface is an architect change request, not an edit.
 
+### Scaffold deference — pinned decisions are pinned, scaffolded bytes are not
+
+The architect pre-wrote part of the tree (shared types, tokens, `src/lib/number.ts`, route
+stubs) so every module starts from a compiling app. **That code is a starting point, not
+scripture.**
+
+- **If you find a genuine defect in scaffolded code inside a path YOU own — fix it.** Add a
+  regression test, and say so in your result so the fix is visible. Do not preserve a bug
+  out of deference, and do not work around it in your own code.
+- **What you may not change without an architect change request:** a *pinned decision* —
+  the round-half-up algorithm and its locked assertions (ARCHITECTURE §6.5), the
+  consistency algorithm (§6), the chip→outcome mapping (§6.1), the counted-day window
+  (§6.4), the delete-cascade split (SCHEMA §2.3), the design-pinned level titles and badge
+  labels (SCHEMA §7) — or anything in a **frozen** or **unowned** path.
+- The distinction: `roundHalfUp` returning the wrong value for 12.5 would be a defect worth
+  fixing; changing it to banker's rounding would be re-opening a pin. If a fix would make
+  one of the eight locked assertions in `src/lib/number.test.ts` pass that used to fail,
+  the fix is wrong — raise it instead.
+- Same rule for `src/types`: extend it freely, restructure it freely **if it is wrong**;
+  just don't silently change the shape of a contract another module is coding against
+  without flagging it.
+
 **Wave-1 sequencing note (the one real coupling).** M1's five screens need M0's component
 kit. M1 must therefore deliver in this order: (1) `src/db` + migrations + repositories,
 (2) `src/services/data` + `src/services/sync`, (3) its five screens last. Those screens
@@ -74,7 +96,9 @@ app/(tabs)/_layout.tsx
 Features touched: F8 (theme/accent plumbing), plus the design-system layer for all 50.
 
 **Scope**
-- The shared type surface (already scaffolded — extend, don't restructure).
+- The shared type surface (scaffolded — extend it; restructure or correct it if it is
+  actually wrong, and flag any contract-shape change in your result — see "Scaffold
+  deference" above).
 - Design tokens transcribed from Verdant + `fallback-theme.css`, light **and** dark
   palettes, the four-accent closed set, `useTheme()`, `resolveScheme()`.
 - The full component kit. Verdant primitives: `Button` (primary/secondary/ghost/danger,
@@ -85,8 +109,9 @@ Features touched: F8 (theme/accent plumbing), plus the design-system layer for a
   `Tag`, `CalendarHeatmap`, `WeekdayPicker`, `CadencePicker`, `SubStepScheduleGrid`,
   `XPBar`, `TrendGraph`, `AsNeededCard`.
 - `src/lib`: `date.ts` (the app's only clock — see ARCHITECTURE.md §7), `number.ts`
-  (**`roundHalfUp` / `toPercent` — already written, do not change the algorithm**),
-  `events.ts`, `id.ts`.
+  (scaffolded; the **round-half-up algorithm and the eight assertions in
+  `number.test.ts` are pinned** — the implementation bytes are yours to correct if they are
+  defective, the algorithm is not yours to change), `events.ts`, `id.ts`.
 - `src/navigation`: route constants, `useOriginAwareBack`, `withOrigin`.
 - Root providers, `useDayRollover`, root error boundary, the four zustand stores.
 
@@ -142,6 +167,11 @@ app/settings/data/erase.tsx    (S48)
 
 **Non-negotiables**
 - **Nothing outside `src/db` writes SQL.** Repositories are the only door.
+- **The delete cascade is split and the split is load-bearing** (SCHEMA.md §2.3): remove
+  `step`, `day_log`, `off_day_mark`, `as_needed_use`; **never** remove `xp_award`
+  (`ON DELETE SET NULL`), `achievement_unlock` or `cycle_record`. This matches PRD F7's own
+  cascade, which names only log + off-day records, and it is what keeps lifetime XP
+  monotonic. The hard sweep runs on the next `open()`; there is no compaction job.
 - `eraseAll` is **atomic**: fully erased or fully intact, never half-wiped. It clears
   SecureStore keys and widget snapshot files too.
 - A failed `restore` leaves existing data **untouched** and lands in the non-destructive
@@ -201,6 +231,13 @@ you can write and typecheck against it before M1 finishes).
   a cadence. A one-off Event earns XP.
 - Cycle boundaries: **archive always precedes zeroing.** A mid-cycle cadence change
   finalises immediately. Nothing lifetime ever resets.
+- **Lifetime XP and level are monotonic under every user action, task deletion included.**
+  `reconcileAchievements` is upsert-only and never revokes. Required test: log 10 ideal
+  days on a task (100 XP), delete the task → lifetime XP still 100, level unchanged, badges
+  unchanged, and those 10 days leave the F5 denominator (SCHEMA.md §2.3).
+- The level-title constant lives here (`src/domain/xp.ts`). **L1 "Getting started",
+  L7 "Consistent" and L8 "Dependable" are design-pinned** — S27/S28/S41 render them as
+  exact copy. The other seven are architect-authored defaults.
 - `validateTaskDraft` / `emptyRunOccurrences` are written **once** here and called by both
   the create forms and the manage sheet. S20's spec says "replicate it, don't reinvent it."
 
@@ -288,8 +325,19 @@ F13 (S24's XP line), F23, F24, F26, F27.
   on every run-occurrence.
 - Duplicate copies definitions, metadata and toggle state but starts with **empty history**.
 - Snooze/move affects the **occurrence**, not the cadence.
-- S22 and S23 are **origin-aware**; S22's confirmed delete for the S23 path always lands on
-  **S10**, never S14.
+- **S22 carries two SEPARATE origin rules — implement both, do not merge them**
+  (ARCHITECTURE §4.3; `ALLSCREENS_1.md` S22 lines 1155–1166 and 1202–1247):
+  - **"Keep it" / scrim / back** → the screen that *opened* S22: S20 if from S20, S23 if
+    from S23. Never falls through to S20 from the S23 path.
+  - **Confirmed delete** → wherever *that* screen was itself reached from, a two-level
+    lookup: S20's own origin if it is stable (**S09 or S10–S13**) → **that same screen**;
+    if unstable (S14 or unknown) → the deleted task's **type browse tab**; from **S23** →
+    always **S10**. The most common path must work: **S09 → S20 → S22 → confirm → S09.**
+    Deleting from Today returns to Today, not to the Routines tab.
+  - S14 is never a stable post-delete destination on either path.
+- S23 is **origin-aware** on back (S10 or S14, whichever opened it).
+- S22's "Delete routine" is the `danger` Button variant; the icon beside it stays muted and
+  is **not** red (ARCHITECTURE §10).
 - S23 is deliberately lean: no StateChip, no heatmap, no sub-step toggles. Its history is a
   reverse-chronological used-dates **list**, and there is no "missed" concept on it. The
   "Log used it" toast is **"Logged to history"** and carries **no XP, no achievement, no
@@ -345,6 +393,10 @@ app/records/[cycleId].tsx   (S30)
   one, and are never gated on Cycling XP.
 - S28 is the **only** confetti surface, fired once, for a true level-up or a milestone
   tenure unlock. Locked badges get no celebration.
+- S28's "New title: Dependable." is rendered from `levelFor(xp).title`, **not hardcoded** —
+  the constant returns "Dependable" at level 8, so the exact-copy rule and the constant
+  agree by construction. Same for "Level 7 · Consistent" on S27/S41. There is exactly one
+  source for a level title.
 - S25, S27 and S29 are **origin-aware**.
 - Nothing lifetime ever resets. There is no "current streak count" anywhere.
 
@@ -487,10 +539,12 @@ targets).
 | M7 | S02–S08, S41, S42, S43, S46, S49 | 12 |
 | | **total** | **50** |
 
-**All in-scope features.** F1 M1 · F2 M4 · F3 M2/M3/M4 · F4 M2/M3/M4 · F5 M2/M3/M5 ·
-F6 M3 · F7 M4 · F8 M0/M7 · F9 M7 · F11 M3/M4 · F12 M2/M4 · F13 M2/M4/M5 · F14 M7 ·
-F15 M3 · F16 M6 · F17 M6 · F18 M6 · F19 M1 · F20 M1 · F21 M7 · F23 M2/M4 · F24 M2/M4 ·
-F25 M1 · F26 M2/M4 · F27 M2/M3/M4 · F28 M2/M5 · F29 M2/M5 · F30 M2/M5 · F31 M2/M5.
+**All in-scope features.** F1 M1 · F2 **M2**/M4 *(M2 owns `validateTaskDraft`, which
+implements F2's save rules)* · F3 M2/M3/M4 · F4 M2/M3/M4 · F5 M2/M3/M5 · F6 M3 · F7 M4 ·
+F8 M0/M7 · F9 M7 · F11 M3/M4 · F12 M2/M4 · F13 M2/M4/M5 · F14 **M3**/M7 *(M3 owns S09's
+re-entry banner, the F14 notification-tap landing state)* · F15 M3 · F16 M6 · F17 M6 ·
+F18 M6 · F19 M1 · F20 M1 · F21 M7 · F23 M2/M4 · F24 M2/M4 · F25 M1 · F26 M2/M4 ·
+F27 M2/M3/M4 · F28 M2/M5 · F29 M2/M5 · F30 M2/M5 · F31 M2/M5.
 *(F10 does not exist — an intentional PRD numbering gap. F22 is P2, deliberately out of v1.)*
 
 ---

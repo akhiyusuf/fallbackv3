@@ -110,12 +110,41 @@ The XP-eligibility boundary is **having a due occurrence at all**, never carryin
 cadence. A one-off "Dentist visit" Event earns XP; an as-needed routine's "used it" log
 earns nothing (PRD Decisions item 17 — get this right).
 
-### 2.3 Delete cascade
+### 2.3 Delete cascade — PINNED
+
 Delete is a **soft delete** (`deleted_at`) so an in-flight undo and any open sheet stay
-coherent, followed by a hard cascade at the next store compaction: `step`, `day_log`,
-`off_day_mark` (task-scoped rows), `as_needed_use` and `xp_award` rows for that task are
-removed, and F5 recomputes without them. Already-finalized `cycle_record` rows are
-**never** rewritten — a past recap is permanent, even if the task behind it is gone.
+coherent. The hard cascade runs when the undo window closes — concretely, on the **next
+store open** (M1's `StoreLifecycle.open()` sweeps rows whose `deleted_at` is older than the
+current session). There is no separate "compaction" job, no schedule and no background
+task; M1 owns this sweep and nothing else triggers it.
+
+**The cascade is deliberately split, and the split is load-bearing:**
+
+| Cascaded (removed) | Never cascaded (permanent) |
+|---|---|
+| `step` | `xp_award` — `task_id` is set to NULL, the row and its `amount` survive |
+| `day_log` | `achievement_unlock` — upsert-only, never revoked |
+| `off_day_mark` (task-scoped rows) | `cycle_record` — a past recap is permanent |
+| `as_needed_use` | |
+
+This matches PRD F7's own cascade, which names **only** "log + off-day records" (PRD §3.7,
+Data touched) and never mentions XP, and it keeps the lifetime layer monotonic: F13's
+no-loss clause ("no XP loss, no decaying levels", also PRD §4) and MODULES M5's "nothing
+lifetime ever resets" both survive a legal user action. Consequently `xp_award.task_id` is
+**nullable with `ON DELETE SET NULL`**, not `ON DELETE CASCADE` — the XP was genuinely
+earned; the task it came from may be gone.
+
+**The asymmetry is intentional, not an oversight.** F5 is a *windowed view of current
+history*, so PRD F7 requires deleting a task to remove its records from the F5 recompute —
+and it does. Lifetime XP, badges and archived recaps are *permanent records of what
+happened*, so they do not move.
+
+**Required test (M1 + M2 must agree on this answer).** Create a task, log 10 ideal days
+(100 XP), then delete it:
+- lifetime XP **unchanged at 100**; level **unchanged**; earned badges **unchanged**;
+- the current cycle's Cycling XP **unchanged**;
+- those 10 days leave the F5 denominator at both scopes and the % recomputes without them;
+- the task disappears from every browse surface and from Today.
 
 ---
 
@@ -252,7 +281,7 @@ declined.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | Id PK | |
-| `task_id` | Id NOT NULL | |
+| `task_id` | Id **NULL** FK → task(id) **ON DELETE SET NULL** | nulled, not deleted, when the task is deleted (§2.3) |
 | `date` | LocalDate NOT NULL | the occurrence date the award is anchored to |
 | `kind` | TEXT CHECK IN ('ideal','fallback') | |
 | `amount` | INTEGER NOT NULL | **10 for ideal, 6 for fallback** (S24) |
@@ -260,11 +289,18 @@ declined.
 | `created_at` | Instant | |
 
 `UNIQUE (task_id, date)` — one award per occurrence, so re-logging the same day cannot
-farm XP. Downgrading a log (ideal → fallback) updates the row's `kind`/`amount`; removing
-a showing-up state deletes the row. **Lifetime XP** = `SUM(amount)` over all rows —
-monotonic in practice because the only deletions are corrections. **Cycling XP** =
-`SUM(amount) WHERE cycle_id = <current>`. The same completion increments both; they are
-two counters over one ledger, not double counting.
+farm XP. (SQLite treats NULLs as distinct in a unique index, which is what we want:
+orphaned awards from deleted tasks never constrain new ones.)
+
+Downgrading a log (ideal → fallback) updates the row's `kind`/`amount`; un-setting a
+showing-up state on a **live** task deletes its row — that is a correction to something
+that turned out not to have happened, not a penalty. **Deleting a task never deletes its
+awards** (§2.3).
+
+**Lifetime XP** = `SUM(amount)` over all rows. **Cycling XP** = `SUM(amount) WHERE
+cycle_id = <current>`. The same completion increments both; they are two counters over one
+ledger, not double counting. Neither can be reduced by deleting a task, by a cycle
+boundary, by an off day, or by a missed day.
 
 **Eligibility (F13 = F31, identical set).** An award exists **iff** the occurrence is a
 due occurrence of an occurrence-bearing task (recurring **or** one-off) that resolved to
@@ -276,12 +312,35 @@ logs, To-do checkbox completions, off days, skips, pending days.
 xpForLevel(L) = 100 + 150 * (L - 1)          // XP needed to leave level L
 level 1 → 100, level 7 → 1000                // both anchors from S27's copy
 ```
-Titles (architect-authored defaults; only L1 "Getting started" and L7 "Consistent" are
-pinned by the design — the rest live in one constant M0/M2 owns and a designer may swap
-without touching logic):
-`1 Getting started · 2 Finding your rhythm · 3 Showing up · 4 Steady · 5 Reliable ·
-6 Resilient · 7 Consistent · 8 Unshakeable · 9 Anchored · 10 Enduring` (11+ reuse
-"Enduring"). **XP never decays and a level never goes down.**
+**Titles — the design pins THREE, not two:**
+
+| Level | Title | Source |
+|---|---|---|
+| 1 | **Getting started** | **design-pinned** — S27 lines 2354 / 2417, S41 line 3883 |
+| 2 | Warming up | architect-authored |
+| 3 | Finding your rhythm | architect-authored |
+| 4 | Steady | architect-authored |
+| 5 | Reliable | architect-authored |
+| 6 | Resilient | architect-authored |
+| 7 | **Consistent** | **design-pinned** — S27 lines 2301 / 2389, S41 lines 3859 / 3905 |
+| 8 | **Dependable** | **design-pinned** — S28 "Copy (exact strings)" line 2800, "New title: Dependable." |
+| 9 | Unshakeable | architect-authored |
+| 10 | Enduring | architect-authored (11+ reuse "Enduring") |
+
+The three design-pinned titles are **not** swappable — S27, S28 and S41 render them as
+exact copy, so changing them would desynchronise the constant from the screens.
+The seven architect-authored titles live in the same constant (owned by M2,
+`src/domain/xp.ts`) and a designer may swap any of them without touching logic.
+
+**There is exactly one source for a rendered level title: this constant.** S28's
+"New title: Dependable." is satisfied *by* the constant returning "Dependable" at level 8 —
+M5 renders `levelFor(xp).title`, it does not hardcode the string. That is what keeps the
+verbatim-copy rule and the constant from disagreeing.
+
+*(L3 was moved off "Showing up" deliberately: "Showing up" is also the name of a badge
+category on S27, and both would render on the same screen.)*
+
+**XP never decays and a level never goes down** — including when a task is deleted (§2.3).
 
 ### `achievement_unlock`
 
@@ -298,22 +357,31 @@ backward clock can never revoke a badge.
 
 ### Achievement catalogue (S27)
 
-| Category | Key | Condition |
-|---|---|---|
-| Showing up | `showing-up-7` / `-30` / `-50` / `-200` | cumulative **shown-up days** reaches 7 / 30 / 50 / 200 |
-| Fallback wins | `fallback-safety-net` | first fallback occurrence ever logged |
-| | `fallback-never-zero` | 10 fallback occurrences logged |
-| | `fallback-saved-25` | 25 fallback occurrences logged |
-| | `fallback-comeback` | shown up on the day immediately after a missed day |
-| Milestones | `milestone-100-done` | 100 completed occurrences (ideal or fallback) |
-| | `milestone-course-x3` | 3 Courses run through to their end date |
-| | `milestone-full-week` | an ISO week where all 7 days are qualifying days and every `f(D) = 1.0` |
-| Tenure (F29) | `tenure-first-day` … `tenure-50-years` | 11 tiers, **calendar-elapsed only** |
+Labels are **exact copy from S27** (lines 2397–2403) — take them verbatim, do not
+re-case or re-word. Conditions marked *(design-witnessed)* are confirmed by S27's own
+Appendix B ledger and its badge-provenance block; the rest are architect-authored.
+
+| Category | Key | Label (exact) | Condition |
+|---|---|---|---|
+| Showing up | `showing-up-7` / `-30` / `-50` / `-200` | "7 days" · "30 days" · "50 shown up" · "200 shown up" | cumulative **shown-up days** reaches 7 / 30 / 50 / 200 *(design-witnessed — S27 lines 2407–2414 explicitly fixed these to be **day**-level, not event-level)* |
+| Fallback wins | `fallback-safety-net` | "Safety net" | first fallback occurrence ever logged *(design-witnessed, line 2480)* |
+| | `fallback-never-zero` | "Never zero" | 10 fallback occurrences logged *(design-witnessed, line 2493 / 2686)* |
+| | `fallback-saved-25` | "Saved 25×" | 25 fallback occurrences logged *(design-witnessed, line 2714)* |
+| | `fallback-comeback` | "Comeback" | shown up on the day immediately after a missed day *(design-witnessed, lines 2697–2699)* |
+| Milestones | `milestone-100-done` | "100 done" | 100 completed occurrences, ideal or fallback *(design-witnessed as a task-completion count, line 2710)* |
+| | `milestone-course-x3` | "Course ×3" | 3 Courses run through to their end date *(architect-authored)* |
+| | `milestone-full-week` | "Full week" | an ISO week where all 7 days are qualifying days and every `f(D) = 1.0` *(design-witnessed as 7/7, lines 2324 / 2562)* |
+| Tenure (F29) | `tenure-first-day` … `tenure-50-years` | "First day" · "1 Week" · "1 Month" · "2 Months" · "6 Months" · "1 Year" · "2 Years" · "5 Years" · "10 Years" · "20 Years" · "50 Years" | 11 tiers, **calendar-elapsed only** |
 
 Fallback-wins counts are **task-level occurrence counts**; showing-up counts are **day
 counts** (a day is shown-up if any due non-off task on it resolved to ideal or fallback).
+The design fixed this distinction deliberately — do not collapse the two.
 
-### F29 tenure — anchor decision (PRD §7, OWNER handed to the architect)
+Note the tenure labels are **title-cased after the first tier** ("First day", then
+"1 Week", "1 Month", …), per S27's exact-copy block. The PRD's prose lower-cases them;
+S27's rendered copy wins.
+
+### F29 tenure — anchor decision (PRD §7, genuinely OWNER-delegated to the architect)
 
 **PINNED: the anchor is the device-local calendar date on which the local store is first
 created — i.e. first launch.** Written by migration 1 into `settings.tenure_anchor_date`.
@@ -324,8 +392,9 @@ committing and is not "one fixed calendar date" independent of behaviour. First 
 creation is observable, deterministic, consistency-independent, device-local, and happens
 exactly once.
 
-Tiers: `first day, 1 week, 1 month, 2 months, 6 months, 1 year, 2 years, 5 years,
-10 years, 20 years, 50 years`, measured from the anchor in **calendar time only**, wholly
+Tiers (rendered labels, exact per S27): `First day, 1 Week, 1 Month, 2 Months, 6 Months,
+1 Year, 2 Years, 5 Years, 10 Years, 20 Years, 50 Years`, measured from the anchor in
+**calendar time only**, wholly
 independent of whether the user showed up at all — a user absent for 11 months still earns
 the 1-year badge on day 366. These are **not** streaks and **not** cumulative counts, and
 they are **not** gated on Cycling XP or cycle records. A brand-new user holds exactly
@@ -454,7 +523,8 @@ task 1──n step                         (ideal + fallback; due_weekdays = F23
 task 1──n day_log                      (unique per date; chip + step detail + doses)
 task 1──n off_day_mark                 (task-grain; whole-day marks have task_id NULL)
 task 1──n as_needed_use                (F27, reference-only, read by S23 alone)
-task 1──n xp_award                     (unique per occurrence; cycle_id stamps the cycle)
+task 0──n xp_award                     (unique per occurrence; cycle_id stamps the cycle;
+                                        ON DELETE SET NULL — awards OUTLIVE their task)
 
 achievement_unlock ──────── keyed by catalogue key, upsert-only
 cycle_record ───────────── append-only; every finalized cycle, permanently

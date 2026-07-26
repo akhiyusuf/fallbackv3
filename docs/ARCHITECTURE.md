@@ -167,10 +167,24 @@ S25, S27, S29, S48. The design calls this "load-bearing behaviour" and it is.
 - Use `useOriginAwareBack(fallbackHref)` from `@/navigation`. **Never hardcode a back
   destination on those seven screens.** A hardcoded `router.push('/today')` on S25 is an
   automatic code-review rejection.
-- Two documented exceptions where the destination is *not* origin-dependent:
-  S22's **confirmed delete** always lands on the type's browse tab (and always S10 for the
-  S23 path, even when S23 was opened from S14 — S14 holds transient results and is not a
-  stable post-delete destination); S48's **successful erase** always lands on S01.
+- **S22 carries TWO different origin rules and they must not be merged** (the design calls
+  this out explicitly, `ALLSCREENS_1.md` S22 lines 1155–1166 and 1202–1247):
+  - **Cancel** ("Keep it", scrim tap, hardware back) → whichever screen *opened* S22:
+    S20 if opened from S20, S23 if opened from S23. Never falls through to S20.
+  - **Confirmed delete** → **not** the screen that opened S22, but wherever *that* screen
+    was itself reached from — a two-level lookup, and it is still origin-dependent:
+    1. Opened from S20, and S20's own origin is **S09 or a browse tab (S10–S13)** → **that
+       same screen**. The design reproduces this verbatim as a FLOWS.md edge:
+       **S09 → S20 → S22 → confirms → S09.** Deleting from Today returns to Today.
+    2. Opened from S20, but S20's origin is **not a stable destination** (S14 Filter &
+       Search, or unknown) → fall back to the deleted task's **type browse tab**
+       (S10/S11/S12/S13).
+    3. Opened from **S23** → always **S10** (Routines browse), whether S23 came from S10
+       or S14. S23's task is always type Routine, so this coincides with rule 2's fallback.
+  S14 is never a stable post-delete destination on either path — it holds transient
+  results and the just-deleted item may have been the sole match.
+- One genuine exception where the destination is *not* origin-dependent: S48's
+  **successful erase** always lands on S01, from both origins.
 
 ### 4.4 Cross-module reactions — the event bus
 `src/lib/events.ts` (M0) is a tiny synchronous emitter. M2's mutations emit
@@ -288,11 +302,17 @@ percent     = denominator === 0 ? null : roundHalfUp(Σ f(D) * 100 / denominator
   tests.
 - Degenerates exactly to scope 1 on uniform (one-due-task) days.
 
-### 6.4 Window membership — PINNED: counted-day (PRD §7 / `ALLSCREENS_1.md` S25, OWNER: architect)
+### 6.4 Window membership — PINNED: counted-day
+
+**Delegation source:** *not* PRD §7 — the PRD contains no window-membership item and is
+simply silent on it. The delegation comes from the approved design:
+`ALLSCREENS_1.md` S25, "Open item — window-membership semantics" (lines 1582–1630),
+which states the question is "a genuine PRD-silent point", records the screen-designer's
+provisional counted-day choice, and flags it explicitly **for Gate 2 / architect**. This
+section is the architect discharging that delegation.
 
 The PRD defines the fraction but never what makes a day a *member* of a "7 days" /
-"30 days" preset. The approved mockups render the **counted-day** reading throughout, so
-that is what ships:
+"30 days" preset. **Counted-day** is what ships:
 
 > Walk backward from the most recent elapsed day. A day counts toward N only if it is a
 > **qualifying day** — per-task scope: that task's occurrence that day is due, non-off and
@@ -302,14 +322,22 @@ that is what ships:
 > until N counted days are found, or history runs out (then **truncate** — never
 > fabricate days before the task existed). "All time" is the whole history.
 
-Consequence: a "30 days" window may span more than 30 raw calendar days. That is intended
-and is what the approved S25 copy ("26 of the last 31 days") is consistent with — the
-"last N days" phrase names the lookback, and Y is the counted-day denominator.
+Consequence: a "30 days" window may span more than 30 raw calendar days. That is intended.
+The "last N days" phrase in display copy names the lookback; Y is the counted-day
+denominator.
+
+**Evidence this is what was approved:** S25's Appendix A is a normative 240-raw-day ledger
+whose `agg` / `f` columns are stated to be produced *mechanically by this rule* ("This is
+also the rule that produces Appendix A's `agg`/`f` columns — see the appendix's derivation
+note", lines 1611–1613), and every live dataset on the approved S25 mockup is derived from
+it. Choosing the alternative would invalidate that ledger. *(S09's "26 of the last 31 days"
+stat-chip copy is **not** evidence either way — S09's own display-format note declares that
+fixture degenerate, with all 31 days qualifying, so it reads identically under both rules.)*
 
 *Rejected alternative:* the calendar-day window (last N raw days, off days consuming a
-slot). Simpler query, but it produces different percentages from the approved screens and
-would silently invalidate every fixture in `ALLSCREENS_1.md` Appendix A. Rejected on
-design-fidelity grounds, not technical ones.
+slot). Simpler query, and it is the reading IDEA Flow 9.1's "Last 30 days" title would
+support, but it produces different percentages from the approved screens and would
+silently invalidate Appendix A. Rejected on design-fidelity grounds, not technical ones.
 
 F28 buckets and F30 cycles are **not** counted-day windows — they are explicit calendar
 `DateRange`s (a week / month / year), with the same fraction applied inside.
@@ -376,6 +404,10 @@ These are not suggestions; qa-tester asserts the same numbers.
   today becoming missed happens **on the next read**, not via a background job.
 - Clock moved **backward** must never revoke an earned badge or re-open an archived cycle.
   All progress reconciliation is upsert-only and monotonic.
+- **Monotonicity is a property of the lifetime layer, and it survives task deletion.**
+  Deleting a task cascades to its logs and off-day marks (so F5 recomputes without it, per
+  PRD F7) but **never** to its XP awards, achievement unlocks or cycle records. Lifetime XP
+  and level cannot go down as a result of any user action. See SCHEMA.md §2.3.
 
 ---
 
@@ -472,8 +504,10 @@ re-checks the store account with **no login**. Entitlement is mirrored into
   4. **Field-level inline validation** for form errors, naming the offending thing (F23's
      no-empty-run-occurrence names the weekday).
 - **Never** a full-screen red failure, never "streak broken" language, never an alarm
-  glyph. The `danger` token is reserved for the erase-all confirm button — the copy beside
-  it stays calm.
+  glyph. The `danger` token is reserved for **destructive-action confirm buttons** — S22's
+  "Delete routine" and S48's "Erase everything" — and never spreads to a surrounding icon,
+  banner or background. S22's own spec is explicit: "the danger signal lives on the button
+  only, never a full alarming icon." The copy beside it stays calm.
 - The word **"streak"** appears nowhere in shipped copy, comments-in-UI, or accessibility
   labels. `StreakBadge`-style naming from any upstream system is not carried over; our
   component is `MilestoneBadge`.
@@ -531,9 +565,12 @@ keys, no ad SDKs, no telemetry endpoints in any fixture or config.**
 
 ---
 
-## 13. Architect decisions on the PRD's open items
+## 13. Architect decisions on delegated open items
 
-| PRD §7 item | Decision | Where |
+Rows marked *(design-delegated)* were handed to the architect by the approved design, not
+by PRD §7.
+
+| Open item | Decision | Where |
 |---|---|---|
 | Cloud sync mechanism & depth (both platforms) | iCloud Documents / Drive appDataFolder behind one port; best-effort, local-authoritative; F22 stays P2 | §9.2 |
 | Managed-tier STT source | **Groq provides both** — `whisper-large-v3-turbo` for STT, no separate vendor | API.md §4 |
@@ -544,7 +581,7 @@ keys, no ad SDKs, no telemetry endpoints in any fixture or config.**
 | R22 subsetting for single-occurrence cadences | Not surfaced — the grid is replaced by the design's static degenerate note | §6.1, MODULES.md M4 |
 | F28 placement + granularity thresholds | "See full history" on S25; `<3 months` weekly, `3 months–3 years` monthly, `3 years+` yearly | design-resolved (S25/S26) |
 | Rounding ties | round-half-up | §6.5 |
-| Window membership semantics | counted-day | §6.4 |
+| Window membership semantics *(design-delegated — S25's open item)* | counted-day | §6.4 |
 | Done→ideal chip mapping | pinned mapping table | §6.1 |
 | F5/F30 breakdown display fork, "X of Y days" | design-resolved (S09 display-format note, S25 unit note) | §6.5 |
 | BYO paywall placement, accent palette, signal-colour lock | design-resolved (S38 placement note, S21/S43) | §5 |

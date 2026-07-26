@@ -32,7 +32,10 @@ interface TaskRepository {
   get(id: Id): Promise<TaskWithSteps | null>;
   insert(task: Task, steps: readonly Step[]): Promise<Result<Id>>;
   update(id: Id, patch: Partial<Task>, steps?: readonly Step[]): Promise<Result<void>>;
-  softDelete(id: Id): Promise<Result<void>>;   // cascades per SCHEMA.md §2.3
+  softDelete(id: Id): Promise<Result<void>>;   // split cascade — SCHEMA.md §2.3.
+                                               // Removes step/day_log/off_day_mark/as_needed_use.
+                                               // NEVER removes xp_award, achievement_unlock or
+                                               // cycle_record: lifetime XP and level stay monotonic.
   duplicate(id: Id): Promise<Result<Id>>;      // copies defs + metadata + toggle state, EMPTY history
 }
 
@@ -58,6 +61,7 @@ interface AsNeededRepository {                        // F27 — reference-only,
 interface ProgressRepository {
   listXpAwards(from?: LocalDate, to?: LocalDate): Promise<readonly XpAward[]>;
   appendXpAward(award: XpAward): Promise<Result<void>>;   // UNIQUE(task_id, date) — no farming
+  // lifetimeXp() never decreases from a task delete: xp_award.task_id is ON DELETE SET NULL
   lifetimeXp(): Promise<number>;
   cyclingXp(cycleId: Id): Promise<number>;
   listUnlocks(): Promise<readonly AchievementUnlock[]>;
@@ -147,6 +151,11 @@ table:
 - As-needed routines contribute nothing at either scope, by never being due — a
   *structurally different* mechanism from off-days, which remove an otherwise-due day.
 - Off-ness and pending-ness both compose **per task within a day**, never per day.
+- `reconcileAchievements` is **upsert-only and never revokes**, including after a task
+  delete or a backward clock change.
+- Lifetime XP and level are **monotonic under every user action**, task deletion included
+  (SCHEMA.md §2.3). Deleting a task with 10 ideal days leaves lifetime XP unchanged while
+  those 10 days leave the F5 denominator.
 
 ---
 
