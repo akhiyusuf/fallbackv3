@@ -17,7 +17,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 | **Gate 2** | **PENDING — human** | `design/APPROVAL.md` does not exist |
 | 3 — Build | Blocked on Gate 2 | no `src/` |
 
-Re-review in flight: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md`.
+Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
 ## Artifacts present
 
@@ -46,13 +46,36 @@ ia-architect, design-system and screen-designer are **not** to be invoked for
 this project. Briefs to architect/feature-builders must name the override paths
 explicitly.
 
-**2. No review record — RESOLVED: re-check the PRD only.**
+**2. No review record — RESOLVED: re-check the PRD only. Result: PASS.**
 Human decided the carried-over artifacts are trusted as reviewed in their
 original run, except `docs/PRD.md`, which every builder reads and where an error
-would propagate through all of Phase 3. artifact-reviewer has been invoked on
-`docs/PRD.md` against `docs/REQUIREMENTS.md` + `docs/FEATURES.md`; verdict will
-land in `review/REVIEW-PRD.md`. The other three docs and the design carry no
-PASS in this repo by explicit human decision.
+would propagate through all of Phase 3. artifact-reviewer reviewed it against
+`docs/REQUIREMENTS.md` + `docs/FEATURES.md` → **`review/REVIEW-PRD.md`: PASS**.
+The PRD is safe for the architect and feature-builders to treat as law. The
+other three docs and the design carry no PASS in this repo by explicit human
+decision.
+
+Verified clean: full R1–R26 and F1–F31 traceability with P0/P1/P2 matching
+FEATURES.md; the off-day and fractional-rollup maths consistent across all nine
+places it appears, with all five worked anchors re-verified arithmetically; §7's
+"no item is OWNER: human" claim confirmed across all 14 open decisions.
+
+### Carry into Phase 3 — advisory findings from REVIEW-PRD.md
+
+None blocking, but they must reach the architect or they will resurface as
+builder-vs-qa disagreements:
+
+1. **Rounding ties are unpinned.** §3.5 says "nearest whole percent" but no
+   worked example exercises a `.5` tie (e.g. 1/8 = 12.5%). The design already
+   resolved it as **round-half-up** (`ALLSCREENS_1.md` line 2947). The architect
+   must codify that so builders and qa-tester don't diverge.
+2. **Done→ideal chip mapping is implicit** in §3.3/§6. Inferable, and the design
+   resolved it, but it wants one explicit line in ARCHITECTURE/SCHEMA.
+3. **Two §7 items name "spec-writer" as co-owner** of forks, though the PRD is
+   the spec-writer's terminal artifact. Process wrinkle only — the display forks
+   (S25, S29/S30) are in fact design-resolved; the F29 tenure-anchor event falls
+   to the architect.
+4. Trivial: §3.5 writes 26/31 as "83.9" (exact 83.87). The final 84% is correct.
 
 ## Next action
 
