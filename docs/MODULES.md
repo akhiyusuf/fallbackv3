@@ -21,8 +21,10 @@ Design inputs (**not** at the usual paths — see the PROJECT OVERRIDE in `CLAUD
 
 ## House testing pattern — read this before writing a component test
 
-Wave 1 hit two breakages in the frozen test config and worked around them locally. **Both
-are now fixed centrally; delete any local workaround you inherited and use this pattern.**
+Wave 1 hit **three** breakages in the frozen test config and worked around them locally.
+**All three are now fixed centrally.** Delete any local workaround you inherited for the
+three named below — but read the `expo-router` note before deleting anything, because that
+mock was correct until this fix landed and M0 was right to defend it.
 
 **Use `@testing-library/react-native`. Do not drive `react-test-renderer` directly.** The
 `test-renderer` peer dependency it needs is now installed and pinned.
@@ -47,16 +49,54 @@ it('logs a fallback from the chip', async () => {
 });
 ```
 
+**Routing works out of the box — do NOT mock `expo-router`.** This one bit wave 1 and was
+the most dangerous of the three, because the symptom points at the wrong package:
+`Cannot use import statement outside a module`, thrown from `standard-navigation`, a
+transitive dependency of `expo-router` that declares `"type": "module"` and ships raw ESM in
+a **`.js`** file — so it slipped past the `.mjs` transform, past the lucide name mapping, and
+past the transform whitelist. The whitelist now names it, and the preset's babel transform
+handles it from there.
+
+Verified working **unmocked**, by rendering rather than by importing: `useLocalSearchParams`,
+`useRouter`, `router.push`, and `<Link>` all render and behave correctly **outside any
+navigator** — which is how a screen test runs. `useLocalSearchParams` returns empty params
+rather than throwing, so origin-aware screens (S14, S22, S23, S25, S27, S29, S48) test
+cleanly with no navigation context.
+
+To assert that a navigation happened, **spy — do not mock the module**:
+
+```tsx
+const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+await render(<TodayScreen />);
+await userEvent.press(screen.getByLabelText('See your consistency'));
+expect(push).toHaveBeenCalledWith('/progress');
+push.mockRestore();
+```
+
+An un-spied `router.push` outside a navigator is also safe — it does not throw or fail the
+test.
+
+**Status of M0's existing mock:** it was correct and necessary when written, it is now
+redundant, and it is **harmless** — it shadows a module that works. Removing it is optional
+cleanup for whenever M0 is next open, **not** a defect and **not** grounds for reopening a
+passed review. What matters is the forward rule: **M1, M2 and all five wave-2 modules must
+not add an `expo-router` mock.** Five divergent hand-rolled router mocks in the reference
+suite is exactly the outcome this fix exists to prevent.
+
 **Icons work out of the box — do not mock `lucide-react-native`.** The config maps it to
 lucide's prebuilt CJS output, so the ESM `.mjs` parse error is gone. (Note lucide icons do
 not forward `testID` to the SVG root; assert on an accessible name or a wrapper, not on a
 `testID` you passed to the icon.)
 
-**Fixed centrally, for the record:** `@testing-library/react-native@14.0.1` declares a peer
-on a package named `test-renderer` (not `react-test-renderer`) — it is real, it is by the
-same author, and it is React 19's replacement for the deprecated `react-test-renderer`; it
-is now an explicit devDependency. And `jest.config.js` now pins lucide to CJS plus carries a
-`.mjs` transform for any future ESM-only dependency.
+**Fixed centrally, for the record.** (1) `@testing-library/react-native@14.0.1` declares a
+peer on a package named `test-renderer` — not `react-test-renderer`. It is real, it is by the
+same author, and it is React 19's replacement for the deprecated `react-test-renderer`; it is
+now an explicit devDependency. (2) `jest.config.js` pins lucide to its prebuilt CJS output.
+(3) The transform whitelist now names `standard-navigation`, which is what makes `expo-router`
+importable. The `.mjs` transform is also still there for any future ESM-only dependency —
+though note it would **not** have caught `standard-navigation`, which ships ESM in a `.js`
+file. If you ever meet `Cannot use import statement outside a module` from a new package,
+that is the shape to look for, and it is an architect change request, not a local mock.
 
 **`expo-crypto.randomUUID()` returns `undefined` under jest-expo's automock.** Any test that
 reaches `newId()` needs a local mock — this one stays local because it is test-specific:

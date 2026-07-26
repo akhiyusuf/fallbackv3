@@ -554,9 +554,12 @@ export function useUpdateSettings() {
       emit({ type: 'settings:changed' });
       return result;
     },
-    onSuccess: (result) => {
+    onSuccess: (result, patch) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      if (result.ok && result.value.cycleCadence) {
+      // `Settings.cycleCadence` is always present on `result` (it's non-optional) — check the
+      // MUTATION'S INPUT for whether this call actually touched it, not the always-populated
+      // output, or these would fire on every settings change.
+      if (result.ok && patch.cycleCadence) {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.records });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.progress });
       }
