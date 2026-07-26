@@ -139,7 +139,8 @@ scripture.**
 - **What you may not change without an architect change request:** a *pinned decision* —
   the round-half-up algorithm and its locked assertions (ARCHITECTURE §6.5), the
   consistency algorithm (§6), the chip→outcome mapping (§6.1), the counted-day window
-  (§6.4), the delete-cascade split (SCHEMA §2.3), the design-pinned level titles and badge
+  (§6.4), the delete-cascade split (SCHEMA §2.3), the **F7 move/snooze semantics
+  (SCHEMA §4.2, R-rules / W-rules / C1–C8)**, the design-pinned level titles and badge
   labels (SCHEMA §7) — or anything in a **frozen** or **unowned** path.
 - The distinction: `roundHalfUp` returning the wrong value for 12.5 would be a defect worth
   fixing; changing it to banker's rounding would be re-opening a pin. The eight locked
@@ -175,10 +176,13 @@ request.
 
 ## Open architect change requests (post-wave-1)
 
-Wave 1 surfaced three contract gaps in architect-frozen files. Two are fixed in the frozen
-files directly (see "House testing pattern" below). The remaining two require edits to
-**M0-owned** source, so they are recorded here as change requests rather than made by the
-architect. **CR-1 and CR-2 are approved — M0 applies them; M1 and M2 then align.**
+Wave 1 surfaced contract gaps in architect-owned files. The test-config ones are fixed in
+the frozen files directly (see "House testing pattern" above). The rest are recorded here,
+because they touch **M0-owned** source or pin semantics the architect owns.
+**All three are approved.** CR-1 and CR-2 are port changes: M0 applies them, M1 and M2 then
+align. **CR-3 is spec-only** — no source change, no schema change — and is already binding
+on M2 through `review/ADVICE-M2.md`; it is recorded here so **M4** and the qa-tester read a
+contract instead of a review trail.
 
 ### CR-1 — add the `cycle_state` accessor to the `Repositories` port (M0)
 
@@ -217,6 +221,44 @@ undeliverable. The §7 wording is correct; the port was incomplete.
 - **M2** — call it from the log mutation when an occurrence stops carrying a showing-up
   state. This is the **only** sanctioned reduction of lifetime XP. It must **not** fire on a
   missed day, an off day, a cycle boundary, or a task deletion.
+
+### CR-3 — F7 move/snooze semantics are now a contract, in `SCHEMA.md` §4.2 (spec only)
+
+**Origin:** M2 hit ADVISOR_REQUIRED on the move feature. The advisor's root cause was **an
+architect spec gap, not a builder failure** — F7's move semantics existed upstream as one
+sentence and one column note (PRD §3.7, SCHEMA §4, ALLSCREENS S20), and nothing anywhere
+defined *composition*: un-move, same-day, chains, merges, or moves involving already-vacated
+dates. M2 was implementing against review prose because there was no contract to implement
+against. That gap is mine, and `SCHEMA.md` §4.2 closes it.
+
+**No schema change.** `day_log.moved_to_date` keeps its exact shape; only its semantics are
+pinned. §4.2 mirrors Ruling 1 of `review/ADVICE-M2.md` **verbatim** — R-rules, W-rules, the
+C1–C8 case table, the D-rule and the boundary notes.
+
+The contract has **two halves and both are required**:
+- **Read precedence** — a moved-in record confers due-ness **before** the vacate check
+  (R-1 precedes R-2); a vacated own log is **residue**: it never annihilates a moved-in
+  occurrence and never supplies its data.
+- **Write normalisation** — a move *from* a date carrying inbound pointers operates on
+  **those pointers only**; the own-log pointer is written only when no inbound exists.
+
+Implementing only the read half still ships **C6** (task due A and B; B→C then A→B
+annihilates A's occurrence), which no source-pointer normalisation can reach.
+
+- **M2** — already implementing; the ADVICE copy is binding now and M2 does **not** wait on
+  this CR. §4.2 exists so the contract is findable outside a review trail.
+- **M4** — build the S20 snooze/move UI against §4.2, not against this summary. See M4's
+  non-negotiables.
+- **qa-tester** — C1–C8 are required tests, asserted end-to-end through the public surface
+  (hooks + reads), never through internals.
+
+**Not proposed: a transaction primitive on `Repositories`.** The advisor confirmed none
+exists and deliberately designed W-3's ordered single-row writes so that **every
+intermediate state is legal** under the R-rules, with no compensation logic. I agree, and I
+am **not** proposing to add one: it would reopen the frozen M0 port and both PASSED M1
+surfaces to buy atomicity the algorithm does not need. If a future mutation genuinely needs
+cross-repository atomicity, that is a separate architect change request with its own
+justification — do not assume it exists.
 
 ---
 
@@ -474,7 +516,14 @@ F13 (S24's XP line), F23, F24, F26, F27.
 - The sub-step grid governs **ideal** steps only. The fallback is whole-task and available
   on every run-occurrence.
 - Duplicate copies definitions, metadata and toggle state but starts with **empty history**.
-- Snooze/move affects the **occurrence**, not the cadence.
+- Snooze/move affects the **occurrence**, not the cadence. **Build it against
+  `SCHEMA.md` §4.2 (F7 move semantics), which is a pinned contract with a C1–C8 case
+  table** — read precedence (a moved-in record confers due-ness before the vacate check) and
+  write normalisation (a move from a date with inbound pointers redirects *those*, never the
+  own-log pointer). Undo-a-snooze, same-day, chained, merged and un-merged moves are all
+  specified there. Do not infer move behaviour from the S20 interaction line or from
+  ARCHITECTURE §6.1's outcome table alone — both are summaries, and this class of bug
+  annihilates occurrences irrecoverably (see CR-3).
 - **S22 carries two SEPARATE origin rules — implement both, do not merge them**
   (ARCHITECTURE §4.3; `ALLSCREENS_1.md` S22 lines 1155–1166 and 1202–1247):
   - **"Keep it" / scrim / back** → the screen that *opened* S22: S20 if from S20, S23 if

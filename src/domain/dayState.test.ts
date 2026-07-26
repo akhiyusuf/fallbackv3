@@ -207,17 +207,44 @@ describe('resolveOccurrence — F7 snooze/move (review pass 1, blocking item 6)'
   });
 });
 
-describe('resolveOccurrence — F7 tie-break edges (review pass 2, non-blocking notes)', () => {
-  const task = makeTask();
+describe('resolveOccurrence — C6 (ADVICE-M2.md Ruling 1, R-1 before R-2 — overrides the pass-3 "chained move vacates B" test, which is INVERTED here per the advisor\'s explicit instruction, not reworded)', () => {
+  // Daily cadence: naturally due on every date, so BOTH A and B are natural occurrences of
+  // the SAME task — the exact "task due A and B" premise C6 requires.
+  const task = makeTask({ cadence: { kind: 'daily' } });
 
-  test('a chained move (A moved to B, and B itself moved on to C) vacates B without resurrecting A\'s data at C', () => {
-    // A's row carries movedToDate=B; B's OWN row also carries movedToDate=C. Resolving B:
-    // B's own log has movedToDate set, so B vacates (not-due) regardless of any moved-in
-    // record aimed at it — a chain is deliberately NOT resolved transitively in one call;
-    // `src/queries/internal.ts` is documented as looking up only single-hop moves.
-    const bLog = log({ date: d('2024-06-02'), movedToDate: d('2024-06-03'), chipState: 'done' });
-    const resolvedB = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-02'), log: bLog, offMarks: [] });
-    expect(resolvedB.outcome).toBe('not-due');
+  test('task due on both B and A; B->C then A->B: A resolves DUE at B via the moved-in record — B\'s own residue outbound pointer does not annihilate it', () => {
+    // B's own row: B's occurrence itself already moved on to C (residue at B).
+    const bLog = log({ date: d('2024-06-02'), movedToDate: d('2024-06-03'), chipState: 'done', isManualOverride: true });
+    // A's row: A's occurrence moved INTO B.
+    const aLog = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02'), chipState: 'fallback', isManualOverride: true });
+
+    const resolvedB = resolveOccurrence({
+      task,
+      date: d('2024-06-02'),
+      today: d('2024-06-02'),
+      log: bLog, // B's own row — residue, pointer non-null
+      offMarks: [],
+      movedInLog: aLog, // A's row — inbound(B) is non-empty
+    });
+
+    // DUE — not annihilated by B's own residue pointer — and resolved using A's data (the
+    // moved-in record), since B's own log is residue (non-null pointer), never a data source.
+    expect(resolvedB.outcome).toBe('fallback');
+    expect(resolvedB.chipState).toBe('fallback');
+  });
+
+  test('B\'s own occurrence, meanwhile, stays due at C (unaffected by A arriving at B)', () => {
+    const cLog: null = null; // C has no own row — B's residue is the only thing pointing at it
+    const bResidue = log({ date: d('2024-06-02'), movedToDate: d('2024-06-03'), chipState: 'done', isManualOverride: true });
+    const resolvedC = resolveOccurrence({
+      task,
+      date: d('2024-06-03'),
+      today: d('2024-06-03'),
+      log: cLog,
+      offMarks: [],
+      movedInLog: bResidue, // B's row points at C
+    });
+    expect(resolvedC.outcome).toBe('ideal'); // B's own ('done') data, now showing at C
   });
 });
 

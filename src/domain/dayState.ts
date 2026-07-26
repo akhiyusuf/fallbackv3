@@ -62,49 +62,20 @@ const notDueOccurrence = (task: TaskWithSteps, date: LocalDate, chipState: ChipS
   dosesCompleted: 0,
 });
 
-export function resolveOccurrence(input: {
-  task: TaskWithSteps;
-  date: LocalDate;
-  today: LocalDate;
-  /** The log row keyed by exactly `(task.id, date)`, if any. */
-  log: DayLog | null;
-  offMarks: readonly OffDayMark[];
-  /** See `occurrence.ts`'s `isDue` doc comment — the device-local creation-day bound, supplied by the caller. */
-  notBefore?: LocalDate;
-  /**
-   * F7 snooze/move (review pass 1, blocking item 6; precedence fixed in review pass 2,
-   * blocking item N1). A log row from a DIFFERENT date whose own `movedToDate` equals
-   * `date` — i.e. an occurrence that was relocated INTO this date. "Snooze/move affects the
-   * occurrence, not the cadence" (MODULES M4): a moved-in record confers DUE-NESS on a date
-   * the cadence wouldn't naturally place it, and supplies the INITIAL chip/step data — but a
-   * REAL user action on the target date (`log`, this date's own row) always wins over it. A
-   * user tapping Done on the target date after a move is not shadowed by the stale moved-in
-   * record; see `resolveOneOccurrence` in `src/queries/internal.ts`, which is the ONLY place
-   * both `log` and `movedInLog` are looked up, so every caller (read or mutation) resolves
-   * through this exact same precedence — never two independent implementations.
-   */
-  movedInLog?: DayLog | null;
-}): Occurrence {
-  const { task, date, today, log, offMarks, notBefore, movedInLog } = input;
-
-  // This date's own occurrence was relocated elsewhere: it vacates this date entirely,
-  // regardless of cadence due-ness — never "missed" here, on any day (SCHEMA §4 `moved_to_date`).
-  if (log && log.movedToDate !== null) {
-    return notDueOccurrence(task, date, log.chipState);
-  }
-
-  // A moved-in record confers due-ness even off-cadence; otherwise fall back to the normal
-  // cadence check (which also covers the ordinary case where `log` is a real due-date log).
-  const due = movedInLog != null || isDue(task, date, notBefore);
-  if (!due) {
-    return notDueOccurrence(task, date, log?.chipState ?? null);
-  }
-
-  // PRECEDENCE (N1): a real log for THIS date always wins over a moved-in record. The
-  // moved-in record's only job, once a real log exists here, was to confer due-ness above —
-  // it never shadows what the user actually did on the date they're looking at.
-  const effectiveLog = log ?? movedInLog;
-
+/**
+ * Resolves a date already known to be due (naturally, or via a moved-in record) into its
+ * full outcome: off-check, auto-log rule, manual-override precedence, chip -> outcome
+ * mapping. Shared by R-1 (moved-in due-ness) and R-3 (natural due-ness) in
+ * `resolveOccurrence` below — one computation, two entry points, per ADVICE-M2.md Ruling 1.
+ */
+function resolveDueOccurrence(
+  task: TaskWithSteps,
+  date: LocalDate,
+  today: LocalDate,
+  effectiveLog: DayLog | null,
+  offMarks: readonly OffDayMark[],
+  notBefore: LocalDate | undefined,
+): Occurrence {
   const dueIdealIds = dueIdealStepIds(task, date, notBefore);
   const completedStepIds = effectiveLog ? effectiveLog.completedStepIds.filter((id) => dueIdealIds.includes(id)) : [];
   const dosesRequired = task.dosesPerDay;
@@ -139,6 +110,58 @@ export function resolveOccurrence(input: {
     dosesRequired,
     dosesCompleted,
   };
+}
+
+export function resolveOccurrence(input: {
+  task: TaskWithSteps;
+  date: LocalDate;
+  today: LocalDate;
+  /** The log row keyed by exactly `(task.id, date)`, if any. */
+  log: DayLog | null;
+  offMarks: readonly OffDayMark[];
+  /** See `occurrence.ts`'s `isDue` doc comment — the device-local creation-day bound, supplied by the caller. */
+  notBefore?: LocalDate;
+  /**
+   * F7 snooze/move. A log row from a DIFFERENT date whose own `movedToDate` equals `date` —
+   * i.e. an occurrence relocated INTO this date (`inbound(D)` in ADVICE-M2.md Ruling 1,
+   * already tie-broken to the single display winner by the caller). See
+   * `resolveOneOccurrence` in `src/queries/internal.ts`, the ONLY place both `log` and
+   * `movedInLog` are looked up, so every caller (read or mutation) resolves through this
+   * exact same precedence — never two independent implementations.
+   */
+  movedInLog?: DayLog | null;
+}): Occurrence {
+  const { task, date, today, log, offMarks, notBefore, movedInLog } = input;
+
+  // R-1 (ADVICE-M2.md Ruling 1, binding — supersedes the pass-2 N1 fix's check order): a
+  // moved-in record confers due-ness UNCONDITIONALLY, evaluated BEFORE any vacate check.
+  // This is what makes C6 resolve correctly — task due on both A and B; B->C then A->B: B's
+  // own row is itself residue (pointing onward to C), but that residue must never annihilate
+  // A's occurrence, which is genuinely due at B via the moved-in record. A real, NON-vacated
+  // log on this date still wins over the moved-in record (pass-2 N1's rule, unchanged) — a
+  // vacated own log (pointer non-null) is residue: it never supplies data and never blocks
+  // due-ness either.
+  if (movedInLog != null) {
+    const effectiveLog = log && log.movedToDate === null ? log : movedInLog;
+    return resolveDueOccurrence(task, date, today, effectiveLog, offMarks, notBefore);
+  }
+
+  // R-2: no moved-in record — THIS date's own occurrence may have relocated elsewhere, in
+  // which case it vacates this date entirely, regardless of cadence due-ness — never
+  // "missed" here, on any day (SCHEMA §4 `moved_to_date`). Only reached once R-1 has ruled
+  // out a moved-in record — the precedence delta from pass-2's code, which checked this
+  // first and could wrongly annihilate a moved-in occurrence (C6).
+  if (log && log.movedToDate !== null) {
+    return notDueOccurrence(task, date, log.chipState);
+  }
+
+  // R-3: ordinary natural resolution — byte-equivalent to every no-move code path before
+  // this change (ADVICE-M2.md: "with no move in play, behaviour must remain
+  // byte-equivalent").
+  if (!isDue(task, date, notBefore)) {
+    return notDueOccurrence(task, date, log?.chipState ?? null);
+  }
+  return resolveDueOccurrence(task, date, today, log, offMarks, notBefore);
 }
 
 /** Auto-log rule (F3): all due ideal steps complete -> ideal; >=1 but not all -> fallback; 0 -> todo. */

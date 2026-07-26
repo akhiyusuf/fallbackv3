@@ -225,6 +225,121 @@ To do / no row → pending while the date is today; missed once the day has ende
 F5 breakdown (ideal/fallback/off only) — but missed days are the load-bearing denominator
 category and the only thing that lowers the %.
 
+### 4.2 `moved_to_date` semantics (F7 move / snooze) — PINNED
+
+> **Provenance.** This section mirrors Ruling 1 of `review/ADVICE-M2.md` **verbatim**. That
+> ADVICE is binding on M2 and its reviewer; this is the same contract made findable for
+> everyone downstream — chiefly **M4**, which builds the snooze/move UI (S20), and the
+> qa-tester. If this section and the ADVICE ever disagree, the ADVICE wins and the
+> discrepancy is an architect bug — raise it, do not pick one.
+>
+> **No schema change.** `day_log.moved_to_date` keeps its exact shape (§4). Only its
+> semantics are pinned. PRD §3.7's "move/snooze affects the occurrence, not the cadence" is
+> preserved by every row below; this fills a gap, it does not relax a rule.
+
+**Definitions** (for task τ, date D):
+- `ownLog(D)` — the `day_log` row keyed `(τ, D)`, if any.
+- `pointer(D)` — `ownLog(D).movedToDate` when non-null. A row with a non-null pointer
+  is RESIDUE for its own date: its chip/step data belongs to the occurrence that left,
+  and it neither vacates a date that has a moved-in record nor supplies data to one.
+- `inbound(D)` — rows `r` with `r.movedToDate === D` (searched within the existing
+  ±60-day window). Tie-break for multiple inbound rows: latest source `date`
+  (unchanged from current `buildMovedInIndex`).
+- `natural(D)` — `isDue(τ, D, notBefore)`.
+
+**READ RESOLUTION** — `resolveOccurrence`, replacing the current check order:
+
+```
+R-1  if a moved-in record exists for D (inbound non-empty):
+       D IS due — regardless of natural(D); off-marks still resolve `off` as today.
+       effectiveLog := ownLog(D) if it exists AND pointer(D) is null   (a real user
+                        action on D wins — pass-2 N1's rule, unchanged)
+                     else the moved-in record (existing tie-break).
+       A vacated own log (pointer non-null) NEVER annihilates a moved-in occurrence
+       and NEVER supplies its data — it is residue (see C6).
+R-2  else if pointer(D) is non-null: not-due (vacated). Unchanged.
+R-3  else: the existing natural resolution. Unchanged.
+```
+
+The only delta from today's code is that the vacate check yields to a present
+`movedInLog`, and a vacated own log is excluded as a data source. With no move in
+play, behaviour must remain byte-equivalent to the pass-3-verified code — the same
+regression standard the reviewer applied at pass 3 holds.
+
+**WRITE** — `useMoveOccurrence(τ, F, T)`. Validate everything, then write:
+
+```
+W-0  F === T → no-op: return ok with the current occurrence. Zero writes, zero
+     reconciles, zero events.
+W-1  Resolve F via resolveOneOccurrence (under the R-rules above). If outcome is
+     'not-due' → reject VALIDATION_FAILED, zero writes. (Never fabricate an
+     occurrence from a never-due date; never move from an already-vacated date —
+     the occurrence is moved from where it currently lives.)
+     Any other outcome — pending, ideal, fallback, missed, off — is movable.
+W-2  Distance guard, measured from the row that will CARRY each pointer, never
+     from F: every redirected inbound row r must satisfy |r.date − T| ≤ 60
+     (MOVE_SEARCH_PAD_DAYS); in the own-pointer branch, |F − T| ≤ 60. Any
+     violation rejects the whole move with zero writes. (The current |F − T|
+     check is wrong under chain collapse: S→B at 59 days then B→T at 59 more
+     puts the pointer 118 days from its row and silently outruns the search
+     window.)
+W-3  Writes — the branch is chosen by inbound(F), nothing else:
+     if inbound(F) is non-empty:                 [the VISITING occurrence moves]
+        for each r in inbound(F):
+           r.date === T → set r.movedToDate = null          (un-move: going home)
+           r.date !== T → set r.movedToDate = T             (chain collapse / redirect)
+        ownLog(F) is NOT touched in this branch — no pointer is ever written onto
+        a date whose due-ness is conferred by a move, and a residue pointer on F
+        (its own occurrence away elsewhere) is never hijacked.
+     else:                                        [F's own live occurrence moves]
+        upsert ownLog(F).movedToDate = T  (preserving existing chip/step data,
+        as today).
+     Ordering note: there is no transaction primitive on the Repositories port.
+     Write cleared/redirected inbound rows first, one at a time — every
+     intermediate state is a legal state under the R-rules — and on a mid-
+     sequence persistence failure return the error and reconcile the dates
+     already touched. No compensation logic is required or wanted.
+W-4  Reconcile every touched date (F, T, and each written r.date) through
+     reconcileOccurrence; emit day:logged for T exactly once. XP changes only
+     through those reconciles: vacated showing-up sources retract (existing CR-2
+     boundary), restored sources re-affirm.
+```
+
+**Named cases — each row below is a required test, asserted end-to-end through the
+public surface (hooks + reads), not through internals:**
+
+| # | Sequence | Required end state |
+|---|---|---|
+| C1 | A→B, then B→A (undo the snooze; A natural) | `ownLog(A).movedToDate = null`; no pointer anywhere; A due with its prior chip/step data and a previously-earned award re-affirmed; B not-due; denominator restored |
+| C2 | A→A | no-op per W-0 |
+| C3 | A→B, then B→C | exactly one pointer, `ownLog(A) → C`; due at C only; C→A afterwards restores A per C1. Guard: \|A − C\| ≤ 60 |
+| C4 | A→B where B is naturally due (merge) | legal; A vacated (leaves the denominator); B unchanged — one occurrence, its own live log winning |
+| C4r | …then B→A (un-merge) | inbound branch: clears `ownLog(A)` only; A due again with prior data; B's natural occurrence untouched — exact restore |
+| C5 | A→B merged, then B→C | the VISITING occurrence moves: `ownLog(A) → C`; B's natural occurrence remains due at B. (To move B's own occurrence, move the visitor away first — deliberate, last-in-first-out) |
+| C6 | task due A and B; B→C, then A→B | A's occurrence is DUE at B via its moved-in record (R-1) — B's residue outbound pointer does not annihilate it; B's own occurrence stays at C. **This is the case the pass-3 prescription does not fix** |
+| C7 | A→B, complete at B, then B→A | A restored per C1; B resolves not-due and its award is retracted by reconcile; `ownLog(B)`'s chip data remains as dormant residue (D-rule) |
+| C8 | A1→B and A2→B (double inbound) | both sources vacated; one occurrence at B; data = live `ownLog(B)` if any, else latest-source moved-in (existing tie-break) |
+
+**D-rule (dormant data, pinned so it is not relitigated):** a `day_log` row's chip/step
+data is per-date state. It is inert while no occurrence resolves at that date and
+revives if an occurrence returns there (C1's restore; symmetrically, re-moving onto a
+date with prior data revives that data and reconcile re-affirms). This mirrors F4's
+"restore what was logged" and is intended behaviour, not a defect.
+
+**Boundary notes:** T may be past or future — a past T resolves under the ordinary
+past-date rules (an unlogged past target reads missed; that is coherent, not a bug).
+A move onto an off-marked date resolves `off` with no retraction, exactly as verified
+at pass 3.
+
+**Architect note — finalized cycle records are deliberately NOT rewritten by a move.**
+A move that relocates an occurrence across a cycle boundary (e.g. Jun 30 → Jul 1) does not
+alter an already-finalized `cycle_record`; §8 pins those as permanent and append-only. The
+consequence, stated so qa-tester does not read it as a bug: after a cross-boundary move, an
+archived record's stored `consistency_percent` may no longer equal a fresh recomputation of
+that same window. **Assert archived records against their stored values, never against a
+recomputation.** This is pre-existing F30 behaviour surfaced by the move contract, not
+introduced by it.
+
 ---
 
 ## 5. `off_day_mark`, `as_needed_use`

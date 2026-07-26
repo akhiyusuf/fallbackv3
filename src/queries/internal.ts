@@ -5,7 +5,7 @@
  */
 import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
 import { occurrencesBetween, resolveOccurrence } from '@/domain';
-import type { DayLog, LocalDate, Occurrence, Repositories, TaskWithSteps } from '@/types';
+import type { DayLog, Id, LocalDate, Occurrence, Repositories, TaskWithSteps } from '@/types';
 
 export function todayLocal(): LocalDate {
   return clockToday();
@@ -47,11 +47,14 @@ function iterationFrom(task: TaskWithSteps, notBefore: LocalDate): LocalDate {
 export const MOVE_SEARCH_PAD_DAYS = 60;
 
 /**
- * Only single-hop chains are resolved: if two DIFFERENT source dates both moved into the
- * same target date (a rare double-move), the entry with the LATER source `date` wins,
- * deterministically — sorting ascending before inserting means the last `.set()` for a given
- * target key is always the most-recently-dated source (review pass 2 non-blocking note; was
- * previously whatever order the repository happened to return, i.e. undefined).
+ * The READ-side tie-break for `movedInLog` (ADVICE-M2.md Ruling 1's `inbound(D)`, display
+ * form): if two DIFFERENT source dates both point at the same target date (C8's double
+ * inbound), the entry with the LATER source `date` wins, deterministically — sorting
+ * ascending before inserting means the last `.set()` for a given target key is always the
+ * most-recently-dated source (review pass 2 non-blocking note; was previously whatever order
+ * the repository happened to return, i.e. undefined). The WRITE side (`findInboundLogs`
+ * below) does not tie-break — it returns every matching row, because redirecting a visiting
+ * occurrence away must move every inbound pointer aimed at it, not just the displayed one.
  */
 function buildMovedInIndex(logs: readonly DayLog[], from: LocalDate, to: LocalDate): Map<LocalDate, DayLog> {
   const candidates = logs
@@ -66,6 +69,19 @@ async function fetchMoveWindowLogs(repos: Repositories, taskId: TaskWithSteps['i
   const searchFrom = addDays(from, -MOVE_SEARCH_PAD_DAYS);
   const searchTo = addDays(to, MOVE_SEARCH_PAD_DAYS);
   return repos.logs.listForTask(taskId, searchFrom, searchTo);
+}
+
+/**
+ * ADVICE-M2.md Ruling 1 — `inbound(D)`: EVERY row whose `movedToDate === D`, within the
+ * bounded search window, sorted ascending by source date. This is deliberately NOT the same
+ * as the read side's `buildMovedInIndex` (which tie-breaks down to one winner for display):
+ * `useMoveOccurrence`'s write-side branch selection ("the branch is chosen by inbound(F),
+ * nothing else", W-3) needs every matching row so a double-inbound date (C8) redirects all
+ * of them, not just the one the read side currently shows.
+ */
+export async function findInboundLogs(repos: Repositories, taskId: Id, date: LocalDate): Promise<DayLog[]> {
+  const logs = await fetchMoveWindowLogs(repos, taskId, date, date);
+  return logs.filter((l) => l.movedToDate === date).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 /** Every due occurrence of ONE task between its own earliest possible date and `to`, resolved. */
