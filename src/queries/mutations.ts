@@ -563,3 +563,11 @@ export function useUpdateSettings() {
     },
   });
 }
+
+/**
+ * Exported for `mutations.test.ts` ONLY (review pass 1, blocking item 10 — "the buggiest code
+ * in this module... have zero coverage"). Not part of the documented `@/queries` surface
+ * (docs/API.md §3 lists the hooks only); a feature module has no reason to import these
+ * directly — call the hooks above instead.
+ */
+export const __testing__ = { reconcileCycleBoundaries, finalizeCycleForCadenceChange, archiveCycleWindow, getOrInitCycleState, reconcileOccurrence };
