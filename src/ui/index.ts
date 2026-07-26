@@ -6,6 +6,8 @@
 export { ScreenStub } from './ScreenStub';
 
 export type { IconComponent, IconProps } from './icon';
+/** The kit's one canonical screen-reader-only idiom — see the file header for why both halves matter. */
+export { SR_ONLY_PROPS, SR_ONLY_STYLE } from './a11y';
 
 // Verdant primitives
 export { Button, type ButtonProps, type ButtonVariant } from './Button';

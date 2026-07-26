@@ -12,6 +12,7 @@ import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
 import { SPACE, useTheme } from '@/theme';
 
+import { SR_ONLY_PROPS, SR_ONLY_STYLE } from './a11y';
 import { Button } from './Button';
 
 export interface TrendGraphPoint {
@@ -59,7 +60,7 @@ export function TrendGraph({ points, accessibilityLabel, height = 160 }: TrendGr
   return (
     <View>
       {/* Ship-blocking: present at all times, independent of the toggle below. */}
-      <Text style={styles.srOnly} accessibilityElementsHidden={false} importantForAccessibility="yes">
+      <Text style={SR_ONLY_STYLE} {...SR_ONLY_PROPS}>
         {`${accessibilityLabel}. ${summary}.`}
       </Text>
 
@@ -130,7 +131,6 @@ export function TrendGraph({ points, accessibilityLabel, height = 160 }: TrendGr
 }
 
 const styles = StyleSheet.create({
-  srOnly: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   scrubRow: { flexDirection: 'row', marginTop: -SPACE.s2 },
   scrubHit: { flex: 1, height: 32 },
   readout: { fontSize: 14, fontWeight: '600', marginTop: SPACE.s1 },

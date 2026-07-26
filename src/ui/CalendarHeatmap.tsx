@@ -19,6 +19,7 @@ import { MIN_TAP_TARGET, SPACE, useTheme, type Theme } from '@/theme';
 import { weekdayOf } from '@/lib/date';
 import type { LocalDate, OccurrenceOutcome } from '@/types';
 
+import { SR_ONLY_PROPS, SR_ONLY_STYLE } from './a11y';
 import { IconButton } from './IconButton';
 
 export interface CalendarHeatmapDay {
@@ -79,11 +80,14 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
         ONE VoiceOver/TalkBack element, making the cells and month nav unreachable. Same
         rule this file's own tests apply to StateChip/InlineRetryBanner/BottomTabs: never
         set `accessible` on a wrapper of interactive children. The label is announced
-        instead via this visually-hidden sibling `Text` — a real accessibility element
-        (auto-accessible, per RN host `Text` semantics) that sits OUTSIDE the interactive
-        subtree rather than wrapping it, so it adds context without swallowing anything.
+        instead via this visually-hidden sibling `Text` (the kit's one canonical sr-only
+        idiom, `@/ui/a11y` — pass 3, carried item 2: same spelling as `TrendGraph`) that
+        sits OUTSIDE the interactive subtree rather than wrapping it, so it adds context
+        without swallowing anything.
       */}
-      <Text style={styles.srOnly}>{accessibilityLabel}</Text>
+      <Text style={SR_ONLY_STYLE} {...SR_ONLY_PROPS}>
+        {accessibilityLabel}
+      </Text>
       <View style={styles.nav}>
         {onPrevMonth ? <IconButton icon={ChevronLeft} onPress={onPrevMonth} accessibilityLabel="Previous month" /> : <View style={styles.navSpacer} />}
         <Text accessibilityRole="header" style={[styles.monthLabel, { color: t.color.text }]}>
@@ -177,7 +181,6 @@ function toWeekRows(days: readonly CalendarHeatmapDay[]): (CalendarHeatmapDay | 
 }
 
 const styles = StyleSheet.create({
-  srOnly: { position: 'absolute', width: 1, height: 1, opacity: 0 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navSpacer: { width: 44, height: 44 },
   monthLabel: { fontSize: 16, fontWeight: '600' },

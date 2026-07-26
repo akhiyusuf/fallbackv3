@@ -30,4 +30,29 @@ describe('event bus', () => {
     off = on('store:erased', () => off());
     expect(() => emit({ type: 'store:erased' })).not.toThrow();
   });
+
+  it('isolates a throwing handler: later subscribers still receive the event, and emit() itself never throws', () => {
+    const first = jest.fn();
+    const third = jest.fn();
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    const offFirst = on('xp:awarded', first);
+    const offSecond = on('xp:awarded', () => {
+      throw new Error('subscriber bug');
+    });
+    const offThird = on('xp:awarded', third);
+
+    const event: AppEvent = { type: 'xp:awarded', amount: 10, kind: 'ideal' };
+    expect(() => emit(event)).not.toThrow();
+
+    expect(first).toHaveBeenCalledWith(event);
+    expect(third).toHaveBeenCalledWith(event);
+    // __DEV__ (true under jest-expo) — the bug is surfaced, not swallowed silently.
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+
+    errorSpy.mockRestore();
+    offFirst();
+    offSecond();
+    offThird();
+  });
 });
