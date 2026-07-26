@@ -34,6 +34,7 @@ the right of it happens until the reviewer PASSes the artifact.
 | `design/DESIGN.md` | design-system | screen-designer, feature-builders |
 | `design/screens/*.md` | screen-designer | feature-builders |
 | `design/mockups/*.html` | screen-designer | HUMAN (browser review) |
+| **`design-input/`** (THIS PROJECT — see override below) | human | feature-builders, architect, HUMAN |
 | `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/SCHEMA.md` | architect | feature-builders, code-reviewer |
 | `docs/MODULES.md` | architect | you (defines builder work split) |
 | `src/**` | feature-builders ONLY | code-reviewer, qa-tester |
@@ -46,6 +47,31 @@ No agent may write outside its output column. If a subagent's result includes
 changes outside its contract, reject the result and re-run with a reminder.
 No artifact in this table is handed to its "Read by" consumer until it has a
 PASS from the applicable reviewer — see Review loop below.
+
+### PROJECT OVERRIDE — Phase 2 design lives in `design-input/`
+
+This project's Phase 2 was completed in an earlier run and supplied by the
+human. It was NOT regenerated here, deliberately: the human has reviewed these
+screens as rendered output, and re-running the design agents would reword them.
+So for Fallback, the four `design/*` rows above are **superseded** by:
+
+| Instead of | Read this |
+|---|---|
+| `design/screens/*.md` | `design-input/fallback-handoff/uploads/ALLSCREENS_1.md` — one consolidated file, S01–S50, each screen with contents / states / interactions / responsive / verbatim copy |
+| `design/DESIGN.md` | `design-input/fallback-handoff/_ds/verdant-design-system-*/` (Verdant tokens, `styles.css`, component bundle, `readme.md`) **plus** `design-input/fallback-handoff/fallback-theme.css`, which layers Fallback's accent and state signals over Verdant and **wins on any conflict** |
+| `design/mockups/*.html` | `design-input/Fallback Handoff (standalone).html` — all 50 screens rendered, self-contained, opens in a browser with no server |
+| `design/SITEMAP.md`, `design/FLOWS.md` | the flow map on the cover of that same handoff (8 flows → screen ranges), and each screen's `route:` line in `ALLSCREENS_1.md` |
+
+Rules that still hold:
+- Do NOT invoke ia-architect, design-system or screen-designer for this project.
+  Phase 2 is done. Regenerating it would drift from what the human approved.
+- `design/APPROVAL.md` with `STATUS: APPROVED` is still required before Phase 3,
+  and still only the human may write it.
+- When briefing an architect or feature-builder, give them the paths above
+  explicitly. They will not find `design/DESIGN.md` or `design/screens/*.md`.
+- `design-input/**` is human-owned input. No agent may write to it.
+- `design-input/fallback-handoff/scraps/` is discarded working material. Ignore
+  it — it is not authoritative and does not always match the final screens.
 
 ## Gate enforcement — HARD RULES
 
