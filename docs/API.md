@@ -66,9 +66,16 @@ interface ProgressRepository {
   cyclingXp(cycleId: Id): Promise<number>;
   listUnlocks(): Promise<readonly AchievementUnlock[]>;
   upsertUnlock(u: AchievementUnlock): Promise<Result<void>>;   // upsert-only, never deletes
+  retractXpAward(taskId: Id, date: LocalDate): Promise<Result<void>>;  // undone mis-tap only;
+                                                        // a no-op returns ok, never NOT_FOUND
   listCycleRecords(): Promise<readonly CycleRecord[]>;
   getCycleRecord(id: Id): Promise<CycleRecord | null>;
   appendCycleRecord(r: CycleRecord): Promise<Result<void>>;    // append-only, never overwrites
+}
+
+interface CycleStateRepository {          // the F31 cycle pointer — SCHEMA.md §8.
+  get(): Promise<CycleState | null>;      // null on a fresh store; authoritative when present
+  set(state: CycleState): Promise<Result<void>>;
 }
 
 interface SettingsRepository {
@@ -153,9 +160,13 @@ table:
 - Off-ness and pending-ness both compose **per task within a day**, never per day.
 - `reconcileAchievements` is **upsert-only and never revokes**, including after a task
   delete or a backward clock change.
-- Lifetime XP and level are **monotonic under every user action**, task deletion included
-  (SCHEMA.md §2.3). Deleting a task with 10 ideal days leaves lifetime XP unchanged while
-  those 10 days leave the F5 denominator.
+- Lifetime XP and level are **monotonic against every loss-shaped event** — a missed day,
+  an off day, a cycle boundary, and **task deletion** all leave them untouched (SCHEMA.md
+  §2.3). Deleting a task with 10 ideal days leaves lifetime XP unchanged while those 10 days
+  leave the F5 denominator.
+- The **one** sanctioned reduction is `retractXpAward(taskId, date)`, fired only when a
+  specific occurrence on a **live** task stops carrying a showing-up state — an undone
+  mis-tap, not a penalty (SCHEMA.md §7). It must never fire for any of the events above.
 
 ---
 

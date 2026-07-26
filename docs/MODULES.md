@@ -19,6 +19,58 @@ Design inputs (**not** at the usual paths — see the PROJECT OVERRIDE in `CLAUD
 
 ---
 
+## House testing pattern — read this before writing a component test
+
+Wave 1 hit two breakages in the frozen test config and worked around them locally. **Both
+are now fixed centrally; delete any local workaround you inherited and use this pattern.**
+
+**Use `@testing-library/react-native`. Do not drive `react-test-renderer` directly.** The
+`test-renderer` peer dependency it needs is now installed and pinned.
+
+**`render` is ASYNC in RNTL 14 — you must `await` it.** This is the single most likely thing
+to trip you up: v14 made rendering async for React 19's concurrent renderer, so a
+non-awaited `render` returns a Promise and every query fails with a confusing
+`render function has not been called` or `r.getByText is not a function`.
+
+```tsx
+import { render, screen, userEvent } from '@testing-library/react-native';
+
+it('renders the empty state', async () => {
+  await render(<RoutinesBrowse />);            // await — always
+  expect(screen.getByText('Create your first routine')).toBeTruthy();
+});
+
+it('logs a fallback from the chip', async () => {
+  await render(<TodayScreen />);
+  await userEvent.press(screen.getByLabelText('Log fallback'));
+  expect(onLog).toHaveBeenCalledWith('fallback');
+});
+```
+
+**Icons work out of the box — do not mock `lucide-react-native`.** The config maps it to
+lucide's prebuilt CJS output, so the ESM `.mjs` parse error is gone. (Note lucide icons do
+not forward `testID` to the SVG root; assert on an accessible name or a wrapper, not on a
+`testID` you passed to the icon.)
+
+**Fixed centrally, for the record:** `@testing-library/react-native@14.0.1` declares a peer
+on a package named `test-renderer` (not `react-test-renderer`) — it is real, it is by the
+same author, and it is React 19's replacement for the deprecated `react-test-renderer`; it
+is now an explicit devDependency. And `jest.config.js` now pins lucide to CJS plus carries a
+`.mjs` transform for any future ESM-only dependency.
+
+**`expo-crypto.randomUUID()` returns `undefined` under jest-expo's automock.** Any test that
+reaches `newId()` needs a local mock — this one stays local because it is test-specific:
+
+```ts
+jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000000000000' }));
+```
+
+Pure domain logic (`src/domain/**`) runs in the `domain` project with no RN renderer at all —
+plain functions, plain assertions, no mocking required. Keep logic testable there wherever
+you can; it is far faster and far less brittle than a component test.
+
+---
+
 ## Build order
 
 ```
@@ -78,6 +130,53 @@ use only six kit components — `Button`, `Card`, `EmptyState`, `InlineRetryBann
 Every plugin, permission, entitlement and dependency v1 needs is **already declared**.
 **Builders may not add dependencies.** If you think you must, that is an architect change
 request.
+
+---
+
+## Open architect change requests (post-wave-1)
+
+Wave 1 surfaced three contract gaps in architect-frozen files. Two are fixed in the frozen
+files directly (see "House testing pattern" below). The remaining two require edits to
+**M0-owned** source, so they are recorded here as change requests rather than made by the
+architect. **CR-1 and CR-2 are approved — M0 applies them; M1 and M2 then align.**
+
+### CR-1 — add the `cycle_state` accessor to the `Repositories` port (M0)
+
+`SCHEMA.md` §8 defines a `cycle_state` singleton that F31 reads on every launch and
+foreground, but `src/types/ports.ts` exposed no accessor for it. That was an architect
+defect. M1 correctly worked around it additively (`repos.cycleState` as an intersection
+type) rather than skipping the table; M2 correctly avoided the missing pointer by deriving
+the window instead. Both are sound; the port is still wrong.
+
+- **M0** — in `src/types/progress.ts` add:
+  `export interface CycleState { currentCycleId: Id; cadence: CycleCadence; startDate: LocalDate; endDate: LocalDate }`.
+  In `src/types/ports.ts` add `CycleStateRepository` (`get(): Promise<CycleState | null>`,
+  `set(state: CycleState): Promise<Result<void>>`) and a
+  `readonly cycleState: CycleStateRepository` member on `Repositories` — a first-class
+  member, matching how the other singleton (`settings`) is handled, **not** a member of
+  `ProgressRepository`.
+- **M1** — drop the `Repositories & { cycleState: … }` intersection in `src/db/index.ts`;
+  `repos` now satisfies `Repositories` plainly. Import `CycleState` from `@/types` instead
+  of declaring it locally in `cycleStateRepository.ts`. The SQL and method bodies are
+  already correct and do not change.
+- **M2** — the pointer is **authoritative**: read `repos.cycleState.get()` on the hot path.
+  Keep the walk-forward derivation, but only as the `null` fallback (fresh store, or a
+  restored backup predating the pointer), and **write the pointer back** with `set()` so it
+  runs at most once. Do not derive per read — that is O(records) where the pointer is O(1).
+
+### CR-2 — add XP award retraction to `ProgressRepository` (M0)
+
+`SCHEMA.md` §7 requires that un-setting a showing-up state on a **live** task retracts that
+occurrence's XP award, but the port had no call for it, making the documented behaviour
+undeliverable. The §7 wording is correct; the port was incomplete.
+
+- **M0** — add to `ProgressRepository`:
+  `retractXpAward(taskId: Id, date: LocalDate): Promise<Result<void>>`.
+- **M1** — implement it as a delete of the `(task_id, date)` award row; a no-op when no row
+  exists must return `ok`, not `NOT_FOUND`.
+- **M2** — call it from the log mutation when an occurrence stops carrying a showing-up
+  state. This is the **only** sanctioned reduction of lifetime XP. It must **not** fire on a
+  missed day, an off day, a cycle boundary, or a task deletion.
 
 ---
 
@@ -170,6 +269,9 @@ app/settings/data/erase.tsx    (S48)
 
 **Non-negotiables**
 - **Nothing outside `src/db` writes SQL.** Repositories are the only door.
+- **Apply CR-1 and CR-2** (top matter) once M0 has landed the port changes: drop the
+  `Repositories & { cycleState }` intersection, import `CycleState` from `@/types`, and
+  implement `retractXpAward`.
 - **The delete cascade is split and the split is load-bearing** (SCHEMA.md §2.3): remove
   `step`, `day_log`, `off_day_mark`, `as_needed_use`; **never** remove `xp_award`
   (`ON DELETE SET NULL`), `achievement_unlock` or `cycle_record`. This matches PRD F7's own
@@ -234,8 +336,13 @@ you can write and typecheck against it before M1 finishes).
   a cadence. A one-off Event earns XP.
 - Cycle boundaries: **archive always precedes zeroing.** A mid-cycle cadence change
   finalises immediately. Nothing lifetime ever resets.
-- **Lifetime XP and level are monotonic under every user action, task deletion included.**
-  `reconcileAchievements` is upsert-only and never revokes. Required test: log 10 ideal
+- **Apply CR-1 and CR-2** (top matter): read the cycle pointer via `repos.cycleState.get()`
+  on the hot path with derivation only as the `null` fallback, and call `retractXpAward`
+  when an occurrence stops carrying a showing-up state.
+- **Lifetime XP and level are monotonic against every loss-shaped event — a missed day, an
+  off day, a cycle boundary, and task deletion.** The sole sanctioned reduction is
+  `retractXpAward` for an undone mis-tap on a live task (SCHEMA §7).
+- `reconcileAchievements` is upsert-only and never revokes. Required test: log 10 ideal
   days on a task (100 XP), delete the task → lifetime XP still 100, level unchanged, badges
   unchanged, and those 10 days leave the F5 denominator (SCHEMA.md §2.3).
 - The level-title constant lives here (`src/domain/xp.ts`). **L1 "Getting started",

@@ -299,9 +299,16 @@ farm XP. (SQLite treats NULLs as distinct in a unique index, which is what we wa
 orphaned awards from deleted tasks never constrain new ones.)
 
 Downgrading a log (ideal → fallback) updates the row's `kind`/`amount`; un-setting a
-showing-up state on a **live** task deletes its row — that is a correction to something
-that turned out not to have happened, not a penalty. **Deleting a task never deletes its
+showing-up state on a **live** task retracts its row via
+`ProgressRepository.retractXpAward(taskId, date)` — that is a correction to something that
+turned out not to have happened, not a penalty. **Deleting a task never retracts its
 awards** (§2.3).
+
+**This is the ONLY sanctioned reduction of lifetime XP, and it is narrow.** It fires only
+when a specific occurrence stops carrying a showing-up state — a mis-tap being undone. It
+is not triggered by a missed day, an off day, a cycle boundary, or a task deletion, all of
+which leave XP untouched. The port originally had no retraction call, which made §7
+undeliverable; MODULES.md carries the change request that adds it.
 
 **Lifetime XP** = `SUM(amount)` over all rows. **Cycling XP** = `SUM(amount) WHERE
 cycle_id = <current>`. The same completion increments both; they are two counters over one
@@ -434,6 +441,30 @@ Erase-all clears them along with everything else.
 ### `cycle_state` — singleton
 
 `(id=1, current_cycle_id Id, cadence TEXT, start_date LocalDate, end_date LocalDate)`.
+
+**Accessor contract — PINNED.** This table is read on every launch and every foreground,
+so it needs a real accessor. It is a **first-class member of `Repositories`**, exactly like
+the other singleton (`settings`), not a member of `ProgressRepository`:
+
+```ts
+interface CycleStateRepository {          // src/types/ports.ts
+  get(): Promise<CycleState | null>;      // null on a fresh store, before the first seed
+  set(state: CycleState): Promise<Result<void>>;
+}
+interface Repositories { …; readonly cycleState: CycleStateRepository; }
+```
+
+`CycleState` (`{ currentCycleId, cadence, startDate, endDate }`) lives in
+`src/types/progress.ts`. The port originally omitted this accessor — that was an architect
+defect, not a hint that the pointer was optional. M1 already implements exactly this shape
+additively; the change request in MODULES.md promotes it into the port proper.
+
+**The pointer is authoritative; derivation is the fallback.** M2 must read `cycleState.get()`
+as the O(1) source of the current cycle. Only when it returns `null` (fresh store, or a
+backup restored from before the pointer existed) may M2 fall back to deriving the window by
+walking forward from `settings.tenureAnchorDate` and de-duplicating against
+`listCycleRecords()`, then **write the pointer back** via `set()` so the fallback runs at
+most once. Do not derive on the hot path — it is O(records) where the pointer is O(1).
 
 **Boundary reconciliation (F31)** runs at launch and on app foreground, is idempotent, and
 is wrapped in one transaction per boundary:

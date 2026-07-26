@@ -461,6 +461,36 @@ replication behind the `SyncProvider` port:
 - The F29 tenure anchor is a store field, so a sync restore carries it; a genuinely fresh
   store (install or post-erase) mints a new one.
 
+#### 9.2.1 KNOWN GAP — F20 has no transport under the currently declared dependencies
+
+**Status after wave 1: the port is built, the transport is not.** M1 implemented
+`SyncProvider` honestly — `isAvailable()` returns `false`, failures surface as calm
+`NETWORK_UNAVAILABLE`, and S45 renders the real warning banner. Nothing fabricates success.
+That is the correct behaviour and it stays. But the two transports I specified above cannot
+be built from the dependency set I pinned, and I did not catch that when I pinned it:
+
+| Platform | What is missing | What it actually costs |
+|---|---|---|
+| **iOS** | `expo-file-system` exposes **no** iCloud ubiquity-container API (verified: zero references in the package). There is no JS path to `NSFileManager.url(forUbiquityContainerIdentifier:)` or to the coordinated read/write that safe iCloud file access requires. | A **custom native Expo module** (Swift, roughly 150–250 LOC: resolve the container URL, `NSFileCoordinator` read/write, a metadata query for change detection) shipped via a local config plugin. The entitlements are already declared, so no app-config work — but a provisioned iCloud container on a real Apple Developer account is required to test it at all. |
+| **Android** | No Google OAuth client ID is declared anywhere, and `expo-auth-session` cannot start a flow without one. The Drive `appDataFolder` scope is not requested. | A Google Cloud project with an **Android OAuth client** (package name + release/debug SHA-1 fingerprints) and a Web client for token exchange; the `drive.appdata` scope; then plain REST calls (no extra dependency). `extra.googleOAuthClientId` is now declared in `app.config.ts` as `null` so the gap is explicit and checkable rather than hidden. |
+
+**Consequences, stated plainly.** F20 is **P1 fast-follow, not P0**, so this blocks neither
+the MVP nor wave 2 — every P0 feature is on-device and unaffected. But F20 **cannot ship in
+its specified form** without the two work items above, and the iOS one is a native-module
+build, not a configuration tweak. My earlier note that Android sync was "the highest-risk P1
+item in the plan" understated it: iOS is the harder half, because Android needs credentials
+and configuration while iOS needs native code that does not exist yet.
+
+`SyncProvider.isAvailable()` returning `false` is the honest, shipping-safe expression of
+this state, and it is wired to the real cause: no iOS native module, and a null OAuth client
+ID on Android. **Do not "fix" it by making sync appear to work.**
+
+**This is a costed, known gap, not a surprise for Gate 3.** If the iCloud module and the
+Google credentials are not funded, the honest options are (a) ship v1 with sync visibly
+unavailable — S45 already renders correctly for this, or (b) narrow F20 to local
+export/import only, which F19 already delivers. Either is a product call, not an
+architecture one. **Do not expand v1 scope to close this gap.**
+
 ### 9.3 Notifications (F14)
 `expo-notifications`, **local only** — no push tokens, no server, no notification service
 extension. Scheduling is a **rolling 7-day horizon** re-armed on app foreground, on any

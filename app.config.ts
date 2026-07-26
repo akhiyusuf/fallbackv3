@@ -80,6 +80,14 @@ const config: ExpoConfig = {
     // Managed-assistant backend base URL (F16/F17). Overridable per build profile.
     // NEVER receives habit data — see docs/API.md §4.
     assistantApiBaseUrl: process.env.FALLBACK_ASSISTANT_API ?? 'https://api.fallback.app',
+
+    // F20 cloud sync, Android half. `expo-auth-session` cannot start a Drive
+    // `appDataFolder` flow without an OAuth client ID, and none is provisioned yet.
+    // Declared explicitly as null so SyncProvider.isAvailable() can key off a real value
+    // instead of the gap being invisible. See ARCHITECTURE.md §9.2.1 (KNOWN GAP).
+    // The iOS half additionally needs a native iCloud module that does not exist yet.
+    googleOAuthClientId: process.env.FALLBACK_GOOGLE_OAUTH_CLIENT_ID ?? null,
+
     router: {},
   },
 };

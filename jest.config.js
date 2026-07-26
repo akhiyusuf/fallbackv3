@@ -1,7 +1,20 @@
 // FROZEN SCAFFOLD FILE — architect-owned. No feature module may edit.
 // Add tests under the paths your module owns; never change this file.
+// If you need a change here, raise an architect change request (docs/MODULES.md).
+const expoPreset = require('jest-expo/jest-preset');
+
+// lucide-react-native's `exports` map resolves the react-native/import condition to an
+// ESM .mjs build, which reaches Jest untranspiled and dies on `Unexpected token 'export'`.
+// Pin the test resolver to lucide's prebuilt CJS output instead. Measured: ~3x faster than
+// relying on the .mjs babel transform below, which has to transpile every icon file
+// (44s -> 13s on a single-suite run). Same source, different build output.
+const lucideCjs = {
+  '^lucide-react-native$': '<rootDir>/node_modules/lucide-react-native/dist/cjs/lucide-react-native.js',
+  '^lucide-react-native/icons/(.*)$': '<rootDir>/node_modules/lucide-react-native/dist/cjs/icons/$1.js',
+};
+
 module.exports = {
-  // Empty until M1/M2 land their suites; keeps `npm test` green on the bare scaffold.
+  // Keeps `npm test` green for a project whose suites have not landed yet.
   passWithNoTests: true,
   projects: [
     {
@@ -20,7 +33,13 @@ module.exports = {
         '<rootDir>/app/**/*.test.tsx',
       ],
       testPathIgnorePatterns: ['<rootDir>/src/domain/'],
-      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
+      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1', ...lucideCjs },
+      transform: {
+        // Reuse the preset's own babel-jest config so it cannot drift, extended to .mjs
+        // for any future ESM-only dependency not covered by a name mapping above.
+        ...expoPreset.transform,
+        '^.+\\.mjs$': expoPreset.transform['\\.[jt]sx?$'],
+      },
       transformIgnorePatterns: [
         'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|lucide-react-native))',
       ],
