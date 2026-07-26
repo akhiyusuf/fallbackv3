@@ -123,3 +123,10 @@ export const MOTION = {
 
 /** Minimum tap target, per the design system's Rule 8. */
 export const MIN_TAP_TARGET = 44;
+
+/**
+ * Modal/sheet scrim — Verdant readme.md "Transparency / blur": `rgba(55,53,47,0.30)` in
+ * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
+ * one). The only sanctioned raw colour literal outside this file is this constant's use.
+ */
+export const SCRIM = 'rgba(55, 53, 47, 0.30)';

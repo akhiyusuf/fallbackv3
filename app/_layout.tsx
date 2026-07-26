@@ -12,7 +12,9 @@ import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ErrorBoundary, useAppBootstrap, useDayRollover, useThemeStore } from '@/app-shell';
 import { ThemeContext, buildTheme, resolveScheme } from '@/theme';
+import { Toast } from '@/ui/Toast';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,20 +31,40 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
-  const osScheme = useColorScheme();
-  // TODO(M0): read theme/accent from settings once M1's store is wired.
-  const theme = useMemo(() => buildTheme(resolveScheme('auto', osScheme === 'dark' ? 'dark' : osScheme === 'light' ? 'light' : null)), [osScheme]);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
-          <ThemeContext.Provider value={theme}>
-            <StatusBar style="auto" />
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.color.bg } }} />
-          </ThemeContext.Provider>
+          <AppShell />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Split from `RootLayout` because `useDayRollover` needs `useQueryClient()`, which only
+ * resolves inside `QueryClientProvider`'s subtree.
+ */
+function AppShell() {
+  const osScheme = useColorScheme();
+  const mode = useThemeStore((s) => s.mode);
+  const accent = useThemeStore((s) => s.accent);
+  // TODO(M1/M7): hydrate `useThemeStore` from `settings.theme`/`settings.accent` on boot.
+  const theme = useMemo(
+    () => buildTheme(resolveScheme(mode, osScheme === 'dark' ? 'dark' : osScheme === 'light' ? 'light' : null), accent),
+    [mode, accent, osScheme],
+  );
+  useAppBootstrap();
+  useDayRollover();
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      <StatusBar style="auto" />
+      <ErrorBoundary>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.color.bg } }} />
+      </ErrorBoundary>
+      <Toast />
+    </ThemeContext.Provider>
   );
 }

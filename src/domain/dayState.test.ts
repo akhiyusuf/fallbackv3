@@ -1,0 +1,140 @@
+import type { DayLog, Instant, LocalDate, OffDayMark, TaskWithSteps, Weekday } from '@/types';
+import { autoChipState, resolveOccurrence } from './dayState';
+
+const d = (s: string) => s as LocalDate;
+
+function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
+  return {
+    id: 't1' as TaskWithSteps['id'],
+    type: 'routine',
+    name: 'Test',
+    note: null,
+    icon: 'Repeat',
+    color: 'forge-orange',
+    isAsNeeded: false,
+    cadence: { kind: 'daily' },
+    eventDate: null,
+    timeOfDay: null,
+    startDate: null,
+    endDate: null,
+    dosesPerDay: 1,
+    isTracked: true,
+    importance: null,
+    necessity: null,
+    todoDoneAt: null,
+    createdAt: '2024-01-01T00:00:00.000Z' as Instant,
+    updatedAt: '2024-01-01T00:00:00.000Z' as Instant,
+    deletedAt: null,
+    idealSteps: [{ id: 'ideal-1' as never, taskId: 't1' as never, role: 'ideal', text: 'Do it', position: 0, dueWeekdays: null }],
+    fallbackSteps: [{ id: 'fallback-1' as never, taskId: 't1' as never, role: 'fallback', text: 'Min version', position: 0, dueWeekdays: null }],
+    ...overrides,
+  };
+}
+
+function log(overrides: Partial<DayLog>): DayLog {
+  return {
+    id: 'log-1' as DayLog['id'],
+    taskId: 't1' as DayLog['taskId'],
+    date: d('2024-06-01'),
+    chipState: null,
+    isManualOverride: false,
+    completedStepIds: [],
+    dosesCompleted: 0,
+    movedToDate: null,
+    createdAt: '2024-06-01T00:00:00.000Z' as Instant,
+    updatedAt: '2024-06-01T00:00:00.000Z' as Instant,
+    ...overrides,
+  };
+}
+
+describe('resolveOccurrence — the chip -> outcome mapping (ARCHITECTURE.md §6.1)', () => {
+  const task = makeTask();
+
+  test('not due -> "not-due", regardless of log/off state', () => {
+    const notDueTask = makeTask({ type: 'todo', cadence: null });
+    const o = resolveOccurrence({ task: notDueTask, date: d('2024-06-01'), today: d('2024-06-01'), log: null, offMarks: [] });
+    expect(o.outcome).toBe('not-due');
+  });
+
+  test('due + off (whole-day mark) -> "off", even with a manual chip present', () => {
+    const offMark: OffDayMark = { id: 'off-1' as never, date: d('2024-06-01'), taskId: null, priorChipState: null, createdAt: '2024-06-01T00:00:00.000Z' as Instant };
+    const o = resolveOccurrence({
+      task,
+      date: d('2024-06-01'),
+      today: d('2024-06-01'),
+      log: log({ chipState: 'done', isManualOverride: true }),
+      offMarks: [offMark],
+    });
+    expect(o.outcome).toBe('off');
+  });
+
+  test('due + task-scoped off mark for a DIFFERENT task does not apply', () => {
+    const offMark: OffDayMark = { id: 'off-1' as never, date: d('2024-06-01'), taskId: 'other-task' as never, priorChipState: null, createdAt: '2024-06-01T00:00:00.000Z' as Instant };
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: null, offMarks: [offMark] });
+    expect(o.outcome).not.toBe('off');
+  });
+
+  test('Done chip -> ideal', () => {
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: log({ chipState: 'done', isManualOverride: true }), offMarks: [] });
+    expect(o.outcome).toBe('ideal');
+  });
+
+  test('Fallback chip -> fallback', () => {
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: log({ chipState: 'fallback', isManualOverride: true }), offMarks: [] });
+    expect(o.outcome).toBe('fallback');
+  });
+
+  test('Skip chip -> missed, on ANY day, including today', () => {
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: log({ chipState: 'skip', isManualOverride: true }), offMarks: [] });
+    expect(o.outcome).toBe('missed');
+  });
+
+  test('To do / no row, date IS today -> pending', () => {
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: null, offMarks: [] });
+    expect(o.outcome).toBe('pending');
+  });
+
+  test('To do / no row, date is in the past -> missed once the day has ended', () => {
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-02'), log: null, offMarks: [] });
+    expect(o.outcome).toBe('missed');
+  });
+
+  test('auto-log: all due ideal steps complete -> ideal, no manual chip needed', () => {
+    const withLog = log({ completedStepIds: ['ideal-1' as never], isManualOverride: false });
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: withLog, offMarks: [] });
+    expect(o.outcome).toBe('ideal');
+    expect(o.chipState).toBe('done');
+  });
+
+  test('auto-log: a manual override wins over the auto-computed chip until changed', () => {
+    const withLog = log({ completedStepIds: ['ideal-1' as never], chipState: 'fallback', isManualOverride: true });
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: withLog, offMarks: [] });
+    expect(o.outcome).toBe('fallback'); // manual override, even though all ideal steps look complete
+  });
+
+  test('a multi-dose Course only auto-logs ideal when every dose AND every ideal step are done', () => {
+    const course = makeTask({ type: 'course', dosesPerDay: 3, cadence: { kind: 'daily' }, startDate: d('2024-01-01'), endDate: d('2024-12-31') });
+    const partialDoses = log({ completedStepIds: ['ideal-1' as never], dosesCompleted: 2 });
+    const o1 = resolveOccurrence({ task: course, date: d('2024-06-01'), today: d('2024-06-01'), log: partialDoses, offMarks: [] });
+    expect(o1.outcome).toBe('fallback'); // steps done, but not all doses
+
+    const allDoses = log({ completedStepIds: ['ideal-1' as never], dosesCompleted: 3 });
+    const o2 = resolveOccurrence({ task: course, date: d('2024-06-01'), today: d('2024-06-01'), log: allDoses, offMarks: [] });
+    expect(o2.outcome).toBe('ideal');
+  });
+});
+
+describe('autoChipState — F3, reused by the mutation layer after a step toggle', () => {
+  test('0 of N ideal steps complete -> todo', () => {
+    expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: ['a' as never, 'b' as never], completedStepIds: [], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('todo');
+  });
+  test('some but not all ideal steps complete -> fallback', () => {
+    expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: ['a' as never, 'b' as never], completedStepIds: ['a' as never], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('fallback');
+  });
+  test('all ideal steps complete -> done', () => {
+    expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: ['a' as never], completedStepIds: ['a' as never], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('done');
+  });
+  test('an untracked/no-ideal-steps occurrence never auto-completes — manual chip only', () => {
+    expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: [], completedStepIds: [], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('todo');
+  });
+});

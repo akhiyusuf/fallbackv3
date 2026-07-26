@@ -3,6 +3,7 @@
  * M3 owns the five tab screens; this layout file stays M0's.
  */
 import { Tabs } from 'expo-router';
+import { Calendar, ListChecks, Repeat, Sprout, StickyNote } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 
@@ -17,11 +18,23 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: t.color.bg, borderTopColor: t.color.border },
       }}
     >
-      <Tabs.Screen name="today" options={{ title: 'Today' }} />
-      <Tabs.Screen name="routines" options={{ title: 'Routines' }} />
-      <Tabs.Screen name="events" options={{ title: 'Events' }} />
-      <Tabs.Screen name="courses" options={{ title: 'Courses' }} />
-      <Tabs.Screen name="todos" options={{ title: 'To-dos' }} />
+      <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: ({ color, size }) => <Sprout color={color} size={size} /> }} />
+      <Tabs.Screen
+        name="routines"
+        options={{ title: 'Routines', tabBarIcon: ({ color, size }) => <Repeat color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="events"
+        options={{ title: 'Events', tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="courses"
+        options={{ title: 'Courses', tabBarIcon: ({ color, size }) => <ListChecks color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="todos"
+        options={{ title: 'To-dos', tabBarIcon: ({ color, size }) => <StickyNote color={color} size={size} /> }}
+      />
     </Tabs>
   );
 }

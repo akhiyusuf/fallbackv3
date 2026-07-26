@@ -2,41 +2,42 @@
  * M0. The component kit. Every screen composes from here; no module defines its own
  * button/card/chip. Components are transcribed from the approved design system —
  * Verdant primitives plus the Fallback-custom components the handoff introduces.
- * STUB — M0 implements each of these.
  */
 export { ScreenStub } from './ScreenStub';
 
+export type { IconComponent, IconProps } from './icon';
+
 // Verdant primitives
-export declare const Button: unknown;
-export declare const IconButton: unknown;
-export declare const Card: unknown;
-export declare const Input: unknown;
-export declare const Textarea: unknown;
-export declare const Select: unknown;
-export declare const Switch: unknown;
-export declare const Radio: unknown;
-export declare const Checkbox: unknown;
-export declare const Badge: unknown;
-export declare const Tabs: unknown;
-export declare const Dialog: unknown;
-export declare const Toast: unknown;
-export declare const ProgressRing: unknown;
+export { Button, type ButtonProps, type ButtonVariant } from './Button';
+export { IconButton, type IconButtonProps } from './IconButton';
+export { Card, type CardProps } from './Card';
+export { Input, type InputProps } from './Input';
+export { Textarea, type TextareaProps } from './Textarea';
+export { Select, type SelectProps, type SelectOption } from './Select';
+export { Switch, type SwitchProps } from './Switch';
+export { RadioGroup as Radio, type RadioGroupProps as RadioProps, type RadioOption } from './Radio';
+export { Checkbox, type CheckboxProps } from './Checkbox';
+export { Badge, type BadgeProps } from './Badge';
+export { Tabs, type TabsProps, type TabItem } from './Tabs';
+export { Dialog, type DialogProps } from './Dialog';
+export { Toast } from './Toast';
+export { ProgressRing, type ProgressRingProps } from './ProgressRing';
 
 // Fallback-custom components (design-input README "Custom components")
-export declare const StateChip: unknown;
-export declare const OffDayToggle: unknown;
-export declare const BottomTabs: unknown;
-export declare const ConsistencyBreakdownBar: unknown;
-export declare const ConsistencyRing: unknown;
-export declare const MilestoneBadge: unknown;
-export declare const EmptyState: unknown;
-export declare const Skeleton: unknown;
-export declare const InlineRetryBanner: unknown;
-export declare const Tag: unknown;
-export declare const CalendarHeatmap: unknown;
-export declare const WeekdayPicker: unknown;
-export declare const CadencePicker: unknown;
-export declare const SubStepScheduleGrid: unknown;
-export declare const XPBar: unknown;
-export declare const TrendGraph: unknown;
-export declare const AsNeededCard: unknown;
+export { StateChip, type StateChipProps } from './StateChip';
+export { OffDayToggle, type OffDayToggleProps } from './OffDayToggle';
+export { BottomTabs, type BottomTabsProps, type BottomTabsItem } from './BottomTabs';
+export { ConsistencyBreakdownBar, type ConsistencyBreakdownBarProps } from './ConsistencyBreakdownBar';
+export { ConsistencyRing, type ConsistencyRingProps } from './ConsistencyRing';
+export { MilestoneBadge, type MilestoneBadgeProps } from './MilestoneBadge';
+export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { Skeleton, type SkeletonProps } from './Skeleton';
+export { InlineRetryBanner, type InlineRetryBannerProps } from './InlineRetryBanner';
+export { Tag, type TagProps } from './Tag';
+export { CalendarHeatmap, type CalendarHeatmapProps, type CalendarHeatmapDay } from './CalendarHeatmap';
+export { WeekdayPicker, type WeekdayPickerProps } from './WeekdayPicker';
+export { CadencePicker, type CadencePickerProps } from './CadencePicker';
+export { SubStepScheduleGrid, type SubStepScheduleGridProps, type SubStepScheduleGridStep } from './SubStepScheduleGrid';
+export { XPBar, type XPBarProps } from './XPBar';
+export { TrendGraph, type TrendGraphProps, type TrendGraphPoint } from './TrendGraph';
+export { AsNeededCard, type AsNeededCardProps } from './AsNeededCard';
