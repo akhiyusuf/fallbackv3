@@ -68,8 +68,13 @@ async function rh<T>(hook: () => T, client: QueryClient): ReturnType<typeof rend
   return r;
 }
 
-afterEach(() => {
-  activeUnmounts.forEach((fn) => fn());
+afterEach(async () => {
+  // `unmount()` synchronously flushes React's teardown, but leaving it un-awaited inside
+  // `act()` let the next test's `renderHook` start before this one's effects fully settled
+  // (the source of the flaky "overlapping act() calls" / null `result.current` failures).
+  await act(async () => {
+    activeUnmounts.forEach((fn) => fn());
+  });
   activeUnmounts.length = 0;
   activeClients.forEach((c) => c.clear());
   activeClients.length = 0;
