@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, isInaccessible, render, screen } from '@testing-library/react-native';
 
 import { PALETTES } from '@/theme/tokens';
 import type { LocalDate } from '@/types';
@@ -65,33 +65,47 @@ describe('CalendarHeatmap', () => {
     expect(onCellPress).toHaveBeenCalledWith('2026-06-29');
   });
 
-  it('cells and month nav are individually reachable — no ancestor collapses them into one accessibility element (REVIEW-M0.md pass 2)', async () => {
+  it('cells and month nav are individually reachable — no ancestor hides or collapses them (REVIEW-M0.md pass 2 + pass 3 carried item 1)', async () => {
     const onPrevMonth = jest.fn();
     const onNextMonth = jest.fn();
     await render(
       <CalendarHeatmap days={DAYS} monthLabel="July 2026" accessibilityLabel="Calendar" onPrevMonth={onPrevMonth} onNextMonth={onNextMonth} />,
     );
 
-    // Both the month-nav button and a cell are still independently pressable and carry
-    // their own distinct accessible names — the direct, provable symptom of the bug (an
-    // `accessible={true}` ancestor groups an entire subtree into ONE VoiceOver/TalkBack
-    // element, so nothing beneath it is individually reachable any more).
-    await fireEvent.press(screen.getByRole('button', { name: 'Previous month' }));
-    expect(onPrevMonth).toHaveBeenCalledTimes(1);
+    const navButton = screen.getByRole('button', { name: 'Previous month' });
     const cell = screen.getByLabelText('2026-06-29, ideal');
+
+    // `fireEvent` drives the React prop directly and bypasses the platform accessibility
+    // tree entirely — it would keep "succeeding" even if a real screen reader could never
+    // reach either node, so this proves the elements are wired correctly but is NOT, on its
+    // own, proof of reachability (pass 3 carried item 1).
+    await fireEvent.press(navButton);
+    expect(onPrevMonth).toHaveBeenCalledTimes(1);
     expect(cell.props.accessibilityLabel).not.toBe('Previous month');
 
-    // Directly asserts the fixed rule: walk every ancestor of the nav button and of a cell
-    // and require none of them sets `accessible={true}` — that is the exact prop that
-    // would swallow both of these into a single element and is what pass 1 shipped.
-    expectNoAccessibleAncestor(screen.getByRole('button', { name: 'Previous month' }));
+    // The actual class of bugs this needs to catch — RNTL's `isInaccessible` walks the
+    // ancestor chain for every mechanism that hides a subtree from a real screen reader:
+    // `aria-hidden`, iOS `accessibilityElementsHidden`, and Android
+    // `importantForAccessibility="no-hide-descendants"` (see
+    // `@testing-library/react-native/dist/helpers/accessibility.js`'s `isSubtreeInaccessible`).
+    expect(isInaccessible(navButton)).toBe(false);
+    expect(isInaccessible(cell)).toBe(false);
+
+    // `isInaccessible` does NOT model `accessible={true}` grouping (an ancestor marked
+    // `accessible` isn't "hidden" — it's collapsed into one opaque element together with
+    // everything beneath it, iOS-only, and is exactly what pass 1 shipped on this
+    // container). That needs its own, explicit check.
+    expectNoAccessibleAncestor(navButton);
     expectNoAccessibleAncestor(cell);
 
-    // The container's own label is still announced — via a real (host `Text`, therefore
-    // auto-accessible) sibling element outside the interactive subtree, not by wrapping it.
-    expect(screen.getByText('Calendar').props.style).toEqual(
-      expect.objectContaining({ position: 'absolute', opacity: 0 }),
-    );
+    // The container's own label is still announced — via the kit's one canonical sr-only
+    // idiom (`@/ui/a11y`: hidden style + explicit belt-and-braces visibility props), a real
+    // (host `Text`, therefore auto-accessible) sibling element outside the interactive
+    // subtree rather than a wrapper of it.
+    const label = screen.getByText('Calendar');
+    expect(label.props.style).toEqual(expect.objectContaining({ position: 'absolute', opacity: 0 }));
+    expect(label.props.accessibilityElementsHidden).toBe(false);
+    expect(label.props.importantForAccessibility).toBe('yes');
   });
 });
 
