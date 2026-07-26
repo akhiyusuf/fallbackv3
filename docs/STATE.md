@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — architect done; its four docs under review.**
+**Phase 3 (BUILD) — architecture PASSED; wave-1 builders running.**
 
 ## Phase status
 
@@ -15,7 +15,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 | **Gate 1** | **PASSED** | `docs/PRD.md` contains `STATUS: APPROVED` |
 | 2 — Design | Carried over; read via the `CLAUDE.md` PROJECT OVERRIDE | `design-input/` (50 screens, specs + rendered handoff) |
 | **Gate 2** | **PASSED** | `design/APPROVAL.md` — human approved in conversation 2026-07-26, transcribed verbatim |
-| 3 — Build | **In progress** — architect done, docs under review | `docs/ARCHITECTURE.md` `SCHEMA.md` `API.md` `MODULES.md` + scaffold |
+| 3 — Build | **In progress** — wave 1 (M0/M1/M2) building | architecture PASSED pass 3, `review/REVIEW-ARCHITECTURE.md` |
 
 Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
@@ -107,11 +107,28 @@ module is reviewed. Two follow-ups:
 - artifact-reviewer has been asked to flag any place that deference would
   suppress a legitimate fix.
 
+## Architecture review — 3 passes to PASS
+
+| Pass | Verdict | What it caught |
+|---|---|---|
+| 1 | CHANGES_REQUIRED | S22 confirmed-delete went to the wrong screen, contradicting the approved design; L8 title collided with S28's exact copy; the delete cascade destroyed XP rows, letting a level drop; scaffold deference left builders no path to fix a defect |
+| 2 | CHANGES_REQUIRED | The scaffold-deference fix inverted its own locked-assertion rule, forbidding the exact fix it authorized one sentence earlier |
+| 3 | **PASS** | Rule survives adversarial reading both ways; the architect's unrequested SCHEMA §9 restore clause verified correct and conflict-free |
+
+Path ownership and screen assignment were verified clean in pass 1 and unchanged
+since: no two modules own the same path, all 50 screens assigned exactly once.
+
+Two non-blocking observations left, neither impeding a builder: ARCHITECTURE §14's
+"extended by M0/M2" sits askew of M0's ownership, and the assertions-as-arbiter
+rule leans on the adjacent §6.5 pin.
+
 ## Next action
 
-artifact-reviewer on the four architect docs → `review/REVIEW-ARCHITECTURE.md`.
-Loop to PASS, then launch one feature-builder per module — wave 1 (M0/M1/M2) in
-parallel, freeze, then wave 2 (M3–M7) in parallel.
+**Wave 1 building now, in parallel:** M0 kernel, M1 data layer, M2 domain engine.
+One real coupling — M1's five screens need six of M0's kit components
+(`Button`, `Card`, `EmptyState`, `InlineRetryBanner`, `Switch`, `Toast`), so M0
+lands those first and M1 builds its screens last.
 
-After builders: code-reviewer per module (loop to PASS on all), then qa-tester,
-then visual-qa, then **Gate 3** — human reviews screenshots + TEST_REPORT.md.
+Then: code-reviewer per module, loop to PASS → freeze wave 1 → wave 2 (M3–M7) in
+parallel → code-reviewer each → qa-tester → visual-qa → **Gate 3**, where the
+human reviews screenshots + `review/TEST_REPORT.md`.
