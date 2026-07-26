@@ -162,5 +162,45 @@ describe('StoreLifecycle', () => {
       clientModule.openClient = originalOpenClient;
       unsubscribe();
     });
+
+    // Review pass 2, blocking item: `emit()` is synchronous and runs subscribers inline
+    // (`src/lib/events.ts`) — a throwing subscriber (M7's widget bridge is the concrete,
+    // named example) must never be able to falsify a Result this module has ALREADY
+    // determined, nor the `status()` it already set. A bug in a subscriber must stay that
+    // subscriber's bug, not masquerade as store corruption or a failed erase.
+    it('a throwing store:ready subscriber cannot turn a healthy open() into a reported "corrupt" store', async () => {
+      const { store } = await freshDb();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const events = require('@/lib/events') as typeof import('@/lib/events');
+      const unsubscribe = events.on('store:ready', () => {
+        throw new Error('simulated subscriber bug (e.g. M7 widget bridge)');
+      });
+
+      const result = await store.open();
+      expect(result).toEqual({ ok: true, value: 'ready' });
+      expect(store.status()).toBe('ready');
+
+      unsubscribe();
+    });
+
+    it('a throwing store:erased/store:ready subscriber cannot turn a fully-successful eraseAll() into a reported failure', async () => {
+      const { store } = await freshDb();
+      await store.open();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const events = require('@/lib/events') as typeof import('@/lib/events');
+      const unsubscribeErased = events.on('store:erased', () => {
+        throw new Error('simulated subscriber bug (e.g. M7 widget bridge)');
+      });
+      const unsubscribeReady = events.on('store:ready', () => {
+        throw new Error('simulated subscriber bug (e.g. M7 widget bridge)');
+      });
+
+      const erased = await store.eraseAll();
+      expect(erased).toEqual({ ok: true, value: undefined });
+      expect(store.status()).toBe('ready');
+
+      unsubscribeErased();
+      unsubscribeReady();
+    });
   });
 });

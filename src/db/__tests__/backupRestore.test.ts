@@ -237,6 +237,36 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     if (!futureResult.ok) expect(futureResult.error.code).toBe('VALIDATION_FAILED');
   });
 
+  // Review pass 2, non-blocking note 1: `validateBackupColumns` (the pragma_table_info
+  // allowlist hardening applied inside `applyBackupEnvelope`) had zero covering tests.
+  // This drives it through the real `store.restore()` path, not just the pure validator.
+  it('restore rejects an otherwise-valid envelope carrying an unrecognised column on a row, before touching data', async () => {
+    const { repos, store } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, []);
+
+    const backupResult = await store.backup();
+    expect(backupResult.ok).toBe(true);
+    if (!backupResult.ok) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('../testSupport/fileSystemTestDouble') as typeof import('../testSupport/fileSystemTestDouble');
+    const raw = await fs.readAsStringAsync(backupResult.value.uri);
+    const envelope = JSON.parse(raw) as { tables: Record<string, Record<string, unknown>[]> };
+    // A genuine `buildBackupEnvelope` output can never carry this key — simulates a
+    // crafted/foreign-schema file, the exact case the allowlist exists to catch.
+    envelope.tables.task = envelope.tables.task.map((row) => ({ ...row, sneaky_extra_column: 'DROP TABLE task;--' }));
+    await fs.writeAsStringAsync('file:///hostile-column.fallbackbak', JSON.stringify(envelope));
+
+    const restoreResult = await store.restore('file:///hostile-column.fallbackbak');
+    expect(restoreResult.ok).toBe(false);
+    if (!restoreResult.ok) expect(restoreResult.error.code).toBe('VALIDATION_FAILED');
+
+    // Rejected before the transaction opened — the pre-existing task is untouched.
+    const stillThere = await repos.tasks.get(task.id);
+    expect(stillThere?.name).toBe('Read');
+  });
+
   it('a failed restore (malformed file) leaves existing data completely untouched', async () => {
     const { repos, store } = await freshDb();
     const task = buildTask();

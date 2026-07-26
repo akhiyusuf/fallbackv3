@@ -169,14 +169,33 @@ widget after an erase-all (M1).
   configuration only. M1's `isAvailable() → false` is endorsed and must not be
   "fixed" into fake success. F20 is P1 fast-follow, so this does not block the MVP.
 
-## Commit-record correction
+## Commit-record correction — orchestrator process defect
 
-Commit `407ede2`, titled "Code review pass 1: M1 and M2 both CHANGES_REQUIRED",
-also contains `review/REVIEW-M0.md` and the architect's entire config and docs
-work (`package.json`, `jest.config.js`, `app.config.ts`, `API.md`,
-`ARCHITECTURE.md`, `SCHEMA.md`, `MODULES.md`). A `git add -A` swept them in
-mid-flight. The message is incomplete, not wrong; history was not rewritten
-because it was already pushed.
+Several commit *messages* in this branch misattribute their contents. The
+content is complete and correct; the labels are not. Cause: the orchestrator ran
+`git add -A` against a working tree that three builders were writing to
+concurrently, so each commit captured whatever happened to be on disk rather
+than the module its message named.
+
+Known instances:
+
+- `407ede2` "Code review pass 1: M1 and M2 both CHANGES_REQUIRED" also contains
+  `review/REVIEW-M0.md` and the architect's entire config and docs work
+  (`package.json`, `jest.config.js`, `app.config.ts`, `API.md`,
+  `ARCHITECTURE.md`, `SCHEMA.md`, `MODULES.md`).
+- `5c4aaf8` "M0 rework: design fidelity restored" contains **only three M2
+  test-support files**. M0's actual rework landed scattered across `c30e845`
+  (titled as a STATE update) and `141158f`. Caught by the M0 code reviewer, not
+  by the orchestrator.
+
+History was not rewritten — it is already pushed, and rewriting would invalidate
+the review record that cites these hashes.
+
+**Corrected practice from here:** while multiple builders are in flight, commits
+are labelled as **snapshots of the shared tree**, enumerating what they contain,
+rather than claiming per-module attribution. Per-module commits resume only when
+a single agent is writing. Use `git log --follow <path>` rather than commit
+titles to find where a given module's work actually landed.
 
 ## Carry to Gate 3 — product calls, not builder calls
 
@@ -184,9 +203,38 @@ because it was already pushed.
   directory. Judged defensible, escalated as a product decision.
 - F20 sync ships visibly unavailable unless the §9.2.1 gap is funded.
 
+## Wave-1 review — pass 2 status
+
+| Module | Pass 1 | Pass 2 | Now |
+|---|---|---|---|
+| M0 | 9 blocking | 1 blocking — `accessible` on the heatmap container swallows its cells and month nav from VoiceOver, contradicting the rule M0 itself documented that same pass | fixing |
+| M1 | 2 blocking | 1 blocking — both pass-1 fixes held under seven adversarial probes, but the new `store:erased` emits sit inside their success paths, so a throwing subscriber falsifies the Result | fixing |
+| M2 | 10 blocking | — | still reworking |
+
+Both pass-2 defects were **introduced by the pass-1 fixes**, and in both cases a
+reviewer probe proved the failure rather than inferring it. M1's is the more
+dangerous: a throwing `store:ready` handler converts a healthy store into a
+permanent recovery loop, and M7's widget handlers are exactly what will subscribe
+there — an M7 bug would masquerade as data corruption in M1.
+
+## Second config gap — confirmed, routed to architect
+
+`expo-router` cannot be imported in a Jest test:
+`Cannot use import statement outside a module` at
+`expo-router/src/standard-navigation/index.tsx:4`. The chain is
+`standard-navigation@0.0.5` declaring `"type": "module"` while shipping ESM in a
+**`.js`** file — so it falls through the lucide mapping, the `.mjs` transform,
+and the `transformIgnorePatterns` whitelist alike.
+
+Found by M0, which kept its mock and **disagreed with dropping it**; independently
+reproduced by the code reviewer. Suggested minimal fix is appending
+`|standard-navigation` to the whitelist. Must land before wave 2, and the House
+testing pattern must be corrected — it currently tells builders to delete
+inherited workarounds, which would walk all five wave-2 builders into this wall.
+
 ## Next action
 
-All three wave-1 builders are reworking against their reviews. Then: code-reviewer
-re-review each, loop to PASS → freeze wave 1 → wave 2 (M3–M7) in parallel →
-code-reviewer each → qa-tester → visual-qa → **Gate 3**, where the human reviews
-screenshots + `review/TEST_REPORT.md`.
+M0 and M1 fixing their single pass-2 items; M2 still on its pass-1 rework;
+architect on the expo-router gap. Then: re-review to PASS → freeze wave 1 →
+wave 2 (M3–M7) in parallel → code-reviewer each → qa-tester → visual-qa →
+**Gate 3**, where the human reviews screenshots + `review/TEST_REPORT.md`.

@@ -75,6 +75,24 @@ async function clearSecureStoreKeys(): Promise<void> {
   }
 }
 
+/**
+ * `emit()` is synchronous and runs every subscriber inline (`src/lib/events.ts`) — a
+ * throwing subscriber (M7's widget bridge is the concrete, named example: ARCHITECTURE
+ * §4.4, API.md §3) would otherwise propagate straight out of `open()`/`eraseAll()`,
+ * landing in THEIR OWN `catch` and falsifying a genuinely successful Result (review pass
+ * 2, blocking item): a fully-erased store reported as `WRITE_FAILED`, or a healthy store
+ * reported `'corrupt'` forever. Every event this module fires goes through here so a
+ * subscriber's bug can never masquerade as M1's own failure, regardless of where in the
+ * calling function the emit sits.
+ */
+function safeEmit(event: Parameters<typeof emit>[0]): void {
+  try {
+    emit(event);
+  } catch {
+    /* a subscriber's exception is THEIR failure, never this module's */
+  }
+}
+
 export function createStoreLifecycle(proxy: DbClientProxy) {
   let status: StoreStatus = 'uninitialised';
 
@@ -97,8 +115,9 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
         status = await openInternal();
         // The closed AppEvent union's only plausible producer for `store:ready` — M7's
         // widget bridge and notification scheduler subscribe without importing M1
-        // (ARCHITECTURE §4.4, API.md §3).
-        if (status === 'ready') emit({ type: 'store:ready' });
+        // (ARCHITECTURE §4.4, API.md §3). Guarded: a throwing subscriber must never turn a
+        // successfully-opened, healthy store into a reported `'corrupt'` one.
+        if (status === 'ready') safeEmit({ type: 'store:ready' });
         return ok(status);
       } catch {
         // A thrown error opening/reading the store is exactly the corrupt case S01 must
@@ -141,8 +160,10 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
         // M7's WidgetBridge, a parallel Wave-1 module) — `store:erased` is the pinned event
         // that lets it react without M1 importing M7 (ARCHITECTURE §4.4). `open()`'s own
         // `store:ready` also fires here since `openInternal()` just re-opened a fresh store.
-        emit({ type: 'store:erased' });
-        emit({ type: 'store:ready' });
+        // Guarded: the erase has ALREADY fully succeeded by this point — a throwing
+        // subscriber must never turn that into a reported `WRITE_FAILED`.
+        safeEmit({ type: 'store:erased' });
+        safeEmit({ type: 'store:ready' });
         return ok(undefined);
       } catch (cause) {
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'erase failed', cause });
