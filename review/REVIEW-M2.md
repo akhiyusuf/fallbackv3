@@ -237,3 +237,115 @@ algorithm.
   (`appendXpAward` is a true upsert on `(task_id, date)`, so downgrade works),
   `cycleStateRepository.ts` / `cycleWindowSeed.ts` / `db/index.ts` (`repos.cycleState`
   exists, seeded, never advanced by anyone).
+
+## Response (rework pass 1)
+
+All ten blocking items fixed; every acceptance test in the review is now a literal assertion
+in the suite (`src/domain/**/*.test.ts`, `src/queries/mutations.test.ts`). Non-blocking notes
+addressed too, except where noted.
+
+1. **Fixed.** `useUpdateSettings` calls `finalizeCycleForCadenceChange` before the patch takes
+   effect when `patch.cycleCadence` differs from the live setting; it catches up any fully
+   elapsed cycles under the OLD cadence first, then archives the in-progress window as
+   `isShortCycle: true` ending `today` (not its natural end), then starts a fresh window under
+   the new cadence. `mutations.test.ts`'s "item 1 acceptance" test asserts exactly one new
+   record, `isShortCycle: true`, `cyclingXpFinal` equal to the pre-switch counter, lifetime XP
+   unchanged, and the new cadence's cycling counter reading 0.
+2. **Fixed per the CR-1 ruling.** `reconcileCycleBoundaries`/`finalizeCycleForCadenceChange`
+   now read `repos.cycleState.get()` as the authoritative O(1) pointer; the
+   `currentCycleWindow(cadence, tenureAnchorDate)` derivation survives only as the `null`
+   fallback and writes itself back via `set()` immediately, so it runs at most once. No more
+   dedup-by-scanning-records — advancing the pointer makes a second run naturally find nothing
+   elapsed. "item 2 acceptance" test archives two monthly cycles, switches to weekly, runs
+   reconciliation twice, and asserts no duplicate `(cadence,start,end)` keys, an idempotent
+   second run, and `cycle_state` tracking the live window throughout.
+3. **Fixed.** `reconcileOccurrence` now captures lifetime XP before/after the award, compares
+   `levelFor()`, and returns the real `LevelInfo` on a crossing (`null` otherwise); `level:up`
+   is emitted. `useLogState`/`useToggleStep` return the real `levelUp`/`badgesUnlocked`.
+   Covered by both "item 3" tests (crossing vs. non-crossing).
+4. **Fixed.** Removed `instantToLocalDate` from `dateMath.ts` entirely — `src/domain` no
+   longer touches `task.createdAt` at all. `occurrence.ts`'s `isDue`/`occurrencesBetween`/
+   `dueIdealStepIds` take an optional `notBefore: LocalDate` **parameter**, supplied by
+   `src/queries/internal.ts` via `@/lib/date`'s `toLocalDate(new Date(task.createdAt))` (real
+   device-local conversion). `dayState.test.ts`/`occurrence.test.ts` updated to test the bound
+   as caller-supplied data rather than task-derived.
+5. **Fixed.** `useTasks` now fetches ONE canonical `QUERY_KEYS.tasks` (or
+   `tasksIncludingDeleted`) entry and applies the `type` filter via react-query `select`, which
+   runs per-observer over the same cache slot. "item 5" test mounts two differently-filtered
+   hooks against the same `QueryClient` and asserts each keeps only its own type across a
+   forced refetch.
+6. **Fixed.** `resolveOccurrence` gained a `movedInLog` parameter: a log row from the source
+   date is treated as vacating that date (`not-due`, unconditionally, so it can never rot into
+   `missed`), and a log whose `movedToDate` lands on the date being resolved makes that date
+   due — using the moved log's own chip/step data — even on a date the cadence wouldn't
+   naturally place it. `internal.ts` builds this by searching a bounded ±60-day window of the
+   task's logs for any `movedToDate` landing in range. `useMoveOccurrence` reconciles both the
+   source and target dates. Domain-level tests in `dayState.test.ts` plus a full-pipeline
+   `useMoveOccurrence` test in `mutations.test.ts` (source `not-due`, target `pending`) both
+   assert the review's acceptance scenario.
+7. **Fixed, per the CR-2 ruling.** `retractXpAward(taskId, date)` fires from
+   `reconcileOccurrence` exclusively, only when an occurrence stops being XP-eligible — never
+   from `useDeleteTask`, never from cycle-boundary code. Every write in the reconcile path
+   (`appendXpAward`, `retractXpAward`, `upsertUnlock`, `appendCycleRecord`) has its `Result`
+   checked; `xpAwarded`/`badgesUnlocked`/events only reflect writes that actually succeeded.
+   "item 7" tests stub a failing `appendXpAward` and assert `xpAwarded: 0` and no `xp:awarded`
+   emission, with a contrasting successful-award test alongside it.
+8. **Fixed.** `bucketRanges` in `reads.ts` now walks real `startOfWeek/endOfWeek` and
+   `startOfMonth/endOfMonth` (from `@/lib/date`) and plain `YYYY-01-01`/`YYYY-12-31` string
+   boundaries for years — every bucket but the last is a full calendar period, never a fixed
+   7/30/365-day stride, and never anchored to a task's creation day.
+9. **Fixed.** `taskOccurrences` and `achievements` are now real `QUERY_KEYS` entries.
+   `invalidateCommon` uses `predicate`-based invalidation on the `tasks`/`today`/
+   `consistency`/`taskOccurrences` key prefixes so every parameterised variant is covered
+   without hand-enumerating them. "item 9" test mounts `useTaskOccurrences`, runs
+   `useLogState`, and asserts the occurrence read refetches with the new outcome.
+10. **Fixed.** `threeDayMixedFixture` now returns real tasks/logs/off-marks (2 tasks day 1, 3
+    tasks day 2 with 1 shown-up, both tasks off day 3) and a fixtures test drives it through
+    `resolveOccurrence` + `aggregateConsistency` to reproduce 67% via the real pipeline, not a
+    hand-built `Occurrence[]`. Added `twoCompletedCyclesFixture` (two non-overlapping archived
+    monthly records) and `cycleBoundaryFixture` (logs spanning a real monthly boundary plus a
+    mid-month cadence-change scenario). `src/queries/mutations.test.ts` is new: 10 tests
+    against a `FakeRepos` in-memory implementation (`testSupport/fakeRepos.ts`) driving the
+    real hooks via `renderHook`, covering items 1, 2, 3, 5, 6, 7 and 9's acceptance criteria
+    directly (items 1/2 also exported as `__testing__` for direct, hook-free testing of the
+    reconciliation internals, per the "pure logic preferred" testing guidance).
+
+**Non-blocking items:**
+- `cycle:finalized` now carries the actual persisted `CycleRecord` id (`archiveCycleWindow`
+  returns it), not the window id. Fixed.
+- `milestone-course-x3` now takes `completedCourses: { id, endDate }[]` and unlocks on the
+  3rd course's own end date (sorted ascending), not `today`. Fixed, with a test asserting the
+  unlock date is the chronological 3rd end date, not array order or the observation date.
+- `occurrencesBetween` and `eachDay` (`dateMath.ts`) both return `[]` for an inverted range
+  instead of looping forever, matching `@/lib/date.eachDay`. Fixed, with regression tests.
+- `daysBetween`'s sign-opposite relationship to `@/lib/date.diffDays` is now called out
+  explicitly in a doc comment on `daysBetween` itself, not just left as a landmine.
+- Backdated Event/Course: `occurrence.ts` no longer has any `notBefore` concept baked into the
+  Event/Course branches at all (only Routine/repeating-Event consult it), and
+  `internal.ts`'s `iterationFrom` starts the scan at `task.eventDate`/`task.startDate` for
+  those types instead of the creation bound — a backdated one-off Event or Course now
+  materialises. Fixed; this was really the same root cause as item 4.
+- `fallback-comeback`'s task-level-vs-day-level reading is now recorded explicitly in
+  `achievements.ts` (both in the catalogue entry's comment and its description/lockedHint
+  copy), naming the design witness and the divergence case, so qa-tester tests the intended
+  (task-level) behaviour rather than guessing. Interpretation unchanged, per "defensible, keep
+  it" — only the documentation was missing.
+- `useAchievements`' "only durably persists on the next mutation" note: unchanged, already
+  documented in that hook's own comment; no action needed beyond what was already there.
+
+**`dateMath.ts`:** kept. One-line version: every domain function must stay a pure function of
+its `LocalDate` arguments with zero I/O (that's what makes the golden-table tests plain unit
+tests with no clock to freeze), and keeping the private module means `src/domain` is provably
+decoupled from `@/lib/date`'s implementation choices rather than merely agreeing with them
+today — the file header now records the fuller reasoning. The one place it was genuinely
+*wrong*, not just duplicated (`instantToLocalDate`, item 4), is gone.
+
+**Judgement calls:** all four left as the review assessed. `fallback-comeback`'s
+interpretation is now explicit in code, per the review's one actionable note on it.
+
+**Testing:** `src/domain` gained F7-move tests, an inverted-range regression pair, and a
+Course x3 condition-date pair (123 domain tests, up from 112). `src/queries` went from 0 to 1
+suite / 10 tests, all against the real hooks via `renderHook` + a real `QueryClient`, using an
+in-memory `FakeRepos` rather than a live SQLite connection (`testSupport/fakeRepos.ts`,
+`dbMock.ts`, `clockMock.ts`). `npx tsc --noEmit` clean; `npx jest` → 36 suites / 264 tests,
+all passing, ~8-9s — above the stated 32/213 baseline.
