@@ -44,8 +44,36 @@ function makeWrapper(client: QueryClient) {
 }
 
 function freshClient(): QueryClient {
-  return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: true },
+      mutations: { retry: false },
+    },
+  });
 }
+
+/**
+ * `renderHook` mounts a real component tree; leaving it mounted after a test holds
+ * react-query's observer subscriptions open and is what stalls Jest's process exit
+ * (rendered components are never unmounted otherwise). Every render in this file goes
+ * through this wrapper so `afterEach` can unmount and `client.clear()` unconditionally.
+ */
+const activeUnmounts: Array<() => void> = [];
+const activeClients: QueryClient[] = [];
+
+async function rh<T>(hook: () => T, client: QueryClient): ReturnType<typeof renderHook<T, undefined>> {
+  activeClients.push(client);
+  const r = await renderHook(hook, { wrapper: makeWrapper(client) });
+  activeUnmounts.push(r.unmount);
+  return r;
+}
+
+afterEach(() => {
+  activeUnmounts.forEach((fn) => fn());
+  activeUnmounts.length = 0;
+  activeClients.forEach((c) => c.clear());
+  activeClients.length = 0;
+});
 
 let idCounter = 0;
 function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
@@ -92,8 +120,7 @@ describe('useLogState — item 3: the S24 -> S28 level-up handoff', () => {
     const task = makeTask();
     fake.seedTask(task);
     const client = freshClient();
-    const wrapper = makeWrapper(client);
-    const { result } = await renderHook(() => useLogState(), { wrapper });
+    const { result } = await rh(() => useLogState(), client);
 
     // 9 ideal logs = 90 XP (still level 1).
     for (let i = 1; i <= 9; i++) {
@@ -118,7 +145,7 @@ describe('useLogState — item 3: the S24 -> S28 level-up handoff', () => {
     const task = makeTask();
     fake.seedTask(task);
     const client = freshClient();
-    const { result } = await renderHook(() => useLogState(), { wrapper: makeWrapper(client) });
+    const { result } = await rh(() => useLogState(), client);
 
     let outcome: unknown;
     await act(async () => {
@@ -183,7 +210,7 @@ describe('useMoveOccurrence — item 6: F7 snooze/move through the real pipeline
     const client = freshClient();
     const wrapper = makeWrapper(client);
 
-    const { result: moveResult } = await renderHook(() => useMoveOccurrence(), { wrapper });
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
     await act(async () => {
       await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-01' as LocalDate, toDate: '2024-06-02' as LocalDate });
     });
@@ -206,8 +233,8 @@ describe('useTasks — item 5: no cache-key collision across type filters', () =
     const client = freshClient();
     const wrapper = makeWrapper(client);
 
-    const { result: routines } = await renderHook(() => useTasks({ type: 'routine' }), { wrapper });
-    const { result: events } = await renderHook(() => useTasks({ type: 'event' }), { wrapper });
+    const { result: routines } = await rh(() => useTasks({ type: 'routine' }), client);
+    const { result: events } = await rh(() => useTasks({ type: 'event' }), client);
 
     await waitFor(() => expect(routines.current.isSuccess).toBe(true));
     await waitFor(() => expect(events.current.isSuccess).toBe(true));
@@ -237,7 +264,7 @@ describe('item 9: a log invalidates a mounted useTaskOccurrences for that task',
     await waitFor(() => expect(occResult.current.isSuccess).toBe(true));
     const before = occResult.current.dataUpdatedAt;
 
-    const { result: logResult } = await renderHook(() => useLogState(), { wrapper });
+    const { result: logResult } = await rh(() => useLogState(), client);
     await act(async () => {
       await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-01' as LocalDate, chip: 'done' });
     });

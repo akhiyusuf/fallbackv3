@@ -72,7 +72,16 @@ describe('migrations', () => {
       null,
       '2026-02-01T00:00:01.000Z',
     ]);
-    expect(await db.getAllAsync(`SELECT id FROM off_day_mark WHERE date = '2026-02-01'`)).toHaveLength(2);
+    // A TASK-SCOPED mark on the very same date — the dedupe DELETE is scoped to
+    // `task_id IS NULL` only, so this row must be scoping-untouched, not merely a
+    // survivor by luck. Asserts the dedupe's WHERE clause, not just its ORDER BY.
+    await db.runAsync(`INSERT INTO off_day_mark (id, date, task_id, created_at) VALUES (?,?,?,?)`, [
+      'off-legacy-task-scoped',
+      '2026-02-01',
+      'task-1',
+      '2026-02-01T00:00:02.000Z',
+    ]);
+    expect(await db.getAllAsync(`SELECT id FROM off_day_mark WHERE date = '2026-02-01'`)).toHaveLength(3);
 
     expect(await currentUserVersion(db)).toBe(1);
 
@@ -86,11 +95,16 @@ describe('migrations', () => {
     const award = await db.getFirstAsync<{ amount: number }>(`SELECT amount FROM xp_award WHERE id = 'xp-1'`);
     expect(award?.amount).toBe(10);
 
-    // The legal-under-v1 duplicate was deduped by migration 2's own DELETE, keeping the
-    // earliest (lowest-rowid) survivor rather than migration 2 throwing on real prior data.
-    const survivors = await db.getAllAsync<{ id: string }>(`SELECT id FROM off_day_mark WHERE date = '2026-02-01'`);
-    expect(survivors).toHaveLength(1);
-    expect(survivors[0]?.id).toBe('off-legacy-1');
+    // The legal-under-v1 whole-day duplicate was deduped by migration 2's own DELETE,
+    // keeping the earliest (lowest-rowid) survivor rather than migration 2 throwing on
+    // real prior data — AND the task-scoped mark on the same date is untouched, since the
+    // dedupe DELETE is scoped to `task_id IS NULL` only (not just "one row per date").
+    const survivors = await db.getAllAsync<{ id: string; task_id: string | null }>(
+      `SELECT id, task_id FROM off_day_mark WHERE date = '2026-02-01' ORDER BY id`,
+    );
+    expect(survivors).toHaveLength(2);
+    expect(survivors.map((r) => r.id)).toEqual(['off-legacy-1', 'off-legacy-task-scoped']);
+    expect(survivors.find((r) => r.id === 'off-legacy-task-scoped')?.task_id).toBe('task-1');
 
     // The migration-2 constraint is now live: a second whole-day off mark for a date that
     // already has one is rejected.

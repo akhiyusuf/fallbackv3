@@ -232,4 +232,39 @@ describe('ProgressRepository', () => {
     const result = await repos.progress.retractXpAward(task.id, '2026-05-03' as never);
     expect(result.ok).toBe(true);
   });
+
+  // Review pass 2, non-blocking note 2: locks the STRUCTURAL guarantee that
+  // `retractXpAward` can never match an orphaned NULL-task_id award, so a future refactor
+  // cannot silently reintroduce level demotion via a deleted task's surviving XP. `WHERE
+  // task_id = ? AND date = ?` never matches a NULL under SQL's own three-valued logic — the
+  // guarantee holds even if a caller passes the ORIGINAL (now-stale) task id for that date.
+  it('retractXpAward can never delete an orphaned (task_id = NULL) award — SQL NULL never equals a bound parameter', async () => {
+    const { repos, store } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, []);
+    await repos.progress.appendXpAward({
+      id: newId(),
+      taskId: task.id,
+      date: '2026-05-04' as never,
+      kind: 'ideal',
+      amount: 10,
+      cycleId: 'cycle-1' as never,
+      createdAt: '2026-05-04T00:00:00.000Z' as never,
+    });
+
+    // Delete the task and let the hard sweep orphan its award (SCHEMA §2.3).
+    await repos.tasks.softDelete(task.id);
+    await store.open();
+    const orphaned = await repos.progress.listXpAwards();
+    expect(orphaned).toHaveLength(1);
+    expect(orphaned[0]?.taskId).toBeNull();
+    expect(await repos.progress.lifetimeXp()).toBe(10);
+
+    // Calling retractXpAward with the STALE (pre-deletion) task id for that same date must
+    // be a no-op — it cannot match a row whose task_id is now NULL.
+    const retracted = await repos.progress.retractXpAward(task.id, '2026-05-04' as never);
+    expect(retracted.ok).toBe(true);
+    expect(await repos.progress.lifetimeXp()).toBe(10);
+    expect(await repos.progress.listXpAwards()).toHaveLength(1);
+  });
 });

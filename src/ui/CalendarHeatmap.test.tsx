@@ -64,7 +64,44 @@ describe('CalendarHeatmap', () => {
     await fireEvent.press(cell);
     expect(onCellPress).toHaveBeenCalledWith('2026-06-29');
   });
+
+  it('cells and month nav are individually reachable — no ancestor collapses them into one accessibility element (REVIEW-M0.md pass 2)', async () => {
+    const onPrevMonth = jest.fn();
+    const onNextMonth = jest.fn();
+    await render(
+      <CalendarHeatmap days={DAYS} monthLabel="July 2026" accessibilityLabel="Calendar" onPrevMonth={onPrevMonth} onNextMonth={onNextMonth} />,
+    );
+
+    // Both the month-nav button and a cell are still independently pressable and carry
+    // their own distinct accessible names — the direct, provable symptom of the bug (an
+    // `accessible={true}` ancestor groups an entire subtree into ONE VoiceOver/TalkBack
+    // element, so nothing beneath it is individually reachable any more).
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous month' }));
+    expect(onPrevMonth).toHaveBeenCalledTimes(1);
+    const cell = screen.getByLabelText('2026-06-29, ideal');
+    expect(cell.props.accessibilityLabel).not.toBe('Previous month');
+
+    // Directly asserts the fixed rule: walk every ancestor of the nav button and of a cell
+    // and require none of them sets `accessible={true}` — that is the exact prop that
+    // would swallow both of these into a single element and is what pass 1 shipped.
+    expectNoAccessibleAncestor(screen.getByRole('button', { name: 'Previous month' }));
+    expectNoAccessibleAncestor(cell);
+
+    // The container's own label is still announced — via a real (host `Text`, therefore
+    // auto-accessible) sibling element outside the interactive subtree, not by wrapping it.
+    expect(screen.getByText('Calendar').props.style).toEqual(
+      expect.objectContaining({ position: 'absolute', opacity: 0 }),
+    );
+  });
 });
+
+function expectNoAccessibleAncestor(node: ReturnType<typeof screen.getByLabelText>) {
+  let current = node.parent;
+  while (current) {
+    expect(current.props.accessible).not.toBe(true);
+    current = current.parent;
+  }
+}
 
 function firstViewChild(node: ReturnType<typeof screen.getByLabelText>) {
   const [child] = node.queryAll((n) => n.type === 'View');

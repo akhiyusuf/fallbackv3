@@ -255,7 +255,8 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     const envelope = JSON.parse(raw) as { tables: Record<string, Record<string, unknown>[]> };
     // A genuine `buildBackupEnvelope` output can never carry this key — simulates a
     // crafted/foreign-schema file, the exact case the allowlist exists to catch.
-    envelope.tables.task = envelope.tables.task.map((row) => ({ ...row, sneaky_extra_column: 'DROP TABLE task;--' }));
+    const taskRows = envelope.tables.task ?? [];
+    envelope.tables.task = taskRows.map((row) => ({ ...row, sneaky_extra_column: 'DROP TABLE task;--' }));
     await fs.writeAsStringAsync('file:///hostile-column.fallbackbak', JSON.stringify(envelope));
 
     const restoreResult = await store.restore('file:///hostile-column.fallbackbak');
