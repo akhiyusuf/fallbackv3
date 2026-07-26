@@ -62,9 +62,19 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   {
     key: 'fallback-comeback',
     category: 'fallback-wins',
+    // INTERPRETATION, recorded for qa-tester (review pass 1, accepted judgement call, "record
+    // it explicitly so qa-tester tests the intended behaviour rather than guessing"): SCHEMA
+    // §7 places this in the TASK-LEVEL "fallback-wins" block (same block as the other
+    // occurrence-count badges), so this implementation reads it as TASK-LEVEL adjacency — the
+    // SAME task missed on day D and shown up on day D+1. The design witness (ALLSCREENS
+    // 2697-2699, Maya's ledger) reads DAY-LEVEL instead (any task missed on D, any task shown
+    // up on D+1) and the two readings diverge on a mixed day where one task misses while
+    // another, on the same day, shows up. Both are defensible; this module commits to
+    // task-level. A qa fixture asserting the day-level reading is testing a DIFFERENT,
+    // not-yet-built behaviour, not a bug in this one.
     label: 'Comeback',
-    description: 'Showed up the day right after a missed day.',
-    lockedHint: 'Show up on the day right after a missed day.',
+    description: 'The same task showed up the day right after it was missed.',
+    lockedHint: 'Show up on a task the day right after it was missed.',
   },
   {
     key: 'milestone-100-done',
@@ -132,8 +142,15 @@ export function reconcileAchievements(input: {
   tenureAnchor: LocalDate;
   today: LocalDate;
   alreadyUnlocked: readonly AchievementUnlock[];
-  /** Extension: Course task ids that have run through to their own end date (milestone-course-x3). */
-  completedCourseIds?: readonly Id[];
+  /**
+   * Extension: Courses that have run through to their own end date (milestone-course-x3),
+   * each with that TRUE condition date — review pass 1 fixed a defect where this unlocked
+   * with `unlockedOn: today` (the observation date) instead, which breaks F30's "badges
+   * unlocked in this cycle" attribution (a badge earned mid-cycle but only reconciled next
+   * foreground would misattribute to the wrong cycle). Caller supplies the id only for
+   * traceability; it plays no role in the condition itself.
+   */
+  completedCourses?: readonly { readonly id: Id; readonly endDate: LocalDate }[];
   /**
    * Extension: this module is pure and has no clock of its own — `createdAt` on a NEWLY
    * unlocked badge (the date the app happened to observe it, per SCHEMA.md §7) is stamped
@@ -142,7 +159,7 @@ export function reconcileAchievements(input: {
    */
   now: Instant;
 }): AchievementUnlock[] {
-  const { occurrences, tenureAnchor, today, alreadyUnlocked, completedCourseIds = [], now } = input;
+  const { occurrences, tenureAnchor, today, alreadyUnlocked, completedCourses = [], now } = input;
   const alreadyKeys = new Set(alreadyUnlocked.map((u) => u.key));
   const qualifying = new Map<string, LocalDate>(); // key -> true condition date
 
@@ -204,8 +221,12 @@ export function reconcileAchievements(input: {
     .sort();
   if (doneDatesAsc.length >= 100) qualifying.set('milestone-100-done', doneDatesAsc[99] as LocalDate);
 
-  // ---- milestone-course-x3.
-  if (completedCourseIds.length >= 3) qualifying.set('milestone-course-x3', today);
+  // ---- milestone-course-x3: unlocks on the TRUE condition date — the 3rd course's own end
+  // date, not whenever the app happened to next reconcile and notice.
+  if (completedCourses.length >= 3) {
+    const endDatesAsc = [...completedCourses].map((c) => c.endDate).sort();
+    qualifying.set('milestone-course-x3', endDatesAsc[2] as LocalDate);
+  }
 
   // ---- milestone-full-week: an ISO week (Mon-Sun) where every one of the 7 days is a
   // counted day (R(D) > 0) with f(D) === 1.0.

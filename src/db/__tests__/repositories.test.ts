@@ -201,4 +201,35 @@ describe('ProgressRepository', () => {
     expect(await repos.progress.lifetimeXp()).toBe(6);
     expect(await repos.progress.listXpAwards()).toHaveLength(1);
   });
+
+  // CR-2 (docs/MODULES.md top matter, SCHEMA.md §7) — the only sanctioned reduction of
+  // lifetime XP: an undone mis-tap on a live task.
+  it('retractXpAward deletes the (task, date) award row and reduces lifetime XP', async () => {
+    const { repos } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, []);
+    await repos.progress.appendXpAward({
+      id: newId(),
+      taskId: task.id,
+      date: '2026-05-02' as never,
+      kind: 'ideal',
+      amount: 10,
+      cycleId: 'cycle-1' as never,
+      createdAt: '2026-05-02T00:00:00.000Z' as never,
+    });
+    expect(await repos.progress.lifetimeXp()).toBe(10);
+
+    const retracted = await repos.progress.retractXpAward(task.id, '2026-05-02' as never);
+    expect(retracted.ok).toBe(true);
+    expect(await repos.progress.lifetimeXp()).toBe(0);
+    expect(await repos.progress.listXpAwards()).toHaveLength(0);
+  });
+
+  it('retractXpAward on a (task, date) with no award row is a no-op that still returns ok', async () => {
+    const { repos } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, []);
+    const result = await repos.progress.retractXpAward(task.id, '2026-05-03' as never);
+    expect(result.ok).toBe(true);
+  });
 });

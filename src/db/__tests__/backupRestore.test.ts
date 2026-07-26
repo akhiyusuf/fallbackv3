@@ -164,6 +164,79 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     expect(await repos.progress.lifetimeXp()).toBe(100);
   });
 
+  // Review pass 1, blocking item 1: a structurally well-formed but semantically
+  // impossible envelope (every table empty — `buildBackupEnvelope` can never produce this,
+  // since it always serialises exactly one `settings` row and one `cycle_state` row) must
+  // be rejected BEFORE the transaction opens, not applied destructively.
+  it('an envelope with all 11 tables empty (semantically impossible — a genuine backup always carries the singletons) fails validation without touching data', async () => {
+    const { repos, store } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, []);
+    const settingsBefore = await repos.settings.get();
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('../testSupport/fileSystemTestDouble') as typeof import('../testSupport/fileSystemTestDouble');
+    const impossibleEnvelope = {
+      format: 'fallback-backup',
+      formatVersion: 1,
+      schemaVersion: 2,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      tables: {
+        settings: [],
+        task: [],
+        step: [],
+        day_log: [],
+        off_day_mark: [],
+        as_needed_use: [],
+        xp_award: [],
+        achievement_unlock: [],
+        cycle_record: [],
+        cycle_state: [],
+        widget_config: [],
+      },
+    };
+    await fs.writeAsStringAsync('file:///empty.fallbackbak', JSON.stringify(impossibleEnvelope));
+
+    const restoreResult = await store.restore('file:///empty.fallbackbak');
+    expect(restoreResult.ok).toBe(false);
+    if (!restoreResult.ok) expect(restoreResult.error.code).toBe('VALIDATION_FAILED');
+
+    // Existing data is completely untouched — never a destructive "successful" wipe.
+    const stillThere = await repos.tasks.get(task.id);
+    expect(stillThere?.name).toBe('Read');
+    // `repos.settings.get()` still resolves (never throws across the module boundary) and
+    // the tenure anchor is unchanged — no fresh-anchor side effect from a rejected restore.
+    await expect(repos.settings.get()).resolves.toEqual(settingsBefore);
+  });
+
+  it('validateBackupEnvelope also rejects an envelope missing just the cycle_state singleton, or with a newer schemaVersion', () => {
+    const base = {
+      format: 'fallback-backup',
+      formatVersion: 1,
+      schemaVersion: 2,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      tables: {
+        settings: [{ id: 1 }],
+        task: [],
+        step: [],
+        day_log: [],
+        off_day_mark: [],
+        as_needed_use: [],
+        xp_award: [],
+        achievement_unlock: [],
+        cycle_record: [],
+        cycle_state: [],
+        widget_config: [],
+      },
+    };
+    expect(validateBackupEnvelope(base).ok).toBe(false);
+
+    const futureSchema = { ...base, tables: { ...base.tables, cycle_state: [{ id: 1 }] }, schemaVersion: 999 };
+    const futureResult = validateBackupEnvelope(futureSchema);
+    expect(futureResult.ok).toBe(false);
+    if (!futureResult.ok) expect(futureResult.error.code).toBe('VALIDATION_FAILED');
+  });
+
   it('a failed restore (malformed file) leaves existing data completely untouched', async () => {
     const { repos, store } = await freshDb();
     const task = buildTask();

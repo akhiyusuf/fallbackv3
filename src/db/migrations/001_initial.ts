@@ -7,7 +7,7 @@
  * `tenure_anchor_date` (SCHEMA §7 — F29 anchor) and the `cycle_state` singleton are NOT
  * seeded here: this string is pure DDL (matching the scaffolded `Migration.up: string`
  * shape in migrations/index.ts), and singleton rows need a runtime `today()`/`newId()`
- * value a static SQL string can't produce. `src/db/index.ts#ensureSingletons` performs
+ * value a static SQL string can't produce. `src/db/lifecycle.ts#ensureSingletons` performs
  * that idempotent seed immediately after migrations run on every `open()` — a no-op after
  * the first call. This keeps the `Migration` contract untouched while still satisfying
  * SCHEMA §9's "migration 1 ... writes tenure_anchor_date = today()" at first-run time.

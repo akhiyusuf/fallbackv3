@@ -1,58 +1,33 @@
-/**
- * NOTE: `@testing-library/react-native@14` declares a peer dependency on a package
- * literally named `test-renderer` that is not present in `package.json`/`package-lock.json`
- * (frozen, architect-owned) — importing `@testing-library/react-native` throws
- * `Cannot find module 'test-renderer'` under this project's exact dependency set. Kit
- * component tests use `react-test-renderer` directly instead (already present as a
- * transitive dependency of the RN/jest-expo toolchain, so this adds nothing to
- * `package.json`). Flagged as a contract-change request in the M0 build report.
- */
-import { act, create } from 'react-test-renderer';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { Button } from './Button';
 
 describe('Button', () => {
-  it('renders its label and fires onPress', () => {
+  it('renders its label and fires onPress', async () => {
     const onPress = jest.fn();
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(<Button label="Save routine" onPress={onPress} />);
-    });
-    const pressable = renderer!.root.findByProps({ accessibilityRole: 'button' });
-    expect(pressable.props.accessibilityLabel).toBe('Save routine');
-    act(() => {
-      pressable.props.onPress();
-    });
+    await render(<Button label="Save routine" onPress={onPress} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Save routine' }));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fire onPress when disabled', () => {
+  it('does not fire onPress when disabled', async () => {
     const onPress = jest.fn();
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(<Button label="Save" onPress={onPress} disabled />);
-    });
-    const pressable = renderer!.root.findByProps({ accessibilityRole: 'button' });
-    expect(pressable.props.onPress).toBeUndefined();
+    await render(<Button label="Save" onPress={onPress} disabled />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    expect(onPress).not.toHaveBeenCalled();
   });
 
-  it('does not fire onPress while loading', () => {
+  it('does not fire onPress while loading', async () => {
     const onPress = jest.fn();
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(<Button label="Save" onPress={onPress} loading />);
-    });
-    const pressable = renderer!.root.findByProps({ accessibilityRole: 'button' });
-    expect(pressable.props.onPress).toBeUndefined();
-    expect(pressable.props.accessibilityState.busy).toBe(true);
+    await render(<Button label="Save" onPress={onPress} loading />);
+    const button = screen.getByRole('button', { name: 'Save' });
+    expect(button.props.accessibilityState.busy).toBe(true);
+    await fireEvent.press(button);
+    expect(onPress).not.toHaveBeenCalled();
   });
 
-  it('accepts an explicit accessibilityLabel distinct from the visible label', () => {
-    let renderer: ReturnType<typeof create>;
-    act(() => {
-      renderer = create(<Button label="Retry" onPress={() => {}} accessibilityLabel="Retry loading today's tasks" />);
-    });
-    const pressable = renderer!.root.findByProps({ accessibilityRole: 'button' });
-    expect(pressable.props.accessibilityLabel).toBe("Retry loading today's tasks");
+  it('accepts an explicit accessibilityLabel distinct from the visible label', async () => {
+    await render(<Button label="Retry" onPress={() => {}} accessibilityLabel="Retry loading today's tasks" />);
+    expect(screen.getByRole('button', { name: "Retry loading today's tasks" })).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-/** M0. Theme resolution + `useTheme()`. STUB — M0 implements. */
+/** M0. Theme resolution + `useTheme()`. */
 
 import { createContext, useContext } from 'react';
 

@@ -39,7 +39,7 @@ describe('StoreLifecycle', () => {
     expect(second.tenureAnchorDate).toBe(first.tenureAnchorDate);
   });
 
-  it('eraseAll is atomic: a fresh store afterwards has zero tasks, zero XP, and a NEW tenure anchor day', async () => {
+  it('eraseAll is atomic: a fresh store afterwards has zero tasks, zero XP, and a freshly-minted tenure anchor row', async () => {
     const { repos, store } = await freshDb();
     await store.open();
     const before = await repos.settings.get();
@@ -103,5 +103,64 @@ describe('StoreLifecycle', () => {
     const second = await store.eraseAll();
     expect(second.ok).toBe(true);
     expect(await repos.tasks.list()).toHaveLength(0);
+  });
+
+  // Review pass 1, blocking item 2: MODULES.md's non-negotiable is that eraseAll "clears
+  // SecureStore keys and widget snapshot files too". M1 has no direct handle on the
+  // shared-container snapshot (M7's WidgetBridge) — `store:erased` is the pinned event
+  // (`src/types/ports.ts`'s closed AppEvent union) that lets it react without an import
+  // cycle (ARCHITECTURE §4.4). `open()` similarly must be the sole producer of `store:ready`.
+  describe('event emission (docs/API.md §3, ARCHITECTURE §4.4)', () => {
+    it('open() emits store:ready exactly once on a successful open, never on a failed one', async () => {
+      const { store } = await freshDb();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const events = require('@/lib/events') as typeof import('@/lib/events');
+      const readyHandler = jest.fn();
+      const unsubscribe = events.on('store:ready', readyHandler);
+
+      const result = await store.open();
+      expect(result.ok).toBe(true);
+      expect(readyHandler).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it('eraseAll() emits store:erased exactly once when it resolves ok, and does not fire when it fails', async () => {
+      const { store } = await freshDb();
+      await store.open();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const events = require('@/lib/events') as typeof import('@/lib/events');
+      const erasedHandler = jest.fn();
+      const unsubscribeErased = events.on('store:erased', erasedHandler);
+
+      const erased = await store.eraseAll();
+      expect(erased.ok).toBe(true);
+      expect(erasedHandler).toHaveBeenCalledTimes(1);
+      unsubscribeErased();
+    });
+
+    it('a failed eraseAll (the post-delete re-open fails) does not emit store:erased', async () => {
+      const { store } = await freshDb();
+      await store.open();
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const events = require('@/lib/events') as typeof import('@/lib/events');
+      const erasedHandler = jest.fn();
+      const unsubscribe = events.on('store:erased', erasedHandler);
+
+      // Force the RE-OPEN inside eraseAll (after the delete) to fail, so eraseAll itself
+      // returns a non-ok Result without ever reaching the emit.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const clientModule = require('../client') as typeof import('../client');
+      const originalOpenClient = clientModule.openClient;
+      clientModule.openClient = jest.fn(async () => {
+        throw new Error('simulated reopen failure');
+      });
+
+      const erased = await store.eraseAll();
+      expect(erased.ok).toBe(false);
+      expect(erasedHandler).not.toHaveBeenCalled();
+
+      clientModule.openClient = originalOpenClient;
+      unsubscribe();
+    });
   });
 });

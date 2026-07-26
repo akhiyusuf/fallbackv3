@@ -19,8 +19,16 @@ export async function readAsStringAsync(uri: string): Promise<string> {
   return content;
 }
 
-export async function deleteAsync(uri: string): Promise<void> {
+export async function deleteAsync(uri: string, options?: { idempotent?: boolean }): Promise<void> {
+  if (!options?.idempotent && !files.has(uri)) throw new Error(`ENOENT: no such file: ${uri}`);
   files.delete(uri);
+}
+
+export async function moveAsync(options: { from: string; to: string }): Promise<void> {
+  const content = files.get(options.from);
+  if (content === undefined) throw new Error(`ENOENT: no such file: ${options.from}`);
+  files.set(options.to, content);
+  files.delete(options.from);
 }
 
 export function __reset(): void {

@@ -1,8 +1,15 @@
 import type { LocalDate } from '@/types';
 import { resolveOccurrence } from '../dayState';
 import { isDue } from '../occurrence';
-import { perTaskConsistency } from '../consistency';
-import { emergencyPlanRoutine, mayaFixture, studyingRoutine, threeDayMixedFixture } from './index';
+import { aggregateConsistency, perTaskConsistency } from '../consistency';
+import {
+  cycleBoundaryFixture,
+  emergencyPlanRoutine,
+  mayaFixture,
+  studyingRoutine,
+  threeDayMixedFixture,
+  twoCompletedCyclesFixture,
+} from './index';
 
 const d = (s: string) => s as LocalDate;
 
@@ -43,8 +50,38 @@ describe('__fixtures__ — PRD §6 seed set, reused by every downstream module',
     expect(movementResult.percent).toBe(87);
   });
 
-  test('threeDayMixedFixture supplies the 3 literal dates the 67% anchor test constructs occurrences around', () => {
-    const { day1, day2, day3 } = threeDayMixedFixture();
-    expect([day1, day2, day3]).toHaveLength(3);
+  test('threeDayMixedFixture reproduces the 67% aggregate anchor through the REAL resolveOccurrence pipeline (review pass 1, item 10)', () => {
+    const { taskA, taskB, taskC, logs, offMarks, day1, day2, day3 } = threeDayMixedFixture();
+    const today = day3;
+    const logFor = (task: typeof taskA, date: LocalDate) => logs.find((l) => l.taskId === task.id && l.date === date) ?? null;
+
+    const occurrences = [
+      resolveOccurrence({ task: taskA, date: day1, today, log: logFor(taskA, day1), offMarks }),
+      resolveOccurrence({ task: taskB, date: day1, today, log: logFor(taskB, day1), offMarks }),
+      resolveOccurrence({ task: taskA, date: day2, today, log: logFor(taskA, day2), offMarks }),
+      resolveOccurrence({ task: taskB, date: day2, today, log: logFor(taskB, day2), offMarks }),
+      resolveOccurrence({ task: taskC, date: day2, today, log: logFor(taskC, day2), offMarks }),
+      resolveOccurrence({ task: taskA, date: day3, today, log: logFor(taskA, day3), offMarks }),
+      resolveOccurrence({ task: taskB, date: day3, today, log: logFor(taskB, day3), offMarks }),
+    ];
+
+    const result = aggregateConsistency({ occurrences, window: 'all-time', today });
+    expect(result.denominator).toBe(2); // day 3 excluded (fully off)
+    expect(result.numerator).toBeCloseTo(1 + 1 / 3, 9);
+    expect(result.percent).toBe(67);
+  });
+
+  test('twoCompletedCyclesFixture supplies two non-overlapping, already-archived monthly records', () => {
+    const { cycleOne, cycleTwo } = twoCompletedCyclesFixture();
+    expect(cycleOne.endDate < cycleTwo.startDate).toBe(true);
+    expect(cycleOne.cadence).toBe('monthly');
+    expect(cycleTwo.consistencyPercent).toBe(100);
+  });
+
+  test('cycleBoundaryFixture supplies logs spanning a real monthly boundary and a mid-month cadence-change scenario', () => {
+    const { januaryLogs, februaryLogs, midMonthLogsBeforeSwitch } = cycleBoundaryFixture();
+    expect(januaryLogs.every((l) => l.date.startsWith('2024-01'))).toBe(true);
+    expect(februaryLogs.every((l) => l.date.startsWith('2024-02'))).toBe(true);
+    expect(midMonthLogsBeforeSwitch.length).toBeGreaterThan(0);
   });
 });

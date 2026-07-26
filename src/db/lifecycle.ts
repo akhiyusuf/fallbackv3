@@ -5,6 +5,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 
+import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
 import { now, today } from '@/lib/date';
 import { err, ok } from '@/types';
@@ -15,7 +16,6 @@ import type { DbClient, DbClientProxy } from './client';
 import { deleteDatabaseFile, openClient } from './client';
 import { seedCycleWindow } from './cycleWindowSeed';
 import { runMigrations } from './migrate';
-import { createCycleStateRepository } from './repositories/cycleStateRepository';
 
 /**
  * The BYO key lives ONLY in SecureStore (SCHEMA §1, API.md §5) under these two keys.
@@ -95,6 +95,10 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
     async open(): Promise<Result<StoreStatus>> {
       try {
         status = await openInternal();
+        // The closed AppEvent union's only plausible producer for `store:ready` — M7's
+        // widget bridge and notification scheduler subscribe without importing M1
+        // (ARCHITECTURE §4.4, API.md §3).
+        if (status === 'ready') emit({ type: 'store:ready' });
         return ok(status);
       } catch {
         // A thrown error opening/reading the store is exactly the corrupt case S01 must
@@ -132,6 +136,13 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
         if (status !== 'ready') {
           return err({ code: 'WRITE_FAILED', message: 'store could not be recreated after erase' });
         }
+        // MODULES.md non-negotiable: eraseAll "clears SecureStore keys and widget snapshot
+        // files too". M1 has no direct handle on the shared-container snapshot (that is
+        // M7's WidgetBridge, a parallel Wave-1 module) — `store:erased` is the pinned event
+        // that lets it react without M1 importing M7 (ARCHITECTURE §4.4). `open()`'s own
+        // `store:ready` also fires here since `openInternal()` just re-opened a fresh store.
+        emit({ type: 'store:erased' });
+        emit({ type: 'store:ready' });
         return ok(undefined);
       } catch (cause) {
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'erase failed', cause });
@@ -143,14 +154,25 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
     // store receipt or the entitlement row — `buildBackupEnvelope` only ever touches the
     // eleven pinned tables, `entitlement` is not among them.
     async backup(): Promise<Result<{ uri: string; createdAt: Instant }>> {
+      const envelope = await buildBackupEnvelope(proxy);
+      const filename = `fallback-backup-${envelope.createdAt.slice(0, 10)}.fallbackbak`;
+      const uri = `${BACKUP_DIR}${filename}`;
+      // Write to a temp name and move into place rather than writing the final name
+      // directly: a mid-write failure then leaves nothing at `uri` — no partial/truncated
+      // file at the name S47 would offer for restore — instead of a corrupt final file
+      // (review note 2).
+      const tmpUri = `${uri}.tmp`;
       try {
-        const envelope = await buildBackupEnvelope(proxy);
-        const filename = `fallback-backup-${envelope.createdAt.slice(0, 10)}.fallbackbak`;
-        const uri = `${BACKUP_DIR}${filename}`;
-        await FileSystem.writeAsStringAsync(uri, JSON.stringify(envelope));
+        await FileSystem.writeAsStringAsync(tmpUri, JSON.stringify(envelope));
+        await FileSystem.moveAsync({ from: tmpUri, to: uri });
         await proxy.runAsync(`UPDATE settings SET last_backup_at = ? WHERE id = 1`, [envelope.createdAt]);
         return ok({ uri, createdAt: envelope.createdAt });
       } catch (cause) {
+        try {
+          await FileSystem.deleteAsync(tmpUri, { idempotent: true });
+        } catch {
+          /* best-effort cleanup only */
+        }
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'backup failed', cause });
       }
     },
@@ -176,8 +198,4 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
       }
     },
   } satisfies StoreLifecycle;
-}
-
-export function createCycleStateAccessor(proxy: DbClientProxy) {
-  return createCycleStateRepository(proxy);
 }

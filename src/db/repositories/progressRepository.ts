@@ -114,6 +114,19 @@ export function createProgressRepository(db: DbClient) {
       }
     },
 
+    // CR-2 (SCHEMA.md §7). The ONLY sanctioned reduction of lifetime XP — an undone mis-tap
+    // on a live task's showing-up state. Never called for a missed day, an off day, a
+    // cycle boundary, or a task deletion (M2's boundary to enforce; this repository just
+    // deletes the one row it's told to). A no-op when no row exists still returns `ok`.
+    async retractXpAward(taskId: Id, date: LocalDate): Promise<Result<void>> {
+      try {
+        await db.runAsync(`DELETE FROM xp_award WHERE task_id = ? AND date = ?`, [taskId, date]);
+        return ok(undefined);
+      } catch (cause) {
+        return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'retractXpAward failed', cause });
+      }
+    },
+
     async lifetimeXp(): Promise<number> {
       const row = await db.getFirstAsync<{ total: number | null }>(`SELECT SUM(amount) as total FROM xp_award`);
       return row?.total ?? 0;

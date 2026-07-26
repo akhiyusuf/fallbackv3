@@ -37,7 +37,10 @@ describe('migrations', () => {
     await db.execAsync('PRAGMA user_version = 1;');
 
     // Seed some real data at v1, including two off-day whole-day rows for the SAME date —
-    // legal under v1 (no partial unique index yet), illegal from v2 onward.
+    // legal under v1's plain UNIQUE(date, task_id), because SQLite treats every NULL as
+    // distinct in a unique constraint. This is exactly the gap migration 2's index closes,
+    // so the fixture must actually contain it (not seed it AFTER migrating) for this to be
+    // a genuine test of "migrates without losing data" against real prior-version data.
     await db.runAsync(`INSERT INTO task (id, type, name, icon, color, created_at, updated_at) VALUES (?,?,?,?,?,?,?)`, [
       'task-1',
       'routine',
@@ -56,6 +59,20 @@ describe('migrations', () => {
       'cycle-1',
       '2026-01-02T00:00:00.000Z',
     ]);
+    // Two legal-under-v1 whole-day marks for the SAME date, inserted in a known order.
+    await db.runAsync(`INSERT INTO off_day_mark (id, date, task_id, created_at) VALUES (?,?,?,?)`, [
+      'off-legacy-1',
+      '2026-02-01',
+      null,
+      '2026-02-01T00:00:00.000Z',
+    ]);
+    await db.runAsync(`INSERT INTO off_day_mark (id, date, task_id, created_at) VALUES (?,?,?,?)`, [
+      'off-legacy-2',
+      '2026-02-01',
+      null,
+      '2026-02-01T00:00:01.000Z',
+    ]);
+    expect(await db.getAllAsync(`SELECT id FROM off_day_mark WHERE date = '2026-02-01'`)).toHaveLength(2);
 
     expect(await currentUserVersion(db)).toBe(1);
 
@@ -63,26 +80,32 @@ describe('migrations', () => {
     expect(result.ok).toBe(true);
     expect(await currentUserVersion(db)).toBe(CURRENT_SCHEMA_VERSION);
 
-    // No data loss.
+    // No data loss on the rows the split cascade / XP ledger actually cares about.
     const task = await db.getFirstAsync<{ id: string }>(`SELECT id FROM task WHERE id = 'task-1'`);
     expect(task?.id).toBe('task-1');
     const award = await db.getFirstAsync<{ amount: number }>(`SELECT amount FROM xp_award WHERE id = 'xp-1'`);
     expect(award?.amount).toBe(10);
 
+    // The legal-under-v1 duplicate was deduped by migration 2's own DELETE, keeping the
+    // earliest (lowest-rowid) survivor rather than migration 2 throwing on real prior data.
+    const survivors = await db.getAllAsync<{ id: string }>(`SELECT id FROM off_day_mark WHERE date = '2026-02-01'`);
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]?.id).toBe('off-legacy-1');
+
     // The migration-2 constraint is now live: a second whole-day off mark for a date that
     // already has one is rejected.
     await db.runAsync(`INSERT INTO off_day_mark (id, date, task_id, created_at) VALUES (?,?,?,?)`, [
-      'off-1',
-      '2026-02-01',
+      'off-new',
+      '2026-03-01',
       null,
-      '2026-02-01T00:00:00.000Z',
+      '2026-03-01T00:00:00.000Z',
     ]);
     await expect(
       db.runAsync(`INSERT INTO off_day_mark (id, date, task_id, created_at) VALUES (?,?,?,?)`, [
-        'off-2',
-        '2026-02-01',
+        'off-new-2',
+        '2026-03-01',
         null,
-        '2026-02-01T00:00:00.000Z',
+        '2026-03-01T00:00:00.000Z',
       ]),
     ).rejects.toThrow();
   });

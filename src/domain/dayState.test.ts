@@ -124,6 +124,51 @@ describe('resolveOccurrence — the chip -> outcome mapping (ARCHITECTURE.md §6
   });
 });
 
+describe('resolveOccurrence — F7 snooze/move (review pass 1, blocking item 6)', () => {
+  const task = makeTask();
+
+  test('the source date vacates entirely (not-due) once its log carries movedToDate, even after rollover', () => {
+    const moved = log({ movedToDate: d('2024-06-02') });
+    // Even AFTER the source day has "ended" (today is later), it must never read as missed —
+    // that is exactly the punitive outcome snooze exists to avoid.
+    const o = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-03'), log: moved, offMarks: [] });
+    expect(o.outcome).toBe('not-due');
+  });
+
+  test('the target date becomes due via movedInLog, even on a date the cadence would not naturally place it', () => {
+    const specificDayTask = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] } }); // Mondays only
+    const moved = log({ date: d('2024-06-03'), movedToDate: d('2024-06-05') }); // Mon -> Wed
+    // Without the move, Wednesday would be not-due for a Monday-only cadence.
+    const withoutMove = resolveOccurrence({ task: specificDayTask, date: d('2024-06-05'), today: d('2024-06-05'), log: null, offMarks: [] });
+    expect(withoutMove.outcome).toBe('not-due');
+
+    const withMove = resolveOccurrence({
+      task: specificDayTask,
+      date: d('2024-06-05'),
+      today: d('2024-06-05'),
+      log: null,
+      offMarks: [],
+      movedInLog: moved,
+    });
+    expect(withMove.outcome).toBe('pending'); // due today, unlogged
+  });
+
+  test('moving today to tomorrow: today resolves not-due, tomorrow resolves pending — matches the review acceptance test', () => {
+    const moved = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02') });
+    const today = resolveOccurrence({ task, date: d('2024-06-01'), today: d('2024-06-01'), log: moved, offMarks: [] });
+    expect(today.outcome).toBe('not-due');
+
+    const tomorrow = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-01'), log: null, offMarks: [], movedInLog: moved });
+    expect(tomorrow.outcome).toBe('pending');
+  });
+
+  test('a moved-in occurrence carries its own chip/step data, not the target date\'s (there is none)', () => {
+    const moved = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02'), chipState: 'done', isManualOverride: true });
+    const target = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-02'), log: null, offMarks: [], movedInLog: moved });
+    expect(target.outcome).toBe('ideal');
+  });
+});
+
 describe('autoChipState — F3, reused by the mutation layer after a step toggle', () => {
   test('0 of N ideal steps complete -> todo', () => {
     expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: ['a' as never, 'b' as never], completedStepIds: [], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('todo');

@@ -51,33 +51,56 @@ function mapChipToOutcome(chip: ChipState, date: LocalDate, today: LocalDate): O
   }
 }
 
+const notDueOccurrence = (task: TaskWithSteps, date: LocalDate, chipState: ChipState | null): Occurrence => ({
+  taskId: task.id,
+  date,
+  outcome: 'not-due',
+  dueIdealStepIds: [],
+  completedStepIds: [],
+  chipState,
+  dosesRequired: 0,
+  dosesCompleted: 0,
+});
+
 export function resolveOccurrence(input: {
   task: TaskWithSteps;
   date: LocalDate;
   today: LocalDate;
+  /** The log row keyed by exactly `(task.id, date)`, if any. */
   log: DayLog | null;
   offMarks: readonly OffDayMark[];
+  /** See `occurrence.ts`'s `isDue` doc comment — the device-local creation-day bound, supplied by the caller. */
+  notBefore?: LocalDate;
+  /**
+   * F7 snooze/move (review pass 1, blocking item 6). A log row from a DIFFERENT date whose
+   * own `movedToDate` equals `date` — i.e. an occurrence that was relocated INTO this date.
+   * "Snooze/move affects the occurrence, not the cadence" (MODULES M4): the occurrence's
+   * whole record (chip/steps/doses) travels with it, so when present this date is treated
+   * as due even if the cadence wouldn't naturally place it here, and the moved log's own
+   * data — not `log`'s — drives the outcome.
+   */
+  movedInLog?: DayLog | null;
 }): Occurrence {
-  const { task, date, today, log, offMarks } = input;
-  const due = isDue(task, date);
+  const { task, date, today, log, offMarks, notBefore, movedInLog } = input;
 
-  if (!due) {
-    return {
-      taskId: task.id,
-      date,
-      outcome: 'not-due',
-      dueIdealStepIds: [],
-      completedStepIds: [],
-      chipState: log?.chipState ?? null,
-      dosesRequired: 0,
-      dosesCompleted: 0,
-    };
+  // This date's own occurrence was relocated elsewhere: it vacates this date entirely,
+  // regardless of cadence due-ness — never "missed" here, on any day (SCHEMA §4 `moved_to_date`).
+  if (log && log.movedToDate !== null) {
+    return notDueOccurrence(task, date, log.chipState);
   }
 
-  const dueIdealIds = dueIdealStepIds(task, date);
-  const completedStepIds = log ? log.completedStepIds.filter((id) => dueIdealIds.includes(id)) : [];
+  const due = movedInLog != null ? true : isDue(task, date, notBefore);
+  if (!due) {
+    return notDueOccurrence(task, date, log?.chipState ?? null);
+  }
+
+  // A moved-IN occurrence carries its own record with it; otherwise this date's own log applies.
+  const effectiveLog = movedInLog ?? log;
+
+  const dueIdealIds = dueIdealStepIds(task, date, notBefore);
+  const completedStepIds = effectiveLog ? effectiveLog.completedStepIds.filter((id) => dueIdealIds.includes(id)) : [];
   const dosesRequired = task.dosesPerDay;
-  const dosesCompleted = log?.dosesCompleted ?? 0;
+  const dosesCompleted = effectiveLog?.dosesCompleted ?? 0;
 
   const isOff = offMarks.some((m) => m.date === date && (m.taskId === null || m.taskId === task.id));
   if (isOff) {
@@ -87,7 +110,7 @@ export function resolveOccurrence(input: {
       outcome: 'off',
       dueIdealStepIds: dueIdealIds,
       completedStepIds,
-      chipState: log?.chipState ?? null,
+      chipState: effectiveLog?.chipState ?? null,
       dosesRequired,
       dosesCompleted,
     };
@@ -95,7 +118,8 @@ export function resolveOccurrence(input: {
 
   const autoChip = computeAutoChip(dueIdealIds, completedStepIds, dosesRequired, dosesCompleted);
   // A manual chip wins until the user changes it again (docs/SCHEMA.md §4 `is_manual_override`).
-  const effectiveChip: ChipState = log && log.isManualOverride && log.chipState !== null ? log.chipState : autoChip;
+  const effectiveChip: ChipState =
+    effectiveLog && effectiveLog.isManualOverride && effectiveLog.chipState !== null ? effectiveLog.chipState : autoChip;
 
   return {
     taskId: task.id,

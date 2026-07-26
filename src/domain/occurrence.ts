@@ -3,17 +3,7 @@
  * As-needed routines (F27) have NO cadence and NO occurrence set: `isDue` is always false.
  */
 import type { Cadence, Id, LocalDate, TaskWithSteps } from '@/types';
-import { addDays, daysBetween, instantToLocalDate, isSameOrBefore, weekdayOf } from './dateMath';
-
-/**
- * A task's occurrence set never reaches back before the task itself existed — otherwise a
- * routine created today would retroactively "miss" years of history it never had a chance
- * to log (docs/ARCHITECTURE.md §6.4's "never fabricate days before the task existed", applied
- * here to the occurrence set itself, not only to window truncation).
- */
-function effectiveStartDate(task: TaskWithSteps): LocalDate {
-  return instantToLocalDate(task.createdAt);
-}
+import { addDays, daysBetween, isAfter, isSameOrBefore, weekdayOf } from './dateMath';
 
 function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
   switch (cadence.kind) {
@@ -52,13 +42,26 @@ function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
   }
 }
 
-export function isDue(task: TaskWithSteps, date: LocalDate): boolean {
+/**
+ * `notBefore` — the creation-day lower bound, as DEVICE-LOCAL `LocalDate` **data**, supplied
+ * by the caller. This is deliberately NOT derived in here from `task.createdAt` (review pass
+ * 1, blocking item 4): `createdAt` is a UTC `Instant`, and a naive substring slice of it
+ * yields the UTC calendar date, not the device-local date ARCHITECTURE §7 pins — west of UTC
+ * that hides a just-created task from Today until tomorrow; east of UTC it fabricates
+ * exactly the pre-existence "missed" day this bound exists to prevent. `src/domain` has no
+ * clock and no timezone, so it cannot do that conversion correctly; `src/queries` does it via
+ * `@/lib/date`'s `toLocalDate(new Date(instant))` and passes the result in as plain data.
+ * Omitting `notBefore` applies no lower bound at all (a legitimate, honest pure-cadence
+ * answer) rather than silently falling back to a wrong one.
+ */
+export function isDue(task: TaskWithSteps, date: LocalDate, notBefore?: LocalDate): boolean {
   if (task.type === 'todo') return false;
   if (task.isAsNeeded) return false; // F27 — never due, by construction (no cadence, no occurrence set)
 
   if (task.type === 'event' && task.eventDate !== null) {
-    // one-off Event: exactly one occurrence, its own date. No createdAt lower bound needed —
-    // the single due date IS the whole occurrence set.
+    // one-off Event: exactly one occurrence, its own date — the date itself IS the whole
+    // occurrence set, so no creation-day bound applies even if the event was backdated to
+    // before the task record was created (a user-chosen date, not a fabricated one).
     return date === task.eventDate;
   }
 
@@ -70,18 +73,20 @@ export function isDue(task: TaskWithSteps, date: LocalDate): boolean {
   }
 
   // Routine (tracked, non-as-needed) and repeating Event both rely on cadence + the task's
-  // own start (its occurrence set can never predate the task's own creation).
+  // own start — see `notBefore`'s doc comment for why that bound lives outside this module.
   if (!task.cadence) return false;
-  if (!isSameOrBefore(effectiveStartDate(task), date)) return false;
+  if (notBefore !== undefined && !isSameOrBefore(notBefore, date)) return false;
   return cadenceDue(task.cadence, date);
 }
 
-export function occurrencesBetween(task: TaskWithSteps, from: LocalDate, to: LocalDate): LocalDate[] {
+/** Returns `[]` for an inverted range (`from > to`) instead of looping forever. */
+export function occurrencesBetween(task: TaskWithSteps, from: LocalDate, to: LocalDate, notBefore?: LocalDate): LocalDate[] {
+  if (isAfter(from, to)) return [];
   const out: LocalDate[] = [];
   let cur = from;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    if (isDue(task, cur)) out.push(cur);
+    if (isDue(task, cur, notBefore)) out.push(cur);
     if (cur === to) break;
     cur = addDays(cur, 1);
   }
@@ -94,8 +99,8 @@ export function occurrencesBetween(task: TaskWithSteps, from: LocalDate, to: Loc
  * listed ISO weekdays (always a subset of the parent's own occurrence weekdays, enforced at
  * save time by `validateTaskDraft`). Empty when the task isn't due that date at all.
  */
-export function dueIdealStepIds(task: TaskWithSteps, date: LocalDate): Id[] {
-  if (!isDue(task, date)) return [];
+export function dueIdealStepIds(task: TaskWithSteps, date: LocalDate, notBefore?: LocalDate): Id[] {
+  if (!isDue(task, date, notBefore)) return [];
   const wd = weekdayOf(date);
   return task.idealSteps.filter((s) => s.dueWeekdays === null || s.dueWeekdays.includes(wd)).map((s) => s.id);
 }

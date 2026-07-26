@@ -23,13 +23,10 @@ import { createTaskRepository } from './repositories/taskRepository';
 
 const proxy = new DbClientProxy();
 
-/**
- * `Repositories` plus `cycleState` — see `src/db/cycleWindowSeed.ts`'s header for why:
- * `ports.ts`'s `ProgressRepository` has no `cycle_state` accessor even though SCHEMA §8
- * defines it as a persisted singleton. This is additive, never a modification of the
- * frozen port shape — every consumer that only knows about `Repositories` still works.
- */
-export const repos: Repositories & { readonly cycleState: ReturnType<typeof createCycleStateRepository> } = {
+// CR-1 (docs/MODULES.md top matter): `cycleState` is now a first-class `Repositories`
+// member (`src/types/ports.ts`), landed by M0 — `repos` satisfies `Repositories` plainly,
+// no intersection type needed.
+export const repos: Repositories = {
   tasks: createTaskRepository(proxy),
   logs: createLogRepository(proxy),
   offDays: createOffDayRepository(proxy),

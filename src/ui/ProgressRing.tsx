@@ -43,16 +43,12 @@ export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, acces
           origin={`${size / 2}, ${size / 2}`}
         />
       </Svg>
-      {label ? (
-        <Text style={[styles.label, { color: t.color.text }]} numberOfLines={1}>
-          {label}
-        </Text>
-      ) : null}
+      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { alignItems: 'center', justifyContent: 'center' },
-  label: { position: 'absolute', fontSize: 14, fontWeight: '700' },
+  label: { position: 'absolute', fontSize: 14, fontWeight: '700', textAlign: 'center' },
 });

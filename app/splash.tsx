@@ -30,26 +30,37 @@ export default function S01Splash() {
     let cancelled = false;
 
     async function boot() {
-      const result = await store.open();
+      try {
+        const result = await store.open();
 
-      const elapsed = Date.now() - startedAt;
-      const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
-      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-      if (cancelled || navigatedRef.current) return;
+        const elapsed = Date.now() - startedAt;
+        const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
+        if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+        if (cancelled || navigatedRef.current) return;
 
-      // Store read throws / detects a corrupt store -> S50, never a crash or infinite spinner.
-      if (!result.ok || result.value === 'corrupt' || result.value === 'uninitialised') {
+        // Store read throws / detects a corrupt store -> S50, never a crash or infinite spinner.
+        if (!result.ok || result.value === 'corrupt' || result.value === 'uninitialised') {
+          navigatedRef.current = true;
+          router.replace('/recovery');
+          return;
+        }
+
+        const settings = await repos.settings.get();
+        if (cancelled || navigatedRef.current) return;
+        navigatedRef.current = true;
+        if (settings.onboardingCompletedAt) {
+          router.replace('/today');
+        } else {
+          router.replace('/onboarding/hook');
+        }
+      } catch {
+        // `repos.settings.get()` throws (by design) if the singleton is somehow missing
+        // right after a "ready" open — an unhandled rejection here would hang the splash
+        // forever instead of degrading. Same calm destination as any other unreadable
+        // store: never a crash loop.
+        if (cancelled || navigatedRef.current) return;
         navigatedRef.current = true;
         router.replace('/recovery');
-        return;
-      }
-
-      const settings = await repos.settings.get();
-      navigatedRef.current = true;
-      if (settings.onboardingCompletedAt) {
-        router.replace('/today');
-      } else {
-        router.replace('/onboarding/hook');
       }
     }
 

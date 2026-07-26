@@ -1,14 +1,21 @@
 /**
  * M0 kit — Fallback-custom `CalendarHeatmap` (F7). Rule 4 fixed defect, do not regress:
  * the fill is icon-only; the day-of-month numeral renders as a caption BELOW the cell, never
- * inside the fill. `missed` carries no colour of its own (ARCHITECTURE §5) — it renders as
- * an outlined, unfilled cell, distinct from a fully blank `not-due`/future cell (no border
- * at all) and from the hollow-dashed `pending` cell.
+ * inside the fill (MODULES.md's M0 brief; the rendered mockup places the numeral above —
+ * flagged for visual-qa in REVIEW-M0.md, not changed here per that review's own call).
+ *
+ * Cell treatments are transcribed from the approved S20 calendar grid in
+ * `design-input/Fallback Handoff (standalone).html` (~byte offset 836200), not re-derived
+ * from ARCHITECTURE prose: ideal/fallback are the same `check-check`/`check` glyphs as
+ * `StateChip`; off is `--off-soft` + border + `moon` in `--text-dim` (the same moon motif as
+ * the S09/S20 off state, not a solid fill); missed is `--surface` + `--border-strong`, no
+ * icon (still colour-free — ARCHITECTURE §5 — just not literally transparent); not-due is
+ * transparent with a faint 1px `--border` rather than no border at all.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, ChevronLeft, ChevronRight, CircleDashed, Pause } from 'lucide-react-native';
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Moon } from 'lucide-react-native';
 
-import { SPACE, useTheme, type Theme } from '@/theme';
+import { MIN_TAP_TARGET, SPACE, useTheme, type Theme } from '@/theme';
 import { weekdayOf } from '@/lib/date';
 import type { LocalDate, OccurrenceOutcome } from '@/types';
 
@@ -33,21 +40,29 @@ export interface CalendarHeatmapProps {
 
 const WEEKDAY_HEADERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-function cellVisual(t: Theme, outcome: OccurrenceOutcome) {
+interface CellVisual {
+  readonly bg: string;
+  readonly border: string;
+  readonly icon: typeof Check | null;
+  readonly iconColor: string;
+  readonly dashed: boolean;
+}
+
+function cellVisual(t: Theme, outcome: OccurrenceOutcome): CellVisual {
   switch (outcome) {
     case 'ideal':
-      return { bg: t.color.ideal, icon: Check, border: t.color.ideal, dashed: false };
+      return { bg: t.color.ideal, border: t.color.ideal, icon: CheckCheck, iconColor: t.color.iconOnSignal, dashed: false };
     case 'fallback':
-      return { bg: t.color.fallback, icon: CircleDashed, border: t.color.fallback, dashed: false };
+      return { bg: t.color.fallback, border: t.color.fallback, icon: Check, iconColor: t.color.iconOnSignal, dashed: false };
     case 'off':
-      return { bg: t.color.off, icon: Pause, border: t.color.off, dashed: false };
+      return { bg: t.color.offSoft, border: t.color.border, icon: Moon, iconColor: t.color.textDim, dashed: false };
     case 'missed':
-      return { bg: 'transparent', icon: null, border: t.color.borderStrong, dashed: false };
+      return { bg: t.color.surface, border: t.color.borderStrong, icon: null, iconColor: 'transparent', dashed: false };
     case 'pending':
-      return { bg: 'transparent', icon: null, border: t.color.textDim, dashed: true };
+      return { bg: 'transparent', border: t.color.textDim, icon: null, iconColor: 'transparent', dashed: true };
     case 'not-due':
     default:
-      return { bg: 'transparent', icon: null, border: 'transparent', dashed: false };
+      return { bg: 'transparent', border: t.color.border, icon: null, iconColor: 'transparent', dashed: false };
   }
 }
 
@@ -56,7 +71,7 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
   const rows = toWeekRows(days);
 
   return (
-    <View accessibilityLabel={accessibilityLabel} accessibilityRole="none">
+    <View accessible accessibilityLabel={accessibilityLabel} accessibilityRole="none">
       <View style={styles.nav}>
         {onPrevMonth ? <IconButton icon={ChevronLeft} onPress={onPrevMonth} accessibilityLabel="Previous month" /> : <View style={styles.navSpacer} />}
         <Text accessibilityRole="header" style={[styles.monthLabel, { color: t.color.text }]}>
@@ -81,13 +96,17 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
             const Icon = visual.icon;
             const label = `${cell.date}, ${cell.outcome.replace('-', ' ')}`;
             return (
-              <View key={ci} style={styles.cellSlot}>
-                <Pressable
-                  onPress={onCellPress ? () => onCellPress(cell.date) : undefined}
-                  disabled={!onCellPress}
-                  accessibilityRole={onCellPress ? 'button' : 'text'}
-                  accessibilityLabel={label}
-                  hitSlop={4}
+              // Rule 8 / REVIEW-M0.md item 7: the tap target covers the cell AND its numeral
+              // caption together, not just the coloured square — so the Pressable wraps both.
+              <Pressable
+                key={ci}
+                onPress={onCellPress ? () => onCellPress(cell.date) : undefined}
+                disabled={!onCellPress}
+                accessibilityRole={onCellPress ? 'button' : 'text'}
+                accessibilityLabel={label}
+                style={styles.cellSlot}
+              >
+                <View
                   style={[
                     styles.cell,
                     {
@@ -98,22 +117,22 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
                     },
                   ]}
                 >
-                  {Icon ? <Icon size={14} color={t.color.iconOnSignal} /> : null}
-                </Pressable>
+                  {Icon ? <Icon size={14} color={visual.iconColor} /> : null}
+                </View>
                 <Text style={[styles.dayNumeral, { color: t.color.textDim }]}>{cell.dayOfMonth}</Text>
-              </View>
+              </Pressable>
             );
           })}
         </View>
       ))}
 
       <View style={styles.legend}>
-        <LegendEntry color={t.color.ideal} label="Ideal" />
-        <LegendEntry color={t.color.fallback} label="Fallback" />
-        <LegendEntry color={t.color.off} label="Off" />
-        <LegendEntry outline={t.color.borderStrong} label="Missed" />
-        <LegendEntry outline={t.color.textDim} dashed label="Pending today" />
-        <LegendEntry outline="transparent" label="Not due" />
+        <LegendEntry bg={t.color.ideal} border={t.color.ideal} label="Ideal" textColor={t.color.textMuted} />
+        <LegendEntry bg={t.color.fallback} border={t.color.fallback} label="Fallback" textColor={t.color.textMuted} />
+        <LegendEntry bg={t.color.offSoft} border={t.color.border} label="Off" textColor={t.color.textMuted} />
+        <LegendEntry bg={t.color.surface} border={t.color.borderStrong} label="Missed" textColor={t.color.textMuted} />
+        <LegendEntry bg="transparent" border={t.color.textDim} dashed label="Pending today" textColor={t.color.textMuted} />
+        <LegendEntry bg="transparent" border={t.color.border} label="Not due" textColor={t.color.textMuted} />
       </View>
 
       {emptyHistoryCaption ? <Text style={[styles.caption, { color: t.color.textDim }]}>{emptyHistoryCaption}</Text> : null}
@@ -126,16 +145,11 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
   );
 }
 
-function LegendEntry({ color, outline, dashed, label }: { color?: string; outline?: string; dashed?: boolean; label: string }) {
+function LegendEntry({ bg, border, dashed, label, textColor }: { bg: string; border: string; dashed?: boolean; label: string; textColor: string }) {
   return (
     <View style={styles.legendItem} accessible accessibilityLabel={label}>
-      <View
-        style={[
-          styles.legendSwatch,
-          { backgroundColor: color ?? 'transparent', borderColor: outline ?? color, borderWidth: color ? 0 : 1, borderStyle: dashed ? 'dashed' : 'solid' },
-        ]}
-      />
-      <Text style={styles.legendLabel}>{label}</Text>
+      <View style={[styles.legendSwatch, { backgroundColor: bg, borderColor: border, borderStyle: dashed ? 'dashed' : 'solid' }]} />
+      <Text style={[styles.legendLabel, { color: textColor }]}>{label}</Text>
     </View>
   );
 }
@@ -157,12 +171,12 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row' },
   headerCell: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600' },
   row: { flexDirection: 'row' },
-  cellSlot: { flex: 1, alignItems: 'center', paddingVertical: SPACE.s1 / 2, gap: 2 },
+  cellSlot: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: SPACE.s1 / 2, gap: 2, minHeight: MIN_TAP_TARGET },
   cell: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   dayNumeral: { fontSize: 10 },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2, marginTop: SPACE.s2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendSwatch: { width: 10, height: 10, borderRadius: 3 },
+  legendSwatch: { width: 10, height: 10, borderRadius: 3, borderWidth: 1 },
   legendLabel: { fontSize: 12 },
   caption: { fontSize: 12, marginTop: SPACE.s1, lineHeight: 18 },
   statLine: { fontSize: 14, fontWeight: '600', marginTop: SPACE.s2 },

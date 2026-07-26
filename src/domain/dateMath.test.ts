@@ -7,7 +7,6 @@ import {
   eachDay,
   endOfMonth,
   endOfWeek,
-  instantToLocalDate,
   isAfter,
   isBefore,
   startOfMonth,
@@ -75,7 +74,7 @@ describe('dateMath — private pure calendar arithmetic (see file header for why
     expect(eachDay(d('2024-01-01'), d('2024-01-01'))).toEqual(['2024-01-01']);
   });
 
-  test('instantToLocalDate takes the calendar-date prefix', () => {
-    expect(instantToLocalDate('2026-07-16T08:03:11.412Z')).toBe('2026-07-16');
+  test('eachDay returns [] for an inverted range instead of looping forever (matches @/lib/date.eachDay)', () => {
+    expect(eachDay(d('2024-01-03'), d('2024-01-01'))).toEqual([]);
   });
 });

@@ -44,11 +44,23 @@ describe('occurrence — cadence -> occurrence set', () => {
     expect(isDue(task, d('2024-06-01'))).toBe(false);
   });
 
-  test('daily cadence is due every day, bounded below by the task creation date', () => {
-    const task = makeTask({ cadence: { kind: 'daily' }, createdAt: '2024-06-10T00:00:00.000Z' as Instant });
-    expect(isDue(task, d('2024-06-09'))).toBe(false); // before creation
+  test('daily cadence is due every day when no notBefore bound is supplied', () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    expect(isDue(task, d('2024-06-09'))).toBe(true);
     expect(isDue(task, d('2024-06-10'))).toBe(true);
-    expect(isDue(task, d('2024-06-11'))).toBe(true);
+  });
+
+  test('the caller-supplied notBefore bound (device-local creation date — see file header) excludes earlier dates', () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    const notBefore = d('2024-06-10');
+    expect(isDue(task, d('2024-06-09'), notBefore)).toBe(false); // before creation
+    expect(isDue(task, d('2024-06-10'), notBefore)).toBe(true);
+    expect(isDue(task, d('2024-06-11'), notBefore)).toBe(true);
+  });
+
+  test('a one-off Event ignores notBefore entirely — the due date IS the whole occurrence set, even backdated', () => {
+    const task = makeTask({ type: 'event', cadence: null, eventDate: d('2024-01-01') });
+    expect(isDue(task, d('2024-01-01'), d('2024-06-10'))).toBe(true); // event predates notBefore, still due
   });
 
   test('specific-weekdays is due only on the chosen ISO weekdays', () => {
@@ -107,6 +119,11 @@ describe('occurrence — cadence -> occurrence set', () => {
   test('occurrencesBetween returns exactly the due dates in the range, inclusive', () => {
     const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] as Weekday[] } }); // Mondays only
     expect(occurrencesBetween(task, d('2024-06-01'), d('2024-06-14'))).toEqual(['2024-06-03', '2024-06-10']);
+  });
+
+  test('occurrencesBetween returns [] for an inverted range instead of looping forever', () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    expect(occurrencesBetween(task, d('2024-06-14'), d('2024-06-01'))).toEqual([]);
   });
 });
 

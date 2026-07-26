@@ -6,6 +6,7 @@
  * without a real navigator underneath it (e.g. a mockup/mid-flow illustration).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Calendar, ListChecks, Repeat, StickyNote, Sun } from 'lucide-react-native';
 
 import { SPACE, useTheme } from '@/theme';
 import type { IconComponent } from './icon';
@@ -15,6 +16,20 @@ export interface BottomTabsItem {
   readonly label: string;
   readonly icon: IconComponent;
 }
+
+/**
+ * The single source of truth for the five primary-nav items (icon + label), shared by this
+ * component and `app/(tabs)/_layout.tsx` so the two renderings of the same nav cannot drift
+ * apart (REVIEW-M0.md non-blocking note on item 8). Icons match the approved handoff's tab
+ * bar exactly — `sun`/`repeat`/`calendar`/`list-checks`/`sticky-note`.
+ */
+export const PRIMARY_NAV_ITEMS: readonly BottomTabsItem[] = [
+  { key: 'today', label: 'Today', icon: Sun },
+  { key: 'routines', label: 'Routines', icon: Repeat },
+  { key: 'events', label: 'Events', icon: Calendar },
+  { key: 'courses', label: 'Courses', icon: ListChecks },
+  { key: 'todos', label: 'To-dos', icon: StickyNote },
+] as const;
 
 export interface BottomTabsProps {
   readonly items: readonly BottomTabsItem[];
@@ -34,7 +49,7 @@ export function BottomTabs({ items, activeKey, onSelect, testID }: BottomTabsPro
       {items.map((item) => {
         const active = item.key === activeKey;
         const Icon = item.icon;
-        const color = active ? t.accent.base : t.color.textMuted;
+        const color = active ? t.accent.base : t.color.textDim;
         return (
           <Pressable
             key={item.key}

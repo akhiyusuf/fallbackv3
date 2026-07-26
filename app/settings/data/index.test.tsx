@@ -1,10 +1,5 @@
-/** See src/ui/StateChip.test.tsx for why `lucide-react-native` is mocked locally (contract-change request). */
-jest.mock('lucide-react-native', () => {
-  const stub = () => null;
-  return new Proxy({}, { get: () => stub, has: () => true });
-});
-
-import { act, create } from 'react-test-renderer';
+/** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockReplace = jest.fn();
@@ -37,19 +32,11 @@ import { S47_COPY } from '@/features/data/copy';
 
 function renderScreen() {
   const client = new QueryClient();
-  let renderer: ReturnType<typeof create>;
-  act(() => {
-    renderer = create(
-      <QueryClientProvider client={client}>
-        <S47Data />
-      </QueryClientProvider>,
-    );
-  });
-  return renderer!;
-}
-
-function findButton(root: ReturnType<typeof create>['root'], label: string) {
-  return root.findAllByProps({ accessibilityRole: 'button' }).find((b) => (b.props.accessibilityLabel as string) === label)!;
+  return render(
+    <QueryClientProvider client={client}>
+      <S47Data />
+    </QueryClientProvider>,
+  );
 }
 
 describe('S47 — Data', () => {
@@ -58,81 +45,62 @@ describe('S47 — Data', () => {
     mockSettingsData.current = undefined;
   });
 
-  it('default, no backup yet: shows "No backup yet."', () => {
+  it('default, no backup yet: shows "No backup yet."', async () => {
     mockSettingsData.current = { lastBackupAt: null };
-    const renderer = renderScreen();
-    const texts = renderer.root.findAllByType('Text' as never).map((n) => n.props.children);
-    expect(texts.flat()).toContain(S47_COPY.noBackupYet);
+    await renderScreen();
+    expect(screen.getByText(S47_COPY.noBackupYet)).toBeTruthy();
   });
 
-  it('default, has a backup: shows the "Last backup: <formatted>" subcopy', () => {
+  it('default, has a backup: shows the "Last backup: <formatted>" subcopy', async () => {
     mockSettingsData.current = { lastBackupAt: '2026-07-14T13:12:00.000Z' };
-    const renderer = renderScreen();
-    const texts = renderer.root.findAllByType('Text' as never).map((n) => (Array.isArray(n.props.children) ? n.props.children.join('') : n.props.children));
-    expect(texts.some((t: string) => typeof t === 'string' && t.startsWith(S47_COPY.lastBackupPrefix))).toBe(true);
+    await renderScreen();
+    expect(screen.getByText(new RegExp(`^${S47_COPY.lastBackupPrefix}`))).toBeTruthy();
   });
 
-  it('the erase-all row navigates to S48 with origin=data', () => {
+  it('the erase-all row navigates to S48 with origin=data', async () => {
     mockSettingsData.current = { lastBackupAt: null };
-    const renderer = renderScreen();
-    const eraseRow = renderer.root.findByProps({ accessibilityLabel: `${S47_COPY.eraseRow}. ${S47_COPY.eraseSubcopy}` });
-    act(() => {
-      eraseRow.props.onPress();
-    });
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByLabelText(`${S47_COPY.eraseRow}. ${S47_COPY.eraseSubcopy}`));
     expect(mockPush).toHaveBeenCalledWith('/settings/data/erase?from=data');
   });
 
   it('a successful backup shows the success toast', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     mockCreateBackup.mockResolvedValue({ ok: true, value: { uri: 'file:///x.fallbackbak', createdAt: '2026-07-16T08:03:00.000Z' } });
-    const renderer = renderScreen();
-    const backUpButton = findButton(renderer.root, S47_COPY.backUpNow);
-    await act(async () => {
-      backUpButton.props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(mockShowToast.mock.calls.some((c) => (c[0] as string).startsWith(S47_COPY.backupSuccessPrefix) && c[1] === 'success')).toBe(true);
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.backUpNow));
+    await waitFor(() =>
+      expect(mockShowToast.mock.calls.some((c) => (c[0] as string).startsWith(S47_COPY.backupSuccessPrefix) && c[1] === 'success')).toBe(true),
+    );
   });
 
   it('a failed backup shows the calm retry toast, never a partial-success toast', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     mockCreateBackup.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
-    const renderer = renderScreen();
-    const backUpButton = findButton(renderer.root, S47_COPY.backUpNow);
-    await act(async () => {
-      backUpButton.props.onPress();
-      await Promise.resolve();
-    });
-    expect(mockShowToast).toHaveBeenCalledWith(S47_COPY.backupFailureToast, 'warning');
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.backUpNow));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S47_COPY.backupFailureToast, 'warning'));
   });
 
   it('a failed restore renders the inline failure banner, stating existing data is untouched', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     mockGetDocumentAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///bad.fallbackbak' }] });
     mockRestoreBackup.mockResolvedValue({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'bad file' } });
-    const renderer = renderScreen();
-    const restoreButton = findButton(renderer.root, S47_COPY.restoreFromBackup);
-    await act(async () => {
-      restoreButton.props.onPress();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    const texts = renderer.root.findAllByType('Text' as never).map((n) => n.props.children);
-    expect(texts).toContain(S47_COPY.restoreFailure);
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.restoreFromBackup));
+    await waitFor(() => expect(screen.getByText(S47_COPY.restoreFailure)).toBeTruthy());
   });
 
   it('cancelling the file picker leaves the screen in its default state', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     mockGetDocumentAsync.mockResolvedValue({ canceled: true, assets: null });
-    const renderer = renderScreen();
-    const restoreButton = findButton(renderer.root, S47_COPY.restoreFromBackup);
-    await act(async () => {
-      restoreButton.props.onPress();
-      await Promise.resolve();
-    });
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.restoreFromBackup));
     expect(mockRestoreBackup).not.toHaveBeenCalled();
   });
 });

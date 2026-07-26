@@ -91,6 +91,31 @@ describe('reconcileAchievements — milestones', () => {
     expect(r.some((u) => u.key === 'milestone-full-week')).toBe(true);
   });
 
+  test('Course x3 unlocks on the TRUE condition date — the 3rd course\'s own end date, not today (review pass 1 fix)', () => {
+    const completedCourses = [
+      { id: 'c1' as Occurrence['taskId'], endDate: d('2024-02-01') },
+      { id: 'c2' as Occurrence['taskId'], endDate: d('2024-03-01') },
+      { id: 'c3' as Occurrence['taskId'], endDate: d('2024-01-15') }, // out of order on purpose
+    ];
+    const r = reconcileAchievements({ occurrences: [], tenureAnchor: d('2024-01-01'), today: d('2024-06-01'), alreadyUnlocked: [], now: NOW, completedCourses });
+    const unlock = r.find((u) => u.key === 'milestone-course-x3');
+    expect(unlock).toBeDefined();
+    // The 3rd end date chronologically (not the 3rd array entry, and not `today`).
+    expect(unlock!.unlockedOn).toBe('2024-03-01');
+  });
+
+  test('fewer than 3 completed Courses never unlocks Course x3', () => {
+    const r = reconcileAchievements({
+      occurrences: [],
+      tenureAnchor: d('2024-01-01'),
+      today: d('2024-06-01'),
+      alreadyUnlocked: [],
+      now: NOW,
+      completedCourses: [{ id: 'c1' as Occurrence['taskId'], endDate: d('2024-02-01') }],
+    });
+    expect(r.some((u) => u.key === 'milestone-course-x3')).toBe(false);
+  });
+
   test('a week with even one missed day does not unlock "Full week"', () => {
     const occs = daily(TASK, d('2024-01-01'), ['ideal', 'ideal', 'ideal', 'missed', 'ideal', 'ideal', 'ideal']);
     const r = reconcileAchievements({ occurrences: occs, tenureAnchor: d('2024-01-01'), today: d('2024-01-08'), alreadyUnlocked: [], now: NOW });

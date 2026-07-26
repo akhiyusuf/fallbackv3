@@ -1,21 +1,13 @@
 /**
- * M1. `cycle_state` singleton accessor. NOT part of the frozen `Repositories` port
- * (`src/types/ports.ts` declares no accessor for this table even though docs/SCHEMA.md §8
- * defines it as a persisted singleton F31 reads every launch/foreground) — see
- * `src/db/cycleWindowSeed.ts`'s header for the full contract-gap note. Exposed as
- * `repos.cycleState`, additive to (never a modification of) `Repositories`.
+ * M1. `cycle_state` singleton accessor (`repos.cycleState`) — CR-1, now a first-class
+ * `CycleStateRepository` member of `Repositories` (`src/types/ports.ts`), landed by M0
+ * post-review. `CycleState` is imported from `@/types`, not declared here; the SQL and
+ * method bodies are unchanged from the original additive stopgap.
  */
 import { err, ok } from '@/types';
-import type { CycleCadence, Id, LocalDate, Result } from '@/types';
+import type { CycleCadence, CycleState, Id, LocalDate, Result } from '@/types';
 
 import type { DbClient } from '../client';
-
-export interface CycleState {
-  readonly currentCycleId: Id;
-  readonly cadence: CycleCadence;
-  readonly startDate: LocalDate;
-  readonly endDate: LocalDate;
-}
 
 interface CycleStateRow {
   readonly current_cycle_id: string;

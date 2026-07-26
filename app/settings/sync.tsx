@@ -93,11 +93,12 @@ export default function S45AccountAndSync() {
           {settings?.sync.enabled ? (
             settings.sync.lastError ? (
               <InlineRetryBanner message={S45_COPY.failure} onRetry={handleRetry} tone="warning" />
-            ) : (
+            ) : settings.sync.lastSyncedAt ? (
               <Text style={[styles.helper, { color: t.color.textMuted }]}>
-                {settings.sync.lastSyncedAt ? `${S45_COPY.lastSyncedPrefix} ${formatRelative(settings.sync.lastSyncedAt)}` : S45_COPY.lastSyncedPrefix}
+                {`${S45_COPY.lastSyncedPrefix} ${formatRelative(settings.sync.lastSyncedAt)}`}
               </Text>
-            )
+            ) : null /* sync just turned on, no push has resolved yet (e.g. app died mid-first-push) —
+                         nothing to report rather than a dangling "Last synced" with no time (review note 6) */
           ) : (
             <Text style={[styles.helper, { color: t.color.textMuted }]}>{S45_COPY.offHelper}</Text>
           )}

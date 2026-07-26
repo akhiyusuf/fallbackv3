@@ -1,25 +1,33 @@
 /**
  * M2 — internal, private, pure calendar arithmetic used only by `src/domain/**`.
  *
- * WHY THIS EXISTS INSTEAD OF IMPORTING `@/lib/date`: every domain function in this module
- * is required to be deterministic given its arguments (docs/ARCHITECTURE.md §12 — "every
- * function is deterministic", and PRD/API's worked examples are run as plain unit tests).
- * `@/lib/date` is M0-owned and, at the time this module was authored, ships only ambient
- * `declare function` signatures with no runtime body (M0 builds in parallel — see
- * MODULES.md Wave 1). Rather than block M2 on M0's landing, or depend on an unimplemented
- * stub whose exact tie-breaking semantics (e.g. `diffDays`'s sign convention) are not
- * specified beyond the type signature, this module supplies its own small, exhaustively
- * tested, dependency-free Gregorian calendar implementation for the pure day/week/month
- * math the engine needs (cadence matching, tenure tiers, cycle boundaries).
+ * WHY THIS EXISTS INSTEAD OF IMPORTING `@/lib/date`: it was written while `@/lib/date`
+ * still shipped ambient `declare function` stubs with no runtime body (M0 built in
+ * parallel — MODULES.md Wave 1), and every domain function must be deterministic given its
+ * arguments (ARCHITECTURE §12), which an unimplemented stub can't satisfy.
  *
- * This does not violate the "imports nothing but @/types and @/lib" rule (MODULES.md M2) —
- * it imports nothing at all beyond the `LocalDate`/`Weekday` *types*, a strict subset of
- * what's allowed. It never constructs a JS `Date` object and never reads the wall clock;
- * every exported function here is a pure function of its `LocalDate` string arguments.
- * `today()`/`now()` (the only genuinely I/O-flavoured facts — the real device clock) are
- * deliberately NOT reimplemented here: every domain entry point that needs "today" takes it
- * as an explicit parameter (see docs/API.md §2), sourced from `@/lib/date`'s `today()` by
- * the caller in `src/queries/**`, which is not subject to the "no new Date()" restriction.
+ * `@/lib/date` has since landed for real (date-fns backed). Review pass 1 verified this
+ * module byte-for-byte compatible with it (`weekdayOf`/`addMonths` cross-checked against
+ * date-fns over 3,000 consecutive days, 0 mismatches; Monday=1 confirmed both sides) and
+ * ruled collapsing it optional, not required — kept deliberately: every function here stays
+ * a pure function of its `LocalDate` arguments with zero I/O, which is what makes this the
+ * one part of the app qa-tester never has to freeze a clock to test, and it keeps
+ * `src/domain` provably decoupled from M0's implementation choices (date-fns version, parse
+ * strategy) rather than merely happening to agree with them today. `today()`/`now()` (the
+ * only genuinely I/O-flavoured facts) are deliberately NOT reimplemented here: every domain
+ * entry point that needs "today" takes it as an explicit parameter (API.md §2), sourced from
+ * `@/lib/date`'s `today()` by `src/queries`, which is not subject to the "no new Date()"
+ * restriction. Likewise, device-local conversion of an `Instant` (`task.createdAt`) is NOT
+ * done here (see the removed `instantToLocalDate` — review pass 1 blocking item 4): a naive
+ * UTC slice of an ISO instant is not the device-local date ARCHITECTURE §7 pins, and this
+ * module has no way to do the conversion correctly without a real clock/timezone, which it
+ * must not have. `src/queries` derives that bound via `@/lib/date`'s `toLocalDate(new
+ * Date(instant))` and passes it in as plain `LocalDate` data (see `occurrence.ts`'s
+ * `notBefore` parameter).
+ *
+ * This still satisfies "imports nothing but @/types and @/lib" (MODULES.md M2) — it imports
+ * nothing at all beyond the `LocalDate`/`Weekday` *types*, a strict subset of what's allowed.
+ * It never constructs a JS `Date` object and never reads the wall clock.
  */
 import type { LocalDate, Weekday } from '@/types';
 
@@ -89,7 +97,16 @@ export function addDays(date: LocalDate, n: number): LocalDate {
   return fromEpochDay(epochDay(date) + n);
 }
 
-/** Exact count of days between two dates: `to` minus `from`. Positive when `to` is later. */
+/**
+ * Exact count of days between two dates: `to` minus `from`. Positive when `to` is later.
+ *
+ * SIGN WARNING (review pass 1, non-blocking note): this is sign-OPPOSITE to
+ * `@/lib/date`'s `diffDays(a, b)`, which wraps date-fns' `differenceInCalendarDays(a, b)`
+ * = `a − b`. Nothing in this module mixes the two — `daysBetween` is private to
+ * `src/domain/**`, `diffDays` is never imported here — but do not "align" one to the other
+ * without updating every call site; they are two different functions with two different,
+ * internally-consistent conventions, not a bug.
+ */
 export function daysBetween(from: LocalDate, to: LocalDate): number {
   return epochDay(to) - epochDay(from);
 }
@@ -149,8 +166,13 @@ export function isSameOrBefore(a: LocalDate, b: LocalDate): boolean {
   return a <= b;
 }
 
-/** Inclusive ascending list of every date from `from` to `to`. */
+/**
+ * Inclusive ascending list of every date from `from` to `to`. Returns `[]` for an inverted
+ * range (`from > to`) rather than looping forever — matches `@/lib/date.eachDay`'s behaviour
+ * for the same input (review pass 1, non-blocking note).
+ */
 export function eachDay(from: LocalDate, to: LocalDate): LocalDate[] {
+  if (isAfter(from, to)) return [];
   const out: LocalDate[] = [];
   let cur = from;
   // eslint-disable-next-line no-constant-condition
@@ -160,9 +182,4 @@ export function eachDay(from: LocalDate, to: LocalDate): LocalDate[] {
     cur = addDays(cur, 1);
   }
   return out;
-}
-
-/** Derives the device-local calendar date portion of an Instant (`YYYY-MM-DDT...` -> `YYYY-MM-DD`). */
-export function instantToLocalDate(instant: string): LocalDate {
-  return instant.slice(0, 10) as LocalDate;
 }

@@ -1,9 +1,8 @@
 /** M2. Read hooks. Compose M1's repositories with M2's pure domain engine. */
 import { useQuery } from '@tanstack/react-query';
-import { now } from '@/lib/date';
+import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays, toLocalDate } from '@/lib/date';
 import { repos } from '@/db';
 import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
-import { addDays, instantToLocalDate } from '../domain/dateMath';
 import type {
   ConsistencyResult,
   ConsistencyScope,
@@ -22,13 +21,18 @@ import type {
 import { QUERY_KEYS } from './index';
 import { resolveAllOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
 
+/**
+ * Review pass 1, blocking item 5: the type filter is applied client-side via `select`, on ONE
+ * canonical unfiltered cache entry — two `useTasks({ type })` hooks with different filters no
+ * longer clobber each other's cache slot (each `select` runs per-observer over the same
+ * underlying query). `includeDeleted` genuinely changes the fetch, so it gets its own key.
+ */
 export function useTasks(filter?: { type?: TaskType; includeDeleted?: boolean }) {
+  const includeDeleted = filter?.includeDeleted ?? false;
   return useQuery({
-    queryKey: QUERY_KEYS.tasks,
-    queryFn: async () => {
-      const all = await repos.tasks.list({ includeDeleted: filter?.includeDeleted });
-      return filter?.type ? all.filter((t) => t.type === filter.type) : all;
-    },
+    queryKey: includeDeleted ? QUERY_KEYS.tasksIncludingDeleted : QUERY_KEYS.tasks,
+    queryFn: () => repos.tasks.list({ includeDeleted }),
+    select: (all) => (filter?.type ? all.filter((t) => t.type === filter.type) : all),
   });
 }
 
@@ -52,7 +56,7 @@ export function useToday(date: LocalDate) {
 
 export function useTaskOccurrences(taskId: Id, range: DateRange) {
   return useQuery({
-    queryKey: ['taskOccurrences', taskId, range.from, range.to] as const,
+    queryKey: QUERY_KEYS.taskOccurrences(taskId, range.from, range.to),
     queryFn: async () => {
       const task = await repos.tasks.get(taskId);
       if (!task) return [];
@@ -100,24 +104,46 @@ function granularityFor(spanDays: number): TrendGranularity {
   return 'yearly';
 }
 
-function dayCount(from: LocalDate, to: LocalDate): number {
-  let n = 0;
-  let cur = from;
-  while (cur < to) {
-    cur = addDays(cur, 1);
-    n++;
-  }
-  return n;
-}
-
+/**
+ * Real CALENDAR buckets (ARCHITECTURE §6.4's last paragraph: F28 buckets "are explicit
+ * calendar `DateRange`s (a week / month / year)") — review pass 1, blocking item 8 replaced
+ * the prior fixed 7/30/365-day strides, which drifted off calendar months within a year, off
+ * leap years for "365-day" years, and anchored bucket edges to the first task's creation day
+ * rather than the calendar. Every bucket except the last is a FULL period (e.g. every monthly
+ * bucket but the last is exactly 28-31 days, never a fixed 30); the last is clamped to `to`.
+ */
 function bucketRanges(from: LocalDate, to: LocalDate, granularity: TrendGranularity): DateRange[] {
-  const step = granularity === 'weekly' ? 7 : granularity === 'monthly' ? 30 : 365;
   const out: DateRange[] = [];
-  let cursor = from;
-  while (cursor <= to) {
-    const end = addDays(cursor, step - 1);
-    out.push({ from: cursor, to: end < to ? end : to });
-    cursor = addDays(end, 1);
+  const clampEnd = (end: LocalDate): LocalDate => (end > to ? to : end);
+
+  if (granularity === 'weekly') {
+    let periodStart = startOfWeek(from);
+    while (periodStart <= to) {
+      const periodEnd = endOfWeek(periodStart);
+      out.push({ from: periodStart, to: clampEnd(periodEnd) });
+      periodStart = libAddDays(periodEnd, 1);
+    }
+    return out;
+  }
+
+  if (granularity === 'monthly') {
+    let periodStart = startOfMonth(from);
+    while (periodStart <= to) {
+      const periodEnd = endOfMonth(periodStart);
+      out.push({ from: periodStart, to: clampEnd(periodEnd) });
+      periodStart = libAddDays(periodEnd, 1);
+    }
+    return out;
+  }
+
+  // yearly — plain string boundaries; no calendar arithmetic needed for Jan 1 / Dec 31.
+  let year = Number(from.slice(0, 4));
+  const toYear = Number(to.slice(0, 4));
+  while (year <= toYear) {
+    const periodStart = `${year}-01-01` as LocalDate;
+    const periodEnd = `${year}-12-31` as LocalDate;
+    out.push({ from: periodStart, to: clampEnd(periodEnd) });
+    year++;
   }
   return out;
 }
@@ -130,12 +156,12 @@ export function useTrend() {
       const today = todayLocal();
       const tasks = await repos.tasks.list();
       const earliest = tasks.reduce<LocalDate | null>((min, t) => {
-        const created = instantToLocalDate(t.createdAt);
+        const created = toLocalDate(new Date(t.createdAt));
         return min === null || created < min ? created : min;
       }, null);
       if (!earliest) return [];
 
-      const spanDays = Math.max(1, dayCount(earliest, today));
+      const spanDays = Math.max(1, diffDays(today, earliest));
       const granularity = granularityFor(spanDays);
       const occs = await resolveAllOccurrences(repos, today, today);
 
@@ -162,7 +188,10 @@ export function useProgress() {
     queryFn: async (): Promise<XpState> => {
       const settings = await repos.settings.get();
       const today = todayLocal();
-      const currentCycle = currentCycleWindow(settings.cycleCadence, today);
+      const pointer = await repos.cycleState.get();
+      const currentCycle = pointer
+        ? { id: pointer.currentCycleId, cadence: pointer.cadence, startDate: pointer.startDate, endDate: pointer.endDate }
+        : currentCycleWindow(settings.cycleCadence, today);
       const [lifetimeXp, cyclingXp] = await Promise.all([repos.progress.lifetimeXp(), repos.progress.cyclingXp(currentCycle.id)]);
       return {
         lifetimeXp,
@@ -177,13 +206,14 @@ export function useProgress() {
 
 export function useAchievements() {
   return useQuery({
-    queryKey: ['achievements'] as const,
+    queryKey: QUERY_KEYS.achievements,
     queryFn: async () => {
       const [unlocks, settings] = await Promise.all([repos.progress.listUnlocks(), repos.settings.get()]);
       const today = todayLocal();
       const occs = await resolveAllOccurrences(repos, today, today);
       // Recompute is idempotent and upsert-only — surfacing it here lets the achievements
-      // screen show a badge the instant its condition is met, without waiting on a mutation.
+      // screen show a badge the instant its condition is met, without waiting on a mutation
+      // (the badge only durably PERSISTS on the next mutation's reconcile step).
       const fresh = reconcileAchievements({
         occurrences: occs,
         tenureAnchor: settings.tenureAnchorDate,
