@@ -3,6 +3,11 @@
 // If you need a change here, raise an architect change request (docs/MODULES.md).
 const expoPreset = require('jest-expo/jest-preset');
 
+// `standard-navigation` (pulled in by expo-router) declares "type": "module" and ships raw
+// ESM in a .js file, so it evades both the .mjs transform and the name mapping below and
+// dies on `Cannot use import statement outside a module`. Whitelisting it for transform is
+// sufficient: expo-router then imports, renders and spies UNMOCKED (verified).
+//
 // lucide-react-native's `exports` map resolves the react-native/import condition to an
 // ESM .mjs build, which reaches Jest untranspiled and dies on `Unexpected token 'export'`.
 // Pin the test resolver to lucide's prebuilt CJS output instead. Measured: ~3x faster than
@@ -41,7 +46,7 @@ module.exports = {
         '^.+\\.mjs$': expoPreset.transform['\\.[jt]sx?$'],
       },
       transformIgnorePatterns: [
-        'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|lucide-react-native))',
+        'node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|lucide-react-native|standard-navigation))',
       ],
     },
   ],

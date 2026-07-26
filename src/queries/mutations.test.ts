@@ -171,7 +171,7 @@ describe('useLogState — item 7: XP write failures are never reported as succes
     const off = on('xp:awarded', (e) => events.push(e));
 
     const client = freshClient();
-    const { result } = await renderHook(() => useLogState(), { wrapper: makeWrapper(client) });
+    const { result } = await rh(() => useLogState(), client);
 
     let outcome: unknown;
     await act(async () => {
@@ -192,7 +192,7 @@ describe('useLogState — item 7: XP write failures are never reported as succes
     const events: AppEvent[] = [];
     const off = on('xp:awarded', (e) => events.push(e));
     const client = freshClient();
-    const { result } = await renderHook(() => useLogState(), { wrapper: makeWrapper(client) });
+    const { result } = await rh(() => useLogState(), client);
 
     await act(async () => {
       await result.current.mutateAsync({ taskId: task.id, date: '2024-06-01' as LocalDate, chip: 'done' });
@@ -208,16 +208,15 @@ describe('useMoveOccurrence — item 6: F7 snooze/move through the real pipeline
     const task = makeTask({ cadence: { kind: 'daily' } });
     fake.seedTask(task);
     const client = freshClient();
-    const wrapper = makeWrapper(client);
 
     const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
     await act(async () => {
       await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-01' as LocalDate, toDate: '2024-06-02' as LocalDate });
     });
 
-    const { result: occResult } = await renderHook(
+    const { result: occResult } = await rh(
       () => useTaskOccurrences(task.id, { from: '2024-06-01' as LocalDate, to: '2024-06-02' as LocalDate }),
-      { wrapper },
+      client,
     );
     await waitFor(() => expect(occResult.current.isSuccess).toBe(true));
     const occs = occResult.current.data ?? [];
@@ -231,7 +230,6 @@ describe('useTasks — item 5: no cache-key collision across type filters', () =
     fake.seedTask(makeTask({ id: 'r1' as Task['id'], type: 'routine' }));
     fake.seedTask(makeTask({ id: 'e1' as Task['id'], type: 'event', cadence: null, eventDate: '2024-06-10' as LocalDate }));
     const client = freshClient();
-    const wrapper = makeWrapper(client);
 
     const { result: routines } = await rh(() => useTasks({ type: 'routine' }), client);
     const { result: events } = await rh(() => useTasks({ type: 'event' }), client);
@@ -257,10 +255,9 @@ describe('item 9: a log invalidates a mounted useTaskOccurrences for that task',
     const task = makeTask();
     fake.seedTask(task);
     const client = freshClient();
-    const wrapper = makeWrapper(client);
     const range = { from: '2024-05-01' as LocalDate, to: '2024-06-30' as LocalDate };
 
-    const { result: occResult } = await renderHook(() => useTaskOccurrences(task.id, range), { wrapper });
+    const { result: occResult } = await rh(() => useTaskOccurrences(task.id, range), client);
     await waitFor(() => expect(occResult.current.isSuccess).toBe(true));
     const before = occResult.current.dataUpdatedAt;
 
