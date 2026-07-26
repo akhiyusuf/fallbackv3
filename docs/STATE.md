@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — wave 1 built and reviewed; all three modules reworking.**
+**Phase 3 (BUILD) — M0 and M1 PASSED; M2 under final review.**
 
 ## Phase status
 
@@ -15,7 +15,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 | **Gate 1** | **PASSED** | `docs/PRD.md` contains `STATUS: APPROVED` |
 | 2 — Design | Carried over; read via the `CLAUDE.md` PROJECT OVERRIDE | `design-input/` (50 screens, specs + rendered handoff) |
 | **Gate 2** | **PASSED** | `design/APPROVAL.md` — human approved in conversation 2026-07-26, transcribed verbatim |
-| 3 — Build | **In progress** — wave 1 reworking after review | `review/REVIEW-M0.md` `REVIEW-M1.md` `REVIEW-M2.md`, all CHANGES_REQUIRED pass 1 |
+| 3 — Build | **In progress** — M0 PASS, M1 PASS, M2 in review | `review/REVIEW-M0.md` `REVIEW-M1.md` `REVIEW-M2.md` |
 
 Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
@@ -203,38 +203,74 @@ titles to find where a given module's work actually landed.
   directory. Judged defensible, escalated as a product decision.
 - F20 sync ships visibly unavailable unless the §9.2.1 gap is funded.
 
-## Wave-1 review — pass 2 status
+## Wave-1 review outcome
 
-| Module | Pass 1 | Pass 2 | Now |
-|---|---|---|---|
-| M0 | 9 blocking | 1 blocking — `accessible` on the heatmap container swallows its cells and month nav from VoiceOver, contradicting the rule M0 itself documented that same pass | fixing |
-| M1 | 2 blocking | 1 blocking — both pass-1 fixes held under seven adversarial probes, but the new `store:erased` emits sit inside their success paths, so a throwing subscriber falsifies the Result | fixing |
-| M2 | 10 blocking | — | still reworking |
+| Module | Pass 1 | Pass 2 | Pass 3 | Verdict |
+|---|---|---|---|---|
+| M0 kernel | 9 blocking | 1 blocking (introduced by the fix) | clean | **PASS** |
+| M1 data layer | 2 blocking | 1 blocking (introduced by the fix) | clean | **PASS** |
+| M2 domain engine | 10 blocking | in review | — | pending |
 
-Both pass-2 defects were **introduced by the pass-1 fixes**, and in both cases a
-reviewer probe proved the failure rather than inferring it. M1's is the more
-dangerous: a throwing `store:ready` handler converts a healthy store into a
-permanent recovery loop, and M7's widget handlers are exactly what will subscribe
-there — an M7 bug would masquerade as data corruption in M1.
+**Every module introduced a new defect while fixing its first round.** That is
+the single most useful thing this loop demonstrated, and it is why one review
+pass would not have been enough.
 
-## Second config gap — confirmed, routed to architect
+Reviewers repeatedly proved failures rather than inferring them: seven
+adversarial backup envelopes driven through the real restore path; a mutated
+`WHERE` clause that dropped lifetime XP from 10 to 0, proving the guard test
+fails under the bug it guards; a rejecting async subscriber checked against the
+synchronous `catch`. Builders did the same — M0 twice reintroduced a defect to
+confirm its new test caught it.
 
-`expo-router` cannot be imported in a Jest test:
-`Cannot use import statement outside a module` at
-`expo-router/src/standard-navigation/index.tsx:4`. The chain is
-`standard-navigation@0.0.5` declaring `"type": "module"` while shipping ESM in a
-**`.js`** file — so it falls through the lucide mapping, the `.mjs` transform,
-and the `transformIgnorePatterns` whitelist alike.
+### Defects that would have shipped
 
-Found by M0, which kept its mock and **disagreed with dropping it**; independently
-reproduced by the code reviewer. Suggested minimal fix is appending
-`|standard-navigation` to the whitelist. Must land before wave 2, and the House
-testing pattern must be corrected — it currently tells builders to delete
-inherited workarounds, which would walk all five wave-2 builders into this wall.
+- A snoozed task silently counted as **missed** (M2, F7 no-op).
+- A UTC date-slice breaking the creation-day boundary in **opposite directions by
+  hemisphere** (M2) — invisible in single-timezone testing.
+- A corrupt backup wiping data while reporting success, then leaving the app
+  broken until relaunch (M1).
+- Erase-all leaving pre-erase habits on the home-screen widget (M1).
+- Level-up celebrations hardcoded so they could never fire (M2).
+- The heatmap's cells and month nav unreachable to VoiceOver (M0).
+- `emit()` not isolating subscribers, so one throwing handler starved every later
+  subscriber of the same event (M0, found by M1's reviewer).
+
+## Config gaps — all three closed
+
+`expo-router` could not be imported under Jest: `standard-navigation@0.0.5`
+declares `"type": "module"`, ships ESM in a **`.js`** file, and has **no
+`exports` map**, so there is no `require` condition to fall back to — it slipped
+past the `.mjs` transform, the lucide name mapping and the whitelist alike. Found
+by M0, which **kept its mock and disagreed with dropping it**, and was right;
+reproduced independently by the code reviewer and again by the architect.
+
+The architect went past the fix: a passing *import* does not prove screen *tests*
+work, so it verified by **rendering** — `useLocalSearchParams`, `useRouter`,
+`router.push` and `<Link>` all work unmocked outside any navigator, and
+`useLocalSearchParams` returns empty params rather than throwing, which is what
+makes the seven origin-aware screens testable with no navigation context. It then
+swept all 48 `"type": "module"` packages for the same shape; nine matched, eight
+are tooling app code never imports, and `standard-navigation` was the only
+reachable one — so there is no fourth gap of this class waiting for wave 2.
+
+## Orchestrator commit-attribution — recurring, content unaffected
+
+Concurrent builders plus `git add -A` keep producing commits whose **messages**
+name one module while their **contents** are whatever was on disk. Content is
+complete and correct throughout; only the labels are imprecise. Known traces:
+
+- M0's rework → scattered across `c30e845` and `141158f`
+- `5c4aaf8` "M0 rework" → contains only three M2 test-support files
+- M0's follow-ups → `src/lib/events.ts` in `15c43a1`, `src/ui/a11y.ts` in
+  `4c37b61`, the heatmap test in `64747b6`
+- `3f55da5` claimed to contain a whitelist removal — **it does not**; the
+  architect restored the line between the working-tree read and the commit
+
+**Always use `git log --follow <path>`, never commit titles, to find where a
+module's work landed.**
 
 ## Next action
 
-M0 and M1 fixing their single pass-2 items; M2 still on its pass-1 rework;
-architect on the expo-router gap. Then: re-review to PASS → freeze wave 1 →
+M2's pass-2 review is the last thing blocking the wave-1 freeze. Then: freeze →
 wave 2 (M3–M7) in parallel → code-reviewer each → qa-tester → visual-qa →
 **Gate 3**, where the human reviews screenshots + `review/TEST_REPORT.md`.
