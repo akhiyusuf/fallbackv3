@@ -62,20 +62,24 @@ any piece out breaks the render.
 | 07 AI assistant | S31–S40 | home, conversation, history, mic primer, paywall, BYO key |
 | 08 Settings & recovery | S41–S50 | settings and sub-pages, data, erase, help, recovery |
 
-## Known gap — upstream artifacts are missing
+## Upstream artifacts — supplied, in `docs/`
 
-The specs cite upstream documents that **are not in this drop**:
+The specs cite upstream documents heavily: `docs/PRD.md` ~45× by section
+(§3 nineteen times, §5 fourteen, §7 seven, plus §4 and §6), `docs/IDEA.md` ~15×
+for verbatim copy (Flows 6.1–6.2, 10.1, 11.4–11.9), and `docs/FEATURES.md` for
+the feature IDs tagging every screen.
 
-- `docs/IDEA.md` — referenced ~15× for verbatim copy (e.g. "Copy (verbatim,
-  IDEA.md Flow 10.1)", Flows 6.1–6.2, 11.4–11.9).
-- `docs/PRD.md` — referenced ~45×, by section: §3 (19×), §5 (14×), §7 (7×), §4, §6,
-  plus named rules ("the PRD's no-streak-language rule", "the PRD's non-punitive…").
-- `docs/FEATURES.md` — every screen is tagged with feature IDs. 29 distinct ones
-  appear (F1–F9, F11–F21, F23–F31); **F10 and F22 are never referenced**, so the
-  feature list itself is not fully recoverable from these specs alone.
+All four were supplied separately and now live in `docs/` verbatim:
+`IDEA.md`, `REQUIREMENTS.md`, `FEATURES.md`, `PRD.md`. Cross-checked against
+these specs:
 
-Per the artifact contract in `CLAUDE.md`, `docs/PRD.md` is read by *everyone
-downstream* — architect, feature-builders, qa-tester all depend on it. Phase 3
-cannot start against these design files alone. Either the prior run's
-`IDEA.md` / `REQUIREMENTS.md` / `FEATURES.md` / `PRD.md` need to be supplied, or
-Phases 0–1 need to be re-run to reconstruct them.
+- Every PRD section the screens reference (§3, §4, §5, §6, §7) exists.
+- `docs/PRD.md` carries `STATUS: APPROVED` — **Gate 1 is passed.**
+- The two feature IDs never referenced by any screen are both accounted for,
+  not gaps: **F10** does not exist by design (the PRD records it as an
+  intentional numbering gap), and **F22** — cloud sync with true multi-device
+  conflict resolution — is **P2**, deliberately outside v1 scope, so no v1
+  screen covers it.
+
+So the design in this directory and the documents in `docs/` are consistent with
+each other, and Phase 3 has the PRD it needs.
