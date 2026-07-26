@@ -95,6 +95,18 @@ export interface CycleWindow {
   readonly endDate: LocalDate;
 }
 
+/**
+ * `cycle_state` singleton (SCHEMA.md §8) — the CR-1 pointer to the in-progress cycle.
+ * Authoritative and O(1); `src/domain` derives this only as a `null`-fallback (a fresh
+ * store, or a backup restored from before this pointer existed) and must write it back.
+ */
+export interface CycleState {
+  readonly currentCycleId: Id;
+  readonly cadence: CycleCadence;
+  readonly startDate: LocalDate;
+  readonly endDate: LocalDate;
+}
+
 /** F30. Permanent, append-only, never overwritten. */
 export interface CycleRecord {
   readonly id: Id;

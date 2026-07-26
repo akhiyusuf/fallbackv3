@@ -7,13 +7,15 @@
  * fill (and only when that option is selected), and the option's text label sits beside the
  * pill on the option's own neutral background, never inside the fill.
  *
- * Missed (the Skip state's resolved outcome) has no signal colour of its own
- * (ARCHITECTURE §5 — "Missed has no colour"): its pill renders on a neutral surface fill
- * with a muted icon/border rather than one of the three signal hues, so a chosen "Skip"
- * never invents an unpinned fourth signal colour.
+ * Fill/glyph/label-colour map is the approved handoff's own `chip(state)` function
+ * (`design-input/Fallback Handoff (standalone).html`, ~byte offset 1082599) — not derived
+ * from ARCHITECTURE prose. Skip IS a filled state (the `--off` grey, `minus` glyph): §5's
+ * "missed has no colour" sentence governs the unfilled bar remainder and the empty heatmap
+ * cell, not this chip — the design reuses the existing `off` signal deliberately, it does
+ * not invent a fifth hue. (REVIEW-M0.md item 1.)
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, CircleDashed, X } from 'lucide-react-native';
+import { Check, CheckCheck, Minus } from 'lucide-react-native';
 
 import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
 import type { ChipState } from '@/types';
@@ -35,21 +37,26 @@ const ORDER: readonly ChipState[] = ['todo', 'done', 'fallback', 'skip'];
 
 const OPTION_LABEL: Record<ChipState, string> = { todo: 'To do', done: 'Done', fallback: 'Fallback', skip: 'Skip' };
 
-function pillStyle(t: Theme, state: ChipState, selected: boolean): { bg: string; icon: IconComponent | null; iconColor: string; border: string } {
-  if (!selected) {
-    return { bg: 'transparent', icon: null, iconColor: t.color.textDim, border: t.color.border };
-  }
+interface ChipVisual {
+  readonly bg: string;
+  readonly border: string;
+  readonly icon: IconComponent | null;
+  readonly iconColor: string;
+  readonly labelColor: string;
+}
+
+/** The approved `chip(state)` map, transcribed 1:1 — see the file header for the source offset. */
+function chipVisual(t: Theme, state: ChipState): ChipVisual {
   switch (state) {
     case 'done':
-      return { bg: t.color.ideal, icon: Check, iconColor: t.color.iconOnSignal, border: t.color.ideal };
+      return { bg: t.color.ideal, border: t.color.ideal, icon: CheckCheck, iconColor: t.color.iconOnSignal, labelColor: t.color.idealDeep };
     case 'fallback':
-      return { bg: t.color.fallback, icon: CircleDashed, iconColor: t.color.iconOnSignal, border: t.color.fallback };
+      return { bg: t.color.fallback, border: t.color.fallback, icon: Check, iconColor: t.color.iconOnSignal, labelColor: t.color.fallbackDeep };
     case 'skip':
-      // Missed carries no signal colour (ARCHITECTURE §5) — neutral surface fill, muted icon.
-      return { bg: t.color.surface, icon: X, iconColor: t.color.textMuted, border: t.color.borderStrong };
+      return { bg: t.color.off, border: t.color.off, icon: Minus, iconColor: t.color.iconOnSignal, labelColor: t.color.offDeep };
     case 'todo':
     default:
-      return { bg: 'transparent', icon: null, iconColor: t.color.textDim, border: t.color.border };
+      return { bg: 'transparent', border: t.color.borderStrong, icon: null, iconColor: 'transparent', labelColor: t.color.textMuted };
   }
 }
 
@@ -58,8 +65,8 @@ export function StateChip({ value, onChange, disabled = false, accessibilityLabe
 
   if (variant === 'compact') {
     const current = value ?? 'todo';
-    const pill = pillStyle(t, current, true);
-    const Icon = pill.icon;
+    const visual = chipVisual(t, current);
+    const Icon = visual.icon;
     return (
       <Pressable
         onPress={disabled ? undefined : onPressCompact}
@@ -69,10 +76,15 @@ export function StateChip({ value, onChange, disabled = false, accessibilityLabe
         testID={testID}
         style={styles.compactRow}
       >
-        <View style={[styles.pill, { backgroundColor: pill.bg, borderColor: pill.border, borderWidth: pill.bg === 'transparent' ? 1 : 0 }]}>
-          {Icon ? <Icon size={16} color={pill.iconColor} /> : null}
+        <View
+          style={[
+            styles.pill,
+            { backgroundColor: visual.bg, borderColor: visual.border, borderWidth: current === 'todo' ? 2 : 0 },
+          ]}
+        >
+          {Icon ? <Icon size={16} color={visual.iconColor} /> : null}
         </View>
-        <Text style={[styles.compactLabel, { color: t.color.text }]}>{OPTION_LABEL[current]}</Text>
+        <Text style={[styles.compactLabel, { color: visual.labelColor }]}>{OPTION_LABEL[current]}</Text>
       </Pressable>
     );
   }
@@ -81,8 +93,8 @@ export function StateChip({ value, onChange, disabled = false, accessibilityLabe
     <View style={styles.row} accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} testID={testID}>
       {ORDER.map((state) => {
         const selected = value === state || (value === null && state === 'todo');
-        const pill = pillStyle(t, state, selected);
-        const Icon = pill.icon;
+        const visual = chipVisual(t, state);
+        const Icon = visual.icon;
         return (
           <Pressable
             key={state}
@@ -93,12 +105,16 @@ export function StateChip({ value, onChange, disabled = false, accessibilityLabe
             accessibilityLabel={OPTION_LABEL[state]}
             style={[styles.option, disabled && styles.disabled]}
           >
-            <View
-              style={[styles.pill, { backgroundColor: pill.bg, borderColor: pill.border, borderWidth: pill.bg === 'transparent' ? 1 : 0 }]}
-            >
-              {Icon ? <Icon size={16} color={pill.iconColor} /> : null}
-            </View>
-            <Text style={[styles.optionLabel, { color: t.color.text }]}>{OPTION_LABEL[state]}</Text>
+            {selected ? (
+              <View
+                style={[styles.pill, { backgroundColor: visual.bg, borderColor: visual.border, borderWidth: state === 'todo' ? 2 : 0 }]}
+              >
+                {Icon ? <Icon size={16} color={visual.iconColor} /> : null}
+              </View>
+            ) : (
+              <View style={[styles.pill, styles.unselectedPill, { borderColor: t.color.borderStrong }]} />
+            )}
+            <Text style={[styles.optionLabel, { color: selected ? visual.labelColor : t.color.textMuted }]}>{OPTION_LABEL[state]}</Text>
           </Pressable>
         );
       })}
@@ -118,6 +134,7 @@ const styles = StyleSheet.create({
   },
   compactRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1, minHeight: MIN_TAP_TARGET, paddingHorizontal: SPACE.s1 },
   pill: { width: 28, height: 28, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
+  unselectedPill: { backgroundColor: 'transparent', borderWidth: 2 },
   optionLabel: { fontSize: 14, fontWeight: '500' },
   compactLabel: { fontSize: 14, fontWeight: '600' },
   disabled: { opacity: 0.5 },

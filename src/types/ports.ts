@@ -11,7 +11,7 @@ import type {
   AssistantMessage,
 } from './assistant';
 import type { AsNeededUse, DayLog, OffDayMark } from './log';
-import type { AchievementUnlock, CycleRecord, XpAward } from './progress';
+import type { AchievementUnlock, CycleRecord, CycleState, XpAward } from './progress';
 import type { Id, Instant, LocalDate, Result } from './primitives';
 import type { Settings } from './settings';
 import type { Step, Task, TaskWithSteps } from './task';
@@ -49,6 +49,14 @@ export interface AsNeededRepository {
 export interface ProgressRepository {
   listXpAwards(from?: LocalDate, to?: LocalDate): Promise<readonly XpAward[]>;
   appendXpAward(award: XpAward): Promise<Result<void>>;
+  /**
+   * CR-2 (SCHEMA.md §7). Deletes the `(taskId, date)` award row, if any — a no-op when no
+   * row exists returns `ok`, never `NOT_FOUND`. The **only** sanctioned reduction of
+   * lifetime XP: fires solely for an undone mis-tap on a live task's showing-up state,
+   * never for a missed day, an off day, a cycle boundary, or a task deletion (those all
+   * stay monotonic — see ARCHITECTURE §7 / SCHEMA.md §2.3).
+   */
+  retractXpAward(taskId: Id, date: LocalDate): Promise<Result<void>>;
   lifetimeXp(): Promise<number>;
   cyclingXp(cycleId: Id): Promise<number>;
   listUnlocks(): Promise<readonly AchievementUnlock[]>;
@@ -61,6 +69,17 @@ export interface ProgressRepository {
 export interface SettingsRepository {
   get(): Promise<Settings>;
   patch(patch: Partial<Settings>): Promise<Result<Settings>>;
+}
+
+/**
+ * CR-1 (SCHEMA.md §8). The `cycle_state` singleton pointer to the in-progress cycle — a
+ * first-class `Repositories` member, exactly like `settings`, not a `ProgressRepository`
+ * method. `get()` returns `null` only on a fresh store or a backup predating this pointer;
+ * `src/domain`'s fallback derivation must `set()` it back so the fallback runs at most once.
+ */
+export interface CycleStateRepository {
+  get(): Promise<CycleState | null>;
+  set(state: CycleState): Promise<Result<void>>;
 }
 
 export interface AssistantRepository {
@@ -79,6 +98,7 @@ export interface Repositories {
   readonly progress: ProgressRepository;
   readonly settings: SettingsRepository;
   readonly assistant: AssistantRepository;
+  readonly cycleState: CycleStateRepository;
 }
 
 /* ------------------------------------------------------------------ M1: store lifecycle */

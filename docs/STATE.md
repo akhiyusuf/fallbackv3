@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — architecture PASSED; wave-1 builders running.**
+**Phase 3 (BUILD) — wave 1 built and reviewed; all three modules reworking.**
 
 ## Phase status
 
@@ -15,7 +15,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 | **Gate 1** | **PASSED** | `docs/PRD.md` contains `STATUS: APPROVED` |
 | 2 — Design | Carried over; read via the `CLAUDE.md` PROJECT OVERRIDE | `design-input/` (50 screens, specs + rendered handoff) |
 | **Gate 2** | **PASSED** | `design/APPROVAL.md` — human approved in conversation 2026-07-26, transcribed verbatim |
-| 3 — Build | **In progress** — wave 1 (M0/M1/M2) building | architecture PASSED pass 3, `review/REVIEW-ARCHITECTURE.md` |
+| 3 — Build | **In progress** — wave 1 reworking after review | `review/REVIEW-M0.md` `REVIEW-M1.md` `REVIEW-M2.md`, all CHANGES_REQUIRED pass 1 |
 
 Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
@@ -122,13 +122,71 @@ Two non-blocking observations left, neither impeding a builder: ARCHITECTURE §1
 "extended by M0/M2" sits askew of M0's ownership, and the assertions-as-arbiter
 rule leans on the adjacent §6.5 pin.
 
+## Wave 1 — built, reviewed, reworking
+
+All three landed green (tsc clean, 32 suites / 213 tests) and all three came back
+CHANGES_REQUIRED on code-review pass 1. Each reviewer verified the module's
+highest-stakes surface **before** reporting defects, and re-derived rather than
+trusting the module's own tests.
+
+| Module | Verified clean | Blocking |
+|---|---|---|
+| M0 kernel | 39 real components; both palettes exact against `fallback-theme.css`; `number.ts` byte-identical | 9 — design-fidelity and a11y |
+| M1 data layer | Cascade re-executed in `node:sqlite` outside M1's harness: XP survives, sum unchanged. Restore never inspects references | 2 |
+| M2 domain engine | Every golden row re-derived; 67% test asserts numerator and denominator separately so it cannot pass all-or-nothing; `dateMath` vs date-fns over 3,000 days, 0 mismatches | 10 |
+
+**M0's nine share one root cause worth remembering:** the builder reasoned signal
+renderings from ARCHITECTURE prose where the approved rendered handoff already
+settles them differently. The design is controlling; prose describing it is not.
+
+**The worst individual defects found:** a snoozed task silently becoming a
+*missed* day (M2 — F7 no-op); a UTC date-slice breaking the creation-day boundary
+in opposite directions depending on hemisphere (M2); an all-empty backup envelope
+passing validation and wiping data while reporting success (M1); and
+`store:erased` never firing, which would leave pre-erase habits on the home-screen
+widget after an erase-all (M1).
+
+## Architect change requests — resolved, approved, in `docs/MODULES.md`
+
+- **Test config was broken for component tests.** `test-renderer` turned out to be
+  a real package — React 19's replacement for the deprecated `react-test-renderer`
+  — never installed because `--legacy-peer-deps` skipped it. Installing it exposed
+  a third failure the builders' workarounds had masked: **RNTL 14's `render`
+  returns a Promise**, so every query fails without `await`. `lucide-react-native`
+  pinned to its prebuilt CJS (13s vs 44s for the transform route). A **House
+  testing pattern** section now sits at the top of `MODULES.md`; wave 2 follows it
+  and deletes inherited workarounds.
+- **CR-1 `cycle_state`** — becomes a first-class `Repositories` member. M2's
+  correctness reasoning won, M1's structure won: the pointer is authoritative and
+  O(1); M2's derivation survives only as the `null` fallback and must write the
+  pointer back. M0 lands the port change; M1 and M2 align.
+- **CR-2 `retractXpAward`** — added to `ProgressRepository`. Fires **only** for an
+  undone mis-tap on a live task; never for a missed day, off day, cycle boundary,
+  or deletion.
+- **F20 cloud sync — KNOWN GAP, recorded in `ARCHITECTURE.md` §9.2.1** with a
+  per-platform cost table. iOS is the harder half (custom native Swift module,
+  ~150–250 LOC, provisioned iCloud container); Android needs credentials and
+  configuration only. M1's `isAvailable() → false` is endorsed and must not be
+  "fixed" into fake success. F20 is P1 fast-follow, so this does not block the MVP.
+
+## Commit-record correction
+
+Commit `407ede2`, titled "Code review pass 1: M1 and M2 both CHANGES_REQUIRED",
+also contains `review/REVIEW-M0.md` and the architect's entire config and docs
+work (`package.json`, `jest.config.js`, `app.config.ts`, `API.md`,
+`ARCHITECTURE.md`, `SCHEMA.md`, `MODULES.md`). A `git add -A` swept them in
+mid-flight. The message is incomplete, not wrong; history was not rewritten
+because it was already pushed.
+
+## Carry to Gate 3 — product calls, not builder calls
+
+- Exported `.fallbackbak` files survive erase-all in the app's Documents
+  directory. Judged defensible, escalated as a product decision.
+- F20 sync ships visibly unavailable unless the §9.2.1 gap is funded.
+
 ## Next action
 
-**Wave 1 building now, in parallel:** M0 kernel, M1 data layer, M2 domain engine.
-One real coupling — M1's five screens need six of M0's kit components
-(`Button`, `Card`, `EmptyState`, `InlineRetryBanner`, `Switch`, `Toast`), so M0
-lands those first and M1 builds its screens last.
-
-Then: code-reviewer per module, loop to PASS → freeze wave 1 → wave 2 (M3–M7) in
-parallel → code-reviewer each → qa-tester → visual-qa → **Gate 3**, where the
-human reviews screenshots + `review/TEST_REPORT.md`.
+All three wave-1 builders are reworking against their reviews. Then: code-reviewer
+re-review each, loop to PASS → freeze wave 1 → wave 2 (M3–M7) in parallel →
+code-reviewer each → qa-tester → visual-qa → **Gate 3**, where the human reviews
+screenshots + `review/TEST_REPORT.md`.
