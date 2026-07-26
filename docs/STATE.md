@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 2 (DESIGN) — design work carried over, awaiting Gate 2.**
+**Phase 3 (BUILD) — Gate 2 passed; architect running.**
 
 ## Phase status
 
@@ -14,8 +14,8 @@ _Updated after landing the human-supplied `docs/` bundle._
 | 1 — Planning | Carried over | `docs/FEATURES.md`, `docs/PRD.md` |
 | **Gate 1** | **PASSED** | `docs/PRD.md` contains `STATUS: APPROVED` |
 | 2 — Design | Carried over; read via the `CLAUDE.md` PROJECT OVERRIDE | `design-input/` (50 screens, specs + rendered handoff) |
-| **Gate 2** | **PENDING — human** | `design/APPROVAL.md` does not exist |
-| 3 — Build | Blocked on Gate 2 | no `src/` |
+| **Gate 2** | **PASSED** | `design/APPROVAL.md` — human approved in conversation 2026-07-26, transcribed verbatim |
+| 3 — Build | **In progress** — architect running | ARCHITECTURE / SCHEMA / API / MODULES pending |
 
 Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
@@ -79,6 +79,11 @@ builder-vs-qa disagreements:
 
 ## Next action
 
-Human decision at Gate 2 — see the Visual Review Protocol in `CLAUDE.md`.
-Approval means creating `design/APPROVAL.md` containing `STATUS: APPROVED`.
-No agent, including the orchestrator, may write that file.
+Architect is running. On completion → artifact-reviewer on
+ARCHITECTURE/API/SCHEMA/MODULES against PRD.md + the design, loop to PASS, then
+launch one feature-builder per module in `docs/MODULES.md` in parallel.
+
+The four advisory findings above were handed to the architect in its brief.
+
+After builders: code-reviewer per module (loop to PASS on all), then qa-tester,
+then visual-qa, then **Gate 3** — human reviews screenshots + TEST_REPORT.md.
