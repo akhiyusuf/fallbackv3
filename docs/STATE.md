@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — Gate 2 passed; architect running.**
+**Phase 3 (BUILD) — architect done; its four docs under review.**
 
 ## Phase status
 
@@ -15,7 +15,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 | **Gate 1** | **PASSED** | `docs/PRD.md` contains `STATUS: APPROVED` |
 | 2 — Design | Carried over; read via the `CLAUDE.md` PROJECT OVERRIDE | `design-input/` (50 screens, specs + rendered handoff) |
 | **Gate 2** | **PASSED** | `design/APPROVAL.md` — human approved in conversation 2026-07-26, transcribed verbatim |
-| 3 — Build | **In progress** — architect running | ARCHITECTURE / SCHEMA / API / MODULES pending |
+| 3 — Build | **In progress** — architect done, docs under review | `docs/ARCHITECTURE.md` `SCHEMA.md` `API.md` `MODULES.md` + scaffold |
 
 Re-review complete: `docs/PRD.md` → artifact-reviewer → `review/REVIEW-PRD.md` = **PASS**.
 
@@ -77,13 +77,41 @@ builder-vs-qa disagreements:
    to the architect.
 4. Trivial: §3.5 writes 26/31 as "83.9" (exact 83.87). The final 84% is correct.
 
+## Architecture — delivered, under review
+
+Stack: Expo SDK 57 / RN 0.86 / React 19 / TS 6, expo-router, expo-sqlite,
+TanStack Query (read cache), zustand (ephemeral UI), tokens transcribed to TS.
+Billing via expo-iap direct to StoreKit 2 / Play Billing — no RevenueCat, which
+would put user data server-side.
+
+Eight modules, two waves: **M0** kernel · **M1** data layer · **M2** domain
+engine build first, then **M3** today/browse · **M4** task authoring · **M5**
+progress · **M6** assistant/billing · **M7** first-run/settings. All 50 screens
+assigned exactly once.
+
+All four PRD-review findings resolved. Round-half-up is pinned to one function
+and locked by 8 passing assertions (incl. 12.5→13 and the 67%-not-50% aggregate
+anchor). `tsc --noEmit` clean, jest 8/8 green.
+
+### Contract deviation — recorded, not hidden
+
+The architect's output column is the four docs; `src/**` belongs to
+feature-builders. It also wrote ~2,350 lines of scaffold (types, tokens, config,
+route stubs). Not reverted, because every scaffolded file sits inside some
+module's owned paths and will therefore be covered by code-reviewer when that
+module is reviewed. Two follow-ups:
+
+- `MODULES.md` tells builders the scaffold is settled ("already written, do not
+  change the algorithm"). Builder briefs must state it is a **starting point,
+  not law** — a builder who finds a real defect fixes it and says so.
+- artifact-reviewer has been asked to flag any place that deference would
+  suppress a legitimate fix.
+
 ## Next action
 
-Architect is running. On completion → artifact-reviewer on
-ARCHITECTURE/API/SCHEMA/MODULES against PRD.md + the design, loop to PASS, then
-launch one feature-builder per module in `docs/MODULES.md` in parallel.
-
-The four advisory findings above were handed to the architect in its brief.
+artifact-reviewer on the four architect docs → `review/REVIEW-ARCHITECTURE.md`.
+Loop to PASS, then launch one feature-builder per module — wave 1 (M0/M1/M2) in
+parallel, freeze, then wave 2 (M3–M7) in parallel.
 
 After builders: code-reviewer per module (loop to PASS on all), then qa-tester,
 then visual-qa, then **Gate 3** — human reviews screenshots + TEST_REPORT.md.
