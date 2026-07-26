@@ -1,215 +1,181 @@
-# Review — M2 (pass 2)
-VERDICT: CHANGES_REQUIRED
+# Review — M2 (pass 3)
+VERDICT: ADVISOR_REQUIRED
 
-**Process note first.** M2 appended a "Response (rework pass 1)" section to this file —
-which it does not own — during its rework. I diffed the committed pass-1 version
-(`407ede2:review/REVIEW-M2.md`) against the pre-overwrite HEAD: my findings were
-**byte-identical, not altered, softened, or removed**; the write was purely an appended
-per-item response. So: contract violation on the write itself (already flagged by the
-orchestrator), no integrity violation on the content. This overwrite removes it; the
-response's claims were treated as testimony and verified independently below.
+One blocking defect remains — a new one, in the newest code, found by composing F7 moves
+with themselves. Everything else from passes 1 and 2 is verified fixed, structurally where
+that was demanded, and the arithmetic core is intact. Per the three-pass rule this sets
+ADVISOR_REQUIRED; my diagnosis of the regression pattern, and what I think the advisor
+should actually pin, is at the end — this module is converging (10 → 5 → 1), not thrashing.
 
-**Where things stand.** The rework is genuinely good. All ten pass-1 blocking items were
-addressed, the two worst (UTC creation-day slice; F7 move) at their roots, and the pinned
-arithmetic core survived untouched — `consistency.ts`, `xp.ts`, `cycles.ts`,
-`validation.ts` and every golden-table test are byte-unchanged since the pass I verified
-them in, and all still pass (133 domain+queries tests, re-run this pass). But the rework
-introduced **four new defects and one duplicate-event bug**, all in the new code, two of
-them in the exact hat-wearing shape pass 2 was told to look for. The loop continues.
+## Pass-2 item disposition (all verified, none taken on faith)
 
-## Pass-1 item disposition (verified, not taken on faith)
+- **N1 (path divergence) — fixed structurally, as demanded.** `resolveOneOccurrence`
+  (internal.ts:116-122) shares `fetchMoveWindowLogs` + `buildMovedInIndex` +
+  `resolveOccurrence` with `resolveTaskOccurrences`; `reconcileOccurrence` calls it
+  (mutations.ts:239). Bypass check: grep shows the only production `resolveOccurrence` call
+  sites are the two inside `internal.ts` — no read or mutation path can resolve
+  independently. Divergence-hunting: the two helpers use different fetch windows
+  (`[from−60, to+60]` vs `[D−60, D+60]`), but the new up-front move-distance guard
+  (mutations.ts:587-593) enforces `|source − target| ≤ 60`, which makes every source a
+  batch read can see for target D also visible to the single read, and the double-move
+  tie-break is deterministic (latest source date, `buildMovedInIndex`'s ascending sort) so
+  both paths pick the same winner. Precedence `log ?? movedInLog` with due-ness
+  `movedInLog != null || isDue(...)` (dayState.ts:98-106). End-to-end traces all agree
+  between mutation and read, including across a rollover: move→complete (ideal, one award),
+  move-to-off-cadence-day→complete (ideal, one award), move onto a naturally-due day with
+  its own log (own log wins), move onto an off day (`off`, no retraction — N2 branch),
+  move across a cycle boundary (original `cycleId` preserved). The N1 acceptance tests
+  assert exactly my pass-2 criteria including `numerator === denominator − missed`, and
+  fail by inversion under the pass-2 precedence (`movedInLog ?? log` would read `pending`,
+  not `ideal`) and under the reconcile-blind bug (off-cadence completion would award 0).
+- **N2 (off-day retraction) — fixed**, `else if (occurrence.outcome !== 'off')`
+  (mutations.ts:276-285). The self-found second bug (re-affirmation re-stamping `cycleId`)
+  is genuinely fixed: an existing award's `cycleId` is preserved via `listXpAwards(date,
+  date)` filtered to the task (mutations.ts:255-261); M1's upsert writes the same value
+  back, so downgrade keeps attribution too; orphaned same-date awards (`taskId` null)
+  can't be picked up by the filter. The test is sharp: the seeded January award vs. a
+  pointer that the boundary walk has advanced to June means the re-stamp bug would
+  genuinely flip the asserted `cycleId` — it fails under the bug.
+- **N3 (overlap) — fixed**, and one better than my prescription: `freshCycleWindow`
+  (cycles.ts:46-49) starts exactly at the given date, and the short record ends
+  **yesterday** (mutations.ts:203-207), closing the one-day overlap my own acceptance test
+  would have left at `[oldStart, today]`/`[today, …]`. Degenerate guard checked: live
+  window started today → `shortCycleEnd < startDate` → nothing archived, only the fresh
+  pointer set; two same-day cadence changes cannot produce an invalid or overlapping
+  record. `assertNoOverlappingRecords` is a real interval-intersection check and is applied
+  to the item-2 walk too.
+- **N4 (double-archive) — fixed.** Pointer advances after each successful archive
+  (mutations.ts:162-170); `archiveCycleWindow` has an existence guard on
+  `(cadence, start, recordEnd)` that returns the existing id without re-appending or
+  re-emitting (mutations.ts:115-117); `getOrInitCycleState` returns `{state, persisted}`
+  and both callers refuse to archive against an unpersisted pointer (mutations.ts:157,
+  199-200). Guard false-positive check: windows never legitimately repeat (the pointer is
+  monotonic — advanced only to `nextCycleWindow`, or to `freshCycleWindow(today)` where
+  today ≥ the live start; records survive everything except erase-all, which clears both),
+  and a short record can never collide with a full one at identical bounds because a
+  change on a period's first day takes the degenerate path. Both partial-failure tests
+  (mid-loop append failure; pointer-write failure after the short append) use real
+  fail-injection in the fake and fail under the pass-2 code.
+- **N5 (duplicate `level:up`) — fixed.** The `useToggleStep` re-emit is gone; grep confirms
+  exactly one emit site (mutations.ts:316), documented as the sole one. The test asserts
+  exactly one event through M0's now-isolated (reliably-delivering) bus.
+- **Non-blocking items:** move guard enforced up front with a calm `VALIDATION_FAILED`
+  (better than silent disappearance); tie-breaks deterministic and chained-move behaviour
+  documented and tested; S27 locked-copy provenance note added to the catalogue header;
+  `getOrInitCycleState`'s fallback now uses the leading-partial shape (aligned with M1's
+  genesis seed). The Jest open-handles warning remains, honestly reported as
+  investigated-not-isolated — I accept that: the suite passes deterministically, the
+  teardown is diligent, and this is a known react-query/@testing-library timer interplay;
+  it masks nothing I can find. Worth one more attempt with `--detectOpenHandles` before
+  qa-tester copies the harness, but not blocking.
 
-| # | Status | How verified |
-|---|---|---|
-| 1 short-cycle finalize | Fixed, with a new defect (item N3 below) | read `finalizeCycleForCadenceChange`; ran its test |
-| 2 cycle pointer | Fixed, with a failure-path residue (N4) | read the rewrite; pointer authoritative, fallback runs once and writes back |
-| 3 level-up | **Fixed** | before/after `levelFor` compare (mutations.ts:226-228); test fails under the old hardcoded `null` |
-| 4 UTC slice | **Fixed, threading complete** | `instantToLocalDate` deleted; grep for `slice(0,10)`/`substring`/`createdAt` across `src/domain`+`src/queries`: the only two Instant→LocalDate conversions are `internal.ts:22` and `reads.ts:159`, both `toLocalDate(new Date(...))` (device-local). `notBefore` threads `isDue`/`occurrencesBetween`/`dueIdealStepIds`/`resolveOccurrence` as caller-supplied data; omitting it applies no bound rather than a wrong one |
-| 5 useTasks key | **Fixed** | `select`-based per-observer filter over one canonical entry (reads.ts:30-37); two-hook test |
-| 6 F7 move | Half-fixed — read path only; **new blocking item N1** | see below |
-| 7 XP retraction + Results | Fixed at CR-2's sanctioned boundary; every reconcile-path Result checked — but **over-retracts on off days, N2** | see below |
-| 8 calendar buckets | **Fixed** | real `startOfWeek/endOfMonth`/`YYYY-01-01` boundaries (reads.ts:115-149); every bucket but the last a full calendar period |
-| 9 query keys | **Fixed** | `taskOccurrences`/`achievements` in `QUERY_KEYS`; predicate invalidation covers all variants; invalidation test |
-| 10 fixtures + tests | **Fixed** | `threeDayMixedFixture` is real tasks/logs and reproduces 67% through `resolveOccurrence` → `aggregateConsistency`; `twoCompletedCyclesFixture` + `cycleBoundaryFixture` added; `src/queries` 0→10 tests against the real hooks |
+## Regression sweep (pass-2 fixes vs pass-1 establishment)
 
-CR-1 (`CycleStateRepository` in `ports.ts:80-82`/`Repositories.cycleState`) and CR-2
-(`retractXpAward`, ports.ts:59, API.md §1/§2) landed through the architect as required;
-M1's implementations verified read-only (`progressRepository.ts:121-128`).
+`consistency.ts`, `xp.ts`, `occurrence.ts`, `validation.ts`, `reads.ts` untouched this
+pass (commit e008938 numstat); `cycles.ts` change is additive (`freshCycleWindow`);
+`dayState.ts` changes are confined to the moved path — with no move in play,
+`effectiveLog === log` and every branch is byte-equivalent to the verified pass-1
+behaviour, so all §6.6 golden numbers rest on unchanged code. `notBefore` threading
+unchanged; no new Instant→date conversions (still exactly the two `toLocalDate(new
+Date(...))` sites). Full suite re-run: 147 domain+queries tests pass (279 repo-wide per
+the orchestrator). "streak" still absent. Ownership: the rework commit touches only
+`src/domain/**` and `src/queries/**`, and M2 did not write to `review/` this pass.
 
-## Blocking items (new, ranked by severity)
+## Blocking item
 
-**N1. A moved-then-completed occurrence diverges between the mutation path and the read
-path — the most common snooze flow is broken.**
-`src/domain/dayState.ts:98` (`const effectiveLog = movedInLog ?? log;`) and
-`src/queries/mutations.ts:193` (`resolveOccurrence` called **without** `movedInLog`).
-Trace the flow F7 exists for — snooze today→tomorrow, then complete it tomorrow:
-1. `useMoveOccurrence(06-01 → 06-02)`: source log gets `movedToDate`. Read path: 06-01
-   `not-due`, 06-02 `pending`. Correct so far (and tested).
-2. Tomorrow the user taps Done on the 06-02 row → `useLogState(taskId, '06-02', 'done')`
-   upserts a **target-date log** (done, manual). `reconcileOccurrence('06-02')` resolves
-   *without* the moved-in log, sees the done chip → `ideal` → awards 10 XP, returns
-   `celebrate: 'ideal'`. S24 fires.
-3. But every **read** (`useToday`, `useTaskOccurrences`, `useConsistency` via
-   `internal.ts:69-90`) resolves 06-02 with `movedInLog` present, and
-   `movedInLog ?? log` makes the *source* log (chip `todo`) **shadow the user's own done
-   log**. The day renders `pending`, and after 06-02 ends it becomes **missed**.
-Result: XP awarded and celebration shown for a day the engine then counts as missed —
-`numerator === denominator − missed` is violated system-wide (an award exists for a
-denominator-missed day), and the user watches a completed day read as a miss, the exact
-punitive outcome this product exists to avoid. The inverse direction is broken too: move
-an already-done occurrence → read path shows `ideal` on the target, but
-`reconcileOccurrence(toDate)` (mutations.ts:532) can't see the moved-in log, so for an
-off-cadence target it resolves `not-due` and never awards — display and ledger disagree
-again. *Good looks like:* (a) precedence `log ?? movedInLog` — a real user action on the
-target date always wins over the moved-in record, which then only confers due-ness and the
-initial record; (b) `reconcileOccurrence` performs the same moved-in lookup `internal.ts`
-does (or receives the resolved occurrence), so both paths resolve one truth.
-*Acceptance tests:* (i) move today→tomorrow, advance the clock, `useLogState(target,
-'done')` → `useTaskOccurrences` shows `ideal` on the target, exactly one XP award,
-`numerator === denominator − missed` holds; (ii) same on a `specific-weekdays` task whose
-target is off-cadence — completing the moved occurrence awards XP and reads `ideal`.
-Note the existing dayState test "a moved-in occurrence carries its own chip/step data"
-(dayState.test.ts:166-171) asserts the shadowing precedence with `log: null` — it will
-need its premise revisited, not just the implementation.
-
-**N2. Marking an off day retracts earned XP — an explicit SCHEMA §7 / F4 violation.**
-`src/queries/mutations.ts:218-223`: retraction fires whenever the resolved occurrence is
-not XP-eligible, and `off` is not eligible. So: log Done (+10 XP), then mark that task-day
-off (`useMarkOffDay` → `reconcileOccurrence`, mutations.ts:477) → outcome `off` →
-`retractXpAward` **deletes the earned award**. SCHEMA §7: lifetime and cycling XP —
-"Neither can be reduced by … an off day". PRD §3.4: an off day "never triggers a reset,
-streak-break, or XP penalty". API §2's amended CR-2 clause also pins monotonicity "against
-… an off day" and sanctions retraction only for "an undone mis-tap". It is also internally
-inconsistent: a *whole-day* off mark (`taskId: null`) never reconciles, so the same action
-at the other grain leaves XP intact — proof the retraction here is accidental. Secondary
-damage: the mark→unmark round trip re-awards under the *current* cycle id, silently
-migrating cycling-XP attribution across a boundary. *Good looks like:* retraction fires
-only when the occurrence is **resolved-or-pending via its chip** (`todo`/`skip` — the
-mis-tap and the un-set) and for the documented move-vacated case; never when outcome is
-`off`. *Acceptance test:* Done (+10) → mark task-day off → lifetime XP still includes the
-10 and the award row survives; unmark → still exactly one award, original cycle id.
-
-**N3. After a cadence change, the fresh window starts at the calendar period start —
-overlapping the just-archived short record.**
-`src/queries/mutations.ts:172`: `currentCycleWindow(newCadence, today)` has
-`startDate = startOfWeek/startOfMonth(today)`, up to 6/30 days **before** the short record's
-`endDate = today`. Concrete: monthly→weekly on Wed 2024-03-20 → short record Mar 1–20,
-fresh weekly window Mar 18–24; when that window archives, days Mar 18–20 sit in **two
-permanent cycle records**, double-attributed in both records' consistency %. SCHEMA §8: the
-fresh cycle "**begins**" at the change and runs "to that cadence's next natural boundary" —
-i.e. a leading partial window starting **today**, exactly the shape M1's genesis seed uses
-(`cycleWindowSeed.ts:30-33`: start = today, end = calendar end). M2's own response text
-claims "starts a fresh window under the new cadence **from today**" — the code does not do
-what the response says. The item-2 test's comment "no duplicates/overlaps"
-(mutations.test.ts:375) asserts only **key uniqueness**, which cannot catch an interval
-overlap — it currently documents a property the code doesn't have. *Good looks like:* fresh
-window `{ start: today, end: endOfWeek/endOfMonth(today) }` (id scheme can stay
-deterministic or reuse the seed pattern). *Acceptance test:* switch cadence mid-period;
-assert the fresh pointer's `startDate === today`, and that no two archived records'
-`[start, end]` intervals intersect (a real interval check, not a key-string check) after
-the next natural boundary archives.
-
-**N4. Partial failure can double-archive a cycle — SCHEMA §8's "never a double archive"
-is not upheld.**
-`src/queries/mutations.ts:140-146`: the loop archives every elapsed window, then advances
-the pointer **once, after all of them**. If archive A succeeds and archive B fails
-(`appendCycleRecord` is fallible), the function returns with the pointer still at A's
-window; the next reconciliation re-archives A → duplicate permanent record (the pass-1
-dedup scan was removed, so the pointer is now the *only* idempotency mechanism and it isn't
-advanced in lockstep). Same class in `finalizeCycleForCadenceChange` (mutations.ts:169-174):
-short record appended, then `cycleState.set` fails → error returned, patch not applied,
-next attempt appends a **second** short record. And `getOrInitCycleState`
-(mutations.ts:91) deliberately ignores its `set` failure, so a fallback-derived run that
-archives and then fails to persist the pointer replays from the anchor next time. SCHEMA
-§8: "wrapped in one transaction per boundary … either archived-and-reset, or intact to
-retry — never a lost value, never a double archive." *Good looks like:* advance the pointer
-after **each** successful archive (one pointer write per boundary), treat a failed pointer
-write after a successful append as a state that must not re-append (e.g. a cheap
-`(cadence,start,end)` existence check before append as a belt-and-braces guard), and stop
-archiving in `getOrInitCycleState`-fallback mode if the pointer cannot be persisted.
-*Acceptance test:* fail the second of three pending archives → re-run reconciliation →
-exactly three records exist, no duplicates; fail `cycleState.set` after the short-cycle
-append → re-run the cadence change → still exactly one short record.
-
-**N5. Step-driven level-ups emit `level:up` twice.**
-`reconcileOccurrence` emits it (mutations.ts:252) and `useToggleStep` emits it again
-(mutations.ts:426) for the same crossing — grep confirms exactly these two sites.
-`useLogState`/`useLogDose` correctly rely on the reconcile-path emit alone. M7's
-notification scheduler subscribes to this event; a duplicate emit is a duplicate
-milestone notification. Remove the re-emit in `useToggleStep` (or move the emit out of
-`reconcileOccurrence` and make every caller responsible — one convention, applied once).
-*Acceptance test:* a step toggle that crosses a level records exactly one `level:up` on
-the bus.
+**B1. Moving an occurrence back to its original day — or to its own day — annihilates it.**
+`src/queries/mutations.ts:583-617` + `src/domain/dayState.ts:92-94`. The vacate check
+(`log.movedToDate !== null` → `not-due`) runs **before** the moved-in check, and
+`useMoveOccurrence` always writes the pointer onto `fromDate`'s own log. Compose two legal
+moves:
+1. **Undo a snooze.** Move A→B (log_A.movedToDate = B). The user changes their mind and
+   moves it back: `useMoveOccurrence(fromDate: B, toDate: A)` creates log_B with
+   `movedToDate = A`. Now A's own log vacates A (its moved-in record from B is never
+   reached — dayState.ts:92 returns first), and B's own log vacates B. The occurrence
+   resolves `not-due` on **both** dates: it has ceased to exist. Any XP it had is
+   retracted (source reconcile), the day leaves the denominator, and no read or mutation
+   can ever reach it again — nothing on the public surface can clear a `movedToDate`.
+2. **Same-day move.** `fromDate === toDate` passes the distance guard (distance 0) and
+   writes `movedToDate = date` onto the date's own log → immediate self-annihilation.
+Re-snoozing *forward* (A→B, then B→C) works — C resolves through B's pointer — so this is
+specifically the **cycle** case, and "undo the snooze" is a completely ordinary user
+intention for F7. Both paths agree on the wrong answer (so N1's structural fix held —
+this is not a divergence), but a pair of legal actions silently destroying an occurrence
+violates F7's basic promise ("affects the occurrence", not "deletes the occurrence") and
+is a data-loss bug M4 would build the snooze UI directly on top of, behind a frozen
+surface, if it shipped in the wave-1 freeze.
+*Good looks like:* normalise at write time so the single-hop invariant holds by
+construction — in `useMoveOccurrence`, if `fromDate`'s due-ness comes from a moved-in
+record (original source S = that record's `date`), update **S**'s log instead of chaining:
+`movedToDate = toDate`, or `movedToDate = null` when `toDate === S` (a true un-move); and
+short-circuit `fromDate === toDate` as a no-op. *Acceptance tests:* (i) move A→B then
+B→A → the occurrence is due on A again (`pending`, or its prior chip state), `not-due` on
+B, denominator restored, a previously-earned award re-affirmable; (ii) move A→A → no-op,
+occurrence still due on A; (iii) move A→B→C → due on C only, and C→A restores A.
 
 ## Non-blocking notes
 
-- `MOVE_SEARCH_PAD_DAYS = 60` (internal.ts:46): a move landing >60 days from the resolve
-  range silently drops the occurrence from reads while the source stays vacated. Either
-  clamp/reject far moves in `useMoveOccurrence` or document the bound where M4 will see it.
-- Chained moves: `log.movedToDate` is checked before `movedInLog` (dayState.ts:88), so if
-  B's own occurrence was moved to C, an occurrence moved A→B vanishes entirely. Two sources
-  moved into one target: `movedInByDate` last-writer-wins (internal.ts:69-74). Both are
-  edges of N1's rework — decide and test the tie-breaks while in there.
-- S27's locked-detail lines ("Locked — show up 7 days total, ideal or fallback." etc.,
-  ALLSCREENS 2407-2414) are design-pinned rendered copy; the catalogue's
-  `lockedHint`/`description` strings are close but not verbatim. That is fine only as long
-  as M5 renders from its own `copy.ts` — worth one sentence in the catalogue header so M5
-  doesn't mistake the hints for the pinned copy.
-- `getOrInitCycleState`'s fallback window (`currentCycleWindow(cadence, anchor)`) starts at
-  the calendar period containing the anchor, i.e. possibly before the store existed —
-  M1's seed starts at the creation day. Rare path (pointer is seeded at genesis and carried
-  by backup/sync), but aligning the fallback shape with N3's fix costs nothing.
-- The queries suite leaves Jest with an open-handles warning ("did not exit one second
-  after the test run"). Teardown is mostly handled (the `afterEach` unmount dance); worth
-  chasing before qa-tester inherits the pattern.
-- Comeback's task-level interpretation is now recorded in the catalogue comment and copy
-  (achievements.ts:65-77) — good; note the *description* wording changed accordingly, which
-  is legal (only the label is design-pinned).
-- Fixed and verified from pass-1 non-blocking list: `cycle:finalized` carries the real
-  record id (mutations.ts:107-121); `milestone-course-x3` unlocks on the chronological 3rd
-  course's own end date (achievements.ts:224-229, with test); inverted-range guards in
-  `occurrencesBetween`/`eachDay`; `daysBetween` sign-convention warning; backdated
-  Event/Course materialisation via `iterationFrom` (internal.ts:33-37); stale "STUB"
-  comment gone; dateMath header now records the keep-it rationale (acceptable — the ruling
-  stands, collapsing remains optional).
+- The chained-move representation (pointer chains resolved single-hop at read time) is
+  what makes B1 possible at all; the write-time normalisation above also collapses chains,
+  after which the "chained move vacates B without resurrecting A" dayState test describes
+  a representation that can no longer occur through the public surface — keep it as a
+  defence-in-depth assertion, but re-word its premise.
+- A moved occurrence on an off-cadence target is manual-chip-only (`dueIdealStepIds` is
+  cadence-based, so step checkboxes don't travel with the move). Both paths agree, F23 is
+  silent on moved dates, and the day still resolves correctly through the chip — fine for
+  v1, but note it for M4 so the sheet doesn't render an empty step list oddly.
+- Day-of-change XP (earned before an afternoon cadence switch) stays stamped with the old
+  cycle id, so it lands in the short record's `cyclingXpFinal` while the day's
+  *consistency* belongs to the fresh window — a deliberate, value-preserving asymmetry
+  worth one comment line. Two same-day cadence changes with a log between them orphan that
+  log's cycling XP from every window (lifetime intact) — accepted edge-of-edge.
+- Jest open-handles warning: accepted as reported; see above.
+
+## Why this module keeps regressing — diagnosis for the advisor
+
+**Mostly execution pattern, not spec ambiguity — and it is converging, not thrashing:**
+10 defects → 5 → 1 across passes, every fix real (structural where structure was
+demanded), and zero recidivism — nothing fixed has un-fixed.
+
+1. **Not the spec, with one exception.** Every regression so far violated an *explicit*
+   upstream sentence (off days never a penalty — SCHEMA §7 / PRD §3.4; "never a double
+   archive" — SCHEMA §8; fresh-cycle disjointness — §8's "begins … runs to the next
+   natural boundary"). The specs were adequate; the builder consulted them when answering
+   review items but not when writing *new* code. The **one genuine spec gap** across all
+   three passes is F7's move micro-semantics: SCHEMA gives it one column and one sentence,
+   ALLSCREENS never shows a move flow, and nobody upstream defined chains, un-move,
+   same-day moves, or collisions. B1 lives exactly in that gap, and both move-related
+   findings (pass-2 N1, pass-3 B1) had to be adjudicated against reviewer reasoning rather
+   than a pinned contract.
+2. **The failure mode is consistent:** M2 fixes precisely what the review names, writes
+   tests from the review's acceptance criteria, then extends its own state machine without
+   exploring the interactions *it* just created. Each pass's new defect sat in the newest
+   code, in a composition the named criteria didn't cover (off-retraction × cycle
+   attribution; move-display × move-complete; now move × move). The module is not too
+   large; its mutation layer carries three coupled temporal state machines (move pointers,
+   the cycle pointer, the XP ledger) — too coupled for example-based testing alone.
+3. **What the advisor should pin, concretely:** (a) F7 move semantics as a small state
+   table — legal transitions, chain collapse at write time, un-move, same-day no-op,
+   collision rule — so the B1 fix is made against a contract instead of review prose;
+   (b) a requirement that any new mutation-layer state ships with invariant-style tests
+   (compose the operation with itself and its inverse), the single practice that would
+   have caught all three passes' new defects before review.
 
 ## Verified
 
-- **Pass-1 findings integrity:** `git diff 407ede2:review/REVIEW-M2.md HEAD:…` — additions
-  only (the appended Response section); zero modifications to my text.
-- **Ran:** `npx jest src/domain src/queries` → 11 suites, 133 tests, all pass (10 domain
-  suites + the new `mutations.test.ts`).
-- **Arithmetic core regression check:** cumulative diff `407ede2..HEAD` touches
-  `occurrence.ts`, `dayState.ts`, `dateMath.ts`, `achievements.ts`, fixtures and the
-  queries layer — `consistency.ts`, `xp.ts`, `cycles.ts`, `validation.ts` and
-  `consistency.test.ts` are untouched. Re-read the changed upstream files end-to-end: the
-  chip→outcome mapping, off-check ordering, auto-log rule and `effectiveLog === log`
-  equivalence when no move is involved are all preserved, so every §6.6 golden number rests
-  on unchanged code paths; re-ran the suite to confirm (67% anchor now additionally
-  reproduced through the real pipeline from the new fixture).
-- **Item 4 exhaustively:** grep for every Instant→date derivation across both owned trees;
-  only the two `toLocalDate(new Date(...))` sites remain; `notBefore` threading read at
-  every call site; domain purity intact (no `new Date()`, no new imports in `src/domain`).
-- **Cycle pointer:** read the full rewrite; pointer authoritative; fallback derivation
-  reached only on `null` and written back (runs at most once per the header's claim —
-  true, except the ignored-set edge in N4); `useProgress` reads the pointer, and XP awards
-  are stamped with the pointer's id, so stamping and summing agree, including with M1's
-  random genesis id (`lifecycle.ts:41-52`).
-- **New tests mutation-checked by inversion reasoning:** the level-up test asserts
-  `levelUp.level === 2` where the old code returned a hardcoded `null` — fails under the
-  bug; the move test asserts the source date is `not-due` where the old code yielded
-  `pending` — fails under the bug; the item-7 test injects an `appendXpAward` failure and
-  asserts `xpAwarded: 0` + no emit — fails under the bug; the useTasks test mounts two
-  filters on one QueryClient — fails under the shared-key bug. The item-1/item-2 cycle
-  tests genuinely exercise the new machinery but do not assert window-interval disjointness
-  or the fresh window's start (which is how N3 slipped through) and do not exercise partial
-  failure (N4).
-- **FakeRepos fidelity:** read in full; matches the port surface including
-  `retractXpAward`/`cycleState`; `failNextAppendXpAward` used by the item-7 tests.
-- **Ownership:** cumulative diff since my pass-1 commit touches, in M2-attributable paths,
-  only `src/domain/**` and `src/queries/**` (including `src/queries/testSupport/`);
-  `src/db/testSupport/*` was M1's own commit (141158f), `src/lib`/`src/ui` were M0's
-  in-flight snapshots. The one M2 write outside its contract was the Response section in
-  this file — see the process note.
-- **Strings:** "streak" still absent from both trees (guard test aside); design-pinned
-  labels unchanged.
+- Ran `npx jest src/domain src/queries --forceExit` → 11 suites, 147 tests, all pass.
+- Read in full: the pass-3 diffs (`dayState.ts`, `internal.ts`, `mutations.ts`,
+  `cycles.ts`, `achievements.ts` header, both test files, `fakeRepos` fail-injection);
+  traced every N-item fix and its test against the pass-2 acceptance criteria;
+  inversion-checked that the N1/N2/N3/N4/N5 tests fail under the code they replaced
+  (including N2's January-award-vs-June-pointer construction, which makes the cycle-id
+  assertion genuinely discriminating).
+- Bypass check for N1's structural claim: grep for `resolveOccurrence` across
+  `src/queries` — only `internal.ts`'s two shared call sites; `reconcileOccurrence` uses
+  `resolveOneOccurrence`; the ≤60-day guard closes the fetch-window asymmetry.
+- Adversarial move compositions traced by hand: forward re-snooze (works), move-back
+  (B1), same-day (B1), move-onto-logged-day, move-onto-off-day, move-across-boundary,
+  chained A→B→C (works).
+- Regression sweep as above; ownership via `git show e008938 --numstat`; "streak" grep
+  clean; review-file integrity: unchanged since my pass-2 commit (`git diff ee3f8d7 HEAD`
+  on this file was empty before this overwrite).
