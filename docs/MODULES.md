@@ -50,9 +50,12 @@ scripture.**
   (§6.4), the delete-cascade split (SCHEMA §2.3), the design-pinned level titles and badge
   labels (SCHEMA §7) — or anything in a **frozen** or **unowned** path.
 - The distinction: `roundHalfUp` returning the wrong value for 12.5 would be a defect worth
-  fixing; changing it to banker's rounding would be re-opening a pin. If a fix would make
-  one of the eight locked assertions in `src/lib/number.test.ts` pass that used to fail,
-  the fix is wrong — raise it instead.
+  fixing; changing it to banker's rounding would be re-opening a pin. The eight locked
+  assertions in `src/lib/number.test.ts` are the arbiter, and they work in one direction
+  only: **never edit a locked assertion's expected value** — a fix that requires editing one
+  is re-opening the pin, so raise it instead. A code change that makes a locked assertion
+  **fail that used to pass** is wrong. A code change that makes a **failing** locked
+  assertion pass is exactly what a defect fix looks like — that is the good case, ship it.
 - Same rule for `src/types`: extend it freely, restructure it freely **if it is wrong**;
   just don't silently change the shape of a contract another module is coding against
   without flagging it.

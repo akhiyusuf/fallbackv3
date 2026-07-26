@@ -114,9 +114,9 @@ earns nothing (PRD Decisions item 17 — get this right).
 
 Delete is a **soft delete** (`deleted_at`) so an in-flight undo and any open sheet stay
 coherent. The hard cascade runs when the undo window closes — concretely, on the **next
-store open** (M1's `StoreLifecycle.open()` sweeps rows whose `deleted_at` is older than the
-current session). There is no separate "compaction" job, no schedule and no background
-task; M1 owns this sweep and nothing else triggers it.
+store open**: `StoreLifecycle.open()` hard-deletes every row already soft-deleted at open
+time. There is no separate "compaction" job, no schedule and no background task; M1 owns
+this sweep and nothing else triggers it.
 
 **The cascade is deliberately split, and the split is load-bearing:**
 
@@ -144,7 +144,13 @@ happened*, so they do not move.
 - lifetime XP **unchanged at 100**; level **unchanged**; earned badges **unchanged**;
 - the current cycle's Cycling XP **unchanged**;
 - those 10 days leave the F5 denominator at both scopes and the % recomputes without them;
-- the task disappears from every browse surface and from Today.
+- the task disappears from every browse surface and from Today;
+- reopen the store so the hard sweep runs: the 10 `xp_award` rows are still present with
+  `task_id = NULL`, and lifetime XP is still 100;
+- **then back up (F19) and restore into a fresh store:** those orphaned `task_id = NULL`
+  awards survive the round trip intact and lifetime XP is still 100. The backup envelope
+  serialises `xp_award` rows independently of `task`, so a null `task_id` must not be
+  treated as a broken reference and must not be dropped, rewritten or restored as 0 XP.
 
 ---
 
@@ -502,6 +508,10 @@ the entitlement row are excluded** — a backup must never carry a secret or a p
 credential. Restore is transactional into a staging schema and swapped atomically; a
 failed restore leaves existing data **untouched** and lands in the non-destructive failure
 state (S47's inline banner), never a partial write.
+
+**Restore validation must accept a NULL `xp_award.task_id`.** It is a legal, expected state
+(§2.3 — the award outlived its task), not a broken reference. Do not drop, rewrite or
+zero those rows on restore; do not fail the restore over them.
 
 **Erase-all (F25).** Closes the connection, deletes the database file, deletes every
 SecureStore key, clears widget snapshot files and backup metadata, then recreates an empty

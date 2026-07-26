@@ -2,8 +2,15 @@
  * Architect-seeded golden test. Locks the PINNED rounding decision
  * (docs/ARCHITECTURE.md §6.5) from day one.
  *
- * M0 owns this file. It may be EXTENDED, never weakened — if a change here makes a
- * case pass that used to fail, the change is wrong.
+ * M0 owns this file and may EXTEND it freely with new cases.
+ *
+ * The lock works in one direction only (docs/MODULES.md, "Scaffold deference"):
+ *   - NEVER change an existing assertion's expected value. Needing to is the signal that
+ *     you are re-opening the pinned algorithm — raise it instead of editing this file.
+ *   - A change to src/lib/number.ts that makes an assertion here FAIL that used to pass
+ *     is wrong.
+ *   - A change that makes a FAILING assertion here pass is exactly what a defect fix
+ *     looks like. That is the good case — ship it, with a note in your result.
  */
 import { roundHalfUp, toPercent } from './number';
 
