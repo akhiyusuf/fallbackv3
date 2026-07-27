@@ -21,7 +21,7 @@ import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
 import { clearOnboardingProgress } from '@/features/onboarding/progress';
 import { on } from '@/lib/events';
-import { addDays, parseLocalDate, today } from '@/lib/date';
+import { addDays, parseLocalDate, toLocalDate, today } from '@/lib/date';
 import { err, ok } from '@/types';
 import type { LocalDate, NotificationScheduler, Result } from '@/types';
 
@@ -147,6 +147,11 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
 
   for (const task of tasks) {
     if (task.deletedAt || task.isAsNeeded || task.type === 'todo') continue;
+    // Review pass 2, blocking item 1: the creation-day lower bound (same conversion as the
+    // canonical `src/queries/internal.ts`'s `creationLocalDate`), or a task created TODAY gets
+    // a fabricated "missed yesterday" occurrence — daily/specific-weekdays cadences carry no
+    // natural start anchor of their own (`src/domain/occurrence.ts`'s `notBefore` doc comment).
+    const notBefore = toLocalDate(new Date(task.createdAt));
     const occurrence = resolveOccurrence({
       task,
       date: yesterday,
@@ -154,6 +159,7 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
       log: logByTask.get(task.id) ?? null,
       offMarks,
       movedInLog: movedInByTask.get(task.id) ?? null,
+      notBefore,
     });
     if (occurrence.outcome === 'missed') {
       await Notifications.scheduleNotificationAsync({
