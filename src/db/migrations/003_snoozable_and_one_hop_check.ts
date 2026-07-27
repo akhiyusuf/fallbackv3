@@ -32,8 +32,9 @@
  *
  * The four-branch award table (A/B1/B2/B3) is SCHEMA §4.2's, not re-derived here — see that
  * section for the full predicate definitions (`LONG`, `KEPT`, `live`, `inbound`, `carrier`)
- * and the worked fixtures (M, V, C8-a, C8-b, mixed-C6) this SQL is tested against
- * (`src/db/__tests__/migrations.test.ts`).
+ * and the worked fixtures (M, V, C8-a, C8-b, mixed-C6, plus a sixth pure-B3 fixture added
+ * in review pass 1 to discriminate B3 from destination-clear) this SQL is tested against
+ * (`src/db/__tests__/crFourSnoozeMigration.test.ts`).
  */
 import type { Migration } from './types';
 

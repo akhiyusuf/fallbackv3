@@ -35,12 +35,12 @@ async function openV2Fixture(name: string): Promise<DbClient> {
   return db;
 }
 
-function seedLog(db: DbClient, opts: { id: string; date: string; movedToDate: string | null }) {
+function seedLog(db: DbClient, opts: { id: string; date: string; movedToDate: string | null; chipState?: string }) {
   return db.runAsync(`INSERT INTO day_log (id, task_id, date, chip_state, moved_to_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?)`, [
     opts.id,
     'tau',
     opts.date,
-    'done',
+    opts.chipState ?? 'done',
     opts.movedToDate,
     `${opts.date}T00:00:00.000Z`,
     `${opts.date}T00:00:00.000Z`,
@@ -169,6 +169,36 @@ describe('CR-4 migration — task.snoozable + day_log one-hop CHECK, SCHEMA §9 
     expect(rows).toEqual([{ id: 'award-C', date: '2025-06-02', amount: 6, cycle_id: 'cycle-home' }]);
     expect(await pointerOf(db, '2025-06-01')).toBe('2025-06-02'); // A (KEPT) survives
     expect(await pointerOf(db, '2025-06-02')).toBeNull(); // B (LONG) cleared, revives
+  });
+
+  // Review pass 1, blocking item 3: mixed-C6's kill-at-B outcome is DOUBLY covered — B3
+  // and destination-clear both enqueue it (B is also B1's relocation destination for the
+  // (τ, C) award) — so it does not actually discriminate B3 as the deciding branch;
+  // deleting the whole B3 block left the suite green. This fixture is pure B3: no B1
+  // relocation targets T at all (X holds no award, so B1 never fires for X, so
+  // destination-clear has nothing to piggyback on), isolating B3 as the ONLY mechanism
+  // that can delete the award at T.
+  //
+  // S = T-1 -> T KEPT, visitor's award at T. T's own row is LONG (T -> X, far), with an
+  // INELIGIBLE chip ('todo') so a surviving award would be unambiguous inflation, not a
+  // value that happens to be re-affirmable anyway. No award at X.
+  it('pure B3 (isolated from destination-clear) — T\'s revived own row shadows the kept visitor; the award at T is deleted, not left to inflate lifetime XP', async () => {
+    const db = await openV2Fixture('cr4-fixture-pure-b3.db');
+    // T = 2025-06-20; S = T-1 = 2025-06-19 (KEPT, legal one-hop)
+    await seedLog(db, { id: 'log-S', date: '2025-06-19', movedToDate: '2025-06-20' }); // KEPT
+    // T's own row: LONG, pointing far away to X, with an ineligible ('todo') chip.
+    await seedLog(db, { id: 'log-T', date: '2025-06-20', movedToDate: '2025-09-01', chipState: 'todo' }); // LONG
+    // The kept visitor's award, sitting at T — this is what B3 must delete.
+    await seedAward(db, { id: 'award-T-visitor', date: '2025-06-20', amount: 10, cycleId: 'cycle-pure-b3' });
+    // Deliberately NO award at X: nothing for B1/destination-clear to relocate or clear,
+    // so if B3 alone is removed, nothing else in this fixture touches award-T-visitor.
+
+    await migrateToV3(db);
+
+    const rows = await awards(db);
+    expect(rows).toEqual([]); // the visitor's award at T is gone — not left to inflate XP
+    expect(await pointerOf(db, '2025-06-19')).toBe('2025-06-20'); // S (KEPT) survives untouched
+    expect(await pointerOf(db, '2025-06-20')).toBeNull(); // T (LONG) cleared, revives with its 'todo' data
   });
 
   it('the one-hop CHECK is live post-migration: a legal one-hop insert succeeds, a longer jump is rejected', async () => {
