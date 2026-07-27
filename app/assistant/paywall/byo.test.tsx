@@ -57,7 +57,7 @@ describe('S40 — BYO AI Key Setup', () => {
   it('B12 — the degraded-success banner gets the SAME display delay as full success before navigating, never an instant (0ms) navigation', async () => {
     mockProbe.mockResolvedValue({ ok: true, transcription: false });
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
-    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
     await render(<S40ByoAiKeySetup />);
     await fillForm();
     await userEvent.press(screen.getByTestId('s40-save'));
