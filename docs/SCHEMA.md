@@ -656,7 +656,8 @@ next interaction.
 
 The **B3** and **destination-clear** deletions in §4.2 are the **C9-class shadow retraction
 reached at migration time** — the occurrence stopped carrying a resolved showing-up state,
-so they sit **inside the CR-2 boundary** below. They are **not** a new reduction class, and
+so they sit **inside the CR-2 boundary** defined above. They are **not** a new reduction
+class, and
 they are recoverable (C5 re-materialisation).
 
 ### Levels — PINNED table
@@ -867,8 +868,20 @@ which rows changed, and their `id`/`cycle_id` — not merely displayed outcomes.
 | **M** (old C4 merge) | `S → T` LONG; T has its **own live** log with an award | **Branch A.** T **keeps** its award. S revives with its data and **NO** award. One tap at S then mints **exactly one**. *(This is the shape an unconditional relocation broke.)* |
 | **V** (old C7, off-cadence completion) | `S → T` LONG; T off-cadence, award at T belongs to the visitor | **Branch B1.** Exactly **one** award, **moved home** to S, same `id` / `amount` / `cycle_id` |
 | **C8-a** (double inbound, both LONG) | `S1 → T`, `S2 → T`, both LONG, award at T | **Branch B1.** Award follows `carrier(T)` = `MAX(date)` source. The other source revives with no award |
-| **C8-b** (double inbound, one legal one-hop) | `S1 → T` LONG, `S2 → T` KEPT, award at T | Carrier is computed over **all** inbound rows, KEPT included — restricting to cleared rows mis-relocates here |
+| **C8-b** (double inbound, one legal one-hop) | `S2 → T` KEPT (so `S2 = T − 1`); `S1 → T` LONG with **`S1 < T − 1` — pin this**; award at T; T has **no own row** (so neither `live` nor `revived`) | **Branch B2.** `carrier(T) = MAX(S1, S2) = S2`, which is KEPT and T is not revived → the award **LEAVES** at T. `S1` revives with **no** award |
 | **mixed C6** | `A → B` KEPT one-hop with the visitor's award at B; `B → C` LONG with B's award at C | Exactly **one** award at B — the homecoming row, carrying the **same `id` / `cycle_id`** as the old `(τ, C)` row. The kept visitor's award at B is **deleted** (B3 / destination-clear) and is recoverable via its own undo: its data travels home and reconcile re-affirms at A. The transient lifetime-XP dip is **faithful shadow semantics, not a defect** |
+
+**Why C8-b pins `S1 < T − 1`.** This fixture exists to catch a carrier lookup that scans
+only the *cleared* (`LONG`) rows instead of **all** inbound rows. It only discriminates under
+that ordering: with `S1 < T − 1` the correct carrier is `S2` (KEPT) → **B2 LEAVE**, while the
+broken lookup picks `S1` → **B1 RELOCATE** — they diverge and the test fails as intended.
+**Do not instantiate it with `S1 > T`** (a backward-pointing `LONG` row, legal under the
+`LONG` definition): there `MAX` selects `S1` either way, correct and broken implementations
+agree, and the fixture would pass while the bug is present.
+
+**Branch coverage across the five fixtures** — every branch of §4.2's decision table is
+exercised: **A** by M; **B1** by V, C8-a and mixed C6's `(τ, C)` target; **B2** by C8-b;
+**B3** plus **destination-clear** by mixed C6's `(τ, B)` target.
 
 **Scope of the repair.** The migration fixes **pointer-caused** ledger incoherence only.
 Pre-existing corruption unrelated to pointers — an award on a live `todo` row, say — is out
