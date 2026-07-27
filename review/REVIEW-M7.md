@@ -258,3 +258,157 @@ All 7 blocking items fixed. Ran `npx jest app/onboarding app/settings/{index,not
 5. **Fixed.** `OnboardingShell` gained `allStepsComplete` (all 5 dots render accent-filled, announcement reads the literal "Step 5 of 5.") and `icon` is now optional; `PersonalizeScreen` now renders through the shell with `allStepsComplete`. The Preview button is wrapped in a `pointerEvents="none"` View instead of using `disabled`.
 6. **Fixed.** `S08_COPY.fallbackError` is now `'Add a fallback to continue'`.
 7. **Fixed (objective half).** Each Support row now gets its own `a11yDestination` string ("opens email" / "opens an external help center" / "opens the app store"). Implemented a real hand-off for "Rate Fallback" on Android via `Linking.openURL('market://details?id=com.fallback.app')` (the package name is already pinned in `app.config.ts`; no numeric App Store id exists for iOS, so iOS keeps the toast). **Contact support / FAQ & guides / Privacy policy / Terms of service / iOS Rate Fallback still have no real destination pinned anywhere upstream — this is a genuine product gap, not something resolved by this pass**, and remains flagged for the human.
+
+# Review — M7 (pass 2)
+VERDICT: CHANGES_REQUIRED
+
+All 7 pass-1 blocking items were independently re-verified as genuinely fixed — the
+carrier-resolution fix (item 3) is real, routes through the frozen `designateCarrier`, and
+is not a shadow implementation. But scrutiny of that same rework surfaced ONE remaining
+correctness defect in the exact function it touched: `scheduleGentleReentry` still feeds
+`resolveOccurrence` incomplete inputs — `movedInLog` is now supplied, `notBefore` still
+isn't — and the consequence is a spurious "Yesterday slipped by" notification to brand-new
+users. One precise item; everything else is clean.
+
+## Pass-1 items, re-verified one by one
+
+1. **FIXED.** Both init functions called from mount effects on all five claimed surfaces:
+   `src/features/onboarding/PersonalizeScreen.tsx:39-42` (S06),
+   `src/features/onboarding/NotificationsPrimerScreen.tsx:24-27` (S07),
+   `app/settings/index.tsx:76-77` (S41), `app/settings/notifications.tsx:42-43` (S42),
+   `app/settings/widgets.tsx:41-42` (S46) — grep-confirmed, no other non-test call sites.
+   `reschedule()` fires after a granted S07 request and ONLY then
+   (`NotificationsPrimerScreen.tsx:40`; both the granted and declined paths have named
+   tests in `app/onboarding/notifications-primer.test.tsx:60-78`). `app/_layout.tsx` was
+   NOT touched — `git log --all -- app/_layout.tsx` shows no commit since wave 1, and
+   `git diff efa5fc1 HEAD -- app/_layout.tsx src/domain src/queries src/db src/ui docs
+   design-input` is empty across the whole rework span. The boot-time half remains an open
+   architect CR, correctly re-flagged in the builder's response — not held against M7.
+2. **FIXED, verified by running the tests, not just reading.** Widgets:
+   `src/services/widgets/index.ts:140-141` subscribes `store:erased` → `clearSnapshot()`
+   (file deleted) and `store:ready` → republish; notifications:
+   `src/services/notifications/index.ts:227-231` subscribes `store:erased` →
+   `cancelAll()` + `clearOnboardingProgress()`, `store:ready` → `reschedule()`. The tests
+   emit the real events through the real bus (`src/services/widgets/index.test.ts:115-141`
+   asserts the snapshot file is genuinely gone from the mock FS then genuinely recreated;
+   `src/services/notifications/index.test.ts:188-214` asserts cancelAll + pointer clear,
+   with the mount-time reschedule's own cancel correctly excluded at line 191). Ran them —
+   green. Colocating the pointer clear in the notifications bridge is acceptable: same
+   trigger, and that init reaches every mount point the pointer matters to.
+3. **FIXED — traced by hand, not taken on faith.** (a) No shadow implementation: both
+   services call `resolveOccurrence` (which delegates to the frozen `designateCarrier`,
+   `src/domain/dayState.ts:175`); grep found no new ad-hoc date/clause comparison. The
+   `movedInLog` selection (`priorLogs.filter(l => l.movedToDate === D)`,
+   `widgets/index.ts:59`, `notifications/index.ts:146`) is byte-for-byte the same pattern
+   as the canonical resolvers (`src/queries/internal.ts:81,98,132`) — a data feed, not a
+   fork. `vacatedDates` (`schedule.ts:52-60`) likewise supplies one fact (`movedToDate !=
+   null` on D's own row) rather than reimplementing clause selection. (b) The D-1 lookup
+   is correct per the one-hop contract; `UNIQUE(task_id, date)` guarantees at most one
+   candidate, so no tie-break is needed. (c) Both failure directions traced through
+   `designateCarrier` by hand: snoozed-AWAY (own row `movedToDate=D+1`, no movedIn) →
+   R-2 `none` (`dayState.ts:140`) → `not-due` → excluded from the widget
+   (`snapshot.ts:72-76` filters on resolved `outcome`, not `isDue`); snoozed-IN (visitor
+   from D-1, `log=null`, `natural=false`) → clause (c) visitor (`dayState.ts:138`) → real
+   due outcome → included. (d) Re-entry for a missed snoozed-in occurrence: visitor at
+   yesterday, no chip → `mapChipToOutcome('todo', yesterday, today)` → `missed`
+   (`dayState.ts:50`) → invitation fires; snoozed-away yesterday still yields `none` → no
+   punitive nudge. All four shapes have named tests (`widgets/index.test.ts:86-113`,
+   `notifications/index.test.ts:216-251`) whose fixtures match my hand traces exactly.
+   **However — see blocking item 1 below: the same resolver call still omits `notBefore`,
+   the third input both canonical callers pass.**
+4. **FIXED.** `widgets/index.ts:78-79` — `Appearance.getColorScheme()` normalized (the
+   Android-only `'unspecified'` → `null`) and passed to `resolveScheme`. Test at
+   `widgets/index.test.ts:76-84`: theme `auto` + OS dark ⇒ snapshot `theme.scheme ===
+   'dark'`. Ran it — green.
+5. **FIXED.** S06 renders through `OnboardingShell` (`PersonalizeScreen.tsx:77-84`) with
+   `allStepsComplete`; the shell fills all 5 dots (`OnboardingShell.tsx:79`) and announces
+   the literal "Step 5 of 5." (`OnboardingShell.tsx:55`) — matching ALLSCREENS_1.md S06
+   ("all 5 steps complete", "Progress dots announced as 'Step 5 of 5.'"); no Skip, per
+   spec. Preview is wrapped in `pointerEvents="none"` (`PersonalizeScreen.tsx:110`), not
+   `disabled`; the test asserts both dot presence and the absence of the kit's 0.5-opacity
+   inert style (`app/onboarding/personalize.test.tsx:61-73`).
+6. **FIXED.** `src/features/onboarding/copy.ts:96` is now exactly `'Add a fallback to
+   continue'` — matches ALLSCREENS_1.md:300 verbatim (grep-confirmed; no other site quotes
+   the old string).
+7. **FIXED (objective half), honestly disclosed (product half).** Per-destination labels
+   (`src/features/settings/copy.ts:77-81`) match the spec's own example wording ("Contact
+   support, opens email"); legal rows announce "opens an external page"
+   (`app/settings/help.tsx:71`). Android "Rate Fallback" performs a real
+   `Linking.openURL('market://details?id=com.fallback.app')` with `canOpenURL` guard and
+   toast fallback (`help.tsx:37-50`); tested including the no-toast-on-success and iOS
+   no-target branches (`app/settings/help.test.tsx:28-67`). The remaining gaps (support
+   email, FAQ/legal URLs, iOS store id) are genuinely pinned nowhere upstream — I checked
+   ALLSCREENS_1.md S49 and found only the mockup-toast stand-ins — and the builder flagged
+   them rather than inventing placeholder URLs. Correct per failure discipline;
+   orchestrator: this product question still needs routing to the human.
+
+## Blocking items
+
+1. **`scheduleGentleReentry` resolves yesterday without the creation-day bound
+   (`notBefore`) — a routine created today fires a false "Yesterday slipped by"
+   notification, likely within minutes of onboarding.**
+   `src/services/notifications/index.ts:150-157` calls `resolveOccurrence` with `log`,
+   `offMarks`, and (since this rework) `movedInLog` — but not `notBefore`. Both canonical
+   resolvers pass all four (`src/queries/internal.ts:60-64,93-99,127-135`, via
+   `creationLocalDate`, internal.ts:31-33). Daily and specific-weekdays cadences carry NO
+   anchor bound (`src/domain/occurrence.ts:10-13`), so for a routine created TODAY,
+   `isDue(task, yesterday)` is true → carrier `own-create` → no log → `todo` →
+   `mapChipToOutcome` returns `missed` for the ended day (`src/domain/dayState.ts:50`) →
+   the re-entry invitation arms. This is precisely the fabricated pre-existence "missed"
+   day the domain's own `notBefore` doc comment exists to prevent
+   (`src/domain/occurrence.ts:46-55`). Concrete path: S07 Allow → S08 saves the user's
+   first daily routine → `task:changed` → `reschedule()` → re-entry armed at
+   `triggerDateFor(today, '09:00')` (`index.ts:166`) — a past DATE trigger any time after
+   09:00, so it typically fires immediately: the user's first-ever notification is
+   "Yesterday slipped by — today is a fresh one" about a habit that did not exist
+   yesterday. Tonal poison for this product (PRD F14's re-entry is an invitation after a
+   real lapse), and a correctness defect in the exact function this rework touched — the
+   fix supplied one missing resolver input and left the other out.
+   **Fix:** per task, compute `notBefore = toLocalDate(new Date(task.createdAt))` (the
+   exact conversion `internal.ts:31-33` uses; `toLocalDate` is exported from `@/lib/date`)
+   and pass it into the `resolveOccurrence` call — or equivalently skip the task when
+   `yesterday < notBefore`. Passing it in the widget path too (`widgets/index.ts:63-70`)
+   is behaviorally a no-op for `date = today` but keeps one calling convention; do it.
+   **Acceptance test:** daily routine with `createdAt` = today (device-local), no logs →
+   `reschedule()` arms NO gentle-reentry; existing missed-yesterday tests (whose fixtures
+   must gain a `createdAt` of yesterday-or-earlier) stay green.
+
+## Non-blocking notes
+
+- **Snoozed-IN future dates arm no reminder** — `vacatedDates` fixes the snoozed-AWAY
+  direction pass 1 named, but the mirror case (occurrence moved to a not-naturally-due
+  D+1 gets no `routine-due` reminder at D+1) remains and is not covered by the
+  `schedule.ts:43-51` disposition comment, which addresses vacated dates only. One-hop
+  from today keeps exposure to a single day on a best-effort surface, so not blocking —
+  but add either the fix or one explicit disposition sentence next pass.
+- Theoretical chain case: a future date both vacated AND hosting a visitor (C6 shape)
+  would have its reminder suppressed by `vacatedDates`. Unreachable while snooze operates
+  only on today's occurrence; noting for the record, no action needed.
+- Pass-1 non-blocking carries unchanged: `reschedule()` is still unserialized;
+  `snapshot.ts:92` still uses `Math.round` instead of `@/lib/number`'s `roundHalfUp`.
+- Record-keeping: the response's numbers are accurate this time — the M7-owned selection
+  is genuinely 16 suites / 99 tests (up from 79; new bridge/carrier/theme/dots tests).
+
+## Verified (what and how)
+
+- **Ran:** `npx jest app/onboarding app/settings/{index,notifications,theme,widgets,help}.test.tsx
+  src/services/notifications src/services/widgets` → **16 suites / 99 tests, all green**;
+  `npx tsc --noEmit` → exit 0. Both match the builder's report.
+- **Located the actual fix commits:** `f738cbd`/`d9f6c80` themselves carry almost nothing —
+  the real M7 changes landed inside the mixed WIP snapshots (`026ec5e`, `ba5eec9`,
+  `bf55f95`, `454f3f1`, `87c1abe`). Verified the end state of every touched file directly
+  rather than trusting commit messages.
+- **Scope discipline:** every M7-attributable change sits in M7-owned paths
+  (`src/services/{notifications,widgets}`, `src/features/{onboarding,settings}`,
+  `app/onboarding/**`, `app/settings/{index,notifications,widgets,help}`); frozen/foreign
+  paths confirmed untouched via the empty `git diff efa5fc1 HEAD` over `app/_layout.tsx`,
+  `src/domain`, `src/queries`, `src/db`, `src/ui`, `docs`, `design-input`. The currently
+  uncommitted worktree changes are all M6 assistant files — not M7's.
+- **Carrier traces:** worked snoozed-away and snoozed-in through `designateCarrier` by
+  hand for both the widget (date = today) and re-entry (date = yesterday) paths; compared
+  the services' `movedInLog`/`vacatedDates` lookups against `src/queries/internal.ts`'s
+  canonical pattern line by line — same selection, no forked clause logic. The `notBefore`
+  omission (blocking item 1) was found during this trace, confirmed against
+  `cadenceDue`'s unanchored daily branch and `mapChipToOutcome`'s ended-day rule.
+- **Spec checks:** re-read ALLSCREENS_1.md S06 (lines ~195-230) and S49 (lines ~4270-4295)
+  against the shipped screens; S08's line 300 string grep-matched exactly.
