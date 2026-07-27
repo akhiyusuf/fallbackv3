@@ -4,10 +4,9 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 has COMPLETED Supplement B
-implementation (tree GREEN, 301 tests); pass-5 compliance review in progress.
-A human product decision is QUEUED behind this review — see "QUEUED — F7
-rescope" immediately below before doing anything else in this phase.**
+**Phase 3 (BUILD) — WAVE 1 COMPLETE. M0, M1, M2 all PASSED and frozen.**
+**Next: resolve the QUEUED F7 rescope decision below (one clarifying question
+outstanding) before wave 2 is briefed.**
 
 ### M2 Supplement B — implementation complete, pending review
 
@@ -291,11 +290,18 @@ titles to find where a given module's work actually landed.
 
 ## Wave-1 review outcome
 
-| Module | Pass 1 | Pass 2 | Pass 3 | Verdict |
-|---|---|---|---|---|
-| M0 kernel | 9 blocking | 1 blocking (introduced by the fix) | clean | **PASS** |
-| M1 data layer | 2 blocking | 1 blocking (introduced by the fix) | clean | **PASS** |
-| M2 domain engine | 10 blocking | in review | — | pending |
+| Module | Pass 1 | Pass 2 | Pass 3 | Pass 4 | Pass 5 | Verdict |
+|---|---|---|---|---|---|---|
+| M0 kernel | 9 blocking | 1 blocking (introduced by the fix) | clean | — | — | **PASS** |
+| M1 data layer | 2 blocking | 1 blocking (introduced by the fix) | clean | — | — | **PASS** |
+| M2 domain engine | 10 blocking | 5 new (introduced by the fix) | ADVISOR_REQUIRED (1 blocking, spec gap) | 1 new (F1, found post-advisor) | clean | **PASS** |
+
+M2's F1 (a chip tap silently corrupting the wrong database row) needed a
+second advisor supplement (Supplement B) after the first fix — see the
+Advisor section below. Both advisor interventions produced fixes that then
+passed adversarial re-review, including the reviewer independently probing
+for double-credit, farming and lost-XP exploits in the corrected behaviour
+and finding none. All work is on the remote at `da8029c`.
 
 **Every module introduced a new defect while fixing its first round.** That is
 the single most useful thing this loop demonstrated, and it is why one review
