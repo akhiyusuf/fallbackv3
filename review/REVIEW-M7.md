@@ -437,3 +437,58 @@ Ran `npx jest src/services/notifications` → 2 suites / 24 tests, all green (up
 new test). `npx tsc --noEmit` → exit 0. `git diff --stat` confirms only
 `src/services/notifications/index.ts` (already captured by an interim WIP safety commit) and
 `src/services/notifications/index.test.ts` were touched — no other M7 path.
+
+# Review — M7 (pass 3)
+VERDICT: PASS
+
+Targeted verification of the single pass-2 blocking item (`notBefore` anchor in
+`scheduleGentleReentry`). The fix is genuine. **M7 clears code review entirely.**
+
+## Blocking items
+
+None.
+
+## Non-blocking notes
+
+- The fix commit `a4ce7f3` carries only the test file + this review's Response section;
+  the source change itself sits in the disclosed interim snapshot `063a190` (index.ts,
+  +7/−1). Combined scope across both commits: `src/services/notifications/index.ts`,
+  `src/services/notifications/index.test.ts`, `review/REVIEW-M7.md` — nothing else.
+  Record-keeping only; the builder disclosed this split accurately.
+- `LONG_AGO_CREATED_AT` is a bare `LocalDate` string where `createdAt` is an Instant;
+  `new Date('YYYY-MM-DD')` parses as UTC midnight, so west of UTC it resolves one day
+  earlier — still ≥29 days before yesterday in any timezone, so harmless here.
+- Carried, unchanged, for the orchestrator (not M7 defects): the M0-owned
+  `app/_layout.tsx` boot-wiring CR (pass 1 item 1b), the S49 destination product gap
+  (pass 1 item 7), the Gate-3 native-build note, and the pass-2 non-blocking notes
+  (snoozed-IN future reminder disposition, unserialized `reschedule()`, `Math.round`).
+
+## Verified (what and how)
+
+1. **The fix matches the canonical pattern.** `src/services/notifications/index.ts:154`
+   computes `const notBefore = toLocalDate(new Date(task.createdAt))` — byte-identical to
+   `creationLocalDate` (`src/queries/internal.ts:31-33`) — and index.ts:162 passes it into
+   `resolveOccurrence` alongside `log`/`offMarks`/`movedInLog`, the same four-input call
+   shape as internal.ts:82, :99, and :135. Import of `toLocalDate` from `@/lib/date`
+   added at index.ts:24. Cross-checked against `isDue`'s own doc comment
+   (`src/domain/occurrence.ts:45-57`): this is exactly the caller-supplied device-local
+   bound the domain requires.
+2. **The regression test is real and non-vacuous.** New test at index.test.ts:161-169: a
+   daily routine with `createdAt = ${today()}T12:00:00.000Z`, no logs → asserts NO
+   `gentle-reentry` schedule call. Its sibling at :144-152 is byte-identical in setup
+   except `createdAt: LONG_AGO_CREATED_AT` and asserts re-entry DOES fire — the pair
+   isolates the creation date as the sole variable, so the negative cannot pass via an
+   early bail elsewhere in `reschedule()`.
+3. **Legitimate re-entry preserved; backfill checked fixture-by-fixture.** All 6 task
+   fixtures in index.test.ts (lines 147, 158, 168, 220, 234, 252 — grep-confirmed, none
+   missed, so no `new Date(undefined)` path) now carry `createdAt`. Each backfill is
+   semantically right, not coincidental: the missed-yesterday (:147) and snoozed-in
+   visitor (:234, whose task must predate day-before-yesterday) tests still assert firing
+   WITH the bound active; the preference-off test (:168) would have become vacuous with a
+   today-created task and now genuinely tests the pref gate. The backfill strengthens the
+   suite rather than masking anything.
+4. **Ran:** `npx jest src/services/notifications` → **2 suites / 24 tests, all green**
+   (up from 22: one new test; the builder's "24 up from 22" count is off by one test vs.
+   the pass-2 baseline but the suite total matches reality). `npx tsc --noEmit` → clean.
+5. **Scope:** `git diff --stat 063a190~1 a4ce7f3` → exactly the three files listed above;
+   worktree clean of M7 paths.
