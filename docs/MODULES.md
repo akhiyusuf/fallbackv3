@@ -232,25 +232,30 @@ day forward. `SCHEMA.md` §2 carries the new column and §4 carries the new cons
 
 - **M0** — add `readonly snoozable: boolean;` to `Task`, and `snoozable?: boolean` to
   `TaskDraft` (defaulting to `true` when omitted).
-- **M1** — **one forward migration covering both changes:**
-  1. add `task.snoozable` (`INTEGER 0/1 NOT NULL DEFAULT 1`), mapped in the task repository;
-     a duplicate inherits the source task's value;
-  2. **normalise legacy `day_log.moved_to_date` rows** — any pointer that is not exactly
-     `date + 1` is **cleared to NULL** (returns the occurrence to its own date, data intact);
-  3. **move that occurrence's XP award with it** — `UPDATE xp_award SET date = <source>
-     WHERE task_id = ? AND date = <old target>`. **This step is not optional.** F5 is derived
-     and self-corrects on read, but `xp_award` is a ledger written **only inside mutations**
-     (API.md §3 step 3) — **no read path reconciles an award**, so a stranded award never
-     repairs itself. Leaving it would cause a silent retraction if a later mutation touches
-     the old target, or a silent **double count** if one touches the source. If an award
-     already exists at the source, keep it and delete the orphan (P4: at most one award per
-     `(task, date)`). Lifetime XP is unchanged by this step — it is a relocation, never a
-     reduction. Rationale and the rejected alternative: SCHEMA §4.2 "Award policy for
-     normalised rows";
-  4. add `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))` to
-     `day_log`. SQLite needs a **table rebuild** for this — create/copy/drop/rename, all
-     inside the migration's single transaction. Order matters: normalise and relocate awards
-     **before** adding the constraint, or the migration aborts on legacy data.
+- **M1** — **one forward migration, and the STEP ORDER IS LOAD-BEARING.** An earlier
+  version of this CR ran award re-attribution *after* pointer-clearing; every award
+  predicate reads `moved_to_date`, so it computed against data it had already destroyed.
+  Inverted below. Full rules and rationale: `SCHEMA.md` §4.2 "Legacy rows".
+  1. add `task.snoozable` (`INTEGER 0/1 NOT NULL DEFAULT 1`), mapped in the task
+     repository; a duplicate inherits the source task's value;
+  2. **build the award decision worklist from PRE-migration values** — `RELOC` from branch
+     B1, `KILL` from branch B3 plus destination-clears, using §4.2's four-branch table
+     (`live` / `LONG` / `KEPT` / `carrier` by `MAX(date)` over **all** inbound rows).
+     **Never an unconditional relocation** — in branch **A** the award belongs to the
+     target's own completed occurrence and stealing it is a defect;
+  3. copy relocating rows to a temp table under the new date, **preserving `id`, `kind`,
+     `amount`, `cycle_id`, `created_at`** — a relocation, never a re-mint; the cycle stamp
+     is not rewritten;
+  4. `DELETE` every `KILL` row and every `RELOC` source, **then** `INSERT` the temp rows
+     back. **Delete-then-insert, never `UPDATE`** — SQLite cannot defer `UNIQUE`, and legacy
+     chain shapes make per-row updates order-dependent;
+  5. **only now** clear the `LONG` pointers (`moved_to_date = NULL`);
+  6. add `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))` to
+     `day_log` — SQLite needs a **table rebuild**: create/copy/drop/rename.
+  All six steps run inside the migration's single transaction. **Do NOT mint an award for a
+  revived-but-unawarded occurrence** — that would re-implement outcome eligibility in SQL
+  (the F1 defect class). The residual is an under-count only, and self-heals on the next
+  mutation (SCHEMA §7 carve-out).
 - **M2** — `validateTaskDraft` defaults `snoozable` to `true`; the snooze mutation rejects
   when it is `false` (SCHEMA §4.2 **W-1s**). Turning it off must **not** retract an existing
   snooze, and **undo ignores it entirely** (§4.2 **W-1u**).

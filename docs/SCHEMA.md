@@ -249,39 +249,126 @@ that adds `task.snoozable`. SQLite cannot add a CHECK to an existing table in pl
 is a table-rebuild migration (create-new / copy / drop / rename) inside one transaction, per
 §9's forward-only discipline.
 
-**Legacy rows.** Pre-rescope data may hold a `moved_to_date` more than one day out, which
-would fail the new constraint and abort the migration. **Normalise before adding the
-constraint, in the same transaction:** for every row where `moved_to_date` is non-null and
-not exactly `date + 1`, **clear the pointer** (`moved_to_date = NULL`), returning that
-occurrence to its own date with its chip/step data intact. This is the conservative
-direction — it can only restore an occurrence to where the user originally put it, never
-invent a snooze the user did not perform, and never destroys logged data (the D-rule already
-guarantees the row's data revives when the occurrence resolves there again).
+**Legacy rows.** Pre-rescope data may hold a `moved_to_date` more than one day out (or
+pointing backward — the old contract allowed a past target), which would fail the new
+constraint. Such rows are normalised, and **their XP awards must be re-attributed first.**
+The full procedure, its ordering, and why, are pinned below. `review/ADVICE-SCHEMA-F7.md`
+is the binding source; this mirrors it.
 
-**F5 recomputes on read; the XP ledger does NOT — the migration must move the award too.**
-Consistency is derived, so F5 is correct the moment the pointer is cleared. `xp_award` is a
-**ledger, written only inside mutations** (API.md §3, step 3): **no read path ever reconciles
-an award.** So clearing a legacy pointer `S → T` without touching the ledger would strand the
-award at T while the occurrence displays at S.
+**Two facts from the OLD contract make award attribution decidable from raw row shapes
+alone — no cadence resolution, and no SQL re-implementation of `designateCarrier` or
+`isXpEligible`, is needed or permitted:**
+1. A **vacated source holds no award** (old W-4 retracted on vacate) and a **dormant or
+   shadowed visitor holds no award** (old C9's semantic note: shadow ⇒ retraction). So an
+   award at `(τ, D)` belongs to exactly the occurrence that **resolved** at D — the carrier.
+2. A **clause-(b) date holds no award** (old C4b's mandatory assertion: blank state, no
+   award materialises).
 
-**Award policy for normalised rows — PINNED: the award moves with the occurrence**, in the
-same transaction, `UPDATE xp_award SET date = S WHERE task_id = τ AND date = T`. This is not
-a new rule: **C7 already pins that XP travels home with the occurrence on undo**, and
-normalising a legacy long-distance pointer *is* an undo of a snooze the current contract can
-no longer express — so it must land in the same end state. Lifetime XP is unchanged (a
-relocation, never a reduction), and both dates are left coherent, so the next mutation
-touching either is a no-op rather than a surprise. **Conflict rule:** in the rare case
-inconsistent legacy data already holds an award at S, keep S's and delete the orphan at T —
-that is removing a second award for one occurrence, which **P4** (at most one `xp_award` per
-`(task, date)`) forbids anyway, not a penalty.
+**Migration predicates — ALL evaluated against PRE-migration column values, task τ:**
 
-*Rejected: leaving the stale award in place as uncorrected lifetime history.* It reads as the
-conservative option but is not. It leaves **two** latent faults, and reconcile is per-`(task,
-date)` so neither self-heals: a later mutation touching **T** finds no showing-up occurrence
-and **retracts** the award — a silent lifetime-XP drop; and a later mutation touching **S**
-finds `ideal` with no award and **mints a new one** — a silent **double count** for a single
-occurrence. That is the award/outcome incoherence class **C4b exists to forbid**, reached
-through the migration instead of through runtime.
+| Term | Meaning |
+|---|---|
+| `LONG(r)` | `r.moved_to_date IS NOT NULL AND r.moved_to_date != date(r.date,'+1 day')` — the rows being cleared, backward pointers included |
+| `KEPT(r)` | `r.moved_to_date = date(r.date,'+1 day')` — a legal one-hop; survives |
+| `live(D)` | a row `(τ, D)` exists with `moved_to_date IS NULL` |
+| `inbound(T)` | **ALL** rows of τ with `moved_to_date = T` — **LONG and KEPT alike** |
+| `carrier(T)` | the row in `inbound(T)` with `MAX(date)` (the old latest-source tie-break; `MAX` stays correct when a backward move puts a source date after T) |
+| `revived(D)` | the row `(τ, D)` exists and is `LONG` — it becomes live this migration |
+
+**Award decision table — ONE decision per `(τ, T)` target group, never per source row.**
+For every `(τ, T)` holding an `xp_award` where `inbound(T)` is non-empty and the migration
+touches T (some inbound row is `LONG`, or `revived(T)`):
+
+| # | Condition | Ruling | Why |
+|---|---|---|---|
+| **A** | `live(T)` | **LEAVE** the award at T | Old clause (a): T's own live log was the carrier, so the award is **T's own occurrence's**. A residue own-row at T does **not** trigger A — its award, if any, lives at *its* target per old T-3 |
+| **B1** | not `live(T)`, `LONG(carrier(T))` | **RELOCATE** to `(τ, carrier(T).date)` | Old clause (c): the visitor was the carrier and is being sent home; the award travels with its occurrence (C7 doctrine). The per-target `MAX` is what closes order-dependence on chain-shaped legacy data |
+| **B2** | not `live(T)`, `KEPT(carrier(T))`, not `revived(T)` | **LEAVE** at T | The carrier still resolves at T after the migration (a kept-residue own row at T stays residue and does not shadow it). Already coherent |
+| **B3** | not `live(T)`, `KEPT(carrier(T))`, `revived(T)` | **DELETE** the award at `(τ, T)` | T's own log revives this migration and **shadows** the kept visitor (new clause (a)). This reproduces exactly what the live system does for that shape — C9's sanctioned shadow retraction, recoverable later via C5's re-materialisation |
+
+**Destination-clear (part of B1).** Any award already sitting at a relocation destination
+`(τ, carrier(T).date)` that is not itself scheduled to relocate is **DELETED**. Coherent
+legacy holds no award at a vacated source, so anything found there is either a kept visitor
+about to be shadowed by the homecoming (B3-class, same sanction) or an incoherent orphan
+(cleanup under §7's `UNIQUE (task_id, date)` constraint).
+
+> **Superseded, recorded so neither is reintroduced.** An **unconditional** relocation
+> (`UPDATE xp_award SET date = S WHERE task_id = τ AND date = T`) is **wrong** — in shape
+> **A** it steals an award that belongs to T's own completed occurrence. And the earlier
+> "keep S's award, delete the orphan at T" conflict rule is **struck**: it deletes the wrong
+> side in exactly that shape. Leave-vs-relocate is a **false dichotomy**; the shadowed-visitor
+> shapes need the third outcome, DELETE.
+>
+> **Also superseded: "leave the ledger untouched" as a blanket policy.** Leaving is correct
+> in branches **A** and **B2** and wrong in **B1**, so it is a per-shape ruling, not a policy.
+> Applied unconditionally to **shape V** (branch B1 — the award at T belongs to the visitor
+> being sent home) it strands the award, and because reconcile is per-`(task, date)` neither
+> half self-heals: a later mutation touching **T** finds no showing-up occurrence and
+> **retracts** the award (silent lifetime-XP drop), while one touching **S** finds `ideal`
+> with no award and **mints** a fresh one (silent **double count** for a single occurrence).
+> That is the award/outcome incoherence class **C4b** exists to forbid, reached through the
+> migration instead of through runtime. The table above is what resolves it.
+
+**Do NOT mint in the migration — PINNED.** A revived occurrence may display completed data
+with **no** award until the first ordinary mutation touches it and reconcile re-affirms.
+Minting would require resolving outcome eligibility (chip + override + steps + doses +
+off-marks + cadence) in raw SQL — a **second answerer** of "what did this occurrence resolve
+to", which is the F1 defect class relocated into the migration layer, and not faithfully
+expressible in SQL anyway. The residual is an **under-count, never inflation**, invisible to
+F5 (derived), self-healing on the next interaction, and already a sanctioned live state (a
+dormant visitor holds completed data with no award until revival re-affirms — C5).
+
+**Transaction ordering — BOTH rules are load-bearing.** All inside §9's single migration
+transaction:
+
+```
+1  Build the decision worklist in temp tables from PRE-migration values:
+     RELOC(task_id, from_date, to_date)   from B1
+     KILL(task_id, date)                  from B3 + destination-clears
+2  Copy relocating rows to a temp table under the new date, preserving id, kind, amount,
+   cycle_id, created_at — a RELOCATION, never a re-mint. The cycle stamp is NOT rewritten
+   (consistent with the finalized-cycle-records note below).
+3  DELETE FROM xp_award for everything in KILL and every RELOC source.
+4  INSERT the temp rows back.
+5  Clear all LONG pointers (moved_to_date = NULL).
+6  Table-rebuild adding the one-hop CHECK.
+```
+
+- **Steps 1–4 MUST precede step 5.** Every predicate above reads `moved_to_date`; clearing
+  first makes residue indistinguishable from live and collapses branch A into the
+  unconditional-relocation bug.
+- **DELETE-then-INSERT, never `UPDATE`.** SQLite cannot defer a `UNIQUE` constraint, and
+  legacy stores legally contain chain-shaped pointer graphs (old C6: `A→B` and `B→C` as two
+  independent rows) where per-row `UPDATE`s abort or destroy an award depending on
+  processing order. Delete-then-insert against the snapshot is order-independent.
+  Relocation destinations cannot collide with one another: one row cannot point at two
+  targets, so distinct targets have distinct carrier rows and distinct destinations.
+
+#### Standing principle — act on the carrier, never on a bare date
+
+**Any read or write of `day_log` or `xp_award` keyed by a bare calendar date, in
+snooze-adjacent logic, is presumptively a blocking defect** unless it is routed through
+`designateCarrier` (runtime) or through this section's migration predicates (migration
+time). A raw date-keyed `WHERE` on those tables is a blocking code-review finding absent
+that justification.
+
+This is not hypothetical: the same mistake — acting on the **date** where an effect is
+visible instead of the **row that carries the data** — has now produced four separate
+defects in this feature (F1's read/write carrier split; the assumption that a mutation-only
+ledger recomputes on read; an unconditional date-keyed award `UPDATE`; and a migration step
+order that read `moved_to_date` after clearing it).
+
+**Watch sites for future code review:**
+- `off_day_mark.prior_chip_state` un-mark restore — a date-keyed snapshot: *which* row does
+  it restore when that date's carrier is a visitor?
+- **M4's S20 heatmap drill-down** — writes to user-picked past dates; must route through
+  `resolveWriteTarget`, never upsert `ownLog(date)` directly.
+- **Backup-restore validation** — must not "repair" `xp_award` by date, the same discipline
+  §9 already pins for a NULL `task_id`.
+- **Cycle finalization** — window the ledger by the `cycle_id` stamp only, never re-derive
+  membership by date.
+- **Any future sync-merge logic** — F20 is a whole-store snapshot today; the moment that
+  changes, this class returns.
 
 **Definitions** (for task τ, date D):
 - `ownLog(D)` — the `day_log` row keyed `(τ, D)`, if any.
@@ -559,6 +646,19 @@ due occurrence of an occurrence-bearing task (recurring **or** one-off) that res
 `ideal` or `fallback`. Excluded, with zero of either kind: as-needed routine "used it"
 logs, To-do checkbox completions, off days, skips, pending days.
 
+**Carve-out — the award-iff is guaranteed at MUTATION boundaries, not across migrations
+(PINNED).** A migration-revived occurrence may **under-hold** its award until the first
+mutation touching it re-affirms through reconcile. **Migrations relocate or delete ledger
+rows under §4.2's decision table, and never MINT one** — minting would require re-answering
+"what did this occurrence resolve to" in SQL, which is the F1 defect class. The residual is
+an **under-count, never inflation**; it is invisible to F5 (derived) and self-heals on the
+next interaction.
+
+The **B3** and **destination-clear** deletions in §4.2 are the **C9-class shadow retraction
+reached at migration time** — the occurrence stopped carrying a resolved showing-up state,
+so they sit **inside the CR-2 boundary** below. They are **not** a new reduction class, and
+they are recoverable (C5 re-materialisation).
+
 ### Levels — PINNED table
 ```
 xpForLevel(L) = 100 + 150 * (L - 1)          // XP needed to leave level L
@@ -757,6 +857,22 @@ forward-only, and each runs in a single transaction; a failure rolls back fully 
 store reports `STORE_CORRUPT` → S50. Migration 1 creates every table above **and** writes
 `tenure_anchor_date = today()`. F1 requires a tested older-version fixture that opens
 without data loss — that fixture is mandatory in M1's test suite.
+
+**The older-version fixture MUST contain these F7-rescope legacy shapes**, with the expected
+post-migration ledger pinned per shape (§4.2's decision table). **Assert row-level effects —
+which rows changed, and their `id`/`cycle_id` — not merely displayed outcomes.**
+
+| Shape | Legacy state | Expected after migration |
+|---|---|---|
+| **M** (old C4 merge) | `S → T` LONG; T has its **own live** log with an award | **Branch A.** T **keeps** its award. S revives with its data and **NO** award. One tap at S then mints **exactly one**. *(This is the shape an unconditional relocation broke.)* |
+| **V** (old C7, off-cadence completion) | `S → T` LONG; T off-cadence, award at T belongs to the visitor | **Branch B1.** Exactly **one** award, **moved home** to S, same `id` / `amount` / `cycle_id` |
+| **C8-a** (double inbound, both LONG) | `S1 → T`, `S2 → T`, both LONG, award at T | **Branch B1.** Award follows `carrier(T)` = `MAX(date)` source. The other source revives with no award |
+| **C8-b** (double inbound, one legal one-hop) | `S1 → T` LONG, `S2 → T` KEPT, award at T | Carrier is computed over **all** inbound rows, KEPT included — restricting to cleared rows mis-relocates here |
+| **mixed C6** | `A → B` KEPT one-hop with the visitor's award at B; `B → C` LONG with B's award at C | Exactly **one** award at B — the homecoming row, carrying the **same `id` / `cycle_id`** as the old `(τ, C)` row. The kept visitor's award at B is **deleted** (B3 / destination-clear) and is recoverable via its own undo: its data travels home and reconcile re-affirms at A. The transient lifetime-XP dip is **faithful shadow semantics, not a defect** |
+
+**Scope of the repair.** The migration fixes **pointer-caused** ledger incoherence only.
+Pre-existing corruption unrelated to pointers — an award on a live `todo` row, say — is out
+of scope and left to runtime reconcile.
 
 **Backup artifact (F19) — PINNED.** A single JSON envelope, written with
 `expo-file-system` and handed to the OS share/document picker:
