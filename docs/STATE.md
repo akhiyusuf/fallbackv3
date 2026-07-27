@@ -453,11 +453,11 @@ complete and correct throughout; only the labels are imprecise. Known traces:
 **Always use `git log --follow <path>`, never commit titles, to find where a
 module's work landed.**
 
-## Wave 2 — all five modules built, none yet code-reviewed
+## Wave 2 — built, reviewed, all five PASS
 
 **(The "RESUME HERE" session-limit incident and the F7 rescope cascade that
 followed it are both long resolved — see the dedicated sections above. This
-section is current as of all five wave-2 builders reporting done.)**
+section is current as of all five wave-2 modules clearing code review.)**
 
 M3, M4, M5, M6, M7 all built, each independently spot-verified against its own
 report before being trusted — not accepted on summary alone. Full-repo state:
@@ -505,8 +505,64 @@ around it with a heuristic (presence of descriptive text), which will
 misclassify a to-do that legitimately has a note attached. Not blocking; a
 candidate for a future schema field.
 
+## Wave-2 review outcome
+
+Every wave-2 module went through at least one real CHANGES_REQUIRED round —
+none passed on the first look, and every finding held up under independent
+re-verification (re-derived arithmetic, byte-verbatim copy checks, actual
+test runs, hand-traced carrier-resolution shapes). No advisor escalation was
+needed anywhere — the worst case (M6, 13 items; M7, a defect found inside
+its own pass-2 rework) still closed within 2-3 passes, under the 3-fail
+threshold. Final: `review/REVIEW-M{3,4,5,6,7}.md`, each with a `PASS`
+verdict as its last section, pass-1 history preserved above it.
+
+| Module | Pass 1 verdict | Headline finding | Final |
+|---|---|---|---|
+| M3 | CHANGES_REQUIRED (7 items) | dropped `badgeKey` broke Today→S28 milestone celebration; 4 S11 Events-browse defects | PASS (pass 2) |
+| M4 | CHANGES_REQUIRED (7 items) | `snoozeSlot.ts` invented "Undo snooze" for a dormant visitor in the common daily-cadence case — violated PRD §3.7's closed rendering rule and the explicit "do not invent" instruction for the §7 open gap | PASS (pass 2) |
+| M5 | CHANGES_REQUIRED (8 items) | S25's breakdown bar could render 100% filled while Missed > 0 in aggregate scope; S28 rendered fixture-specific demo copy as universal (false for ~10 of 11 tenure tiers) | PASS (pass 2) |
+| M6 | CHANGES_REQUIRED (13 items) | a paying subscriber lost the assistant after every app restart (receipt never restamped); tool calls dropped/unassemblable on both providers — the module's core feature didn't work. BYO-key isolation and backend statelessness verified clean throughout, never regressed by the fix | PASS (pass 2) |
+| M7 | CHANGES_REQUIRED (7 items) | `initNotificationsBridge`/`initWidgetsBridge` built but never called anywhere; `store:erased` unconsumed (erased habit data survived on the widget/in armed notifications); bare date-keyed `day_log` resolution — the F1 defect class' sixth recurrence | PASS (pass 3 — pass 2's own rework surfaced one new item, a missing `notBefore` anchor causing false "yesterday slipped by" notifications for brand-new users) |
+
+## Three architect CRs raised during wave-2 review, not yet applied
+
+1. **Boot-time bridge wiring.** M7's init functions are idempotent and now
+   called from M7 screens, but the true boot-time call belongs in
+   `app/_layout.tsx` (M0-owned, frozen) — a session that never visits an M7
+   screen still won't arm reminders/widgets. Needs one
+   `useEffect(() => { initNotificationsBridge(); initWidgetsBridge(); }, [])`
+   in the shell.
+2. **Voice/language settings need durable storage.** M6's S36 fix
+   (`src/features/assistant/voiceLanguagePrefs.ts`) is honestly in-process-only
+   — no SCHEMA.md column, no `@/queries` mutation exists (frozen). Needs a
+   real persistence path, same shape as the already-accepted
+   `conversationStore.ts` exception.
+3. **`eraseAll` incomplete.** `src/db/lifecycle.ts`'s `SECURE_STORE_KEYS`
+   clears `byo.baseUrl`/`byo.apiKey` but not the newer `byo.model` /
+   `byo.supportsTranscription`. Inert and non-secret today, but should be
+   added given this project's zero-tolerance history on erase-all gaps.
+
+## Two items carried to Gate 3 (human/product decisions, not builder calls)
+
+1. **S49 help/support hand-offs.** No real support email, FAQ/help-center
+   URL, privacy-policy URL, terms-of-service URL, or iOS App Store numeric id
+   exists anywhere upstream. Android's "Rate Fallback" got a real
+   `market://` deep link; everything else is an honestly-disclosed toast
+   pending real addresses.
+2. **B13 receipt verification is not production-ready.** `server/src/receipt.js`
+   now has the right URL/method/header shapes and fails closed loudly and
+   honestly, but real Apple JWT signing and Google OAuth need
+   credentials/crypto tooling outside this repo's declared architecture.
+   Flagged for a pre-launch architect/infra follow-up.
+
+(These join the two items already carried from earlier phases: whether
+exported `.fallbackbak` backups should survive "erase all data," and the F20
+cloud-sync capability gap — see the dedicated sections above.)
+
 ## Next action
 
-**Code review, one pass per wave-2 module (M3–M7), same discipline as wave 1.**
-None have been reviewed yet. After all five PASS: qa-tester → visual-qa →
-**Gate 3** — human reviews screenshots + `review/TEST_REPORT.md`.
+**Batch and apply the three architect CRs above**, then dispatch qa-tester
+(verifies the assembled product against every PRD acceptance criterion) →
+artifact-reviewer on `TEST_REPORT.md` → visual-qa → **Gate 3** — human
+reviews screenshots + `review/TEST_REPORT.md`, plus the two Gate-3 carry
+items above.
