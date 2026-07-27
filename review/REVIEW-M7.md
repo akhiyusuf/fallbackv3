@@ -246,3 +246,15 @@ nothing, erase-all's cleanup contract is unconsumed, and both services do bare d
   row still present/toggleable) and Trigger B (master on/all subs off → sections stay
   visible + banner) are genuinely distinct branches in code
   (`app/settings/notifications.tsx:72-73,91-145`) and each has its own named test.
+
+## Response
+
+All 7 blocking items fixed. Ran `npx jest app/onboarding app/settings/{index,notifications,theme,widgets,help}.test.tsx src/services/notifications src/services/widgets` → 16 suites / 99 tests, all green. `npx tsc --noEmit` → clean.
+
+1. **Fixed (M7 half).** `initNotificationsBridge()`/`initWidgetsBridge()` now called from a mount effect on S06, S07, S41, S42, S46. `NotificationsPrimerScreen.handleAllow` now calls `notifications.reschedule()` directly when `requestPermission()` resolves granted. **The M0-owned boot-time half (`app/_layout.tsx`) is unchanged, as instructed — still needs to be raised to the architect/M0** so a session that never visits an M7 screen still arms on boot.
+2. **Fixed.** Both bridges subscribe to `store:erased` (widgets: delete the snapshot file; notifications: `cancelAll()` + `clearOnboardingProgress()`) and `store:ready` (widgets: republish; notifications: `reschedule()`). Colocated the onboarding-pointer clear in the notifications bridge's `store:erased` handler rather than a third bridge, since both cleanups share the same trigger and that init already reaches every relevant mount point.
+3. **Fixed.** Widget snapshot and gentle-reentry both now look up `movedInLog` (the prior day's row whose `movedToDate` equals the target date) and pass it into `resolveOccurrence`; widget inclusion is now driven by the resolved `outcome`, not raw `isDue`. `buildRollingSchedule` also takes an optional `vacatedDates` set (built by the caller from a real repo read) and skips routine/event/course-dose reminders on a date whose own row was snoozed away.
+4. **Fixed.** `resolveScheme` is now called with `Appearance.getColorScheme()` (normalized to `'light' | 'dark' | null`), not a hardcoded `null`.
+5. **Fixed.** `OnboardingShell` gained `allStepsComplete` (all 5 dots render accent-filled, announcement reads the literal "Step 5 of 5.") and `icon` is now optional; `PersonalizeScreen` now renders through the shell with `allStepsComplete`. The Preview button is wrapped in a `pointerEvents="none"` View instead of using `disabled`.
+6. **Fixed.** `S08_COPY.fallbackError` is now `'Add a fallback to continue'`.
+7. **Fixed (objective half).** Each Support row now gets its own `a11yDestination` string ("opens email" / "opens an external help center" / "opens the app store"). Implemented a real hand-off for "Rate Fallback" on Android via `Linking.openURL('market://details?id=com.fallback.app')` (the package name is already pinned in `app.config.ts`; no numeric App Store id exists for iOS, so iOS keeps the toast). **Contact support / FAQ & guides / Privacy policy / Terms of service / iOS Rate Fallback still have no real destination pinned anywhere upstream — this is a genuine product gap, not something resolved by this pass**, and remains flagged for the human.
