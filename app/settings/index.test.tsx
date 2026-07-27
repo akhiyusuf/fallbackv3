@@ -13,6 +13,11 @@ jest.mock('@/queries', () => ({
   useConsistency: () => ({ data: mockConsistencyData.current, isError: !!mockConsistencyData.isError, refetch: jest.fn() }),
 }));
 
+const mockInitNotificationsBridge = jest.fn();
+jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
+const mockInitWidgetsBridge = jest.fn();
+jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
+
 import S41SettingsHome from './index';
 
 const LEVEL7 = { level: 7, title: 'Consistent', xpIntoLevel: 0, xpForLevel: 100 };
@@ -78,5 +83,14 @@ describe('S41 — Settings Home', () => {
     await user.press(screen.getByText('Theme & accent'));
     expect(push).toHaveBeenCalledWith('/settings/theme');
     push.mockRestore();
+  });
+
+  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+    mockSettingsData.current = { notifications: { master: true } };
+    mockProgressData.current = { lifetimeXp: 500, level: LEVEL7 };
+    mockConsistencyData.current = { percent: 87 };
+    await render(<S41SettingsHome />);
+    expect(mockInitNotificationsBridge).toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).toHaveBeenCalled();
   });
 });

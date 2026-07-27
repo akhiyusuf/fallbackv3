@@ -9,7 +9,14 @@ jest.mock('expo-secure-store', () => ({
 }));
 
 const mockRequestPermission = jest.fn().mockResolvedValue({ ok: true, value: true });
-jest.mock('@/services/notifications', () => ({ notifications: { requestPermission: () => mockRequestPermission() } }));
+const mockReschedule = jest.fn().mockResolvedValue({ ok: true, value: undefined });
+const mockInitNotificationsBridge = jest.fn();
+jest.mock('@/services/notifications', () => ({
+  notifications: { requestPermission: () => mockRequestPermission(), reschedule: () => mockReschedule() },
+  initNotificationsBridge: () => mockInitNotificationsBridge(),
+}));
+const mockInitWidgetsBridge = jest.fn();
+jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
 
 import S07NotificationPermissionPrimer from './notifications-primer';
 import { S07_COPY } from '@/features/onboarding/copy';
@@ -42,6 +49,32 @@ describe('S07 — Notification Permission Primer', () => {
     await user.press(screen.getByLabelText('Not now, button'));
     expect(mockRequestPermission).not.toHaveBeenCalled();
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding/first-task'));
+    replace.mockRestore();
+  });
+
+  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+    await render(<S07NotificationPermissionPrimer />);
+    expect(mockInitNotificationsBridge).toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).toHaveBeenCalled();
+  });
+
+  it('a granted "Allow" re-arms reminders directly — a permission grant alone emits no bus event (review pass 1, blocking item 1)', async () => {
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<S07NotificationPermissionPrimer />);
+    await user.press(screen.getByLabelText('Allow notifications, button'));
+    await waitFor(() => expect(mockReschedule).toHaveBeenCalled());
+    replace.mockRestore();
+  });
+
+  it('a declined "Allow" does not reschedule', async () => {
+    mockRequestPermission.mockResolvedValueOnce({ ok: true, value: false });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<S07NotificationPermissionPrimer />);
+    await user.press(screen.getByLabelText('Allow notifications, button'));
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(mockReschedule).not.toHaveBeenCalled();
     replace.mockRestore();
   });
 });

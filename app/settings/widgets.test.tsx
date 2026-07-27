@@ -13,6 +13,11 @@ jest.mock('@/queries', () => ({
 const mockShowToast = jest.fn();
 jest.mock('@/app-shell', () => ({ useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }) }));
 
+const mockInitNotificationsBridge = jest.fn();
+jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
+const mockInitWidgetsBridge = jest.fn();
+jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
+
 import S46Widgets from './widgets';
 import { S46_COPY } from '@/features/settings/copy';
 
@@ -93,5 +98,11 @@ describe('S46 — Widgets', () => {
     await user.press(screen.getByLabelText('Back'));
     expect(push).toHaveBeenCalledWith('/settings');
     push.mockRestore();
+  });
+
+  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+    await render(<S46Widgets />);
+    expect(mockInitNotificationsBridge).toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).toHaveBeenCalled();
   });
 });

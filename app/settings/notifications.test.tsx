@@ -12,6 +12,11 @@ jest.mock('@/queries', () => ({
 const mockShowToast = jest.fn();
 jest.mock('@/app-shell', () => ({ useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }) }));
 
+const mockInitNotificationsBridge = jest.fn();
+jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
+const mockInitWidgetsBridge = jest.fn();
+jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
+
 import S42NotificationsSettings from './notifications';
 import { S42_COPY } from '@/features/settings/copy';
 
@@ -91,5 +96,12 @@ describe('S42 — Notifications Settings', () => {
     await user.press(screen.getByLabelText('Back'));
     expect(push).toHaveBeenCalledWith('/settings');
     push.mockRestore();
+  });
+
+  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+    mockSettingsData.current = { notifications: ALL_ON };
+    await render(<S42NotificationsSettings />);
+    expect(mockInitNotificationsBridge).toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).toHaveBeenCalled();
   });
 });

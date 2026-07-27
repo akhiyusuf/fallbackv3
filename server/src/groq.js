@@ -3,6 +3,8 @@
  * are server-side configuration (env vars), never client constants; the vendor stays
  * invisible to the app (user-facing name: "Fallback AI").
  */
+import { toolDefinitionsFor } from './toolSchemas.js';
+
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1';
 const CHAT_MODEL = process.env.GROQ_CHAT_MODEL ?? 'llama-3.3-70b-versatile';
 const STT_MODEL = process.env.GROQ_STT_MODEL ?? 'whisper-large-v3-turbo';
@@ -25,7 +27,7 @@ export async function streamGroqChat({ messages, tools, systemPrompt, fetchImpl 
       model: CHAT_MODEL,
       stream: true,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
-      tools: tools.map((name) => ({ type: 'function', function: { name } })),
+      tools: toolDefinitionsFor(tools),
     }),
   });
 }

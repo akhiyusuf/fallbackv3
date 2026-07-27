@@ -16,16 +16,62 @@ function logAccess(method, path, status) {
   console.log(`${new Date().toISOString()} ${method} ${path} ${status}`);
 }
 
-async function readJsonBody(req) {
+async function readRawBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
-  const raw = Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
+}
+
+async function readJsonBody(req) {
+  const raw = (await readRawBody(req)).toString('utf8');
   if (!raw) return null;
   try {
     return JSON.parse(raw);
   } catch {
     return undefined; // signals malformed JSON to the caller
   }
+}
+
+/**
+ * B11 — a minimal multipart/form-data reader (zero deps, matching this directory's
+ * zero-dependency contract): extracts the binary content of the `audio`/`file` part. Not a
+ * fully general multipart parser (no nested parts, no header-level decoding beyond finding
+ * the field name), but sufficient for the single-file upload `managedProvider.ts` sends.
+ * @returns {Buffer | null}
+ */
+function extractMultipartFilePart(buffer, contentType) {
+  const match = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType ?? '');
+  const boundary = match ? match[1] || match[2] : null;
+  if (!boundary) return null;
+  const boundaryMarker = Buffer.from(`--${boundary}`);
+  const parts = [];
+  let start = buffer.indexOf(boundaryMarker);
+  while (start !== -1) {
+    const next = buffer.indexOf(boundaryMarker, start + boundaryMarker.length);
+    if (next === -1) break;
+    parts.push(buffer.slice(start + boundaryMarker.length, next));
+    start = next;
+  }
+  for (const part of parts) {
+    const headerEnd = part.indexOf('\r\n\r\n');
+    if (headerEnd === -1) continue;
+    const headerText = part.slice(0, headerEnd).toString('utf8');
+    if (!/name="(audio|file)"/i.test(headerText)) continue;
+    let body = part.slice(headerEnd + 4);
+    if (body.slice(-2).toString() === '\r\n') body = body.slice(0, -2);
+    return body;
+  }
+  return null;
+}
+
+/** @returns {Blob | null} */
+function readAudioBody(rawBody, contentType) {
+  if (rawBody.length === 0) return null;
+  if (/multipart\/form-data/i.test(contentType ?? '')) {
+    const filePart = extractMultipartFilePart(rawBody, contentType);
+    return filePart ? new Blob([filePart]) : null;
+  }
+  return new Blob([rawBody]);
 }
 
 function lowerHeaders(rawHeaders) {
@@ -54,6 +100,31 @@ async function writeSseFromGroqStream(res, upstream, screen) {
   const decoder = new TextDecoder();
   let buffer = '';
   let summary = '';
+  // B6 — OpenAI-compatible streaming fragments tool-call arguments across MANY chunks, keyed
+  // by `index`; only the first fragment for a given index carries `id`/`function.name`. This
+  // accumulates by index and flushes only once the choice actually finishes, instead of
+  // emitting a `tool-call` on the first (typically empty/partial) fragment.
+  const pendingToolCalls = new Map();
+
+  function accumulateToolCallDeltas(toolCalls) {
+    for (const fragment of toolCalls) {
+      const index = typeof fragment?.index === 'number' ? fragment.index : 0;
+      const existing = pendingToolCalls.get(index) ?? { id: fragment.id ?? `call_${index}`, name: '', args: '' };
+      if (fragment.id) existing.id = fragment.id;
+      if (fragment.function?.name) existing.name = fragment.function.name;
+      if (fragment.function?.arguments) existing.args += fragment.function.arguments;
+      pendingToolCalls.set(index, existing);
+    }
+  }
+
+  function flushToolCalls() {
+    for (const [, call] of pendingToolCalls) {
+      if (!call.name) continue;
+      res.write(`data: ${JSON.stringify({ type: 'tool-call', call: { id: call.id, name: call.name, args: safeParse(call.args) } })}\n\n`);
+    }
+    pendingToolCalls.clear();
+  }
+
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -75,24 +146,17 @@ async function writeSseFromGroqStream(res, upstream, screen) {
             res.write(`data: ${JSON.stringify({ type: 'text-delta', delta })}\n\n`);
           }
           const toolCalls = choice?.delta?.tool_calls;
-          if (Array.isArray(toolCalls)) {
-            for (const call of toolCalls) {
-              if (call?.function?.name) {
-                res.write(
-                  `data: ${JSON.stringify({
-                    type: 'tool-call',
-                    call: { id: call.id ?? String(Math.random()), name: call.function.name, args: safeParse(call.function.arguments) },
-                  })}\n\n`,
-                );
-              }
-            }
-          }
+          if (Array.isArray(toolCalls)) accumulateToolCallDeltas(toolCalls);
+          if (choice?.finish_reason === 'tool_calls') flushToolCalls();
         } catch {
           // A malformed upstream frame is dropped, never surfaced as a crash.
         }
       }
     }
   } finally {
+    // Flush any tool call still pending if the stream ended without an explicit
+    // `finish_reason: 'tool_calls'` frame (some upstreams omit it).
+    flushToolCalls();
     res.write(`data: ${JSON.stringify({ type: 'done', summary: summary.slice(0, 140) })}\n\n`);
     res.end();
   }
@@ -154,10 +218,12 @@ export function createApp() {
       }
 
       if (req.method === 'POST' && url.pathname === '/v1/transcribe') {
-        // Multipart parsing is deliberately minimal — see this file's header on scope.
-        status = 501;
-        res.writeHead(501, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ code: 'bad_request', message: 'multipart transcription wiring is deploy-specific' }));
+        const rawBody = await readRawBody(req);
+        const audio = readAudioBody(rawBody, headers['content-type']);
+        const result = await handleTranscribe({ headers, audio, fetchImpl: fetch });
+        status = result.status;
+        res.writeHead(result.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result.body));
         return;
       }
 

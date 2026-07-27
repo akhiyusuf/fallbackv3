@@ -3,6 +3,7 @@
  * Owner: M7. Features: F8, F13, F14, F17, F19, F20, F21, F25.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S41)
  */
+import { useEffect } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import {
   Award,
@@ -23,6 +24,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEntitlementStore } from '@/app-shell';
 import { S41_COPY } from '@/features/settings/copy';
 import { useConsistency, useProgress, useSettings } from '@/queries';
+import { initNotificationsBridge } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { SPACE, useTheme } from '@/theme';
 import { Badge, Button, Card, IconButton, Skeleton } from '@/ui';
 import { ChevronLeft } from 'lucide-react-native';
@@ -65,6 +68,14 @@ export default function S41SettingsHome() {
   const level = progressQuery.data?.level;
   const notificationsOn = settingsQuery.data?.notifications.master ?? false;
   const subscriptionActive = entitlement.status === 'active' || entitlement.status === 'trial';
+
+  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount —
+  // Settings Home is one of the most likely surfaces a returning user reaches, so it needs
+  // to be able to arm both bridges on its own.
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
 
   return (
     <ScrollView style={[styles.root, { backgroundColor: t.color.bg }]} contentContainerStyle={styles.content}>

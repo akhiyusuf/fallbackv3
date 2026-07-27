@@ -12,7 +12,7 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent, waitFor } from '@testing-library/react-native';
+import { userEvent, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
@@ -175,5 +175,139 @@ describe('S20 Manage Task Sheet', () => {
 
     await userEvent.press(screen.getByLabelText('Delete routine'));
     expect(await screen.findByText('Delete this routine?')).toBeTruthy();
+  });
+
+  it('stat line derives from perTaskConsistency — percent first, off days excluded from the denominator (REVIEW-M4.md item 2)', async () => {
+    clock.today = '2026-07-10';
+    clock.now = '2026-07-10T12:00:00.000Z';
+    const task = makeTask({ id: 'task-1' as Id });
+    fake.seedTask(task);
+
+    async function log(date: string, chip: 'done' | 'fallback') {
+      await fake.repos.logs.upsert({
+        id: `log-${date}` as Id,
+        taskId: task.id,
+        date: date as never,
+        chipState: chip,
+        isManualOverride: true,
+        completedStepIds: [],
+        dosesCompleted: 0,
+        movedToDate: null,
+        createdAt: `${date}T00:00:00.000Z` as never,
+        updatedAt: `${date}T00:00:00.000Z` as never,
+      });
+    }
+    await log('2026-07-01', 'done');
+    await log('2026-07-02', 'done');
+    await fake.repos.offDays.mark({
+      id: 'off-1' as Id,
+      date: '2026-07-03' as never,
+      taskId: task.id,
+      priorChipState: null,
+      createdAt: '2026-07-03T00:00:00.000Z' as never,
+    });
+    // July 4 left unlogged — elapsed and due, so it resolves 'missed'.
+    await log('2026-07-05', 'fallback');
+    await fake.repos.offDays.mark({
+      id: 'off-2' as Id,
+      date: '2026-07-06' as never,
+      taskId: task.id,
+      priorChipState: null,
+      createdAt: '2026-07-06T00:00:00.000Z' as never,
+    });
+    await log('2026-07-07', 'done');
+    // July 8 left unlogged — 'missed'.
+    await log('2026-07-09', 'done');
+    // July 10 is today — pending, excluded.
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    // ideal(1,2,7,9)=4, fallback(5)=1 -> numerator 5; missed(4,8)=2; off(3,6) excluded from the
+    // denominator entirely -> denominator 7 -> 5/7 = 71% (round-half-up).
+    expect(await screen.findByText('71% showed up — 5 of 7 days')).toBeTruthy();
+  });
+
+  it('keys empty-history on task-lifetime data, not the displayed month — a neglected month still shows its real missed fills (REVIEW-M4.md item 4)', async () => {
+    clock.today = '2026-08-10';
+    clock.now = '2026-08-10T12:00:00.000Z';
+    const task = makeTask({ id: 'task-1' as Id });
+    fake.seedTask(task);
+    // History exists — but only in July, not August (the month S20 opens to, since monthAnchor
+    // defaults to `today`).
+    await fake.repos.logs.upsert({
+      id: 'log-july' as Id,
+      taskId: task.id,
+      date: '2026-07-01' as never,
+      chipState: 'done',
+      isManualOverride: true,
+      completedStepIds: [],
+      dosesCompleted: 0,
+      movedToDate: null,
+      createdAt: '2026-07-01T00:00:00.000Z' as never,
+      updatedAt: '2026-07-01T00:00:00.000Z' as never,
+    });
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    // August 1st is elapsed, due, and unlogged — a genuine missed fill, not a blanked
+    // "empty history" cell (the task has real history, just not in this displayed month).
+    expect(await screen.findByLabelText('2026-08-01, missed')).toBeTruthy();
+    expect(screen.queryByText('Your history will fill in as you log days.')).toBeNull();
+  });
+
+  it('heatmap past-cell tap opens the drill-down popover; editing the chip there persists via useLogState and re-renders the cell (REVIEW-M4.md item 3)', async () => {
+    fake.seedTask(makeTask({ id: 'task-1' as Id }));
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    // July 1 is a past, elapsed, unlogged day — resolves 'missed'.
+    await userEvent.press(screen.getByLabelText('2026-07-01, missed'));
+
+    const popover = await screen.findByTestId('s20-day-popover');
+    expect(popover).toBeTruthy();
+    // No snooze controls in the popover (PRD §3.7).
+    expect(within(popover).queryByLabelText('Snooze')).toBeNull();
+    expect(within(popover).queryByLabelText('Undo snooze')).toBeNull();
+
+    const popoverChip = within(popover).getByTestId('s20-day-popover-chip');
+    await userEvent.press(within(popoverChip).getByLabelText('Done'));
+
+    await waitFor(() => {
+      const log = fake.logsFor('task-1' as Id).find((l) => l.date === '2026-07-01');
+      expect(log?.chipState).toBe('done');
+    });
+  });
+
+  it('multi-dose card renders one full four-state StateChip per task.dosesPerDay, each independently loggable (REVIEW-M4.md item 5)', async () => {
+    fake.seedTask(makeTask({ id: 'task-1' as Id, dosesPerDay: 3 }));
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    expect(screen.getByTestId('s20-dose-chip-0')).toBeTruthy();
+    expect(screen.getByTestId('s20-dose-chip-1')).toBeTruthy();
+    expect(screen.getByTestId('s20-dose-chip-2')).toBeTruthy();
+
+    // Each dose row's own StateChip carries all four options.
+    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Done')).toBeTruthy();
+    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Fallback')).toBeTruthy();
+    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Skip')).toBeTruthy();
+
+    await userEvent.press(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Done'));
+    await waitFor(() => {
+      const log = fake.logsFor('task-1' as Id).find((l) => l.date === '2026-07-16');
+      expect(log?.dosesCompleted).toBe(3);
+    });
+  });
+
+  it('pressing the Importance tag opens the inline Radio picker (REVIEW-M4.md item 6)', async () => {
+    fake.seedTask(makeTask({ id: 'task-1' as Id, importance: 'high' }));
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    expect(screen.queryByTestId('s20-importance-picker')).toBeNull();
+    await userEvent.press(screen.getByLabelText(/^Importance, High/));
+    expect(await screen.findByTestId('s20-importance-picker')).toBeTruthy();
   });
 });

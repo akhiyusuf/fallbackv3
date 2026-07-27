@@ -3,6 +3,7 @@
  * Owner: M7. Features: F14.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S42)
  */
+import { useEffect } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { BellOff } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,6 +12,8 @@ import { useToastStore } from '@/app-shell';
 import { S42_COPY } from '@/features/settings/copy';
 import { SettingsHeader } from '@/features/settings/SettingsHeader';
 import { useSettings, useUpdateSettings } from '@/queries';
+import { initNotificationsBridge } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { SPACE, useTheme } from '@/theme';
 import { Card, EmptyState, Select, Skeleton, Switch } from '@/ui';
 import type { NotificationPrefs } from '@/types';
@@ -32,6 +35,13 @@ export default function S42NotificationsSettings() {
   const settingsQuery = useSettings();
   const updateSettings = useUpdateSettings();
   const showToast = useToastStore((s) => s.show);
+
+  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount — S42's
+  // toggles emit `settings:changed` into the bus, which needs a live subscriber to do anything.
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
 
   function handleBack() {
     router.push('/settings' as Href);

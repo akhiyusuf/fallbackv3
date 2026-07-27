@@ -3,7 +3,7 @@
  * Owner: M7. Features: F21.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S46)
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,6 +12,8 @@ import { useToastStore } from '@/app-shell';
 import { S46_COPY } from '@/features/settings/copy';
 import { SettingsHeader } from '@/features/settings/SettingsHeader';
 import { useSettings, useTasks, useUpdateSettings } from '@/queries';
+import { initNotificationsBridge } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { SPACE, useTheme } from '@/theme';
 import { Button, Card, ProgressRing, Radio, Select, Skeleton, StateChip } from '@/ui';
 import type { Id, WidgetConfig, WidgetSize } from '@/types';
@@ -32,6 +34,13 @@ export default function S46Widgets() {
   const [draftMode, setDraftMode] = useState<'fixed-task' | 'smart-next-due'>('smart-next-due');
   const [draftTaskId, setDraftTaskId] = useState<Id | null>(null);
   const [saving, setSaving] = useState<WidgetSize | null>(null);
+
+  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount — S46
+  // saves widget configs no snapshot is otherwise ever published for.
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
 
   function handleBack() {
     router.push('/settings' as Href);
