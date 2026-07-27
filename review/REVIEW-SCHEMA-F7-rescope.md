@@ -1,148 +1,137 @@
-# Review — SCHEMA.md §4.2 F7 rescope + MODULES consistency edits (pass 3)
-VERDICT: ADVISOR_REQUIRED
+# Review — SCHEMA.md §4.2 F7 rescope + MODULES consistency edits (pass 4)
+VERDICT: CHANGES_REQUIRED
 
-Pass 3, reviewing commit `7038a2d` against PRD §3.7/Decisions 21, API.md §3's
-mutation-sequence contract, SCHEMA §7's award invariants, and the pre-rescope contract
-(`7343b0e:docs/SCHEMA.md`) as the source of constructible legacy data shapes. This is the
-third consecutive failing pass, which per protocol sets ADVISOR_REQUIRED rather than
-CHANGES_REQUIRED. The reason it fails is narrow but real, and it contains a genuine policy
-fork that should get one binding ruling instead of a fourth architect guess — details in
-the blocking item and the "Why advisor" note.
-
-## Direct answer to the orchestrator's question first
-
-**I independently CONFIRM the double-count claim, and the rejection of "leave the ledger
-untouched" was justified.** Trace: under leave-untouched, the normalised occurrence
-displays its restored `ideal` at S with no award at `(τ, S)`; any subsequent mutation of
-that occurrence (chip tap, step toggle — likely, since S now visibly shows data) runs
-API.md §3 step 3, reconcile finds a showing-up outcome with no award, and mints one —
-while the stale `(τ, T)` award survives. Two awards, one completion. Confirmed against
-the mutation sequence exactly as I verified the pass-2 finding, and yes — this second
-fault was not in my pass-2 review; the architect found something I missed.
-
-**However: the chosen fix is also wrong, for the same root cause in mirror image.** The
-double-count claim — and the relocation rule built on it — are both true **only in the
-shape where the award at T belongs to the visiting occurrence** (T resolved via the old
-clause (c): the visitor was T's carrier). Neither the rejected paragraph nor the pinned
-rule is conditioned on that, and legacy data legally contains the opposite shape. The
-discriminator both texts are missing is carrier designation — and the architect's own
-cited precedent already contains it: C7's award travels home *because* "the award keys on
-D+1 **while the occurrence shows there**" (T-3). The pinned rule dropped the italicised
-condition.
+Pass 4, reviewing commit `ef4c9db` for compliance with the binding
+`review/ADVICE-SCHEMA-F7.md` (invocation 1; advisor counter reset, so this is pass 1 of
+the new cycle). Per the advisory's reviewer instructions: compliance verified against the
+advisory's own table and rulings, struck/ruled items not relitigated, and no findings
+raised on the barred topics (the under-count residual, B3/destination-clear as
+reductions, DELETE-then-INSERT, the mixed-C6 transient dip). Result: rulings 1–4 are
+implemented faithfully and survived every adversarial trace I could construct — including
+a new three-row cyclic construction for B3 that the table resolves correctly. **One
+narrow blocking item remains: the C8-b fixture row is the only shape without a pinned
+expected post-migration ledger (a gap against advisory item 4's explicit mandate), and as
+written it can be instantiated in a sub-case where it proves nothing.** Two-sentence fix.
 
 ## Blocking items
 
-1. **SCHEMA.md 267–276 (pinned award relocation) + 278–284 (rejection rationale) +
-   MODULES.md 240–249 (CR-4 M1 step 3): the unconditional
-   `UPDATE xp_award SET date = S WHERE task_id = τ AND date = T` misattributes awards in
-   legal, constructible legacy shapes — including the old contract's own required test
-   fixtures.**
-   - **Shape M (old C4 merge — own log was the carrier).** Task τ due at S and T. User
-     completed T's own occurrence (award `(τ, T)` belongs to T's OWN occurrence), then
-     moved S's occurrence onto T (old C4: "legal … its own live log winning"; visitor
-     dormant; any prior award at S already retracted by old W-4's vacated-source rule).
-     This is a legal old-contract end state — it is literally the old **C4 required-test
-     fixture**. The pinned UPDATE relocates **T's own occurrence's award** to S:
-     T is left displaying `ideal` with no award — violating §7's pinned iff ("An award
-     exists **iff** the occurrence … resolved to `ideal` or `fallback`", SCHEMA 557–559);
-     and if the dormant visitor's data is `todo`, S now holds an award against a
-     pending/missed outcome — manufactured credit, the exact C4b-class incoherence the
-     rejection paragraph invokes. Worse downstream: the next mutation at S then
-     **retracts** that award (outcome not showing-up) — the migrated award evaporates and
-     the net effect is the destruction of T's legitimately-earned award, an unsanctioned
-     lifetime-XP reduction outside §7's "ONLY sanctioned reduction" boundary (546–550)
-     and outside CR-2's mis-tap-correction scope. The paragraph's own claim "both dates
-     are left coherent, so the next mutation touching either is a no-op" (272–273) is
-     false in this shape at both dates.
-   - **Shape V (old C7 — visitor was the carrier).** T non-natural, visitor completed at
-     T, award `(τ, T)` is the visitor's. Here the pinned relocation is exactly right, and
-     leave-untouched double-counts. **The old C4 and C7 fixtures — both mandatory tests
-     of the previous contract, so both necessarily present in legacy stores — produce
-     opposite correct answers under the same unconditional rule.**
-   - **Shape C8 (legacy double-inbound).** Old C8 was legal and tested: rows at A1 and A2
-     both pointing at B, both now normalised. At most one award `(τ, B)` exists, owned by
-     old-C8's resolved carrier (live own log, else latest-source visitor). The per-row
-     UPDATE is order-dependent: processing A1 first moves the award to A1 even when the
-     carrier was A2's row or B's own log.
-   - **The conflict rule (274–276 / MODULES 245–247) can delete a legitimate award.** In
-     shape M plus an (inconsistent) stale award at S, "keep S's and delete the orphan at
-     T" deletes T's own occurrence's genuinely-earned award — a real reduction,
-     contradicting the same paragraph's "a relocation, never a reduction," and it is not
-     P4 enforcement, because the two awards belong to two different occurrences (P4 is
-     per `(task, date)`, and its inline gloss "one award per occurrence" only holds
-     per-shape).
-   - **Mechanical sub-point:** `xp_award` carries `UNIQUE (task_id, date)` (SCHEMA 536).
-     In the conflict case, running the UPDATE before the delete violates the unique index
-     and — since §9 pins migrations as single transactions that roll back fully — aborts
-     the whole migration into `STORE_CORRUPT`/S50. The delete-before-update ordering must
-     be stated.
-   **Fix shape (for the advisor to pin):** condition relocation on carrier designation
-   under the old read rules — the award at `(τ, T)` moves to S **iff** the normalised
-   S-row was T's carrier (ownLog(τ, T) absent or itself residue; among multiple cleared
-   inbound rows, the latest source, matching the old tie-break); otherwise it stays at T.
-   Guard the conflict rule to genuine same-occurrence orphans. State the ordering under
-   the UNIQUE index. And resolve the **residual policy fork** (below).
-   **Acceptance test:** migrating a legacy store containing the old C4, C7, and C8
-   fixtures leaves every date satisfying §7's award-iff invariant, lifetime XP equal to
-   the sum of genuinely-earned completions, and no award whose provenance is a different
-   occurrence's completion.
+1. **SCHEMA.md §9 fixture table, row C8-b (line ~872) — under-specified, and
+   instantiable non-probatively; advisory item 4 requires the expected post-migration
+   ledger pinned PER SHAPE, and this is the one row that lacks it.** The row's "Expected
+   after migration" cell states the rationale ("carrier is computed over **all** inbound
+   rows, KEPT included") but not the expected ledger state — every other row pins one.
+   Worse, the legacy-state cell ("`S1 → T` LONG, `S2 → T` KEPT, award at T") leaves S1's
+   date unconstrained, and the branch outcome depends on it:
+   - **S1 < T−1** (the intended sub-case): `carrier(T) = MAX(S1, T−1) = S2` (the KEPT
+     row) → **branch B2, award LEAVES at T**, S1 revives with no award. A broken
+     cleared-rows-only implementation computes carrier = S1 and mis-relocates —
+     **the fixture catches it.** This is the shape the advisory says "proves the carrier
+     lookup must span kept rows."
+   - **S1 > T** (a backward LONG pointer, legal in legacy data per the advisory's own
+     LONG definition): `MAX(S1, T−1) = S1` **whether or not KEPT rows are included** —
+     correct and broken implementations give the same answer (B1, relocate to S1), and
+     the fixture **proves nothing** about the all-inbound rule.
+   A fixture author free to pick either sub-case can build a green test over a broken
+   carrier lookup — exactly the "coincidentally correct outcome" failure mode this pass
+   was asked to screen for.
+   **Fix:** pin the row — legacy state gains `S1 < T − 1` (e.g. `S1 = T − 5`), and the
+   expected cell gains "**Branch B2.** Award **LEAVES** at T (the KEPT carrier still
+   resolves there); S1 revives with its data and **no** award." (This also completes
+   explicit branch coverage: M→A, V/C8-a→B1, C8-b→B2, mixed-C6→B3+destination-clear.)
+   **Acceptance test:** every row of the fixture table pins both the legacy-state
+   parameters that force its intended branch and the expected row-level ledger outcome,
+   so no instantiation of any row can pass against an implementation that selects the
+   wrong branch.
 
-## Why ADVISOR_REQUIRED and not a fourth architect pass
+## The requested B3 adversarial construction, and its outcome
 
-Protocol: three consecutive failing passes. Substantively: passes 2 and 3 each introduced
-a fresh defect in the same migration↔ledger territory, and the correct fix contains a
-genuine judgment call the architect should not have to guess at a fourth time:
-- **The residual fork.** In shape M, after correct (conditional) relocation, the revived
-  occurrence at S carries completed data with **no** award. Under the live system's own
-  C1/C4r semantics an undo would re-affirm via reconcile — but a migration has no
-  reconcile (the ledger is mutation-only, per this pass's own corrected claim). Either
-  the migration **mints** (requires expressing award eligibility at the DB layer — a
-  layering question, since `domain/xp` sits above M1), or the residual is **accepted and
-  stated** (next mutation at S re-affirms; until then S shows completed data with no
-  award — an under-count, tolerable for pre-release fixture data but violating the §7
-  iff until healed). Both are defensible; the choice interacts with the layering
-  boundary and with what §9's migration fixture must assert. That is an advisor-grade
-  call, and one binding ruling ends this loop.
+Beyond re-tracing the advisory's shapes, I built a **three-row cyclic construction**
+aimed at B3 and the destination-clear: task τ with `A → B` KEPT (A = B−1, visitor's
+award at B — B3/destination-clear territory), `B → C` LONG (B's award at C), and
+`C → B` LONG **backward** (legal legacy: old moves allowed past targets). This makes B a
+target group with mixed inbound `{A KEPT, C LONG}` where the LONG row is also the MAX,
+while C is simultaneously a relocation target group of its own — the shape most likely
+to double-claim or orphan an award. Outcome, traced through the table:
+- Target B: not `live(B)` (B's row carries a pointer); `carrier(B) = MAX(A, C) = C`,
+  LONG → **B1**, not B3 — correct, because under the old tie-break C's occurrence (not
+  the kept A-visitor) was B's carrier, so the award at B is C's occurrence's and travels
+  home to C. The kept A-visitor was shadowed pre-migration and coherently holds no award.
+- Target C: not `live(C)`; `carrier(C)` = B's row, LONG → **B1**, award at C relocates
+  home to B.
+- The two awards **swap**. Both are RELOC sources, so destination-clear correctly spares
+  both ("not itself scheduled to relocate"); DELETE-then-INSERT against the frozen
+  worklist makes the swap order-independent and UNIQUE-safe (a per-row UPDATE would
+  collide either direction). End state: every occurrence home, every award at its own
+  occurrence's date with preserved identity, `UNIQUE` intact, §7 award-iff satisfied at
+  both B and C. **The table resolves the construction correctly — no defect found.**
+Two further probes also held: (i) B3 with a `todo` revived own-row — the visitor's award
+is deleted although the reviving occurrence resolves pending/missed; that is exactly
+live-C9's semantics ("todo → pending, no award — no phantom"), and the visitor's award
+revives via its own undo; (ii) the orchestrator's suggested future-undo race — after
+mixed-C6 migration, undoing the kept visitor mints at A via reconcile while B's award is
+untouched, and re-snoozing B's own occurrence retracts/re-affirms per C5/C9 with correct
+final counts (two completions, two awards). No sequence lets two occurrences claim one
+award or strands one permanently.
 
 ## Non-blocking notes
 
-- **P4 is cited in both files but defined only in `review/ADVICE-M2.md` 159.** The
-  inline gloss keeps it readable, but the durable, self-contained citation is SCHEMA
-  §7's own `UNIQUE (task_id, date)` at 536 — worth switching to when the paragraph is
-  rewritten anyway.
-- The corrected factual claim itself (SCHEMA 261–265, MODULES 241–245: F5 derived and
-  self-correcting; the ledger mutation-only; no read path reconciles) is **accurate** —
-  verified against API.md 176 and 209–217. Pass 2's blocking defect is genuinely fixed;
-  what this pass adds on top of it is what fails.
+- **§7 carve-out, last paragraph: "inside the CR-2 boundary below"** — the
+  sanctioned-reduction paragraph sits **above** the carve-out (SCHEMA ~633–637 vs
+  ~649–661). Wrong direction word; fix when touching the file anyway.
+- MODULES CR-4 mirrors the table **by reference** (step 2 names §4.2's four-branch table
+  and its predicates, plus the branch-A hazard) rather than duplicating the four rows.
+  I read the advisory's "both mirror sites carry the same table" as satisfied: both
+  ordering rules, the no-unconditional-relocation rule, and the no-mint rule are
+  physically present in both files, and duplicating the table itself would create the
+  drift risk this pipeline keeps paying for. Noting the interpretation for the record.
 
 ## Verified
 
-- **Pass-2 blocking item: resolved.** The false "XP recomputes on read" claim is gone
-  from both files, replaced by the correct ledger/derived distinction with the right
-  citation.
-- **All three pass-2 non-blocking items landed correctly:** W-1u now carries the full
-  "zero writes, zero reconciles, zero events" tail, symmetric with W-1s; C7's row states
-  the fixture constraint explicitly and accurately ("D+1 must be NON-natural … a
-  naturally-due D+1 would exercise clause (a)/(b) instead, which is C4/C4b" — correct,
-  and consistent with PRD §6's pinned weekday-cadence fixture); the §9
-  `"schemaVersion": 3` is annotated as illustrative (legal in the jsonc block).
-- **Double-count trace (leave-untouched, shape V):** confirmed as described above,
-  through API.md §3's mutation sequence — the S-side mint is reachable through ordinary
-  user interaction with the visibly-restored occurrence; the rejection stands for that
-  shape.
-- **Chosen-fix trace (shape V):** conditional on the visitor having been the carrier,
-  relocation is correct and lands both dates coherent — the C7-precedent reasoning is
-  sound *when its own condition is honored*.
-- **CR-2 boundary, third touch:** the relocation itself is not a retraction and does not
-  move the boundary; the two ways this pass's rule can reduce genuinely-earned XP (the
-  conflict-rule delete in shape M; the retract-after-misattribution cascade) are both
-  consequences of the missing carrier condition, not new retraction classes — fixing the
-  condition restores the boundary untouched.
-- **Migration ordering (MODULES step 4):** normalise-and-relocate before CHECK remains
-  correct; the CHECK constraint, W-1s/W-1u, the case table (C5's inverted row, C7's new
-  constraint), and the CR-3 Current/Historical structure are all unchanged from their
-  pass-2-verified state, re-confirmed by diff.
-- **Footprint:** `7038a2d` touches exactly `docs/SCHEMA.md` and `docs/MODULES.md`;
-  API.md and ARCHITECTURE.md untouched (correct — nothing in this change affects them);
-  no PRD/REQUIREMENTS/`design-input/**`/`src/**` changes; working tree clean. The
-  dormant-undo §7 gap remains open and undisturbed in both sites.
+- **Ruling 1 — implemented verbatim.** Predicates (`LONG`/`KEPT`/`live`/`inbound` over
+  ALL rows/`carrier` = `MAX(date)`/`revived`) match the advisory exactly, all evaluated
+  pre-migration; the A/B1/B2/B3 table matches condition-for-condition, including A's
+  residue-own-row exclusion and the one-decision-per-target-group rule; destination-clear
+  present; the unconditional UPDATE and the keep-S/delete-T conflict rule are struck
+  **and recorded as struck** in a fenced "Superseded" block; the leave-untouched
+  rejection is now explicitly conditioned on shape V/branch B1 rather than stated
+  unconditionally — every item on the advisory's reviewer checklist for ruling 1.
+- **Ruling 2 — implemented.** No-mint pinned in §4.2 with the F1-second-answerer and
+  not-expressible-in-SQL reasoning; §7 carries the carve-out with the advisory's fixed
+  content (iff at mutation boundaries; migrations relocate/delete, never mint;
+  under-count never inflation); B3/destination-clear named in §7 as C9-class shadow
+  retraction inside CR-2 — not a new reduction class.
+- **Ruling 3 — implemented, and the ordering is sufficient, not merely sequenced.** The
+  six steps appear in both files; both load-bearing rules stated in both. Sufficiency
+  check: every predicate reads `moved_to_date` (untouched until step 5) or the
+  pre-migration award positions (frozen into the step-1 worklist before steps 3–4 mutate
+  the ledger); deletions in step 3 only remove rows, so no new destination conflicts can
+  appear after the worklist freeze; every pre-existing award at any INSERT destination is
+  provably deleted first (either a RELOC source or destination-cleared into KILL);
+  distinct target groups cannot share a destination (one row, one pointer — the
+  advisory's collision argument, re-derived); steps 5 and 6 depend on nothing steps 3–4
+  changed. CR-4 names its own prior step-order defect explicitly, as ruling 3 requires.
+- **Ruling 4 — implemented.** The standing principle is present with teeth ("presumptively
+  a blocking defect … a raw date-keyed WHERE … is a blocking code-review finding"), all
+  four historical instances spelled out concretely, and all five watch sites listed.
+- **Identity preservation (orchestrator task 3):** preserved fields match the advisory
+  (`id`,`kind`,`amount`,`cycle_id`,`created_at`). Swept every `xp_award` reference in
+  docs: nothing keys on award `id` (no FK references it — §10's ER shows only
+  `task 0──n xp_award`; achievements, cycle records and F19 backup reference rows/totals,
+  not ids), so delete+reinsert of the same UUID PK inside one transaction collides with
+  nothing; keeping `cycle_id` unrewritten is consistent with the finalized-cycle-records
+  note and keeps a relocated old-cycle award out of the current Cycling XP sum. The
+  fixture's same-`id`/`cycle_id` assertions are what distinguish relocation from a
+  covert re-mint — correctly probative.
+- **Fixtures (orchestrator task 4):** M distinguishes branch A from the unconditional
+  UPDATE; V distinguishes B1 from leave-untouched and pins identity; C8-a pins the
+  per-target `MAX` against per-row order dependence; mixed C6 pins B3 +
+  destination-clear + homecoming identity and pre-declares the transient dip. All
+  probative — except C8-b as written (blocking item 1). Scope-of-repair note
+  (pointer-caused incoherence only) matches the advisory.
+- **Pass-3 non-blocking note applied:** `P4` no longer cited anywhere in either doc; the
+  destination-clear paragraph cites §7's `UNIQUE (task_id, date)` instead.
+- **Footprint:** `ef4c9db` touches exactly `docs/SCHEMA.md` and `docs/MODULES.md`;
+  API.md/ARCHITECTURE.md untouched (correct — the advisory mandated no change there);
+  no PRD/REQUIREMENTS/`design-input/**`/`src/**` changes; working tree clean. W-1s/W-1u,
+  the runtime case table, the CR-3 Current/Historical structure, and the dormant-undo §7
+  open gap all unchanged from their previously-verified state.
