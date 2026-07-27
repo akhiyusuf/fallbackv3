@@ -172,3 +172,47 @@ still derives via `levelFor`). Verified as claimed.
 - **`expo-router/testing-library`:** `require.resolve` succeeds → the mock-free param-injection path exists (item 6).
 - **Copy sweep:** S25/S26/S27/S29/S30 strings line-checked against ALLSCREENS Copy sections — verbatim except the items in
   blocking 4, 5 and 7.
+
+## Response (rework pass)
+
+All 8 blocking items fixed. `npx jest app/progress app/achievements app/records` → 6 suites / 59 tests, all pass.
+
+1. **Fixed.** `app/progress/index.tsx`: aggregate scope's `ConsistencyBreakdownBar` `total` is now
+   `ideal + fallback + missed + off` (the rounded-category sum), matching S29/S30; per-task scope is unchanged
+   (`denominator + off`, still correct there). Replaced the label-existence-only test with one that renders the
+   design's own aggregate|7 fixture (Ideal 6/Fallback 1/Off 0/Missed 1, denom 7) and reads the actual rendered
+   segment widths off the tree, asserting their sum is strictly below 100%.
+2. **Fixed.** Added a `scope === 'per-task' && trackableTasks.length === 0` branch, checked before `isError`, that
+   renders the same `EmptyState` used for the null-percent case. Test: `useTasks` returns `[]` with
+   `consistencyQuery.isError = true` (the doomed underlying query) — "No data yet" renders, the error copy does not.
+3. **Fixed.** `app/progress/trend.tsx` now drops any bucket whose natural calendar end (`endOfWeek`/`endOfMonth`/
+   `<year>-12-31`) is still in the future relative to `@/lib/date`'s `today()`, before building `graphPoints` and
+   before the empty-state check. Froze `today()` in the test (a `@/lib/date` partial mock, not `expo-router`) for
+   determinism, and added a test asserting the partial July bucket never appears in the plotted points, the SR
+   summary, or the table.
+4. **Fixed.** Dropped the `useConsistencyDisclosure()` call entirely (flagged as possibly-dead surface for M2 in a
+   code comment) and render the pinned 3-row fixture + total line verbatim from `S25_COPY.disclosureFixtureRows`/
+   `disclosureFixtureTotal`. Test asserts all four pinned strings render and that no `YYYY-MM-DD`-shaped string
+   appears anywhere in the disclosure tree.
+5. **Fixed.** `copy.ts`'s `S28_COPY.tenureBodyPinned` renders only for `tenure-1-year` (via a new `tenureBodyFor`
+   helper); every other tier gets a generic, tone-matched `tenureBodyGeneric` that never restates a specific
+   duration. `levelUpBody` and `forwardLine` are now non-pinned/generic for every level-up, since this screen's
+   route contract never hands it a completed-occurrence count to verify "100 tasks done" against. Tests assert
+   `tenure-1-week` never shows "A full year," and a level-2 level-up never shows "100 tasks done."
+6. **Fixed.** Removed both `jest.mock('expo-router', …)` calls. Added
+   `src/features/progress/testSupport/routerHarness.tsx` (mirroring M4's own pattern) and rewrote both test files
+   to use `expo-router/testing-library`'s `renderRouter` against it — real params, real navigation assertions via
+   marker screens, zero `expo-router` mocking.
+7. **Fixed.** (a) `app/achievements/index.tsx`'s reset subline now formats `'EEE, MMM d'` under weekly cadence
+   (`'MMM d'` otherwise); test asserts "Resets on Sun, Jul 19" for a fixed weekly cycle window. (b)
+   `app/progress/index.tsx` appends `S25_COPY.truncatedWindowNote(7|30)` to the per-task subcopy whenever
+   `result.denominator < 7|30` under the corresponding fixed window; test asserts the exact verbatim string for a
+   truncated 30-day window.
+8. **Fixed (interim guard, as scoped).** Added a parity `describe` block in `app/achievements/index.test.tsx`
+   (`it.each` over every `TENURE_OFFSETS` key) that calls `reconcileAchievements` through its public surface with a
+   Jan-31 (month-end) anchor, asserting each key unlocks exactly on `tenureUnlockDate(key, anchor)` and not the day
+   before. No production code changed — parity holds today, as the review predicted. Left the promotion CR
+   (dedup the two tables at the source) for the architect, per the review's own framing.
+
+No pushback — all 8 items accepted as scoped. Did not touch anything under "Non-blocking notes" per the rework
+brief.
