@@ -2,6 +2,15 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
+// Review pass 1, blocking item 3's fix compares each bucket's natural calendar end against
+// "today" — freeze `@/lib/date`'s device-local clock (not `expo-router`, so MODULES.md's
+// wave-2 rule doesn't apply) so a partial trailing bucket's completeness is deterministic
+// regardless of when this suite actually runs.
+jest.mock('@/lib/date', () => {
+  const actual = jest.requireActual('@/lib/date');
+  return { ...actual, today: () => '2026-07-16' };
+});
+
 const mockTrend: { current: unknown; isLoading: boolean; isError: boolean } = { current: undefined, isLoading: false, isError: false };
 const mockRefetch = jest.fn();
 
@@ -11,10 +20,14 @@ jest.mock('@/queries', () => ({
 
 import S26AllTimeTrendGraph from './trend';
 
+// "Today" is frozen to 2026-07-16 above — the June bucket has fully elapsed; the partial July
+// bucket (`to` clamped short of `endOfMonth('2026-07-01')` = '2026-07-31') has not.
 function monthlyPoints() {
   return [
     { bucketKey: '2026-05-01', label: '2026-05-01', range: { from: '2026-05-01', to: '2026-05-31' }, percent: 80, breakdown: { ideal: 20, fallback: 4, off: 2, missed: 5 } },
     { bucketKey: '2026-06-01', label: '2026-06-01', range: { from: '2026-06-01', to: '2026-06-30' }, percent: null, breakdown: { ideal: 0, fallback: 0, off: 0, missed: 0 } },
+    // A partial, still-in-progress July bucket (clamped `to` short of `endOfMonth('2026-07-01')`
+    // = '2026-07-31') — review pass 1, blocking item 3: this must never plot.
     { bucketKey: '2026-07-01', label: '2026-07-01', range: { from: '2026-07-01', to: '2026-07-15' }, percent: 90, breakdown: { ideal: 12, fallback: 1, off: 1, missed: 1 } },
   ];
 }
@@ -33,6 +46,18 @@ describe('S26 — All-time Trend Graph', () => {
     // TrendGraph's screen-reader-only summary text mentions "no data" for the null bucket, a
     // break in the line rather than a fabricated 0% — present without touching the toggle.
     expect(screen.getByText(/no data/i)).toBeTruthy();
+  });
+
+  it('drops the in-progress trailing bucket — it never plots, and never appears in the SR summary or the table', async () => {
+    mockTrend.current = monthlyPoints();
+    const user = userEvent.setup();
+    await render(<S26AllTimeTrendGraph />);
+    expect(screen.queryByText(/Jul 2026/)).toBeNull();
+
+    await user.press(screen.getByText('View as table'));
+    expect(screen.queryByText('Jul 2026')).toBeNull();
+    expect(screen.getByText('Jun 2026')).toBeTruthy();
+    expect(screen.getByText('May 2026')).toBeTruthy();
   });
 
   it('carries a real "View as table" alternative — a chart is never the only representation', async () => {

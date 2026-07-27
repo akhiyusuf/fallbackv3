@@ -11,10 +11,10 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { diffDays } from '@/lib/date';
+import { diffDays, endOfMonth, endOfWeek, isAfter, today as todayLocal } from '@/lib/date';
 import { ROUTES } from '@/navigation';
 import { useTrend } from '@/queries';
-import type { DateRange, TrendGranularity } from '@/types';
+import type { DateRange, LocalDate, TrendGranularity } from '@/types';
 import { SPACE, useTheme } from '@/theme';
 import { EmptyState, InlineRetryBanner, Skeleton, Tag, TrendGraph } from '@/ui';
 import { TrendingUp } from 'lucide-react-native';
@@ -51,13 +51,28 @@ function humanLabel(range: DateRange, granularity: TrendGranularity): string {
   return formatDate(range.from, 'yyyy');
 }
 
+/**
+ * Review pass 1, blocking item 3: "only completed buckets plot" (MODULES.md M5 non-negotiable).
+ * `useTrend`'s trailing bucket is clamped to today (`src/queries/reads.ts`'s `bucketRanges`),
+ * so its `%` is still a moving target until its own calendar period actually ends. This is
+ * display-side filtering only — never a recomputation of the bucket's consistency math.
+ */
+function bucketHasElapsed(range: DateRange, granularity: TrendGranularity): boolean {
+  const naturalEnd: LocalDate =
+    granularity === 'weekly' ? endOfWeek(range.from) : granularity === 'monthly' ? endOfMonth(range.from) : (`${range.from.slice(0, 4)}-12-31` as LocalDate);
+  return !isAfter(naturalEnd, todayLocal());
+}
+
 export default function S26AllTimeTrendGraph() {
   const t = useTheme();
   const router = useRouter();
   const trendQuery = useTrend();
 
-  const points = trendQuery.data ?? [];
-  const granularity = points[0] ? granularityOf(points[0].range) : null;
+  const rawPoints = trendQuery.data ?? [];
+  const granularity = rawPoints[0] ? granularityOf(rawPoints[0].range) : null;
+  // Drop a trailing bucket whose own calendar period hasn't finished yet — it never plots here,
+  // it "reappears here only once it finalizes" (ALLSCREENS 2164-2168).
+  const points = granularity ? rawPoints.filter((p) => bucketHasElapsed(p.range, granularity)) : rawPoints;
 
   const graphPoints = points.map((p) => ({
     bucketKey: p.bucketKey,

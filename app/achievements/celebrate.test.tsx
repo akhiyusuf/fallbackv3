@@ -4,7 +4,8 @@
  * `expo-router/testing-library`'s `renderRouter` against `M5_ROUTER_CONTEXT` instead (review
  * pass 1, blocking item 6).
  */
-import { renderRouter, screen, userEvent } from 'expo-router/testing-library';
+import { renderRouter, screen } from 'expo-router/testing-library';
+import { userEvent } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 
 import { M5_ROUTER_CONTEXT } from '@/features/progress/testSupport/routerHarness';
@@ -25,7 +26,7 @@ describe('S28 — Level-Up Celebration', () => {
   });
 
   it("renders the level title from levelFor(xp).title — never a hardcoded string — Level 8 / Dependable", async () => {
-    renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=3900' });
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=3900' });
     // 3900 lifetime XP crosses into level 8 (xpForLevel(l) = 100 + 150*(l-1), summed): the
     // DESIGN-PINNED level-8 title "Dependable" must appear, sourced only from `levelFor`,
     // never a literal here.
@@ -34,26 +35,32 @@ describe('S28 — Level-Up Celebration', () => {
   });
 
   it('the tenure-milestone variant never shows a "New title" subhead (a level concept, not tenure)', async () => {
-    renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=tenure&badgeKey=tenure-1-year' });
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=tenure&badgeKey=tenure-1-year' });
     expect(await screen.findByText("You've reached 1 Year.")).toBeTruthy();
     expect(screen.queryByText(/New title:/)).toBeNull();
   });
 
   it('only the 1-year tenure tier renders the pinned "A full year" body — every other tier gets non-pinned, tone-matched copy', async () => {
-    renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=tenure&badgeKey=tenure-1-week' });
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=tenure&badgeKey=tenure-1-week' });
     expect(await screen.findByText("You've reached 1 Week.")).toBeTruthy();
     expect(screen.queryByText(/A full year/)).toBeNull();
   });
 
+  it('never fabricates the pinned "100 tasks done" claim for a level-up it cannot witness that fact for', async () => {
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=150' });
+    expect(await screen.findByText("You're now Level 2.")).toBeTruthy();
+    expect(screen.queryByText(/100 tasks done/)).toBeNull();
+  });
+
   it('never renders the banned word "streak", not even in negation', async () => {
-    renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=150' });
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=150' });
     await screen.findByText("You're now Level 2.");
     const tree = JSON.stringify(screen.toJSON());
     expect(tree.toLowerCase()).not.toContain('streak');
   });
 
   it('dismissing replaces to S27 (Achievements)', async () => {
-    renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=150' });
+    await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/achievements/celebrate?kind=level-up&xp=150' });
     await screen.findByText("You're now Level 2.");
     const user = userEvent.setup();
     await user.press(screen.getByText('Nice!'));

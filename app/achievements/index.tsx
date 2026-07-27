@@ -116,7 +116,7 @@ export default function S27Achievements() {
             valueLabel={`${progress.cyclingXp} XP`}
             current={progress.cyclingXp}
             max={null}
-            subline={`${S27_COPY.resetsOnPrefix} ${formatDate(progress.currentCycle.endDate, 'MMM d')}`}
+            subline={`${S27_COPY.resetsOnPrefix} ${formatDate(progress.currentCycle.endDate, progress.cycleCadence === 'weekly' ? 'EEE, MMM d' : 'MMM d')}`}
           />
           <Select
             label={S27_COPY.resetCadenceLabel}

@@ -31,6 +31,19 @@ const WINDOW_ITEMS = [
   { value: 'all-time', label: S25_COPY.windowTabs.allTime },
 ];
 
+/**
+ * Review pass 1, blocking item 7(b): the fixed `last-7`/`last-30` windows truncate when a
+ * task's whole history so far is shorter than the preset — the counted-day walk
+ * (`src/domain/consistency.ts`'s `perTaskConsistency`) only stops early when history runs out,
+ * so `denominator < cap` is exactly, and only, that truncation. Returns the preset's day count
+ * when truncated, else `null`.
+ */
+function truncatedWindowDays(window: ConsistencyWindow, denominator: number): number | null {
+  if (window === 'last-7' && denominator < 7) return 7;
+  if (window === 'last-30' && denominator < 30) return 30;
+  return null;
+}
+
 export default function S25ConsistencyDashboard() {
   const t = useTheme();
   const router = useRouter();
@@ -92,6 +105,11 @@ export default function S25ConsistencyDashboard() {
             <Skeleton height={16} width="80%" />
             <Skeleton height={16} />
           </View>
+        ) : scope === 'per-task' && trackableTasks.length === 0 ? (
+          // Review pass 1, blocking item 2: checked BEFORE `isError` — with zero trackable
+          // tasks the per-task query has no taskId to run with and would only ever error, which
+          // is the wrong read for a brand-new user (ALLSCREENS' own "brand-new user" trigger).
+          <EmptyState icon={CalendarSearch} headline={S25_COPY.emptyHeadline} subcopy={S25_COPY.emptySubcopy} />
         ) : consistencyQuery.isError ? (
           <InlineRetryBanner message={S25_COPY.errorMessage} onRetry={() => consistencyQuery.refetch()} tone="warning" />
         ) : result && result.percent === null ? (
@@ -103,7 +121,14 @@ export default function S25ConsistencyDashboard() {
             </Text>
             <Text style={[styles.subcopy, { color: t.color.textMuted }]}>
               {scope === 'per-task'
-                ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator)
+                ? [
+                    S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator),
+                    truncatedWindowDays(window, result.denominator) !== null
+                      ? S25_COPY.truncatedWindowNote(truncatedWindowDays(window, result.denominator) as number)
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')
                 : S25_COPY.aggregateSubcopy(result.numerator, result.denominator)}
             </Text>
             <Text style={[styles.offNote, { color: t.color.textDim }]}>
@@ -112,7 +137,16 @@ export default function S25ConsistencyDashboard() {
 
             <ConsistencyBreakdownBar
               breakdown={result.breakdown}
-              total={result.denominator + result.breakdown.off}
+              total={
+                scope === 'aggregate'
+                  ? // Aggregate scope's `denominator` is a raw counted-day count, but Ideal/Fallback
+                    // are independently ROUNDED credit sums (not whole days), so
+                    // `denominator + off` does not reconcile against the bar's segments here — it
+                    // can render fully filled even with Missed > 0 (review pass 1, blocking item 1).
+                    // The rounded-category sum is the correct total, matching S29/S30.
+                    result.breakdown.ideal + result.breakdown.fallback + result.breakdown.missed + result.breakdown.off
+                  : result.denominator + result.breakdown.off
+              }
               unitCaption={scope === 'aggregate' ? S25_COPY.aggregateUnitCaption : undefined}
               accessibilityLabel={`Consistency breakdown: ${result.percent} percent, ideal ${result.breakdown.ideal}, fallback ${result.breakdown.fallback}, off ${result.breakdown.off}, missed ${result.breakdown.missed}`}
             />
@@ -133,19 +167,12 @@ export default function S25ConsistencyDashboard() {
                     </Text>
                   ))}
                 </View>
-                {(disclosureQuery.data ?? []).map((row) => (
-                  <View
-                    key={row.date}
-                    style={styles.disclosureRow}
-                    accessible
-                    accessibilityLabel={`${row.date}: ${row.shownUpTaskIds.length} of ${row.resolvedTaskIds.length} shown up, ${row.fraction.toFixed(2)}`}
-                  >
-                    <Text style={[styles.disclosureCell, { color: t.color.text }]}>{row.date}</Text>
-                    <Text style={[styles.disclosureCell, { color: t.color.text }]}>{row.resolvedTaskIds.length}</Text>
-                    <Text style={[styles.disclosureCell, { color: t.color.text }]}>{row.shownUpTaskIds.length}</Text>
-                    <Text style={[styles.disclosureCell, { color: t.color.text }]}>{row.fraction.toFixed(2)}</Text>
-                  </View>
+                {S25_COPY.disclosureFixtureRows.map((row) => (
+                  <Text key={row} style={[styles.disclosureCell, { color: t.color.text }]}>
+                    {row}
+                  </Text>
                 ))}
+                <Text style={[styles.disclosureTotal, { color: t.color.text }]}>{S25_COPY.disclosureFixtureTotal}</Text>
               </View>
             ) : null}
           </Card>
@@ -170,4 +197,5 @@ const styles = StyleSheet.create({
   disclosureRow: { flexDirection: 'row', gap: SPACE.s2 },
   disclosureHeadCell: { flex: 1, fontSize: 12, fontWeight: '700' },
   disclosureCell: { flex: 1, fontSize: 13 },
+  disclosureTotal: { fontSize: 13, fontWeight: '700' },
 });
