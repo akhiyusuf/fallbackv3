@@ -227,11 +227,24 @@ category and the only thing that lowers the %.
 
 ### 4.2 `moved_to_date` semantics (F7 move / snooze) — PINNED
 
-> **Provenance.** This section mirrors Ruling 1 of `review/ADVICE-M2.md` **verbatim**. That
-> ADVICE is binding on M2 and its reviewer; this is the same contract made findable for
+> **Provenance.** `review/ADVICE-M2.md` now has **two parts**: the original advisory
+> (Ruling 1) and **Supplement A**, appended after it. The supplement is append-only and
+> **wins wherever it amends the original**. This section mirrors both **verbatim**, already
+> merged, so you do not have to apply the amendments yourself:
+>
+> - **R-1's `effectiveLog` formula** is Supplement A's three-clause version (S1). The
+>   due-ness clause and the residue principle are the original's, unchanged.
+> - **C4b** is new (S1). **C8's data clause** is Supplement A's rewording (S1).
+> - Everything else — the definitions, R-2/R-3, every W-rule, the other case rows, the
+>   D-rule and the boundary notes — is the original, unchanged.
+> - Supplement A's **S2, S3 and S4 are harness rulings under Ruling 2** and deliberately do
+>   **not** appear here; they bind M2 and the reviewer, not this schema.
+>
+> The ADVICE is binding on M2 and its reviewer; this is the same contract made findable for
 > everyone downstream — chiefly **M4**, which builds the snooze/move UI (S20), and the
-> qa-tester. If this section and the ADVICE ever disagree, the ADVICE wins and the
-> discrepancy is an architect bug — raise it, do not pick one.
+> qa-tester. If this section and the ADVICE ever disagree, **the ADVICE wins** (and
+> Supplement A wins within it) — the discrepancy is an architect bug, so raise it rather
+> than picking one.
 >
 > **No schema change.** `day_log.moved_to_date` keeps its exact shape (§4). Only its
 > semantics are pinned. PRD §3.7's "move/snooze affects the occurrence, not the cadence" is
@@ -252,9 +265,15 @@ category and the only thing that lowers the %.
 ```
 R-1  if a moved-in record exists for D (inbound non-empty):
        D IS due — regardless of natural(D); off-marks still resolve `off` as today.
-       effectiveLog := ownLog(D) if it exists AND pointer(D) is null   (a real user
-                        action on D wins — pass-2 N1's rule, unchanged)
-                     else the moved-in record (existing tie-break).
+     effectiveLog :=
+       a. ownLog(D), if it exists and pointer(D) is null        [a real state at D
+          always wins — pass-2 N1's rule, unchanged]
+       b. else null, if natural(D) and ownLog(D) is absent      [D's own occurrence
+          is present and never logged: the merge keeps D's blank state — auto chip,
+          pending/missed by date; the visitor's data stays dormant at its source]
+       c. else the moved-in record (existing latest-source tie-break)   [the visitor
+          is the only occurrence present: a non-natural date, or C6's
+          natural-but-vacated date]
        A vacated own log (pointer non-null) NEVER annihilates a moved-in occurrence
        and NEVER supplies its data — it is residue (see C6).
 R-2  else if pointer(D) is non-null: not-due (vacated). Unchanged.
@@ -315,10 +334,11 @@ public surface (hooks + reads), not through internals:**
 | C3 | A→B, then B→C | exactly one pointer, `ownLog(A) → C`; due at C only; C→A afterwards restores A per C1. Guard: \|A − C\| ≤ 60 |
 | C4 | A→B where B is naturally due (merge) | legal; A vacated (leaves the denominator); B unchanged — one occurrence, its own live log winning |
 | C4r | …then B→A (un-merge) | inbound branch: clears `ownLog(A)` only; A due again with prior data; B's natural occurrence untouched — exact restore |
+| C4b | A→B where B is naturally due and NEVER logged | B still resolves by its own blank state (auto chip; pending today, missed past); the visitor's chip/step data contributes nothing at B, and — assert this explicitly with a completed visitor — NO XP award materialises at B; B→A afterwards restores A with its data and re-affirms its award per C1/C4r mechanics |
 | C5 | A→B merged, then B→C | the VISITING occurrence moves: `ownLog(A) → C`; B's natural occurrence remains due at B. (To move B's own occurrence, move the visitor away first — deliberate, last-in-first-out) |
 | C6 | task due A and B; B→C, then A→B | A's occurrence is DUE at B via its moved-in record (R-1) — B's residue outbound pointer does not annihilate it; B's own occurrence stays at C. **This is the case the pass-3 prescription does not fix** |
 | C7 | A→B, complete at B, then B→A | A restored per C1; B resolves not-due and its award is retracted by reconcile; `ownLog(B)`'s chip data remains as dormant residue (D-rule) |
-| C8 | A1→B and A2→B (double inbound) | both sources vacated; one occurrence at B; data = live `ownLog(B)` if any, else latest-source moved-in (existing tie-break) |
+| C8 | A1→B and A2→B (double inbound) | both sources vacated; one occurrence at B; data = live `ownLog(B)` if any; else, if B's own natural occurrence is present, B's blank state; else latest-source moved-in. |
 
 **D-rule (dormant data, pinned so it is not relitigated):** a `day_log` row's chip/step
 data is per-date state. It is inert while no occurrence resolves at that date and

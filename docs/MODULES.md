@@ -140,7 +140,7 @@ scripture.**
   the round-half-up algorithm and its locked assertions (ARCHITECTURE §6.5), the
   consistency algorithm (§6), the chip→outcome mapping (§6.1), the counted-day window
   (§6.4), the delete-cascade split (SCHEMA §2.3), the **F7 move/snooze semantics
-  (SCHEMA §4.2, R-rules / W-rules / C1–C8)**, the design-pinned level titles and badge
+  (SCHEMA §4.2, R-rules / W-rules / C1–C8 incl. C4b)**, the design-pinned level titles and badge
   labels (SCHEMA §7) — or anything in a **frozen** or **unowned** path.
 - The distinction: `roundHalfUp` returning the wrong value for 12.5 would be a defect worth
   fixing; changing it to banker's rounding would be re-opening a pin. The eight locked
@@ -232,8 +232,29 @@ dates. M2 was implementing against review prose because there was no contract to
 against. That gap is mine, and `SCHEMA.md` §4.2 closes it.
 
 **No schema change.** `day_log.moved_to_date` keeps its exact shape; only its semantics are
-pinned. §4.2 mirrors Ruling 1 of `review/ADVICE-M2.md` **verbatim** — R-rules, W-rules, the
-C1–C8 case table, the D-rule and the boundary notes.
+pinned. §4.2 mirrors `review/ADVICE-M2.md` **verbatim** — R-rules, W-rules, the case table,
+the D-rule and the boundary notes.
+
+**Updated for Supplement A (2026-07-27).** The ADVICE now has two parts, and §4.2 mirrors
+both, already merged. M2 flagged a genuine ambiguity in R-1's `effectiveLog` rather than
+guessing, and the advisor rejected the literal reading: under it, moving a **completed**
+occurrence onto an unlogged natural due date — possibly today or a future date — made that
+date resolve `ideal` off the imported chip and minted **XP for a day the user never
+touched**. In a product whose whole premise is never manufacturing credit the user did not
+earn, that was the deciding fact. The amendment:
+
+- **R-1's `effectiveLog` is now three clauses** — (a) a live own log wins *(unchanged)*;
+  (b) **new** — a naturally-due date with **no row** resolves to `null`, so a merge keeps the
+  target's blank state and the visitor's data lies dormant at its source per the D-rule,
+  reviving on un-move; (c) otherwise the moved-in record *(unchanged — this is what C6
+  relies on, and C6 is unchanged)*.
+- **C4b** is a new required case: merge onto a naturally-due, never-logged date, asserted
+  **with a completed visitor** so that **no XP award materialises at the target**.
+- **C8's data clause** is reworded for the same reason.
+
+Supplement A's **S2, S3 and S4 are harness rulings under Ruling 2** and are deliberately
+**not** in §4.2 — they bind M2 and the reviewer, not the schema. Where the ADVICE and §4.2
+ever disagree the ADVICE wins, and Supplement A wins within it.
 
 The contract has **two halves and both are required**:
 - **Read precedence** — a moved-in record confers due-ness **before** the vacate check
