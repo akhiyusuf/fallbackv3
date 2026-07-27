@@ -48,6 +48,10 @@ jest.mock('@/db', () => ({
 /** Flushes every pending microtask (safe for the multi-await chains inside `reschedule()`). */
 const flushAsync = () => new Promise<void>((resolve) => setImmediate(() => resolve()));
 
+/** A creation date safely before any date these tests treat as "yesterday" — keeps the
+ *  gentle-reentry `notBefore` bound from excluding fixtures that predate this pass. */
+const LONG_AGO_CREATED_AT = addDays(today(), -30);
+
 const BASE_PREFS = {
   master: true,
   routineDue: true,
@@ -120,6 +124,7 @@ describe('notifications service', () => {
         idealSteps: [],
         fallbackSteps: [],
         dosesPerDay: 1,
+        createdAt: LONG_AGO_CREATED_AT,
       },
     ]);
     const { notifications } = require('./index') as typeof import('./index');
@@ -139,7 +144,7 @@ describe('notifications service', () => {
 
   it('reschedule fires a single gentle-reentry notification when a due, tracked task was missed yesterday', async () => {
     mockTasksList.mockResolvedValue([
-      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: LONG_AGO_CREATED_AT },
     ]);
     const { notifications } = require('./index') as typeof import('./index');
     await notifications.reschedule();
@@ -148,10 +153,19 @@ describe('notifications service', () => {
     expect(reentryCall[0].content.data.taskId).toBe('t1');
   });
 
+  it('reschedule sends NO gentle-reentry notification for a task created TODAY, even though it has no log for yesterday (review pass 2, blocking item 1 — the fabricated pre-existence "missed" day)', async () => {
+    mockTasksList.mockResolvedValue([
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: `${today()}T12:00:00.000Z` },
+    ]);
+    const { notifications } = require('./index') as typeof import('./index');
+    await notifications.reschedule();
+    expect(mockSchedule.mock.calls.some((c) => c[0].content.data?.kind === 'gentle-reentry')).toBe(false);
+  });
+
   it('reschedule sends no gentle-reentry notification when the preference is off', async () => {
     mockSettingsGet.mockResolvedValue({ notifications: { ...BASE_PREFS, gentleReentry: false } });
     mockTasksList.mockResolvedValue([
-      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: LONG_AGO_CREATED_AT },
     ]);
     const { notifications } = require('./index') as typeof import('./index');
     await notifications.reschedule();
@@ -203,7 +217,7 @@ describe('notifications service', () => {
     const dispose = initNotificationsBridge();
     mockSchedule.mockClear();
     mockTasksList.mockResolvedValue([
-      { id: 'r1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+      { id: 'r1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: LONG_AGO_CREATED_AT },
     ]);
 
     emit({ type: 'store:ready' });
@@ -217,7 +231,7 @@ describe('notifications service', () => {
     const yesterday = addDays(today(), -1);
     const dayBeforeYesterday = addDays(yesterday, -1);
     mockTasksList.mockResolvedValue([
-      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'weekly', days: [] }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'weekly', days: [] }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: LONG_AGO_CREATED_AT },
     ]);
     // t1 is NOT naturally due yesterday (weekly, no days) — but its own row at
     // `dayBeforeYesterday` was snoozed forward INTO yesterday (`movedToDate === yesterday`),
@@ -235,7 +249,7 @@ describe('notifications service', () => {
   it('no routine-due reminder fires on a date the user snoozed AWAY, even though cadence still says it is due (review pass 1, blocking item 3)', async () => {
     const vacatedDate = today();
     mockTasksList.mockResolvedValue([
-      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1, createdAt: LONG_AGO_CREATED_AT },
     ]);
     // t1's own row at today is vacated (moved forward) — cadence still says today is due, but
     // the occurrence itself was relocated, so no "routine due" reminder should fire for today.

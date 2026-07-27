@@ -412,3 +412,28 @@ users. One precise item; everything else is clean.
   `cadenceDue`'s unanchored daily branch and `mapChipToOutcome`'s ended-day rule.
 - **Spec checks:** re-read ALLSCREENS_1.md S06 (lines ~195-230) and S49 (lines ~4270-4295)
   against the shipped screens; S08's line 300 string grep-matched exactly.
+
+## Response
+
+Fixed. `scheduleGentleReentry` (`src/services/notifications/index.ts:150-159`) now computes
+`notBefore = toLocalDate(new Date(task.createdAt))` per task, exactly matching
+`src/queries/internal.ts`'s `creationLocalDate` conversion, and passes it into the
+`resolveOccurrence` call alongside `log`/`offMarks`/`movedInLog`. Per the review's note that
+"passing it in the widget path too is behaviorally a no-op for `date = today`" — left out of
+this pass since it is explicitly a no-op and the instruction for this fix was narrowly scoped
+to `scheduleGentleReentry`; flagging here in case a future pass wants the calling-convention
+consistency anyway.
+
+Added `src/services/notifications/index.test.ts`: "reschedule sends NO gentle-reentry
+notification for a task created TODAY" — a daily routine with `createdAt` = today (device-local,
+mid-day), no logs, asserts no `gentle-reentry` schedule call fires. Also updated every existing
+task fixture that flows through `scheduleGentleReentry` (both the missed-yesterday and
+snoozed-in-visitor cases) to carry a `createdAt` from 30 days ago, per the review's own
+acceptance note ("existing missed-yesterday tests... must gain a `createdAt` of
+yesterday-or-earlier") — without this, the new `notBefore` bound would have silently made those
+fixtures start returning `false` from `isDue` and broken the very re-entry firing they test.
+
+Ran `npx jest src/services/notifications` → 2 suites / 24 tests, all green (up from 22 — one
+new test). `npx tsc --noEmit` → exit 0. `git diff --stat` confirms only
+`src/services/notifications/index.ts` (already captured by an interim WIP safety commit) and
+`src/services/notifications/index.test.ts` were touched — no other M7 path.
