@@ -72,6 +72,7 @@ Routine**, never a fifth type (PRD §3.2, Decisions item 17).
 | `end_date` | LocalDate NULL | Course — **required** for a Course |
 | `doses_per_day` | INTEGER NOT NULL DEFAULT 1 CHECK(>=1) | F12 |
 | `is_tracked` | INTEGER 0/1 | carries ideal+fallback and logs via F3 |
+| `snoozable` | INTEGER 0/1 NOT NULL DEFAULT 1 | **F7.** May this task's occurrences be snoozed one day forward? Set at create time (**default on**), editable post-creation from S20. When 0 the snooze slot renders **disabled, not hidden**. Turning it off does **not** retract an existing snooze (§4.2) |
 | `importance` | TEXT NULL CHECK IN ('high','med','low') | fixed vocabulary; **no free-form tags** |
 | `necessity` | TEXT NULL CHECK IN ('must-do','recommended','optional') | fixed vocabulary |
 | `todo_done_at` | Instant NULL | F11 To-do binary completion. Never XP-eligible |
@@ -225,184 +226,179 @@ To do / no row → pending while the date is today; missed once the day has ende
 F5 breakdown (ideal/fallback/off only) — but missed days are the load-bearing denominator
 category and the only thing that lowers the %.
 
-### 4.2 `moved_to_date` semantics (F7 move / snooze) — PINNED
+### 4.2 `moved_to_date` semantics (F7 one-hop snooze) — PINNED
 
-> **Provenance.** `review/ADVICE-M2.md` now has **three parts**: the original advisory
-> (Ruling 1), **Supplement A**, and **Supplement B**. Each is append-only and **wins
-> wherever it amends what came before**. This section mirrors all three **verbatim**,
-> already merged, so you do not have to apply the amendments yourself:
->
-> - **R-1's `effectiveLog` formula** is Supplement A's three-clause version (S1). The
->   due-ness clause and the residue principle are the original's, unchanged.
-> - **C4b** is new (S1). **C8's data clause** is Supplement A's rewording (S1).
-> - **The T-rules (write-side carrier selection), the D-rule's second sentence, and rows
->   C9/C10/C11** are Supplement B (B1). The T-rules are the write-side twin of the R-rules:
->   reads and writes must answer "which row is this occurrence?" with **one** implementation.
-> - Everything else — the definitions, R-2/R-3, every W-rule, C1–C8, and the boundary
->   notes — is unchanged from the original.
-> - Supplement A's **S2/S3/S4** and Supplement B's **B2** are harness rulings under Ruling 2
->   and deliberately do **not** appear here; they bind M2 and the reviewer, not this schema.
->
-> The ADVICE is binding on M2 and its reviewer; this is the same contract made findable for
-> everyone downstream — chiefly **M4**, which builds the snooze/move UI (S20), and the
-> qa-tester. If this section and the ADVICE ever disagree, **the ADVICE wins** (and
-> Supplement A wins within it) — the discrepancy is an architect bug, so raise it rather
-> than picking one.
->
-> **No schema change.** `day_log.moved_to_date` keeps its exact shape (§4). Only its
-> semantics are pinned. PRD §3.7's "move/snooze affects the occurrence, not the cadence" is
-> preserved by every row below; this fills a gap, it does not relax a rule.
+> **Provenance.** `docs/PRD.md` **§3.7** (amended 2026-07-27, human-directed, inside the
+> approved Gate 1) is **authoritative**; this section conforms to it. §3.7 narrowed F7 from
+> arbitrary-target moves to a **one-hop, once, per-task-gated snooze** and removed "Move to
+> another day" (PRD §4, Decisions item 21). `review/ADVICE-M2.md` remains the historical
+> record of the read/write-carrier machinery that **survives** below — §3.7 mirrors it rather
+> than replacing it — but where the ADVICE describes capability §3.7 no longer asks for
+> (chains, arbitrary distance, same-task double-inbound), **the PRD wins and this section is
+> the current contract.** The old-case-table mapping was delegated to the architect
+> (Decisions item 21) and is recorded at the end.
+
+**Storage shape.** `day_log.moved_to_date` keeps its type and gains
+`CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))`. A non-null pointer
+now means exactly one thing: **this occurrence is snoozed to the very next day** — chains are
+unreachable at the *storage* layer, not merely discouraged in the UI. The per-task gate is
+`task.snoozable` (§2).
 
 **Definitions** (for task τ, date D):
 - `ownLog(D)` — the `day_log` row keyed `(τ, D)`, if any.
-- `pointer(D)` — `ownLog(D).movedToDate` when non-null. A row with a non-null pointer
-  is RESIDUE for its own date: its chip/step data belongs to the occurrence that left,
-  and it neither vacates a date that has a moved-in record nor supplies data to one.
-- `inbound(D)` — rows `r` with `r.movedToDate === D` (searched within the existing
-  ±60-day window). Tie-break for multiple inbound rows: latest source `date`
-  (unchanged from current `buildMovedInIndex`).
+- `pointer(D)` — `ownLog(D).movedToDate` when non-null; necessarily `D + 1`. A row with a
+  non-null pointer is **RESIDUE** for its own date: its chip/step data belongs to the
+  occurrence that left. It neither vacates a date that has a moved-in record nor supplies
+  data to one.
+- `inbound(D)` — the row `r` of τ with `r.movedToDate === D`. **At most one can exist:**
+  `r.movedToDate = r.date + 1`, so only `r.date === D − 1` qualifies, and `day_log` is
+  `UNIQUE (task_id, date)`. *(The old latest-source tie-break is therefore dead — there is
+  never anything to break a tie between. `inbound` is per-task; two **different** tasks each
+  snoozing onto D is unaffected and fully supported.)*
 - `natural(D)` — `isDue(τ, D, notBefore)`.
 
-**READ RESOLUTION** — `resolveOccurrence`, replacing the current check order:
+#### ONE LIVE OUTCOME PER TASK PER DATE (read resolution)
+
+The name is PRD §3.7's, adopted verbatim so the two documents stay aligned. For a **given
+task**, a date never displays or counts more than one of **that task's** outcomes. Different
+tasks resolve independently — a date shows one outcome *per task*, as Today always has.
 
 ```
-R-1  if a moved-in record exists for D (inbound non-empty):
+R-1  if a moved-in record exists for D:
        D IS due — regardless of natural(D); off-marks still resolve `off` as today.
      effectiveLog :=
-       a. ownLog(D), if it exists and pointer(D) is null        [a real state at D
-          always wins — pass-2 N1's rule, unchanged]
-       b. else null, if natural(D) and ownLog(D) is absent      [D's own occurrence
-          is present and never logged: the merge keeps D's blank state — auto chip,
-          pending/missed by date; the visitor's data stays dormant at its source]
-       c. else the moved-in record (existing latest-source tie-break)   [the visitor
-          is the only occurrence present: a non-natural date, or C6's
-          natural-but-vacated date]
+       a. ownLog(D), if it exists and pointer(D) is null        [PRD case 1 — the target's
+          own real logged state wins; the visitor contributes nothing and goes dormant]
+       b. else null, if natural(D) and ownLog(D) is absent      [PRD case 2 — target is
+          naturally due and never logged: it keeps its OWN blank state (auto chip;
+          pending today, missed once past, off if off-marked). Deliberately NOT the
+          visitor's data: showing a completed state on a day the user never touched
+          would manufacture XP for that day]
+       c. else the moved-in record                              [PRD case 3 — the visitor
+          is the only occurrence present: a non-natural D, or a D whose own occurrence
+          has itself been snoozed away]
        A vacated own log (pointer non-null) NEVER annihilates a moved-in occurrence
-       and NEVER supplies its data — it is residue (see C6).
-R-2  else if pointer(D) is non-null: not-due (vacated). Unchanged.
-R-3  else: the existing natural resolution. Unchanged.
+       and NEVER supplies its data — it is residue.
+R-2  else if pointer(D) is non-null: not-due (vacated).
+R-3  else: the ordinary natural resolution.
 ```
 
-The only delta from today's code is that the vacate check yields to a present
-`movedInLog`, and a vacated own log is excluded as a data source. With no move in
-play, behaviour must remain byte-equivalent to the pass-3-verified code — the same
-regression standard the reviewer applied at pass 3 holds.
+With no snooze in play this must be byte-equivalent to the un-snoozed behaviour.
 
-**WRITE** — `useMoveOccurrence(τ, F, T)`. Validate everything, then write:
+#### WRITE — `snoozeOccurrence(τ, D)` and `undoSnooze(τ, D)`
 
-```
-W-0  F === T → no-op: return ok with the current occurrence. Zero writes, zero
-     reconciles, zero events.
-W-1  Resolve F via resolveOneOccurrence (under the R-rules above). If outcome is
-     'not-due' → reject VALIDATION_FAILED, zero writes. (Never fabricate an
-     occurrence from a never-due date; never move from an already-vacated date —
-     the occurrence is moved from where it currently lives.)
-     Any other outcome — pending, ideal, fallback, missed, off — is movable.
-W-2  Distance guard, measured from the row that will CARRY each pointer, never
-     from F: every redirected inbound row r must satisfy |r.date − T| ≤ 60
-     (MOVE_SEARCH_PAD_DAYS); in the own-pointer branch, |F − T| ≤ 60. Any
-     violation rejects the whole move with zero writes. (The current |F − T|
-     check is wrong under chain collapse: S→B at 59 days then B→T at 59 more
-     puts the pointer 118 days from its row and silently outruns the search
-     window.)
-W-3  Writes — the branch is chosen by inbound(F), nothing else:
-     if inbound(F) is non-empty:                 [the VISITING occurrence moves]
-        for each r in inbound(F):
-           r.date === T → set r.movedToDate = null          (un-move: going home)
-           r.date !== T → set r.movedToDate = T             (chain collapse / redirect)
-        ownLog(F) is NOT touched in this branch — no pointer is ever written onto
-        a date whose due-ness is conferred by a move, and a residue pointer on F
-        (its own occurrence away elsewhere) is never hijacked.
-     else:                                        [F's own live occurrence moves]
-        upsert ownLog(F).movedToDate = T  (preserving existing chip/step data,
-        as today).
-     Ordering note: there is no transaction primitive on the Repositories port.
-     Write cleared/redirected inbound rows first, one at a time — every
-     intermediate state is a legal state under the R-rules — and on a mid-
-     sequence persistence failure return the error and reconcile the dates
-     already touched. No compensation logic is required or wanted.
-W-4  Reconcile every touched date (F, T, and each written r.date) through
-     reconcileOccurrence; emit day:logged for T exactly once. XP changes only
-     through those reconciles: vacated showing-up sources retract (existing CR-2
-     boundary), restored sources re-affirm.
-```
-
-**Write-side carrier selection (occurrence-data mutations)**
-
-Applies to every occurrence-data mutation: `logState`, `toggleStep`, `useLogDose`.
+Both act on **exactly the occurrence the sheet is displaying** (S20's occurrence card). The
+heatmap drill-down offers no snooze control — an occurrence reached through history is never
+snoozable (PRD §3.7).
 
 ```
-T-1  Resolve D through the R-rules first. If the occurrence at D resolves
-     `not-due` — a vacated source (R-2), or a plainly not-due date — REJECT the
-     write: VALIDATION_FAILED, zero writes, zero reconciles, zero events. There
-     is no occurrence at D to log. This is load-bearing twice over: it protects
-     residue rows from the write side (C10), and it closes the fabrication path
-     where an inert row written on a not-due date is later adopted as clause-(a)
-     truth by a move-in — phantom credit with no residue involved at all (C11).
-T-2  Otherwise write to the occurrence's data carrier, designated by the SAME
-     clause selection the read uses:
-       clause-(a) shape — ownLog(D) exists, pointer null → update ownLog(D).
-       clause-(b) shape — natural(D), no own row (visitor dormant or absent),
-         and the plain R-3 rowless case → create ownLog(D) fresh, pointer null.
-       clause-(c) shape — the visitor is the occurrence (non-natural D, or
-         natural-but-vacated / C6-shape D) → update the WINNING moved-in row
-         (the row at its source date; latest-source tie-break), changing only
-         its chip/step/dose/override fields and PRESERVING its movedToDate.
-         ownLog(D), if present as residue, is NOT touched.
-T-3  Reconcile and emit against D, the resolved date, exactly as today: the XP
-     award keys on (task, D); `day:logged` carries D. Only the addressed row
-     changes.
+W-1  Validate. Reject with VALIDATION_FAILED, zero writes, zero reconciles, zero events, if:
+       - the occurrence at D resolves `not-due` (nothing to snooze); or
+       - `task.snoozable` is 0 (the slot renders disabled, and activating it writes
+         nothing); or
+       - the displayed occurrence is ALREADY snoozed (pointer non-null). Its slot renders
+         "Undo snooze" instead — a snoozed occurrence can never be snoozed again.
+     Snoozable states are exactly: pending, ideal, fallback, missed, off. `not-due` is the
+     sole non-snoozable case.
+W-2  Snooze writes ONE row: upsert ownLog(D).movedToDate = D + 1, preserving existing
+     chip/step/dose data. Undo writes ONE row: set ownLog(D).movedToDate = null.
+     The target is COMPUTED, never chosen — there is no target-date input anywhere.
+W-3  Reconcile D and D + 1 through reconcileOccurrence; emit day:logged once. XP follows
+     the reconciles: a vacated showing-up source retracts (CR-2 boundary), and undo
+     re-affirms the restored award.
 ```
 
-**Named cases — each row below is a required test, asserted end-to-end through the
-public surface (hooks + reads), not through internals:**
+Both operations touch **one row**, so the absence of a cross-repository transaction
+primitive on the `Repositories` port is no longer a concern here.
+
+**Deleted from the previous contract, deliberately:** the same-day no-op guard (the target
+is computed as `D + 1` and can never equal `D`), the ±60-day distance guard (there is no
+distance to guard), and the redirect-inbound-pointers write branch (reachable only via
+chains). Do not reintroduce them.
+
+#### Write-side carrier selection (occurrence-data mutations)
+
+Unchanged, and load-bearing. Applies to `logState`, `toggleStep`, `useLogDose`.
+
+```
+T-1  Resolve D through the R-rules first. If the occurrence at D resolves `not-due` — a
+     vacated source (R-2), or a plainly not-due date — REJECT: VALIDATION_FAILED, zero
+     writes, zero reconciles, zero events. This protects residue rows from the write side,
+     and closes the fabrication path where an inert row written on a not-due date is later
+     adopted as clause-(a) truth by a snooze-in.
+T-2  Otherwise write to the occurrence's data carrier, designated by the SAME clause
+     selection the read uses:
+       clause-(a) shape → update ownLog(D).
+       clause-(b) shape (and the plain R-3 rowless case) → create ownLog(D) fresh,
+         pointer null.
+       clause-(c) shape → update the moved-in row at its source date, changing only its
+         chip/step/dose/override fields and PRESERVING its movedToDate. ownLog(D), if
+         present as residue, is NOT touched.
+T-3  Reconcile and emit against D, the resolved date: the XP award keys on (task, D);
+     `day:logged` carries D. Only the addressed row changes.
+```
+
+**Structural requirement — the single-answerer discipline (unchanged, and it survives the
+rescope intact).** ONE pure carrier-designation function,
+`designateCarrier` (`src/domain/dayState.ts`), returns
+`own-live | own-create | visitor(row) | none` for a `(log, movedInLog, natural)` triple. Both
+`resolveOccurrence` (read) and `resolveWriteTarget` (`src/queries/internal.ts`, write) consume
+it. **No second implementation of the clause selection may exist anywhere** — reads and writes
+answering "which row is this occurrence?" independently is exactly what caused the F1
+data-corruption defect class, and the narrower snooze rule does not make it safe to reintroduce.
+
+#### Named cases — each row is a required test, end-to-end through the public surface
 
 | # | Sequence | Required end state |
 |---|---|---|
-| C1 | A→B, then B→A (undo the snooze; A natural) | `ownLog(A).movedToDate = null`; no pointer anywhere; A due with its prior chip/step data and a previously-earned award re-affirmed; B not-due; denominator restored |
-| C2 | A→A | no-op per W-0 |
-| C3 | A→B, then B→C | exactly one pointer, `ownLog(A) → C`; due at C only; C→A afterwards restores A per C1. Guard: \|A − C\| ≤ 60 |
-| C4 | A→B where B is naturally due (merge) | legal; A vacated (leaves the denominator); B unchanged — one occurrence, its own live log winning |
-| C4r | …then B→A (un-merge) | inbound branch: clears `ownLog(A)` only; A due again with prior data; B's natural occurrence untouched — exact restore |
-| C4b | A→B where B is naturally due and NEVER logged | B still resolves by its own blank state (auto chip; pending today, missed past); the visitor's chip/step data contributes nothing at B, and — assert this explicitly with a completed visitor — NO XP award materialises at B; B→A afterwards restores A with its data and re-affirms its award per C1/C4r mechanics |
-| C5 | A→B merged, then B→C | the VISITING occurrence moves: `ownLog(A) → C`; B's natural occurrence remains due at B. (To move B's own occurrence, move the visitor away first — deliberate, last-in-first-out) |
-| C6 | task due A and B; B→C, then A→B | A's occurrence is DUE at B via its moved-in record (R-1) — B's residue outbound pointer does not annihilate it; B's own occurrence stays at C. **This is the case the pass-3 prescription does not fix** |
-| C7 | A→B, complete at B, then B→A | the tap writes to A's OWN row (the visitor), pointer preserved — no row is fabricated at B (T-2 clause-(c)); the award keys on B while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: A due `ideal` with its chip data; B not-due; exactly one award, re-affirmed at A — not lost, not duplicated |
-| C8 | A1→B and A2→B (double inbound) | both sources vacated; one occurrence at B; data = live `ownLog(B)` if any; else, if B's own natural occurrence is present, B's blank state; else latest-source moved-in. |
-| C9 | due {A,B}; B→C; A→B; then chip/step tap on B | tap VISIBLE at B (outcome per tap; XP for (task,B) iff eligible); the write landed on A's row (the visitor), its pointer intact; residue ownLog(B) byte-unchanged. Then C→B (own occurrence returns): B resolves by its own uncorrupted dormant data (todo → pending, no award — no phantom); visitor's award at B retracted (see semantic note); B→A afterwards revives the visitor's tapped data at A with its award re-affirmed |
-| C10 | A→B; then any occurrence-data write on A | VALIDATION_FAILED; ownLog(A) byte-identical; zero events, zero XP delta; subsequent un-move revives A exactly as pre-move |
-| C11 | any occurrence-data write on a rowless not-due date | VALIDATION_FAILED, zero writes — and therefore a later move-in to that date finds no fabricated clause-(a) row |
+| C1 | snooze D, then undo | `ownLog(D).movedToDate = null`; no pointer anywhere; D due with its prior chip/step data and any previously-earned award re-affirmed; D+1 back to its own state; denominator restored |
+| C4 | snooze D onto a naturally-due D+1 that **has** its own log (PRD case 1) | D+1 keeps its own logged state and count; the visitor contributes nothing to F5 or XP and goes dormant; D vacated (leaves the denominator) |
+| C4b | snooze D onto a naturally-due D+1 that has **never** been logged (PRD case 2) | D+1 keeps its **own blank state** (auto chip; pending today, missed past, off if off-marked); the visitor's data contributes nothing — **assert with a completed visitor that NO XP award materialises at D+1**; undo restores D with its data and re-affirms its award |
+| C4r | undo from a case-1 target | clears `ownLog(D)` only; D due again with prior data; D+1's own occurrence untouched — exact restore |
+| C6 | daily task: snooze D+1's occurrence to D+2, then snooze D's occurrence to D+1 (two independent one-hop snoozes on **different** occurrences — explicitly in scope, PRD Decisions 21) | D's occurrence is DUE at D+1 via its moved-in record (R-1 clause (c)) — D+1's residue pointer does not annihilate it; D+1's own occurrence stays at D+2 |
+| C7 | snooze D, complete at D+1, then undo | the tap writes to D's OWN row (the visitor), pointer preserved — no row is fabricated at D+1 (T-2 clause-(c)); the award keys on D+1 while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: D due `ideal` with its chip data; D+1 not-due; exactly one award, re-affirmed at D — not lost, not duplicated |
+| C9 | C6's shape, then a chip/step tap on D+1 | tap VISIBLE at D+1 (outcome per tap; XP for (task, D+1) iff eligible); the write landed on D's row (the visitor), its pointer intact; residue `ownLog(D+1)` byte-unchanged. Undoing D+1's own occurrence home then shadows the visitor per clause (a), its award at D+1 retracted by reconcile (sanctioned, CR-2) and revived by the visitor's own undo |
+| C10 | snooze D, then any occurrence-data write on D | VALIDATION_FAILED; `ownLog(D)` byte-identical; zero events, zero XP delta; undo afterwards revives D exactly as pre-snooze |
+| C11 | any occurrence-data write on a rowless not-due date | VALIDATION_FAILED, zero writes — so a later snooze-in finds no fabricated clause-(a) row |
+| C12 | **two different tasks** each snooze one day forward onto the same date | legal and expected; each resolves independently under its own task's precedence rule; **both display and count** — one outcome *per task*, and F5's per-day fraction sees both |
+| C13 | snooze an already-snoozed occurrence | impossible through the UI (its slot reads "Undo snooze"); if attempted directly → VALIDATION_FAILED, zero writes. **No occurrence is ever more than one day from its own date** |
+| C14 | snooze on a task with `snoozable = 0` | slot renders **disabled, not hidden**, with the reason exposed to the screen reader; activating it writes nothing. Turning `snoozable` off while one of that task's occurrences is already snoozed does **not** retract it — that occurrence keeps its "Undo snooze" rendering |
 
-**Semantic note the reviewer must not flag as a defect:** after C9's tap-on-visitor,
-a later un-move of the date's own occurrence shadows the visitor (merge doctrine,
-Supplement A: the target's own state wins), so the visitor's tapped completion goes
-dormant on its row and its award at that date is retracted by reconcile — sanctioned
-under CR-2 (the resolved occurrence at that date stopped carrying a showing-up
-state), and fully recoverable by the visitor's own un-move. Transient retraction
-during shadowing is the merge doctrine working, not value loss.
+**D-rule (dormant data, pinned so it is not relitigated):** a `day_log` row's chip/step data
+is per-date state. It is inert while no occurrence resolves at that date and revives if an
+occurrence returns there. Residue rows are immutable to every mutation except snooze/undo;
+dormant data can change only by the occurrence returning home — and data a tap writes to a
+visitor's row is the visiting occurrence's own state, travelling with it. This mirrors F4's
+"restore what was logged" and is intended behaviour, not a defect.
 
-**D-rule (dormant data, pinned so it is not relitigated):** a `day_log` row's chip/step
-data is per-date state. It is inert while no occurrence resolves at that date and
-revives if an occurrence returns there (C1's restore; symmetrically, re-moving onto a
-date with prior data revives that data and reconcile re-affirms). This mirrors F4's
-"restore what was logged" and is intended behaviour, not a defect. Further, residue rows are immutable to every mutation
-except `useMoveOccurrence`; dormant data can change only by the occurrence returning
-home — and data a tap writes to a visitor's row is the visiting occurrence's own
-state, travelling with it exactly as C7 data does.
+**Boundary notes.** D + 1 may be today, the past, or the future — it resolves under the
+ordinary rules for its own date (an unlogged past target reads missed; that is coherent, not
+a bug). A snooze onto an off-marked day resolves `off` there with no retraction (F4).
+Snooze and undo affect the **occurrence, not the cadence**: no cadence, recurrence or
+sub-step schedule is edited by either. As-needed routines (F27) have no occurrences, so
+snooze does not apply to them at all.
 
-**Boundary notes:** T may be past or future — a past T resolves under the ordinary
-past-date rules (an unlogged past target reads missed; that is coherent, not a bug).
-A move onto an off-marked date resolves `off` with no retraction, exactly as verified
-at pass 3.
+**Architect note — finalized cycle records are deliberately NOT rewritten by a snooze.** A
+snooze across a cycle boundary does not alter an already-finalized `cycle_record`; §8 pins
+those as permanent and append-only. Consequently an archived record's stored
+`consistency_percent` may no longer equal a fresh recomputation of that window. **Assert
+archived records against their stored values, never against a recomputation.**
 
-**Architect note — finalized cycle records are deliberately NOT rewritten by a move.**
-A move that relocates an occurrence across a cycle boundary (e.g. Jun 30 → Jul 1) does not
-alter an already-finalized `cycle_record`; §8 pins those as permanent and append-only. The
-consequence, stated so qa-tester does not read it as a bug: after a cross-boundary move, an
-archived record's stored `consistency_percent` may no longer equal a fresh recomputation of
-that same window. **Assert archived records against their stored values, never against a
-recomputation.** This is pre-existing F30 behaviour surfaced by the move contract, not
-introduced by it.
+**Architect note — OPEN (PRD §7): reaching "Undo snooze" for a dormant occurrence.** Under
+precedence cases 1 and 2 the visitor displays **nowhere** — its source reads not-due, its
+target shows the target's own state — and no currently-specified surface offers its undo
+control. For a daily-cadence task this is the **common** case, not a corner case. The **data
+is not lost** (dormant, and revives if the occurrence returns), and the undo *mechanic* is
+settled; only its *reachability* is undefined. **This is a human/designer decision (PRD §7)
+— do not invent a UI for it here or in a module brief.** qa-tester cannot write a definitive
+undo-reachability assertion until §7 answers it; every other criterion above is testable
+today.
+
+**Case-ID mapping from the pre-amendment contract.** **Survive** (restated in one-hop terms):
+C1, C4, C4b, C4r, C6, C7, C9, C10, C11. **Dead:** C2 (target is computed — source and target
+can never coincide), C3 and C5 (chains, unreachable once a snoozed occurrence cannot be
+re-snoozed), C8 (`D → D+1` is injective, so two source dates of the *same* task can never
+reach one target — `|inbound(D)| ≤ 1` is now an invariant). **New:** C12, C13, C14.
 
 ---
 

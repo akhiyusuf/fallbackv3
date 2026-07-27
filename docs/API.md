@@ -196,7 +196,11 @@ useLogDose()         // F12
 //   heatmap drill-down, which writes to past dates the user picks.
 useMarkOffDay()      // whole-day or task-day, and un-mark
 useLogAsNeededUse()  // F27 — reference-only
-useMoveOccurrence()  // F7 snooze / move
+snoozeOccurrence()   // F7 — one hop: D -> D+1. Target COMPUTED, never chosen.
+undoSnooze()         // F7 — returns the occurrence to D, restoring chip/steps/XP exactly.
+// ^ replace useMoveOccurrence(). PRD §3.7 removed arbitrary-target moves; SCHEMA §4.2 W-1
+//   rejects with VALIDATION_FAILED when the occurrence is not-due, the task is not
+//   `snoozable`, or the occurrence is already snoozed (no chains).
 useUpdateSettings()
 ```
 

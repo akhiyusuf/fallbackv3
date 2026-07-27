@@ -139,8 +139,8 @@ scripture.**
 - **What you may not change without an architect change request:** a *pinned decision* —
   the round-half-up algorithm and its locked assertions (ARCHITECTURE §6.5), the
   consistency algorithm (§6), the chip→outcome mapping (§6.1), the counted-day window
-  (§6.4), the delete-cascade split (SCHEMA §2.3), the **F7 move/snooze semantics
-  (SCHEMA §4.2, R-rules / W-rules / C1–C8 incl. C4b)**, the design-pinned level titles and badge
+  (§6.4), the delete-cascade split (SCHEMA §2.3), the **F7 one-hop snooze contract
+  (SCHEMA §4.2)**, the design-pinned level titles and badge
   labels (SCHEMA §7) — or anything in a **frozen** or **unowned** path.
 - The distinction: `roundHalfUp` returning the wrong value for 12.5 would be a defect worth
   fixing; changing it to banker's rounding would be re-opening a pin. The eight locked
@@ -222,6 +222,18 @@ undeliverable. The §7 wording is correct; the port was incomplete.
   state. This is the **only** sanctioned reduction of lifetime XP. It must **not** fire on a
   missed day, an off day, a cycle boundary, or a task deletion.
 
+### CR-4 — add `snoozable` to the `Task` type (M0)
+
+PRD §3.7 makes `snoozable` a **per-task boolean, default on**, and `SCHEMA.md` §2 now carries
+the column. `src/types/task.ts` is M0-owned and frozen, so this is a change request.
+
+- **M0** — add `readonly snoozable: boolean;` to `Task`, and `snoozable?: boolean` to
+  `TaskDraft` (defaulting to `true` when omitted).
+- **M1** — add the column (`INTEGER 0/1 NOT NULL DEFAULT 1`) in a new forward migration, and
+  map it in the task repository. A duplicate inherits the source task's value.
+- **M2** — `validateTaskDraft` defaults it to `true`; the snooze mutation rejects when it is
+  `false` (SCHEMA §4.2 W-1). Turning it off must **not** retract an existing snooze.
+
 ### CR-3 — F7 move/snooze semantics are now a contract, in `SCHEMA.md` §4.2 (spec only)
 
 **Origin:** M2 hit ADVISOR_REQUIRED on the move feature. The advisor's root cause was **an
@@ -269,9 +281,28 @@ is load-bearing product surface there, not defence-in-depth. `docs/API.md` §3 f
 rejection case on `useLogState` / `useToggleStep` / `useLogDose`.
 
 Supplement A's **S2/S3/S4** and Supplement B's **B2** (invariant P8, the F2 harness
-extension) are harness rulings under Ruling 2 and are deliberately **not** in §4.2 — they
-bind M2 and the reviewer, not the schema. Where the ADVICE and §4.2 ever disagree the ADVICE
-wins, and the latest supplement wins within it.
+extension) are harness rulings under Ruling 2 and bind M2 and the reviewer, not the schema.
+
+### CR-3 SUPERSEDED IN PART by the F7 PRD amendment (2026-07-27) — read this before building
+
+`docs/PRD.md` **§3.7** was amended by human direction (inside the approved Gate 1) to narrow
+F7 from arbitrary-target moves to a **one-hop, once, per-task-gated snooze**. **The PRD now
+outranks the ADVICE**, and `SCHEMA.md` §4.2 has been rewritten to the narrower contract.
+
+**Dead — do not build, stub toward, or leave hooks for:** "Move to another day", a
+target-date picker of any kind, a snooze of more than one day, re-snoozing an already-snoozed
+occurrence, chains, the ±60-day distance guard, or the same-task double-inbound tie-break.
+
+**Alive and still load-bearing — the rescope did NOT eliminate merges:** two *different*
+tasks may each snooze onto the same date; an occurrence may still sit on a date its **own**
+task has vacated, reached by two independent one-hop snoozes on *different* occurrences. So
+the residue / dormant-data machinery (D-rule), the read-precedence clauses, and the
+**single-answerer** write-carrier selection (`designateCarrier`, T-1/T-2/T-3) all survive
+intact. **Do not reintroduce a second implementation of carrier selection** — that is what
+caused the F1 defect class.
+
+The code still implements the broad contract; simplifying it is a **separate feature-builder
+task**, not part of this spec change.
 
 The contract has **two halves and both are required**:
 - **Read precedence** — a moved-in record confers due-ness **before** the vacate check
@@ -554,14 +585,36 @@ F13 (S24's XP line), F23, F24, F26, F27.
 - The sub-step grid governs **ideal** steps only. The fallback is whole-task and available
   on every run-occurrence.
 - Duplicate copies definitions, metadata and toggle state but starts with **empty history**.
-- Snooze/move affects the **occurrence**, not the cadence. **Build it against
-  `SCHEMA.md` §4.2 (F7 move semantics), which is a pinned contract with a C1–C8 case
-  table** — read precedence (a moved-in record confers due-ness before the vacate check) and
-  write normalisation (a move from a date with inbound pointers redirects *those*, never the
-  own-log pointer). Undo-a-snooze, same-day, chained, merged and un-merged moves are all
-  specified there. Do not infer move behaviour from the S20 interaction line or from
-  ARCHITECTURE §6.1's outcome table alone — both are summaries, and this class of bug
-  annihilates occurrences irrecoverably (see CR-3).
+- **Snooze is ONE HOP FORWARD, ONCE — PRD §3.7 narrowed this on 2026-07-27, and the Gate-2
+  design is superseded on exactly three points (§3.7's Design precedence table). Build against
+  `SCHEMA.md` §4.2 and PRD §3.7, NOT against `ALLSCREENS_1.md` S20's action row.**
+  - The action row has **two** slots, not three: "Duplicate" and **one snooze slot**. There is
+    **no "Move to another day"** and **no date picker of any kind** anywhere in the sheet.
+  - The snooze slot has exactly three renderings: **"Snooze" enabled** (task snoozable and the
+    displayed occurrence not already snoozed); **"Snooze" disabled — not hidden** (task not
+    snoozable, or the sheet displays no occurrence), with the reason exposed to the screen
+    reader and activating it writing nothing; and **"Undo snooze"** (the displayed occurrence
+    is snoozed), which *replaces* Snooze and appears regardless of the task's current
+    `snoozable` value.
+  - Snooze takes **no input** — the target is computed as **D + 1**. It acts on **exactly the
+    occurrence in the sheet's occurrence card**; the heatmap drill-down gets **no** snooze
+    control, so an occurrence reached through history is never snoozable.
+  - Snoozable states: pending / ideal / fallback / missed / off. **not-due** is the only
+    non-snoozable case. An already-snoozed occurrence can never be snoozed again.
+  - **`snoozable` is a per-task boolean, default on**, editable post-creation from S20 using
+    the **same inline-edit pattern already used for the task name** and the
+    Importance/Necessity pickers. Whether S16–S19 expose it at create time is an open designer
+    call (PRD §7) — do not invent one; the manage-sheet path is the fixed requirement.
+  - Undo returns the occurrence to D exactly (chip, step detail, XP award restored), after
+    which it is never-snoozed and may be snoozed again. **Known open gap (PRD §7):** for a
+    daily-cadence task a snooze usually lands on a naturally-due, unlogged day, where the
+    one-live-outcome rule shows the target's own blank state and the visitor displays
+    **nowhere** — so no specified surface reaches its undo control. The data is dormant, not
+    lost. **Do not invent a UI to fix this**; it is a human/designer decision.
+  - Snooze and undo affect the **occurrence, not the cadence**.
+  - Two **different** tasks may each snooze onto the same date — legal, expected, counted
+    independently (SCHEMA §4.2 C12). Do not build a combined view or "2 occurrences here"
+    affordance for a single task (PRD §4).
 - **S22 carries two SEPARATE origin rules — implement both, do not merge them**
   (ARCHITECTURE §4.3; `ALLSCREENS_1.md` S22 lines 1155–1166 and 1202–1247):
   - **"Keep it" / scrim / back** → the screen that *opened* S22: S20 if from S20, S23 if

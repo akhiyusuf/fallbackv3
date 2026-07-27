@@ -251,11 +251,14 @@ Each `(task, date)` resolves to exactly one `OccurrenceOutcome`:
 | `missed` | due, not off, and either chip = **Skip** (resolves missed on *any* day, including today) **or** the date is in the past with no showing-up chip |
 | `pending` | due, not off, date **is today**, no chip or chip = **To do** |
 
-> **Move/snooze footnote (F7).** When a `moved_to_date` pointer is in play the check order
-> above is not sufficient: **a moved-in record confers due-ness BEFORE the vacate check**
-> (R-1 precedes R-2), and a vacated own log is **residue** — it never annihilates a moved-in
-> occurrence and never supplies its data. Full contract, including the C1–C8 case table:
-> **SCHEMA.md §4.2**. Do not implement move semantics from this table alone.
+> **Snooze footnote (F7).** When a `moved_to_date` pointer is in play the check order above
+> is not sufficient. The governing rule is **ONE LIVE OUTCOME PER TASK PER DATE** (PRD §3.7,
+> mirrored in SCHEMA §4.2): a moved-in record confers due-ness **before** the vacate check
+> (R-1 precedes R-2); a naturally-due target that has never been logged keeps its **own blank
+> state**, never the visitor's, so no XP is manufactured for an untouched day; and a vacated
+> own log is **residue** — it never annihilates a moved-in occurrence and never supplies its
+> data. Snooze is **exactly one day forward, once** — no chains, no distance, no target
+> picker. Full contract: **SCHEMA.md §4.2**. Do not implement snooze from this table alone.
 
 **Chip → outcome mapping — PINNED** (the PRD left this implicit in §3.3/§6; this is the
 explicit line the review asked for):
