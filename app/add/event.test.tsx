@@ -67,4 +67,32 @@ describe('S17 Create Event', () => {
     await userEvent.press(screen.getByLabelText('Repeats'));
     expect(await screen.findByText('Still an Event — just one that repeats.')).toBeTruthy();
   });
+
+  it('an unparseable free-typed Date surfaces a visible inline error (REVIEW-M4.md item 7)', async () => {
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
+    const name = await screen.findByLabelText('Event name');
+    await userEvent.type(name, 'Dentist visit');
+    const dateInput = screen.getByLabelText('Date');
+    await userEvent.clear(dateInput);
+    await userEvent.type(dateInput, 'not-a-date');
+
+    await userEvent.press(screen.getByLabelText('Save event'));
+    expect(await screen.findByText("That date doesn't look right — use YYYY-MM-DD.")).toBeTruthy();
+    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+  });
+
+  it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {
+    fake.repos.tasks.insert = async () => err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+    useToastStore.setState({ toast: null });
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
+    const name = await screen.findByLabelText('Event name');
+    await userEvent.type(name, 'Dentist visit');
+
+    await userEvent.press(screen.getByLabelText('Save event'));
+
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+    expect(await screen.findByDisplayValue('Dentist visit')).toBeTruthy();
+  });
 });

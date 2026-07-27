@@ -21,6 +21,7 @@ import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { makeTask } from '@/features/task/testSupport/taskFixture';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
+import { err } from '@/types';
 import type { Id } from '@/types';
 
 let client: QueryClient;
@@ -98,5 +99,27 @@ describe('S22 Delete Confirmation — RULE 2 (confirmed delete, a DIFFERENT look
     await userEvent.press(screen.getByLabelText('Delete routine'));
 
     expect(await screen.findByText('MARKER_ROUTINES')).toBeTruthy();
+  });
+});
+
+describe('S22 Delete Confirmation — persist-failure state (REVIEW-M4.md item 7)', () => {
+  it('a failed delete keeps the dialog open with BOTH buttons present and re-enabled, alongside the retry banner', async () => {
+    fake.seedTask(makeTask({ id: 'task-1' as Id }));
+    fake.repos.tasks.softDelete = async () => err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByDisplayValue('Morning workout');
+
+    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await screen.findByText('Delete this routine?');
+    await userEvent.press(screen.getByLabelText('Delete routine'));
+
+    expect(await screen.findByText("Couldn't delete — try again.")).toBeTruthy();
+    const deleteButton = await screen.findByLabelText('Delete routine');
+    const keepButton = await screen.findByLabelText('Keep it');
+    expect(deleteButton).toBeTruthy();
+    expect(keepButton).toBeTruthy();
+    expect(deleteButton.props.accessibilityState?.disabled).toBeFalsy();
+    expect(keepButton.props.accessibilityState?.disabled).toBeFalsy();
   });
 });

@@ -12,12 +12,14 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent } from '@testing-library/react-native';
+import { userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
+import { useToastStore } from '@/app-shell/stores/toast';
+import { err } from '@/types';
 
 let client: QueryClient;
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -55,5 +57,20 @@ describe('S19 Create To-do/Note', () => {
     await userEvent.type(name, 'Call the vet about refill');
     await userEvent.press(screen.getByLabelText('Save'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+  });
+
+  it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {
+    fake.repos.tasks.insert = async () => err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+    useToastStore.setState({ toast: null });
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
+    const name = await screen.findByLabelText('What is it?');
+    await userEvent.type(name, 'Call the vet about refill');
+
+    await userEvent.press(screen.getByLabelText('Save'));
+
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+    expect(await screen.findByDisplayValue('Call the vet about refill')).toBeTruthy();
   });
 });

@@ -11,12 +11,14 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent } from '@testing-library/react-native';
+import { userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
+import { useToastStore } from '@/app-shell/stores/toast';
+import { err } from '@/types';
 
 let client: QueryClient;
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -67,5 +69,45 @@ describe('S18 Create Course', () => {
 
     await userEvent.press(screen.getByLabelText('Save course'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+  });
+
+  it('an unparseable free-typed Start date surfaces a visible inline error (REVIEW-M4.md item 7)', async () => {
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
+    const name = await screen.findByLabelText('Course name');
+    await userEvent.type(name, 'Antibiotics');
+    const start = await screen.findByLabelText('Start date');
+    await userEvent.clear(start);
+    await userEvent.type(start, 'not-a-date');
+    const end = await screen.findByLabelText('End date');
+    await userEvent.type(end, '2026-07-26');
+    const ideal = await screen.findByLabelText('Ideal step 1');
+    await userEvent.type(ideal, 'Take with food');
+    const fallback = await screen.findByLabelText('Fallback step 1');
+    await userEvent.type(fallback, 'Take the dose');
+
+    await userEvent.press(screen.getByLabelText('Save course'));
+    expect(await screen.findByText("That date doesn't look right — use YYYY-MM-DD.")).toBeTruthy();
+    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+  });
+
+  it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {
+    fake.repos.tasks.insert = async () => err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+    useToastStore.setState({ toast: null });
+
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
+    const name = await screen.findByLabelText('Course name');
+    await userEvent.type(name, 'Antibiotics');
+    const end = await screen.findByLabelText('End date');
+    await userEvent.type(end, '2026-07-26');
+    const ideal = await screen.findByLabelText('Ideal step 1');
+    await userEvent.type(ideal, 'Take with food');
+    const fallback = await screen.findByLabelText('Fallback step 1');
+    await userEvent.type(fallback, 'Take the dose');
+
+    await userEvent.press(screen.getByLabelText('Save course'));
+
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+    expect(await screen.findByDisplayValue('Antibiotics')).toBeTruthy();
   });
 });

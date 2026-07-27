@@ -97,7 +97,7 @@ export default function S18CreateCourse() {
     // unparseable free-typed date must still surface a visible error, not fail silently.
     const startDateInvalid = !isValidLocalDateString(startDate);
     setStartDateError(startDateInvalid ? "That date doesn't look right — use YYYY-MM-DD." : undefined);
-    const endDateInvalid = draft.endDate !== null && !isValidLocalDateString(draft.endDate);
+    const endDateInvalid = endDate !== '' && !isValidLocalDateString(endDate);
     setEndDateError(
       !draft.endDate
         ? 'Set an end date — a course always runs for a fixed span.'
