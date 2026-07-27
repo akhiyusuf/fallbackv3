@@ -3,8 +3,8 @@
  * Owner: M6. Features: F16, F9.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S37)
  */
-import { useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { Mic } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
@@ -42,11 +42,26 @@ export default function S37MicrophonePermissionPrimer() {
   }
 
   async function handlePrimaryRecovery() {
+    // B11 — `Linking.openSettings()` resolves as soon as Settings LAUNCHES, while the user is
+    // still inside Settings, not after they've actually toggled the permission and come back.
+    // Checking permission immediately here can never see the change. The real recheck happens
+    // in the `AppState` effect below, on the app's next foreground.
     await Linking.openSettings();
-    const status = await getRecordingPermissionsAsync();
-    if (status.granted) goToChat(true);
-    // else: stays on this same recovery framing — no navigation needed, we're already here.
   }
+
+  useEffect(() => {
+    if (!isRecovery) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void (async () => {
+        const status = await getRecordingPermissionsAsync();
+        if (status.granted) goToChat(true);
+        // else: stays on this same recovery framing — no navigation needed, we're already here.
+      })();
+    });
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecovery]);
 
   function handleSecondary() {
     goToChat(false);

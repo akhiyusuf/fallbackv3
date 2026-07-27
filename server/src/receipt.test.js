@@ -60,12 +60,10 @@ test('B13 — the Google verifier tries known subscription SKUs against the REAL
   const result = await verifyReceipt({
     platform: 'android',
     receipt: 'ptoken-1',
-    fetchImpl: async (url, init) => {
+    fetchImpl: async (url) => {
       seenUrls.push(url);
-      seenUrls.length < 2
-        ? void 0
-        : void 0;
-      return { ok: seenUrls.length === 2, status: seenUrls.length === 2 ? 200 : 404 };
+      const isSecondAttempt = seenUrls.length === 2;
+      return { ok: isSecondAttempt, status: isSecondAttempt ? 200 : 404 };
     },
   });
   assert.equal(result.ok, true);

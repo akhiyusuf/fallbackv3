@@ -8,9 +8,8 @@
  * pre-resolved colours (not raw task/log rows) rather than pushing any business logic onto
  * the Swift/Kotlin side.
  */
-import { isDue } from '@/domain';
 import type { ColorScheme, Palette } from '@/theme';
-import type { AccentKey, ChipState, LocalDate, TaskWithSteps, WidgetConfig } from '@/types';
+import type { AccentKey, ChipState, LocalDate, OccurrenceOutcome, TaskWithSteps, WidgetConfig } from '@/types';
 
 export interface WidgetSignalColors {
   readonly ideal: string;
@@ -41,6 +40,14 @@ export interface WidgetSnapshot {
 export interface ResolvedTaskChip {
   readonly taskId: string;
   readonly chipState: ChipState | null;
+  /**
+   * Review pass 1, blocking item 3: the caller (`index.ts`) resolves this through
+   * `resolveOccurrence`/`designateCarrier` (movedInLog-aware), not raw `isDue` — a task
+   * snoozed AWAY from today resolves `'not-due'` here even though cadence still says today is
+   * due; a task snoozed INTO today resolves a real due outcome even though cadence alone says
+   * it is not. `dueTasks` below filters on THIS field, never on `isDue` directly.
+   */
+  readonly outcome: OccurrenceOutcome;
 }
 
 /**
@@ -59,15 +66,19 @@ export function buildWidgetSnapshot(input: {
   readonly widgetConfigs: readonly WidgetConfig[];
   readonly generatedAt: string;
 }): WidgetSnapshot {
-  const { tasks, chips, date, scheme, accent, accentHex, palette, widgetConfigs, generatedAt } = input;
-  const chipByTask = new Map(chips.map((c) => [c.taskId, c.chipState]));
+  const { tasks, chips, scheme, accent, accentHex, palette, widgetConfigs, generatedAt } = input;
+  const chipByTask = new Map(chips.map((c) => [c.taskId, c]));
 
-  const dueTasks = tasks.filter((t) => !t.deletedAt && !t.isAsNeeded && isDue(t, date));
+  const dueTasks = tasks.filter((t) => {
+    if (t.deletedAt) return false;
+    const resolved = chipByTask.get(t.id);
+    return resolved !== undefined && resolved.outcome !== 'not-due';
+  });
   const summaries: WidgetTaskSummary[] = dueTasks.map((t) => ({
     id: t.id,
     name: t.name,
     timeOfDay: t.timeOfDay,
-    chipState: chipByTask.get(t.id) ?? null,
+    chipState: chipByTask.get(t.id)?.chipState ?? null,
   }));
 
   const doneCount = summaries.filter((s) => s.chipState === 'done' || s.chipState === 'fallback').length;
