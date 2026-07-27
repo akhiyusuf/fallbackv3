@@ -4,10 +4,10 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — WAVE 1 COMPLETE. M0, M1, M2 all PASSED and frozen. F7
-rescope: PRD amendment DONE (PASS + 1 advisor escalation); SCHEMA §4.2 DONE
-(PASS + 1 advisor escalation). NEXT: M2 implements the simplified code. Do
-not brief wave 2 until this cascade lands.**
+**Phase 3 (BUILD) — WAVE 1 COMPLETE AND FROZEN. F7 rescope cascade COMPLETE**
+**(PRD + SCHEMA + code, PASS end to end, 2 advisor escalations along the way).**
+**NEXT: brief wave 2 (M3–M7, the remaining 39 screens) — M4's brief needs the**
+**snoozable toggle and one-hop snooze UI folded in before dispatch.**
 
 ### M2 Supplement B — implementation complete, pending review
 
@@ -129,15 +129,52 @@ already-distinct buttons from an approved screen, not redesigning anything.
    transaction primitive now touches exactly one, and one-hop is enforced at
    the storage layer via a `CHECK` constraint, not just in application logic.
 
-3. **NEXT — M2 implements the simplified code against this contract.**
-   Explicit handoff note from the pass-5 review: build against §4.2's runtime
-   rules and the split W-1s/W-1u preconditions, **never** against CR-3's
-   Historical block (superseded, kept only for rationale); the migration
-   follows CR-4's six-step order exactly (snapshot worklist → delete-then-
-   reinsert awards identity-preserving → clear pointers → rebuild table).
-   Code-reviewed same as any other pass — and per the standing principle
-   above, a bare date-keyed query in this area is a blocking finding by
-   default, not a judgment call.
+3. **DONE — M2 and M1 both implemented the simplified code.** M2 built
+   `useSnoozeOccurrence`/`useUndoSnooze` in `src/domain/**`/`src/queries/**`
+   against §4.2's runtime rules; M1 built the CR-4 migration (`snoozable`
+   column, one-hop `CHECK` constraint, the six-step legacy-data ordering) in
+   `src/db/**`. `review/REVIEW-F7-implementation.md` **PASS at pass 2** —
+   reviewed as one combined feature since the two halves share a contract.
+
+   Pass 1 found one real, reproduced defect: `snoozeOccurrence`'s
+   already-snoozed guard queried the raw row at date D directly instead of
+   through `designateCarrier`, so snoozing an occurrence that was *displaying*
+   at D via a visitor (its own row lived elsewhere) fabricated a phantom
+   second occurrence — proven by reproduction, not inferred, inflating the F5
+   denominator. This is the **fifth** instance of the date-vs-carrier defect
+   class in this cascade (after F1, pass-2's N1, the migration's original
+   unconditional relocation, and CR-4's original step ordering) — found in
+   code, the first four all having been found in spec review before any code
+   existed. Fixed by routing the guard through `resolveWriteTarget`, same as
+   every other read/write.
+
+   Pass 1 also found two test-coverage gaps against pinned tables: C4r was
+   silently untested (mislabeled onto a different SCHEMA case), and the
+   migration's B3 branch had zero discriminating coverage — proven by
+   deleting the entire branch and watching all 8 tests still pass.
+
+   Pass 2 confirmed all three fixes empirically, not on report — critically,
+   **the reviewer declined to accept a mathematical-only verification of the
+   new denominator-conservation invariant and ran the empirical check
+   itself**, reverting the fixed guard and confirming four failures with the
+   exact fabrication signature, before restoring and re-confirming green.
+
+   One unrequested, disclosed find along the way: while writing the C4r test,
+   M2 found the in-memory XP-award test double was silently corrupting award
+   `id`/`createdAt` on every re-affirmation — checked directly against the
+   real production SQL before fixing, confirmed the test double was
+   diverging from production rather than the mutation logic being wrong.
+
+   Final state: `tsc --noEmit` clean, **39 suites / 311 tests**, working tree
+   clean, pushed through `8a74604`.
+
+**Cascade complete: PRD (4 passes + 1 advisor escalation) → SCHEMA (5 passes
++ 1 advisor escalation) → code (2 passes, one real defect + two test gaps,
+both closed). Two advisor escalations happened at the spec level, before any
+code existed to encode the mistake — the code review still found a fifth
+instance of the same underlying defect class the specs had already fought
+four times, which is the strongest evidence yet for the standing principle:
+identify by carrier, never by bare date, anywhere near `day_log`/`xp_award`.**
 4. `docs/MODULES.md`'s **M4** brief (task authoring, S15–S24, not yet started)
    gets the snoozable toggle and the one-hop snooze UI from the start, plus the
    §7(a) open item above so it's not silently invented mid-build.
