@@ -351,3 +351,156 @@ files. No new dependency added.
 
 **Non-blocking notes:** left untouched per the prompt's explicit scope
 instruction (out of scope for this pass).
+
+---
+
+## Review — M4 (pass 2)
+VERDICT: PASS
+
+All 7 pass-1 blocking items independently verified as genuinely fixed. Fix
+commits traced: source fixes landed across the shared WIP snapshots
+(`6cd3db2`…`87c1abe`) and `b06c313`; the full rework diff (`git diff
+d5150c1..HEAD -- src/features/task app/add app/task`) touches exactly the 16
+files the builder's Response lists, all M4-owned per MODULES.md.
+
+### Blocking items
+None.
+
+### Item-by-item verification
+
+**1. Snooze slot (headline) — GENUINELY FIXED.** Independently re-derived the
+predicate from PRD §3.7 (lines 429-509, precedence rule 463-482) and SCHEMA
+§4.2, not from the builder's claim:
+- `src/features/task/snoozeSlot.ts:76` gates rendering 3 on
+  `sourceVacatedYesterday && !isDueToday`, with `isDueToday = isDue(task,
+  today)` from `@/domain` (`app/task/[id]/index.tsx:122`) — a public, pure
+  signal, no reimplementation of carrier selection.
+- **Precedence case 2** (daily task, yesterday vacated → today, today
+  naturally due and unlogged — the day-after state of every daily snooze):
+  `isDueToday` true → falls through to rendering 1, "Snooze" enabled.
+  Pressing it snoozes TODAY'S OWN occurrence (W-1s legal — today's carrier is
+  own-live/own-create since the visitor is dormant under clause a/b). The
+  previously-impossible legal same-task snooze (SCHEMA §4.2 C6, "two
+  independent one-hop snoozes") now works. ✔
+- **Precedence case 1** (today has its own logged state): same branch,
+  renderings 1/2. ✔
+- **Precedence case 3** (today off-cadence, visitor displays): `isDueToday`
+  false → "Undo snooze" with `sourceDate = yesterday`; `useUndoSnooze` is
+  W-1u-legal by the R-2 inference (unchanged from pass 1, still sound). ✔
+- **Acceptance test A** (`app/task/[id]/index.test.tsx:75-110`) is real, not
+  superficial: daily task, seeds `ownLog(2026-07-15).movedToDate=2026-07-16`,
+  today unlogged; asserts "Snooze" enabled + no "Undo snooze", then PRESSES it
+  and asserts `ownLog(today).movedToDate === tomorrow` AND yesterday's pointer
+  untouched (effect-level proof undo was never called). Exactly the pass-1
+  prescription.
+- **Acceptance test B** (`index.test.tsx:112-140`): Wed-only cadence
+  (weekdays [3]; 2026-07-15 IS a Wednesday — verified), today Thu off-cadence,
+  yesterday snoozed → asserts "Undo snooze", presses it, and asserts the slot
+  returns to "Snooze, disabled" (today reverts to genuine not-due). Goes
+  beyond the prescription by asserting the post-undo re-render.
+- **Same-day disabled test preserved**: `index.test.tsx:60-73`, byte-level
+  behavior unchanged (snooze today → slot disabled, no Undo — the §7 gap left
+  open, not papered over). Its comment no longer contradicts the next test.
+- **Pure-function pin**: `snoozeSlot.test.ts:118-128` adds the 9th case
+  (yesterday vacated + today naturally due → `{kind:'snooze', enabled:true}`).
+- **C6 residual fails safe — VERIFIED IN THE MUTATION, not just the header
+  comment.** In the vacated-own-plus-visitor shape on a naturally-due today,
+  the slot mis-renders "Snooze"; pressing it calls `snoozeOccurrence`
+  (`src/queries/mutations.ts:641-650`), which routes through
+  `resolveWriteTarget` and rejects at the `carrier.kind === 'visitor'` guard
+  (line 648-649) with `VALIDATION_FAILED`, message "This occurrence is already
+  snoozed.", before any write — zero writes, zero reconciles — and
+  `onSnoozeSlotPress` (`index.tsx:218`) surfaces the failure toast. The
+  residual is documented in `snoozeSlot.ts:38-49` exactly as pass 1
+  prescribed. The architect CR was not raised — acceptable per pass 1's
+  "either way".
+- **No forbidden UI remains**: "Undo snooze" for a dormant visitor is no
+  longer reachable; the §7 reachability gap is once again genuinely open.
+
+**2. Stat line — FIXED.** `index.tsx:285-294` calls `perTaskConsistency`
+(`@/domain`, M2's one pinned implementation — verified it accepts the
+DateRange window and skips `off` without consuming a denominator slot,
+`src/domain/consistency.ts:73-76`) over the displayed month; renders
+`"${percent}% showed up — ${numerator} of ${denominator} days"`; null percent
+→ no stat line (no "0%" on empty). Test `index.test.tsx:180-229` seeds
+4 ideal + 1 fallback + 2 missed + 2 off and asserts the exact sentence
+"71% showed up — 5 of 7 days" — off days out of the denominator, round-half-up
+percent, percent-first shape. Matches `ALLSCREENS_1.md:1032/1073`.
+
+**3. Heatmap drill-down — FIXED, and the SCHEMA §4.2 watch site is clean.**
+`onCellPress` wired (`index.tsx:510-514`, past days only); `DayLogPopover`
+(`index.tsx:543-569`) writes exclusively via `logState.mutateAsync({taskId,
+date, chip})` — the same `useLogState` mutation the today-card uses, with the
+TAPPED date; grepped the popover: no repo access, no hand-addressed row, no
+snooze controls. Test `index.test.tsx:260-281` opens the popover from a past
+missed cell, asserts Snooze/Undo absent inside it, presses Done, and asserts
+the write landed for the tapped date.
+
+**4. Empty history — FIXED.** `index.tsx:272-275` keys emptiness on the
+task-lifetime `useConsistency({scope:'per-task', window:'all-time'})` read
+(all-time denominator AND off-count both zero), never the displayed month;
+`undefined` during load so the empty state never flashes. Test
+`index.test.tsx:231-258`: July log, opens in August → August 1 renders its
+genuine missed fill, empty caption absent.
+
+**5. Multi-dose — FIXED.** One row per `task.dosesPerDay`
+(`index.tsx:381-395`), each a full `StateChip` (not `Checkbox`). Test
+`index.test.tsx:283-302` uses `dosesPerDay: 3`, asserts three chips each
+carrying Done/Fallback/Skip options, and logs dose 3. The contiguous
+`dosesCompleted`-count mapping (Done/Fallback/Skip all "handle"; To-do
+un-handles the tail) is documented at `index.tsx:140-150` and is consistent
+with `ALLSCREENS_1.md:1015`'s own carve-out ("per-dose rows commonly only
+reach Done/To do, but the component itself carries all four states") and
+SCHEMA §2's count-typed column.
+
+**6. Tags — FIXED.** The `Tag` itself is the tap target (`Pressable` with
+`accessibilityRole="button"`, `index.tsx:329-355`); both ghost buttons
+removed (grepped: no "Edit importance"/"Edit necessity" remain); a11y label
+now truthful ("Importance, High. Opens picker."). Test
+`index.test.tsx:304-312` presses the tag and asserts the Radio picker opens.
+
+**7. Persist-failure states — FIXED, all sub-items.**
+- All four create screens now toast on failed save with no state reset
+  (`routine.tsx:118-127`, `event.tsx:106-112`, `course.tsx:119-125`,
+  `todo.tsx:53-57`). One test per screen monkey-patches
+  `fake.repos.tasks.insert` to fail and asserts toast + no navigation + typed
+  data intact.
+- S17/S18 unparseable free-typed dates: new M4-owned
+  `src/features/task/dateValidation.ts` (format + real-calendar-date
+  round-trip check, rejects "2026-02-30"), surfaced as inline `Input` errors,
+  save blocked; one test per screen.
+- S22: `delete.tsx:74-86` — retry banner renders ABOVE the button row; both
+  "Delete routine" and "Keep it" stay present, disabled only while a delete is
+  in flight. Test `delete.test.tsx:104-125` forces `softDelete` failure and
+  asserts both buttons present with `accessibilityState.disabled` falsy.
+
+### Scope discipline & runs (verified myself)
+- `git diff d5150c1..HEAD -- src/types src/theme src/ui src/lib
+  src/navigation src/db src/domain src/queries package.json jest.config.js`
+  → **empty**. `src/queries/testSupport/fakeRepos.ts` has zero commits in the
+  window — the monkeypatch claim is true: reassignment of one method on the
+  (unfrozen, module-scoped) fake object inside the test file only.
+- All 16 changed files are inside MODULES.md's M4 ownership list. No new
+  dependencies. Dirty working-tree files are M6/M7's, none M4.
+- `npx jest app/add app/task src/features/task` → **13 suites / 78 tests, all
+  pass** (13.6s) — matches the Response's claim.
+- `npx tsc --noEmit` → zero errors in `app/add`, `app/task`,
+  `src/features/task`.
+
+### Non-blocking notes (new this pass; do not block)
+- `fake.reset()` (`fakeRepos.ts:237-252`) clears data but does NOT restore a
+  monkey-patched repo method — safe today only because each patch test is the
+  last test in its file. Restore the original in an `afterEach`/`finally` so a
+  future appended test doesn't inherit a broken `insert`.
+- `index.tsx:578` — `tagEditButtons` style is dead code left from the removed
+  ghost buttons.
+- The drill-down popover also opens for past `off`/`not-due` cells, where a
+  chip write will VALIDATION_FAIL to a toast — fails safe, but a guard on
+  outcome would be kinder.
+- A dose logged via its chip's Fallback/Skip option displays as Done on
+  re-render (contiguous-count model) — within spec's carve-out, but worth a
+  line in visual-qa's fixtures.
+- Pass-1 non-blocking notes remain open (name persists via "Save name" button
+  rather than blur; month-label formatting idiom; S16 live validation; S24
+  motion; S23 `AsNeededCard`; curly quotes; two box-checking tests; stub
+  `src/features/task/index.ts`).
