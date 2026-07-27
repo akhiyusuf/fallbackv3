@@ -29,8 +29,11 @@ STATUS: APPROVED
 > This is a scoped change **inside** the approved Gate 1 — `STATUS: APPROVED` is
 > unchanged and Gate 1 is not reopened. No other feature section is affected. §3.7
 > carries a **Design precedence** block naming exactly where it supersedes the
-> Gate-2 design and where the design still controls. See §3.7 and **Decisions
-> appendix item 21**.
+> Gate-2 design and where the design still controls, and a **one-live-outcome-per-date**
+> rule governing what a snooze target displays. One genuine gap this amendment
+> surfaced — how a user reaches **Undo snooze** for an occurrence that displays
+> nowhere — is **open in §7**, not papered over. See §3.7 and **Decisions appendix
+> item 21**.
 
 ---
 
@@ -452,19 +455,51 @@ collapsed shorthand spanning both tiles, which this amendment now separates.
 - **Which occurrence states are snoozable (complete, closed list).** The displayed
   occurrence may be snoozed from **any** of these five states: **pending** (unlogged,
   un-Skipped today), **ideal**, **fallback**, **missed** (Skip-chipped, or a day that
-  ended unlogged), and **off**. A logged occurrence carries its chip state, step detail
-  and XP award **with it** to D + 1. The single non-snoozable case is **not-due** —
-  there is no occurrence to move, so the slot renders disabled (rendering 2 above).
+  ended unlogged), and **off**. A logged occurrence's chip state, step detail and XP
+  award **travel with it** — but **whether they are what D + 1 actually displays and
+  counts is governed by the precedence rule immediately below**, not by the move
+  itself. The single non-snoozable case is **not-due** — there is no occurrence to
+  move, so the slot renders disabled (rendering 2 above).
+- **ONE LIVE OUTCOME PER DATE — the target date's own state wins (PINNED; this is the
+  already-implemented, already-tested rule, mirrored from `docs/SCHEMA.md` §4.2's
+  three-clause read resolution).** A date never displays or counts **more than one**
+  outcome, ever. When an occurrence arrives at D + 1, exactly one of three cases holds:
+  1. **D + 1 already carries its own real logged state** → **that** is what displays
+     and counts. The arriving occurrence's data **does not overwrite it, does not merge
+     into it, and contributes nothing to F5 or XP**. The arriving data goes **dormant**
+     — retained, not destroyed — and returns with the occurrence on undo.
+  2. **D + 1 is naturally due, its own occurrence is still present, and it has never
+     been logged** → D + 1 shows **its own blank state** (auto chip; pending today,
+     missed once the day has ended) — **deliberately NOT the visitor's data.** Showing
+     a completed state on a day the user never touched would **manufacture XP for that
+     day**; the visitor's data stays dormant instead.
+  3. **Otherwise** — D + 1 is **not** naturally due, **or** D + 1's own occurrence has
+     itself been snoozed away — the visitor is the only occurrence present, so **the
+     arriving occurrence's data is what displays and counts** at D + 1.
+  **Consequence qa-tester must assert:** `numerator = denominator − missed` (§3.5)
+  holds across any snooze, because exactly one occurrence is ever counted per date —
+  never two, never zero-plus-a-double.
 - **An already-snoozed occurrence cannot be snoozed again.** Its slot renders "Undo
   snooze" only. Consequently **no occurrence is ever more than one day from its own
   date, and chains (A→B→C) are unreachable by construction** — qa-tester must assert
   that a second snooze on the same occurrence is impossible through the UI and writes
   nothing.
-- **Undo is always available on a snoozed occurrence.** "Undo snooze" returns the
-  occurrence to its original day and restores its pre-snooze state **exactly** — chip
-  state, step detail, and any previously-earned XP award re-affirmed. After undo the
-  occurrence is in the **never-snoozed** state and may be snoozed again — still only
-  ever one day forward.
+- **Undo restores a snoozed occurrence exactly — but its REACHABILITY has an open gap
+  (§7).** "Undo snooze" returns the occurrence to its original day and restores its
+  pre-snooze state **exactly** — chip state, step detail, and any previously-earned XP
+  award re-affirmed. After undo the occurrence is in the **never-snoozed** state and
+  may be snoozed again — still only ever one day forward. **However:** the undo control
+  lives on the sheet's occurrence card, so it is reachable only while some date's sheet
+  actually **displays** that occurrence. Under precedence cases 1 and 2 above the
+  visitor displays **nowhere** — its source date resolves **not-due** (slot disabled)
+  and its target date shows the target's own state — and **no currently-specified
+  surface exposes an undo for it.** **This is the common case, not a corner case:** for
+  a **daily-cadence** task, snoozing an already-logged occurrence lands on a
+  naturally-due, never-logged day **by construction, every time**. The **data is not
+  lost** (it is dormant and revives if the occurrence returns), but the **UI path to
+  trigger that return is undefined** — an **open decision (§7)**. qa-tester **cannot**
+  write a definitive undo-reachability assertion until §7 answers it; every other
+  criterion in this section is testable today.
 - **`snoozable` is a per-task boolean.** The task creator sets it at create time
   (**default: on**), and it is **editable after creation** from this sheet using the
   same inline-edit pattern already used for the task name and the Importance /
@@ -487,24 +522,25 @@ value. **Sheet open on a task with no occurrence on the sheet's date** → snooz
 disabled (nothing to snooze), everything else on the sheet behaves normally.
 **Turning `snoozable` off while one of that task's occurrences is currently snoozed**
 does **not** retract the existing snooze — that occurrence keeps its **"Undo snooze"**
-rendering and stays restorable — and no new snooze can be started on that task.
+rendering wherever it is displayed, and no new snooze can be started on that task.
 **Two different tasks may each snooze one day forward onto the same date:** this is
 **legal and expected**, not an error — each occurrence remains its own task's
-occurrence, is logged independently, and counts independently in F5. **Snooze target is
-a day the same task is already naturally due:** the snoozed occurrence leaves its
-original day (which leaves the F5 denominator) and the target day's own occurrence is
-unchanged; undo restores the original day exactly. **Snooze target is an off-marked
-day:** the occurrence resolves **off** there per F4 — no miss, no penalty, no XP
-retraction — and undo restores it. Delete of a task with history removes its records
-from F5 recompute. **As-needed routine (F27) history:** with no due days, it shows
-**only the dates it was manually logged as used/triggered** (ideal/fallback marker if
-defined) — no off/missed/ideal-by-due-day cells; unused dates blank, never "missed".
-Treatment (used-dates list vs. sparse marker calendar) is a design surface (§7).
-As-needed routines have no occurrences, so **snooze does not apply to them at all** and
-their detail screen (S23) gains no snooze slot. Persist failure on any action — snooze,
-undo, the `snoozable` toggle, edit, duplicate, delete — reverts the control with calm
-retry; no partial writes, never a false "saved". Cancel-delete → no change. Empty
-history → neutral grid (no missed cells).
+occurrence, resolves under the precedence rule, and counts independently in F5.
+**Snooze target is a day the same task is already naturally due:** this is precedence
+**case 1 or 2**, not a special rule — the target day keeps its own state (logged or
+blank), the snoozed occurrence's data goes dormant, and the source day is vacated (so
+it leaves the F5 denominator). Undo restores the source day exactly — **subject to the
+§7 reachability gap above.** **Snooze target is an off-marked day:** the occurrence
+resolves **off** there per F4 — no miss, no penalty, no XP retraction. Delete of a task
+with history removes its records from F5 recompute. **As-needed routine (F27)
+history:** with no due days, it shows **only the dates it was manually logged as
+used/triggered** (ideal/fallback marker if defined) — no off/missed/ideal-by-due-day
+cells; unused dates blank, never "missed". Treatment (used-dates list vs. sparse marker
+calendar) is a design surface (§7). As-needed routines have no occurrences, so **snooze
+does not apply to them at all** and their detail screen (S23) gains no snooze slot.
+Persist failure on any action — snooze, undo, the `snoozable` toggle, edit, duplicate,
+delete — reverts the control with calm retry; no partial writes, never a false "saved".
+Cancel-delete → no change. Empty history → neutral grid (no missed cells).
 
 **Data touched.** Task record (edit / duplicate / icon / color / **`snoozable`
 boolean**), the snoozed occurrence's own record (its **one-day-forward relocation**,
@@ -1151,6 +1187,10 @@ v1.
   tasks may still each snooze onto the same date, and an occurrence may still end up on a date
   its own task has vacated via a **sequence of independent one-hop snoozes on different
   occurrences** — both remain in scope. See §3.7 and Decisions item 21.
+- **Merging, summing, or co-displaying two occurrences on one date (F7).** A date shows and
+  counts **exactly one** outcome — §3.7's one-live-outcome-per-date precedence rule. Do not
+  build a combined view, a "2 occurrences here" affordance, or any arithmetic that lets a
+  visiting occurrence contribute to a date that already resolves its own state.
 - **Consistency tracking / a %-shown-up figure for as-needed routines (R24 / F27).** The
   as-needed variant is **deliberately untracked**; computing, showing, or "gamifying" a
   consistency % for it is a non-goal. Its manual logging is **reference-only** history with
@@ -1239,6 +1279,13 @@ Groq via the thin backend — disclosed to the user (F9/paywall copy).
   flips that rendering immediately. Also ship **one already-snoozed occurrence** so the
   "Undo snooze" rendering, the impossibility of a second snooze, and undo-restores-the-original-day
   are all reproducible on-screen.
+- **Snooze precedence fixtures (F7 §3.7, one-live-outcome-per-date):** three fixtures, one per
+  case — (1) a snooze landing on a date that **already carries its own logged state** (target's
+  state displays and counts; the visitor contributes nothing to F5 or XP); (2) a snooze landing on
+  a **naturally-due, never-logged** date (the target's own blank state displays — assert **no XP
+  materialises** at the target and the % is unchanged by the visitor); (3) a snooze landing on a
+  **not-naturally-due** date (the visitor displays and counts there). Every fixture must satisfy
+  `numerator = denominator − missed`, proving exactly one outcome per date.
 - **Per-sub-step, per-parent-occurrence toggle state (R22 / F23 / F24):** a **persisted** on/off
   toggle per sub-step, a **subset of the parent's own occurrence set** (for the P0 daily/weekday
   cadence this is its selected weekdays). Stored on the task's ideal/fallback step records; the
@@ -1342,6 +1389,28 @@ Decisions item 18).
   Gate-2 design contains neither — §3.7's Design precedence block), and whether the create screens
   expose the `snoozable` toggle up front or leave it to the manage sheet. **The functional rules
   are fixed and must not be re-opened. OWNER: designer / screen-designer.**
+- **REACHING "UNDO SNOOZE" FOR A DORMANT OCCURRENCE (F7) — genuinely undefined; blocks one
+  qa-tester assertion.** §3.7's precedence rule means a snoozed occurrence that lands on a date
+  which resolves its **own** state (case 1 or 2) is displayed **nowhere**: its source date reads
+  not-due, its target date shows the target's own state. Its data is **dormant, not lost**, and
+  revives if the occurrence returns home — but **no specified surface offers the undo control that
+  would send it home.** **This is the common case for any daily-cadence task** (snoozing an
+  already-logged occurrence always lands on a naturally-due, unlogged day).
+  **Checked and ruled out as an existing answer:** none of the task-centric browse surfaces
+  exposes per-occurrence state or an undo affordance — `ALLSCREENS_1.md` **S10 line 425** ("No
+  `StateChip` here (logging happens on Today or inside S20)"), **S11 line 476**, **S12 line 525**
+  ("No `StateChip` on the row — tap → S20"), **S13 line 571** (plain binary checkbox, To-dos only,
+  which have no occurrences), and **S14 line 624** ("same `Card` row style … no `StateChip`"). All
+  five route to S20, which is date-based. So the Gate-2 design contains **no** surface that would
+  reveal a dormant occurrence.
+  Candidate resolutions, **none chosen here** — a task-centric entry point that renders current
+  effective occurrence state; a persistent "snoozed" indicator on the source date's sheet; or an
+  **accepted product tradeoff** that this case simply is not undoable. **If the accepted-tradeoff
+  option is chosen, surface it to the human** — losing reversibility in the common case is a
+  product concession, not a styling call. **Does NOT block the F7 build:** snooze, the precedence
+  rule, and the undo mechanic itself are fully specified and buildable; only the **reachability**
+  assertion waits on this. **OWNER: designer / screen-designer** (escalate to human only for the
+  accepted-tradeoff branch).
 - **Cloud sync mechanism & depth (both platforms).** What provides sync on **Android** (iCloud has
   no Android equivalent): a platform cloud-drive, a cross-platform sync layer, or none — and is
   real multi-device conflict resolution required in v1, or is best-effort/local-authoritative the
@@ -1564,15 +1633,16 @@ Decisions item 18).
 21. **(2026-07-27) F7 occurrence management NARROWED to a one-hop, per-task-gated snooze —
     human-directed amendment inside the approved Gate 1.** Recorded here rather than by re-running
     the planning pipeline; `STATUS: APPROVED` is unchanged and Gate 1 is **not** reopened.
-    **What changed (authoritative in §3.7; §4 carries the matching non-goal; REQUIREMENTS R9 carries
+    **What changed (authoritative in §3.7; §4 carries the matching non-goals; REQUIREMENTS R9 carries
     a matching CHANGE NOTE):**
     - **(a) Snooze is exactly one hop, once.** An occurrence dated D moves to **D + 1** and no
       further. There is **no target-date input** anywhere, and an **already-snoozed occurrence
       cannot be snoozed again** — so **chains are unreachable by construction**, not merely
       discouraged. §3.7 also pins what the first draft left unstated: snooze acts **only** on the
-      occurrence the sheet is displaying (never from the heatmap drill-down), and the **closed list
+      occurrence the sheet is displaying (never from the heatmap drill-down); the **closed list
       of snoozable occurrence states** is pending / ideal / fallback / missed / off — everything
-      except *not-due*.
+      except *not-due*; and a **one-live-outcome-per-date** precedence rule governs what the target
+      date shows (below).
     - **(b) The arbitrary-date "Move to another day" action is removed**, and F7's interaction
       details now **supersede the Gate-2 design in three named places**, enumerated in §3.7's
       **Design precedence** table: `ALLSCREENS_1.md` **lines 1025 / 1072** (three actions → two);
@@ -1601,10 +1671,18 @@ Decisions item 18).
     elected to **narrow the feature rather than keep hardening it**. This is **settled human product
     direction**, not a reviewer's or spec-writer's inference, and is not to be second-guessed or
     re-broadened.
+    **One live outcome per date — DESCRIBED, not invented.** §3.7's precedence rule (target's own
+    logged state wins; else a naturally-due-but-unlogged target shows its own blank state, never the
+    visitor's, so no XP is manufactured for an untouched day; else the visitor displays) is a
+    faithful mirror of the **already-implemented, already-tested** read resolution in
+    `docs/SCHEMA.md` §4.2. It is recorded in the PRD because it is **user-visible product behaviour**
+    that the amendment's "carries with it" language would otherwise have contradicted — not because
+    anything about it is newly decided.
     **Deliberately still true — merges are NOT eliminated (stated as a PRODUCT INVARIANT; the
     case-level mapping is the architect's, not this document's).**
     - Two **different** tasks may each independently snooze one day forward onto the **same date**.
-      Two occurrences sharing a date **stays in scope.**
+      Two occurrences sharing a date **stays in scope** (resolved by the precedence rule — one of
+      them displays and counts, never both).
     - Any scenario in which an occurrence sits on a date its **own** task has vacated — reachable
       through a **sequence of independent one-hop snoozes on different occurrences** (e.g. on a
       daily task: snooze D+1's occurrence to D+2, then snooze D's occurrence to D+1) — **also stays
@@ -1617,6 +1695,20 @@ Decisions item 18).
       `docs/SCHEMA.md` §4.2's case table — which rows die, which survive, which need restating — is
       the **architect's** call. The PRD states only what must remain reachable and what is now
       unreachable.
+    **DELEGATED CALL — flagged as spec-writer inference, NOT a literal human instruction.** The human
+    specified one-hop and per-task gating but did **not** separately rule on undo. Under delegation I
+    pinned: **undo survives the rescope** — a snoozed occurrence can be returned to its original day,
+    restoring its prior state exactly, and afterwards it is in the never-snoozed state and may be
+    snoozed again (still only ever one day forward). *Reasoning:* the product's whole posture is
+    forgiveness and reversibility (no streaks, off days neutral, calm retry on every failure, an
+    explicit erase/recovery surface); a one-way push-forward would be the app's only irreversible
+    occurrence action, and one-hop-with-no-undo would let a single mis-tap permanently relocate an
+    occurrence. **Pass-2 caveat, stated honestly:** the undo *mechanic* is sound and specified, but
+    the amendment surfaced that its *reachability* is undefined in the common daily-cadence case —
+    a dormant occurrence displays nowhere, and no specified surface offers its undo control. That is
+    now an **open §7 item**, checked against S10–S14 and confirmed unanswered by the existing design;
+    it is **not** silently assumed to work. **Visible to the human: if snooze should be one-way, or
+    if the unreachable case is an acceptable tradeoff, that is theirs to decide.**
     **Downstream consequence (NOT fixed by this amendment).** `docs/SCHEMA.md` §4.2's move contract
     is now **broader than this PRD requires**: its arbitrary-target machinery, its chain-collapse
     handling, and its multi-day distance guard all describe capability the PRD no longer asks for.
@@ -1625,4 +1717,5 @@ Decisions item 18).
     not against a case-ID list supplied by this document. What the PRD does pin: the two scenarios
     named in-scope above must still be **correctly handled after the simplification**, so the
     residue / write-carrier machinery that lets an occurrence visit a date its own task has vacated
-    must **not** be deleted alongside the chain machinery.
+    — and the read-resolution precedence that keeps exactly one outcome live per date — must **not**
+    be deleted alongside the chain machinery.
