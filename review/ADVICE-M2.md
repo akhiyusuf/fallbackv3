@@ -362,3 +362,168 @@ full length-3 reversal is explicitly NOT required — do not add it.
   verifies against these readings and does not reopen them.
 - The reviewer's in-flight compliance pass folds S1 and S4 into its checklist;
   neither invalidates any already-verified item.
+
+---
+---
+
+# Supplementary ruling — M2 (invocation 1, Supplement B) — 2026-07-27
+
+The original advisory and Supplement A stand byte-for-byte unmodified; this
+supplement is append-only. It rules on F1 (a write-side contract gap found on the
+Supplement-A compliance pass — a genuine gap, correctly routed here rather than
+pinned ad hoc) and specifies F2, the test class that cannot exist until this rule
+does. It also records that the reviewer's structural proof of clause (b)/C6
+consistency is accepted: its "only useMoveOccurrence writes pointers" lemma is
+promoted below from an emergent property to an asserted invariant (P8b), so the
+proof's premise is enforced from now on, not merely observed.
+
+Amendment index: B1 ADDS a write-side rule (T-1..T-3) to Ruling 1, one sentence to
+the D-rule, and case rows C9/C10/C11 to the case table. B2 ADDS invariant P8 to
+Ruling 2's pack and the F2 harness extension to section (b). Nothing in the R-rules,
+W-rules, Supplement A's three clauses, C1-C8, or S2-S4 changes.
+
+## B1 — BINDING, amends Ruling 1: occurrence-data writes follow the read's carrier; residue is immutable; not-due writes are rejected
+
+F1's root: reads resolve a CARRIER (Supplement A's clauses a/b/c) while writes
+address storage by DATE-KEY (`(task, tappedDate)` upsert). Wherever those two
+disagree, the tap is invisible and the write corrupts state belonging to a departed
+occurrence. This is the write-side twin of pass-2 N1, and it gets the same medicine:
+one construction, consumed by both sides.
+
+**Disposition of the coordinator's candidates (recorded so it is not relitigated):**
+- Candidate 1 (redirect to the resolved carrier) — ADOPTED, for the case where a
+  visitor is the occurrence. What the user sees is what gets touched.
+- Candidate 2 (implicit un-move, then tap) — REJECTED. A log action must never
+  mutate scheduling state: it would silently undo a deliberate move, turn a chip tap
+  into a two-effect operation no approved screen hints at, and break the
+  moves-are-the-only-pointer-writers exclusivity (P8b) that the reviewer's
+  structural proof of clause (b)/C6 consistency rests on.
+- Candidate 3 (reject) — ADOPTED, but ONLY where nothing resolves at the date.
+  Rejecting the tappable C6-shape would make a visibly-due occurrence uncompletable —
+  a product regression with no design support.
+- "Design-level decision" — NOT NEEDED. The approved screens already decide this:
+  S09/S20 render exactly one occurrence per (task, date) with a tappable chip
+  whenever due; "what you see is what you touch" is forced by that, and no new
+  design surface exists to consult.
+
+**T-rule (write-side carrier selection) — applies to every occurrence-data mutation:
+`logState`, `toggleStep`, `useLogDose`. Appended to Ruling 1 after the W-rules:**
+
+```
+T-1  Resolve D through the R-rules first. If the occurrence at D resolves
+     `not-due` — a vacated source (R-2), or a plainly not-due date — REJECT the
+     write: VALIDATION_FAILED, zero writes, zero reconciles, zero events. There
+     is no occurrence at D to log. This is load-bearing twice over: it protects
+     residue rows from the write side (C10), and it closes the fabrication path
+     where an inert row written on a not-due date is later adopted as clause-(a)
+     truth by a move-in — phantom credit with no residue involved at all (C11).
+T-2  Otherwise write to the occurrence's data carrier, designated by the SAME
+     clause selection the read uses:
+       clause-(a) shape — ownLog(D) exists, pointer null → update ownLog(D).
+       clause-(b) shape — natural(D), no own row (visitor dormant or absent),
+         and the plain R-3 rowless case → create ownLog(D) fresh, pointer null.
+       clause-(c) shape — the visitor is the occurrence (non-natural D, or
+         natural-but-vacated / C6-shape D) → update the WINNING moved-in row
+         (the row at its source date; latest-source tie-break), changing only
+         its chip/step/dose/override fields and PRESERVING its movedToDate.
+         ownLog(D), if present as residue, is NOT touched.
+T-3  Reconcile and emit against D, the resolved date, exactly as today: the XP
+     award keys on (task, D); `day:logged` carries D. Only the addressed row
+     changes.
+```
+
+**Structural requirement (same discipline as N1's fix):** ONE pure
+carrier-designation function — in `src/domain` beside `resolveOccurrence` — returns
+`own-live | own-create | visitor(row) | none` for a `(log, movedInLog, natural)`
+triple. `resolveOccurrence`'s effectiveLog selection and a query-layer write-target
+resolver (in `internal.ts`, beside `resolveOneOccurrence`) BOTH consume it. No
+second implementation of the clause selection may exist anywhere. F1 happened
+because reads and writes answered "which row is this occurrence?" independently;
+after this fix the question must have exactly one answerer.
+
+**D-rule addition (one sentence):** residue rows are immutable to every mutation
+except `useMoveOccurrence`; dormant data can change only by the occurrence returning
+home — and data a tap writes to a visitor's row is the visiting occurrence's own
+state, travelling with it exactly as C7 data does.
+
+**Semantic note the reviewer must not flag as a defect:** after C9's tap-on-visitor,
+a later un-move of the date's own occurrence shadows the visitor (merge doctrine,
+Supplement A: the target's own state wins), so the visitor's tapped completion goes
+dormant on its row and its award at that date is retracted by reconcile — sanctioned
+under CR-2 (the resolved occurrence at that date stopped carrying a showing-up
+state), and fully recoverable by the visitor's own un-move. Transient retraction
+during shadowing is the merge doctrine working, not value loss.
+
+**New case rows (required tests, end-to-end through the public surface):**
+
+| # | Sequence | Required end state |
+|---|---|---|
+| C9 | due {A,B}; B→C; A→B; then chip/step tap on B | tap VISIBLE at B (outcome per tap; XP for (task,B) iff eligible); the write landed on A's row (the visitor), its pointer intact; residue ownLog(B) byte-unchanged. Then C→B (own occurrence returns): B resolves by its own uncorrupted dormant data (todo → pending, no award — no phantom); visitor's award at B retracted (see semantic note); B→A afterwards revives the visitor's tapped data at A with its award re-affirmed |
+| C10 | A→B; then any occurrence-data write on A | VALIDATION_FAILED; ownLog(A) byte-identical; zero events, zero XP delta; subsequent un-move revives A exactly as pre-move |
+| C11 | any occurrence-data write on a rowless not-due date | VALIDATION_FAILED, zero writes — and therefore a later move-in to that date finds no fabricated clause-(a) row |
+
+**Generalisation ruling (the coordinator's question 2):** F1 is broader than its
+discovery vector. The class is "any occurrence-data write addressed to a date whose
+carrier is not the date-keyed row", and it has three members: (i) the tappable
+C6/chain-target shape (visitor present + residue own row) — fixed by T-2's clause-(c)
+redirect; (ii) EVERY vacated source date — a single move suffices, no C6 shape
+needed: A→B then a write to A corrupts A's dormant data invisibly — fixed by T-1;
+(iii) rowless not-due dates — the write currently fabricates an inert live row that
+a later move-in adopts as clause-(a) truth — fixed by T-1. Plain chains expose only
+members (ii)/(iii): after collapse, A is residue (T-1 rejects) and B is rowless
+not-due (T-1 rejects); a tap on B BEFORE the second move is the ordinary clause-(a)
+own-create, already correct and C7-covered. C1/C2/C4/C4b/C5/C7/C8 end-states expose
+nothing new: their carriers are own-live, own-create, or the winning visitor, all
+handled by T-2. Note for wave 2: M4's S20 heatmap drill-down writes to arbitrary
+past dates, so T-1 is load-bearing product surface, not defence-in-depth.
+
+## B2 — BINDING, amends Ruling 2: invariant P8 and the F2 harness extension
+
+**P8 (added to the pack):**
+- P8a — residue immutability: across any mutation other than `useMoveOccurrence`,
+  every row with a non-null `movedToDate` is byte-identical before and after
+  (snapshot-compare all residue rows around each op).
+- P8b — pointer-writer exclusivity: no mutation other than `useMoveOccurrence` ever
+  sets, clears, or changes any row's `movedToDate`.
+- P8c — write visibility: an ACCEPTED occurrence-data write is always visible — the
+  post-write read at the tapped date reflects the written data, and the mutation's
+  returned occurrence equals that read (P1 extended to assert the tap itself, not
+  just path agreement).
+
+**F2 harness extension (section (b)):** compose every ACCEPTED move sequence of
+length ≤ 2 (reusing S4's ~650 enumeration and its infrastructure — the extracted
+`logState`/`toggleStep` functions the harness already drives) with ONE
+`logState('done')` on EACH of the five domain dates (~3,250 cases). After each:
+assert the full pack including P8, and additionally — for rejected writes — zero
+events and a byte-identical store. This reaches the three-operation shape
+(move, move, tap) that section (b)'s pairs could not, which is exactly where F1
+lived. The other tap kinds (fallback/skip/todo chips, `toggleStep`, `useLogDose`)
+are exercised in C9/C10/C11's named forms; the full op-product is NOT required.
+S4's reversal sweep stays move-only — do not extend it.
+
+## SCHEMA §4.2 amendment (route to the architect as an update to CR-3; mechanical mirror, no drift)
+
+- Append the T-1..T-3 block verbatim after the W-rules, under a heading
+  "Write-side carrier selection (occurrence-data mutations)".
+- Append the D-rule sentence from B1 verbatim to §4.2's D-rule paragraph.
+- Append case rows C9, C10, C11 to §4.2's case table verbatim.
+- No change to the R-rules, W-rules, Supplement A's clauses, or C1-C8.
+- Optional, architect's discretion: one line in `docs/API.md` §3 noting that
+  `useLogState`/`useToggleStep`/`useLogDose` return VALIDATION_FAILED for a date
+  with no resolvable occurrence — the Result shape itself is unchanged.
+
+## Disposition
+
+- For the producer: implement T-1..T-3 via the single carrier-designation function;
+  add C9/C10/C11; add P8 and the F2 extension. The no-move byte-equivalence
+  standard still applies: with no move in play, T-2 must reduce to today's
+  clause-(a)/own-create behaviour on due dates, changing nothing pass-3-verified;
+  the ONLY behaviour change on unmoved dates is T-1's rejection of not-due writes,
+  which no approved flow performs.
+- For the reviewer: verify the single-answerer structure (grep for any second
+  implementation of the clause selection), verify C9's residue byte-comparison and
+  the un-move retraction semantics per the note above, verify T-1 rejections emit
+  nothing, and verify S4 was not extended. Wave-2 consumers do not exist yet, so
+  T-1 breaks no caller.
+- F2's gap is closed by B2; it is downstream of B1 exactly as the reviewer said,
+  and could not have been written first.
