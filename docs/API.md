@@ -196,11 +196,16 @@ useLogDose()         // F12
 //   heatmap drill-down, which writes to past dates the user picks.
 useMarkOffDay()      // whole-day or task-day, and un-mark
 useLogAsNeededUse()  // F27 — reference-only
-snoozeOccurrence()   // F7 — one hop: D -> D+1. Target COMPUTED, never chosen.
-undoSnooze()         // F7 — returns the occurrence to D, restoring chip/steps/XP exactly.
-// ^ replace useMoveOccurrence(). PRD §3.7 removed arbitrary-target moves; SCHEMA §4.2 W-1
-//   rejects with VALIDATION_FAILED when the occurrence is not-due, the task is not
-//   `snoozable`, or the occurrence is already snoozed (no chains).
+useSnoozeOccurrence()  // F7 — one hop: D -> D+1. Target COMPUTED, never chosen.
+useUndoSnooze()        // F7 — returns the occurrence to D, restoring chip/steps/XP exactly.
+// ^ these replace useMoveOccurrence(); PRD §3.7 removed arbitrary-target moves.
+//   D is always the occurrence's OWN date (the row carrying the pointer), never the date
+//   being viewed. Their preconditions DIFFER — see SCHEMA §4.2 W-1s / W-1u:
+//     snooze rejects VALIDATION_FAILED if the occurrence is not-due, the task is not
+//       `snoozable`, or it is already snoozed (no chains);
+//     undo   rejects ONLY if there is no pointer to clear. A not-due source is the NORMAL
+//       case for undo (the source is vacated), and `snoozable` is irrelevant to it.
+//   Each emits day:logged once — snooze for D+1, undo for D.
 useUpdateSettings()
 ```
 

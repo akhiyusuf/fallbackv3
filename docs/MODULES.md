@@ -179,10 +179,12 @@ request.
 Wave 1 surfaced contract gaps in architect-owned files. The test-config ones are fixed in
 the frozen files directly (see "House testing pattern" above). The rest are recorded here,
 because they touch **M0-owned** source or pin semantics the architect owns.
-**All three are approved.** CR-1 and CR-2 are port changes: M0 applies them, M1 and M2 then
-align. **CR-3 is spec-only** — no source change, no schema change — and is already binding
-on M2 through `review/ADVICE-M2.md`; it is recorded here so **M4** and the qa-tester read a
-contract instead of a review trail.
+**All four are approved.**
+- **CR-1, CR-2** — port changes: M0 applies them, M1 and M2 then align.
+- **CR-3** — spec-only, no source change. **Superseded in part** by the F7 PRD amendment;
+  `SCHEMA.md` §4.2 is the live contract and CR-3's own entry marks what is dead.
+- **CR-4** — `snoozable` on the `Task` type, plus the `day_log` one-hop CHECK constraint.
+  Required by PRD §3.7; M0 applies the type change, M1 owns the migration.
 
 ### CR-1 — add the `cycle_state` accessor to the `Repositories` port (M0)
 
@@ -222,112 +224,95 @@ undeliverable. The §7 wording is correct; the port was incomplete.
   state. This is the **only** sanctioned reduction of lifetime XP. It must **not** fire on a
   missed day, an off day, a cycle boundary, or a task deletion.
 
-### CR-4 — add `snoozable` to the `Task` type (M0)
+### CR-4 — `snoozable` on the `Task` type, and the one-hop CHECK constraint (M0 + M1)
 
-PRD §3.7 makes `snoozable` a **per-task boolean, default on**, and `SCHEMA.md` §2 now carries
-the column. `src/types/task.ts` is M0-owned and frozen, so this is a change request.
+PRD §3.7 makes `snoozable` a **per-task boolean, default on**, and pins snooze to exactly one
+day forward. `SCHEMA.md` §2 carries the new column and §4 carries the new constraint.
+`src/types/task.ts` is M0-owned and frozen, so this is a change request.
 
 - **M0** — add `readonly snoozable: boolean;` to `Task`, and `snoozable?: boolean` to
   `TaskDraft` (defaulting to `true` when omitted).
-- **M1** — add the column (`INTEGER 0/1 NOT NULL DEFAULT 1`) in a new forward migration, and
-  map it in the task repository. A duplicate inherits the source task's value.
-- **M2** — `validateTaskDraft` defaults it to `true`; the snooze mutation rejects when it is
-  `false` (SCHEMA §4.2 W-1). Turning it off must **not** retract an existing snooze.
+- **M1** — **one forward migration covering both changes:**
+  1. add `task.snoozable` (`INTEGER 0/1 NOT NULL DEFAULT 1`), mapped in the task repository;
+     a duplicate inherits the source task's value;
+  2. **normalise legacy `day_log.moved_to_date` rows** — any pointer that is not exactly
+     `date + 1` is **cleared to NULL** (returns the occurrence to its own date, data intact);
+  3. add `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))` to
+     `day_log`. SQLite needs a **table rebuild** for this — create/copy/drop/rename, all
+     inside the migration's single transaction. Order matters: normalise **before** adding
+     the constraint, or the migration aborts on legacy data.
+- **M2** — `validateTaskDraft` defaults `snoozable` to `true`; the snooze mutation rejects
+  when it is `false` (SCHEMA §4.2 **W-1s**). Turning it off must **not** retract an existing
+  snooze, and **undo ignores it entirely** (§4.2 **W-1u**).
 
-### CR-3 — F7 move/snooze semantics are now a contract, in `SCHEMA.md` §4.2 (spec only)
+### CR-3 — F7 snooze contract, in `SCHEMA.md` §4.2  ⚠️ SUPERSEDED IN PART (2026-07-27)
 
-**Origin:** M2 hit ADVISOR_REQUIRED on the move feature. The advisor's root cause was **an
-architect spec gap, not a builder failure** — F7's move semantics existed upstream as one
-sentence and one column note (PRD §3.7, SCHEMA §4, ALLSCREENS S20), and nothing anywhere
-defined *composition*: un-move, same-day, chains, merges, or moves involving already-vacated
-dates. M2 was implementing against review prose because there was no contract to implement
-against. That gap is mine, and `SCHEMA.md` §4.2 closes it.
+> **Read the "Current state" block below. Everything under "Historical" is superseded where
+> it conflicts with `SCHEMA.md` §4.2 and must NOT be implemented from.**
 
-**No schema change.** `day_log.moved_to_date` keeps its exact shape; only its semantics are
-pinned. §4.2 mirrors `review/ADVICE-M2.md` **verbatim** — R-rules, W-rules, the case table,
-the D-rule and the boundary notes.
-
-**Updated for Supplement A (2026-07-27).** The ADVICE now has two parts, and §4.2 mirrors
-both, already merged. M2 flagged a genuine ambiguity in R-1's `effectiveLog` rather than
-guessing, and the advisor rejected the literal reading: under it, moving a **completed**
-occurrence onto an unlogged natural due date — possibly today or a future date — made that
-date resolve `ideal` off the imported chip and minted **XP for a day the user never
-touched**. In a product whose whole premise is never manufacturing credit the user did not
-earn, that was the deciding fact. The amendment:
-
-- **R-1's `effectiveLog` is now three clauses** — (a) a live own log wins *(unchanged)*;
-  (b) **new** — a naturally-due date with **no row** resolves to `null`, so a merge keeps the
-  target's blank state and the visitor's data lies dormant at its source per the D-rule,
-  reviving on un-move; (c) otherwise the moved-in record *(unchanged — this is what C6
-  relies on, and C6 is unchanged)*.
-- **C4b** is a new required case: merge onto a naturally-due, never-logged date, asserted
-  **with a completed visitor** so that **no XP award materialises at the target**.
-- **C8's data clause** is reworded for the same reason.
-
-**Updated again for Supplement B (2026-07-27).** The pass-4 reviewer found a real defect the
-whole prior contract missed: reads resolve a **carrier** for a date, but writes addressed
-storage by **date-key**, so a chip tap could land on the wrong row — invisible to the user
-and corrupting data belonging to a departed occurrence. §4.2 now carries the **T-rules
-(write-side carrier selection)**: resolve the tapped date first; **reject** the write if
-nothing resolves there (`VALIDATION_FAILED`); otherwise write to whichever carrier the
-read's own clause selection designates, never to a residue row. Plus a second D-rule
-sentence (residue is immutable except via `useMoveOccurrence`) and rows **C9/C10/C11**.
-
-Two things wave 2 should note. One variant of this bug has **nothing to do with moves**:
-writing to an untouched not-due date fabricates a row that a *later, unrelated* move-in
-adopts as truth — phantom credit. That is why T-1 is a general rule, not a move patch. And
-**M4 is directly exposed**: S20's heatmap drill-down writes to arbitrary past dates, so T-1
-is load-bearing product surface there, not defence-in-depth. `docs/API.md` §3 flags the new
-rejection case on `useLogState` / `useToggleStep` / `useLogDose`.
-
-Supplement A's **S2/S3/S4** and Supplement B's **B2** (invariant P8, the F2 harness
-extension) are harness rulings under Ruling 2 and bind M2 and the reviewer, not the schema.
-
-### CR-3 SUPERSEDED IN PART by the F7 PRD amendment (2026-07-27) — read this before building
+#### Current state — this is the live guidance
 
 `docs/PRD.md` **§3.7** was amended by human direction (inside the approved Gate 1) to narrow
-F7 from arbitrary-target moves to a **one-hop, once, per-task-gated snooze**. **The PRD now
-outranks the ADVICE**, and `SCHEMA.md` §4.2 has been rewritten to the narrower contract.
+F7 from arbitrary-target moves to a **one-hop, once, per-task-gated snooze**. **The PRD
+outranks `review/ADVICE-M2.md`**, and `SCHEMA.md` §4.2 is the current contract. Build from
+§4.2 and PRD §3.7 — nothing else.
 
-**Dead — do not build, stub toward, or leave hooks for:** "Move to another day", a
-target-date picker of any kind, a snooze of more than one day, re-snoozing an already-snoozed
-occurrence, chains, the ±60-day distance guard, or the same-task double-inbound tie-break.
+**Dead — do not build, stub toward, or leave hooks for:**
+- "Move to another day", or a target-date picker of any kind.
+- A snooze of more than one day; re-snoozing an already-snoozed occurrence; any chain.
+- The ±60-day distance guard, and the same-task double-inbound latest-source tie-break
+  (`|inbound(D)| ≤ 1` is now an invariant — see §4.2).
+- **The redirect-inbound write branch** — the old "a move from a date carrying inbound
+  pointers operates on those pointers only" rule. **Deleted.** A snooze now writes exactly
+  one row: `ownLog(D).movedToDate = D + 1`. Undo clears that one pointer. Re-introducing a
+  second write path here is a direct route back to the F1 defect class.
 
 **Alive and still load-bearing — the rescope did NOT eliminate merges:** two *different*
-tasks may each snooze onto the same date; an occurrence may still sit on a date its **own**
-task has vacated, reached by two independent one-hop snoozes on *different* occurrences. So
-the residue / dormant-data machinery (D-rule), the read-precedence clauses, and the
-**single-answerer** write-carrier selection (`designateCarrier`, T-1/T-2/T-3) all survive
-intact. **Do not reintroduce a second implementation of carrier selection** — that is what
-caused the F1 defect class.
+tasks may each snooze onto the same date; and an occurrence may still sit on a date its
+**own** task has vacated, reached by two independent one-hop snoozes on *different*
+occurrences. So the residue / dormant-data machinery (D-rule), the read-precedence clauses
+(**ONE LIVE OUTCOME PER TASK PER DATE**), and the **single-answerer** write-carrier selection
+(`designateCarrier` + `resolveWriteTarget`, T-1/T-2/T-3) all survive intact. **Do not
+reintroduce a second implementation of carrier selection** — that is what caused F1.
 
-The code still implements the broad contract; simplifying it is a **separate feature-builder
-task**, not part of this spec change.
+**qa-tester — the current required case set is `SCHEMA.md` §4.2's table:** C1, C4, C4b, C4r,
+C5, C6, C7, C9, C10, C11, C12, C13, C14 — asserted end-to-end through the public surface
+(hooks + reads), never through internals. **C2, C3 and C8 are deleted and must not be
+tested**: C2's same-day move cannot be expressed (the target is computed), and C3/C8 are
+chains and same-task double-inbound, both unreachable by construction. One assertion remains
+**blocked** on PRD §7 — undo-reachability for a dormant occurrence (§4.2's open note).
 
-The contract has **two halves and both are required**:
-- **Read precedence** — a moved-in record confers due-ness **before** the vacate check
-  (R-1 precedes R-2); a vacated own log is **residue**: it never annihilates a moved-in
-  occurrence and never supplies its data.
-- **Write normalisation** — a move *from* a date carrying inbound pointers operates on
-  **those pointers only**; the own-log pointer is written only when no inbound exists.
+**Not proposed: a transaction primitive on `Repositories`.** Under the rescope a snooze and
+an undo each write **exactly one row**, so the question is now moot rather than merely
+answered. If a future mutation genuinely needs cross-repository atomicity, that is a separate
+architect change request — do not assume it exists.
 
-Implementing only the read half still ships **C6** (task due A and B; B→C then A→B
-annihilates A's occurrence), which no source-pointer normalisation can reach.
+The code still implements the broad pre-rescope contract; simplifying it is a **separate
+feature-builder task**, not part of this spec change.
 
-- **M2** — already implementing; the ADVICE copy is binding now and M2 does **not** wait on
-  this CR. §4.2 exists so the contract is findable outside a review trail.
-- **M4** — build the S20 snooze/move UI against §4.2, not against this summary. See M4's
-  non-negotiables.
-- **qa-tester** — C1–C8 are required tests, asserted end-to-end through the public surface
-  (hooks + reads), never through internals.
+#### Historical — why the surviving machinery exists (SUPERSEDED; do not implement from this)
 
-**Not proposed: a transaction primitive on `Repositories`.** The advisor confirmed none
-exists and deliberately designed W-3's ordered single-row writes so that **every
-intermediate state is legal** under the R-rules, with no compensation logic. I agree, and I
-am **not** proposing to add one: it would reopen the frozen M0 port and both PASSED M1
-surfaces to buy atomicity the algorithm does not need. If a future mutation genuinely needs
-cross-repository atomicity, that is a separate architect change request with its own
-justification — do not assume it exists.
+Retained because it explains *why* the D-rule, the three read clauses and the T-rules exist,
+which matters when touching them. Every mechanic below is superseded by §4.2 where they
+differ.
+
+- **Origin.** M2 hit ADVISOR_REQUIRED on the move feature. The advisor's root cause was **an
+  architect spec gap, not a builder failure** — F7's semantics existed upstream as one
+  sentence and one column note, and nothing defined *composition*. That gap was mine.
+- **Supplement A** rejected a literal reading of the read formula under which moving a
+  **completed** occurrence onto an unlogged natural due date would resolve `ideal` off the
+  imported chip and mint **XP for a day the user never touched**. That is why clause (b)
+  exists, and why C4b asserts no award materialises at the target. *(This rule survives, as
+  PRD §3.7 case 2.)*
+- **Supplement B** fixed a defect where reads resolved a **carrier** but writes addressed
+  storage by **date-key**, so a chip tap could land on the wrong row. That is why the T-rules
+  and the single-answerer discipline exist. One variant had **nothing to do with moves** —
+  writing to an untouched not-due date fabricated a row a later move-in adopted as truth —
+  which is why T-1 is a general rule. **M4 stays directly exposed:** S20's heatmap
+  drill-down writes to arbitrary past dates. *(All of this survives unchanged.)*
+- Supplement A's **S2/S3/S4** and Supplement B's **B2** are harness rulings and bind M2 and
+  its reviewer, not the schema.
+
 
 ---
 

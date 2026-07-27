@@ -206,7 +206,7 @@ touched", which is not the same as `To do` — see §4.1.
 | `is_manual_override` | INTEGER 0/1 | a manual chip wins over step auto-log until changed |
 | `completed_step_ids` | TEXT | JSON array of ideal step ids completed on this occurrence |
 | `doses_completed` | INTEGER DEFAULT 0 | F12 |
-| `moved_to_date` | LocalDate NULL | F7 snooze / move — affects the occurrence, not the cadence |
+| `moved_to_date` | LocalDate NULL | **F7 one-hop snooze.** Non-null ⇒ this occurrence is snoozed to the very next day. Constrained: `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))`. Affects the occurrence, not the cadence. Semantics: §4.2 |
 | `created_at` / `updated_at` | Instant | |
 
 `UNIQUE (task_id, date)`. Indexes: `idx_log_date (date)`, `idx_log_task_date (task_id, date)`.
@@ -243,6 +243,22 @@ category and the only thing that lowers the %.
 now means exactly one thing: **this occurrence is snoozed to the very next day** — chains are
 unreachable at the *storage* layer, not merely discouraged in the UI. The per-task gate is
 `task.snoozable` (§2).
+
+**Migration ownership — M1 (CR-4).** M1 adds the constraint in the same forward migration
+that adds `task.snoozable`. SQLite cannot add a CHECK to an existing table in place, so this
+is a table-rebuild migration (create-new / copy / drop / rename) inside one transaction, per
+§9's forward-only discipline.
+
+**Legacy rows.** Pre-rescope data may hold a `moved_to_date` more than one day out, which
+would fail the new constraint and abort the migration. **Normalise before adding the
+constraint, in the same transaction:** for every row where `moved_to_date` is non-null and
+not exactly `date + 1`, **clear the pointer** (`moved_to_date = NULL`), returning that
+occurrence to its own date with its chip/step data intact. This is the conservative
+direction — it can only restore an occurrence to where the user originally put it, never
+invent a snooze the user did not perform, and never destroys logged data (the D-rule already
+guarantees the row's data revives when the occurrence resolves there again). Downstream, F5
+and XP recompute from the restored occurrences on the next read; no separate backfill is
+needed.
 
 **Definitions** (for task τ, date D):
 - `ownLog(D)` — the `day_log` row keyed `(τ, D)`, if any.
@@ -285,27 +301,48 @@ R-3  else: the ordinary natural resolution.
 
 With no snooze in play this must be byte-equivalent to the un-snoozed behaviour.
 
-#### WRITE — `snoozeOccurrence(τ, D)` and `undoSnooze(τ, D)`
+#### WRITE — `useSnoozeOccurrence(τ, D)` and `useUndoSnooze(τ, D)`
 
 Both act on **exactly the occurrence the sheet is displaying** (S20's occurrence card). The
 heatmap drill-down offers no snooze control — an occurrence reached through history is never
 snoozable (PRD §3.7).
 
 ```
-W-1  Validate. Reject with VALIDATION_FAILED, zero writes, zero reconciles, zero events, if:
+     In both operations D is the occurrence's OWN date — the date of the row that carries
+     (or will carry) the pointer. The caller resolves which occurrence the sheet is
+     displaying and passes that occurrence's own date, never the date being viewed.
+
+W-1s SNOOZE preconditions. Reject with VALIDATION_FAILED, zero writes, zero reconciles,
+     zero events, if ANY holds:
        - the occurrence at D resolves `not-due` (nothing to snooze); or
-       - `task.snoozable` is 0 (the slot renders disabled, and activating it writes
-         nothing); or
-       - the displayed occurrence is ALREADY snoozed (pointer non-null). Its slot renders
-         "Undo snooze" instead — a snoozed occurrence can never be snoozed again.
+       - `task.snoozable` is 0 (the slot renders disabled; activating it writes nothing);
+         or
+       - the occurrence is ALREADY snoozed (pointer(D) non-null) — its slot renders
+         "Undo snooze" instead, and a snoozed occurrence can never be snoozed again.
      Snoozable states are exactly: pending, ideal, fallback, missed, off. `not-due` is the
      sole non-snoozable case.
+
+W-1u UNDO preconditions — DIFFERENT, and deliberately narrower. Reject with
+     VALIDATION_FAILED only if:
+       - pointer(D) is null (nothing to undo).
+     Nothing else rejects. In particular:
+       - D resolving `not-due` is NOT a rejection — it is the NORMAL case. A snoozed
+         occurrence's own date always reads not-due via R-2 (it is vacated); requiring a
+         due source would make every legal undo impossible.
+       - `task.snoozable` is IRRELEVANT to undo. Per PRD §3.7 rendering 3, "Undo snooze"
+         is offered regardless of the task's current `snoozable` value, so turning the
+         flag off never strands an already-snoozed occurrence.
+
 W-2  Snooze writes ONE row: upsert ownLog(D).movedToDate = D + 1, preserving existing
-     chip/step/dose data. Undo writes ONE row: set ownLog(D).movedToDate = null.
+     chip/step/dose data. Undo writes ONE row: set ownLog(D).movedToDate = null,
+     preserving that row's chip/step/dose data so the occurrence returns with its state.
      The target is COMPUTED, never chosen — there is no target-date input anywhere.
-W-3  Reconcile D and D + 1 through reconcileOccurrence; emit day:logged once. XP follows
-     the reconciles: a vacated showing-up source retracts (CR-2 boundary), and undo
-     re-affirms the restored award.
+W-3  Both operations reconcile BOTH dates (D and D + 1) through reconcileOccurrence, and
+     emit `day:logged` EXACTLY ONCE, for the date the occurrence now lives at:
+       - snooze → `day:logged` carries **D + 1**;
+       - undo   → `day:logged` carries **D**.
+     XP follows the reconciles: a vacated showing-up source retracts (CR-2 boundary), and
+     undo re-affirms the restored award at D.
 ```
 
 Both operations touch **one row**, so the absence of a cross-repository transaction
@@ -355,6 +392,7 @@ data-corruption defect class, and the narrower snooze rule does not make it safe
 | C4 | snooze D onto a naturally-due D+1 that **has** its own log (PRD case 1) | D+1 keeps its own logged state and count; the visitor contributes nothing to F5 or XP and goes dormant; D vacated (leaves the denominator) |
 | C4b | snooze D onto a naturally-due D+1 that has **never** been logged (PRD case 2) | D+1 keeps its **own blank state** (auto chip; pending today, missed past, off if off-marked); the visitor's data contributes nothing — **assert with a completed visitor that NO XP award materialises at D+1**; undo restores D with its data and re-affirms its award |
 | C4r | undo from a case-1 target | clears `ownLog(D)` only; D due again with prior data; D+1's own occurrence untouched — exact restore |
+| C5 | **merge-then-vacate.** Snooze D onto a D+1 that **has** its own logged data (case 1, so the visitor goes dormant — this is C4). Then, separately, snooze **D+1's own displayed occurrence** forward to D+2 | reachable through the UI, and the old LIFO reading is **inverted**: once D+1 vacates, its residue pointer no longer supplies data, so the dormant visitor **REVIVES** at D+1 via R-1 clause (c) and its XP **re-materialises** through reconcile. End state matches C6's shape and PRD case 3. Assert the ordering, the revival, and the award re-materialising — a dormant visitor is never destroyed by its host leaving |
 | C6 | daily task: snooze D+1's occurrence to D+2, then snooze D's occurrence to D+1 (two independent one-hop snoozes on **different** occurrences — explicitly in scope, PRD Decisions 21) | D's occurrence is DUE at D+1 via its moved-in record (R-1 clause (c)) — D+1's residue pointer does not annihilate it; D+1's own occurrence stays at D+2 |
 | C7 | snooze D, complete at D+1, then undo | the tap writes to D's OWN row (the visitor), pointer preserved — no row is fabricated at D+1 (T-2 clause-(c)); the award keys on D+1 while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: D due `ideal` with its chip data; D+1 not-due; exactly one award, re-affirmed at D — not lost, not duplicated |
 | C9 | C6's shape, then a chip/step tap on D+1 | tap VISIBLE at D+1 (outcome per tap; XP for (task, D+1) iff eligible); the write landed on D's row (the visitor), its pointer intact; residue `ownLog(D+1)` byte-unchanged. Undoing D+1's own occurrence home then shadows the visitor per clause (a), its award at D+1 retracted by reconcile (sanctioned, CR-2) and revived by the visitor's own undo |
@@ -395,10 +433,13 @@ undo-reachability assertion until §7 answers it; every other criterion above is
 today.
 
 **Case-ID mapping from the pre-amendment contract.** **Survive** (restated in one-hop terms):
-C1, C4, C4b, C4r, C6, C7, C9, C10, C11. **Dead:** C2 (target is computed — source and target
-can never coincide), C3 and C5 (chains, unreachable once a snoozed occurrence cannot be
-re-snoozed), C8 (`D → D+1` is injective, so two source dates of the *same* task can never
-reach one target — `|inbound(D)| ≤ 1` is now an invariant). **New:** C12, C13, C14.
+C1, C4, C4b, C4r, C6, C7, C9, C10, C11. **C5 survives with INVERTED content** — its old
+chain-of-one-visitor reading is dead, but its *slot* now covers merge-then-vacate, which is
+still reachable and whose outcome flips from the old LIFO assumption (the dormant visitor
+revives rather than staying buried). **Dead:** C2 (target is computed — source and target can
+never coincide), C3 (a chain, unreachable once a snoozed occurrence cannot be re-snoozed),
+C8 (`D → D+1` is injective, so two source dates of the *same* task can never reach one
+target — `|inbound(D)| ≤ 1` is now an invariant). **New:** C12, C13, C14.
 
 ---
 
