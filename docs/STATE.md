@@ -4,9 +4,37 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 mid-implementation, tree GREEN
-(301 tests). A human product decision is QUEUED behind the in-flight fix — see
-"QUEUED — F7 rescope" immediately below before doing anything else in this phase.**
+**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 has COMPLETED Supplement B
+implementation (tree GREEN, 301 tests); pass-5 compliance review in progress.
+A human product decision is QUEUED behind this review — see "QUEUED — F7
+rescope" immediately below before doing anything else in this phase.**
+
+### M2 Supplement B — implementation complete, pending review
+
+M2 reports, and independent spot-checks confirmed: a single function
+`designateCarrier` in `src/domain/dayState.ts` is now the ONE place the
+read/write carrier decision is made — `grep` for the underlying branch
+condition returns exactly one hit outside test files. `resolveWriteTarget` in
+`src/queries/internal.ts` calls it directly (confirmed by reading the function
+body) rather than re-deriving the logic, which is what structurally closes
+F1's whole class rather than patching each symptom.
+
+T-1/T-2/T-3 applied identically across `logState`, `toggleStep`, `logDose`.
+C9/C10/C11 added. The P8 harness composes S4's 650 accepted move sequences ×
+a completion on each of 5 dates = 3,250 cases, asserting both accept and
+reject branches are genuinely exercised (not vacuous).
+
+One disclosed deviation: C7's assertions changed, not just gained a neighbor.
+Reasoned and spot-checked as legitimate rather than a cheat: pre-fix, a tap on
+a visiting occurrence fabricated a fresh row at the raw tapped date; under the
+fix it correctly writes to the visitor's own row, so a completion now travels
+home with its occurrence on undo — the corrected behaviour F1 exists to
+guarantee, not a regression papered over. The updated test doc-string names
+Supplement B explicitly rather than silently rewording history.
+
+No-move/no-C6 byte-equivalence claim: every pre-existing N1–N5, C1–C6, C8
+assertion is unchanged and passing: no test outside the new Supplement-B
+material needed to change to reach green.
 
 ## QUEUED — F7 (snooze) rescope, human-directed, 2026-07-27
 
