@@ -270,3 +270,143 @@ safety-snapshot commit (`98777ac`) made mid-session by the environment's autosav
 rework was in progress; their content is identical to what's described above and is included
 in the final commit's parent history, not lost or reverted.
 
+
+## Review — M3 (pass 2)
+VERDICT: PASS
+
+All 7 pass-1 blocking items independently re-verified against current source
+(commit `b5f3114`; no M3-owned file is dirty in the working tree — the current
+`git status` modifications are all M5/M7 paths from other in-flight reworks).
+I did not rely on the builder's Response section; every claim below was checked
+in source and by running the suite.
+
+### Per-item verification
+
+1. **S14 error state — FIXED.** `SearchScreen.tsx:131–132`: `tasksQuery.isError`
+   branch ahead of `nothingToSearchYet`, rendering `InlineRetryBanner` with
+   `onRetry={() => tasksQuery.refetch()}`, copy via `BROWSE_SHARED_COPY`. Test
+   `SearchScreen.test.tsx:48–57` asserts the banner renders, "No matches." does
+   NOT, and pressing Retry calls the mocked `refetch` — real behavior, not
+   box-checking.
+2. **badgeKey forwarded — FIXED, and both flagged judgment calls verified.**
+   `TodayScreen.tsx:85–87` appends `badgeKey=badgesUnlocked[0]` when
+   `!levelUp && badgesUnlocked.length > 0`. (a) Type assumption confirmed at
+   the source: `src/queries/mutations.ts:221` declares
+   `badgesUnlocked: readonly string[]`, populated with bare `u.key` strings
+   (`:305–309`) — pass 1's `.key` guess was wrong, the builder's correction is
+   right. (b) The `!levelUp` gate: a levelUp+badge double-crossing IS
+   representable (`reconcileOccurrence` computes them independently, `:290` and
+   `:293–312`), but S24's own `onContinue` (`app/task/[id]/celebrate.tsx`)
+   checks `levelUp === '1'` first and returns before ever reading `badgeKey`,
+   and its doc header declares the params mutually exclusive. So M3's gate is
+   behaviorally identical to sending both — nothing S24 would honor is dropped.
+   The residual double-crossing behavior belongs to M4's contract (see
+   non-blocking notes). Test `TodayScreen.test.tsx:159–175` asserts the pushed
+   URL carries `&badgeKey=tenure-30`; the sibling test at `:155` asserts no
+   badgeKey when the array is empty.
+3. **Card-row tap targets — FIXED both.** S09: `TodayScreen.tsx:268` — the row
+   `Card` carries `onPress={onOpen}` (button role + label via `Card`); chip
+   stays an independent nested pressable. Test `:244–254` presses the card by
+   its accessible label and asserts `/task/t1?from=today`. S13:
+   `ToDosBrowseScreen.tsx:90` and `:107` — both to-do and note cards are
+   pressable to S20; the invented "Details" link is gone (grep for `Details`
+   in M3 tests/sources: no matches). Test `ToDosBrowseScreen.test.tsx:75–83`
+   presses `getByRole('button', {name})` (correctly disambiguated from the
+   same-named checkbox) and asserts `/task/td1?from=todos`.
+4. **S11 four defects — ALL FIXED** (`EventsBrowseScreen.tsx`):
+   a. `RepeatingEventRow` (`:182–224`) computes `dueToday` from its own
+      occurrence window (`:199`), renders under Today when due
+      (`:104–113`), and the scoped empty is gated on
+      `todayEvents.length === 0 && repeatingDueTodayIds.size === 0` (`:63`).
+      The effect-reporting pattern is loop-safe: `reportDueToday` (`:51–60`)
+      is a `useCallback` whose functional updater returns `prev` unchanged
+      when the status hasn't flipped, so React bails out even though the
+      inline `onDueTodayChange` prop changes identity each render — verified
+      by reading the updater, and empirically by the passing test (an actual
+      infinite loop would hang/fail it). Test `:97–111`.
+      **`@/domain` restriction confirmed real:** MODULES.md:530 lists M3's
+      contract deps as `@/queries`, `@/ui`, `@/theme`, `@/navigation` only —
+      importing `isDue` from `@/domain` would exceed the declared contract,
+      so the chosen pattern is the compliant option.
+   b. Day-groups render from sorted keys (`:44`, `:120`). Test `:113–120`
+      with deliberately out-of-order fixtures asserts render order.
+   c. No-occurrence-in-window repeating event still renders with its badge
+      (`:206–210` — Today-section-only early return; date text simply
+      omitted). Test `:122–129` with an empty occurrence window.
+   d. Time in repeating meta line (`:208–210`, `:219`). Tests `:109`
+      (Today, `7:00 PM`) and `:131–143` (Upcoming, `9:00 AM`).
+5. **S12 Past dose badge — FIXED.** `CoursesBrowseScreen.tsx:112`:
+   `!isPast && tk.dosesPerDay > 1`. The formerly box-checking test now
+   asserts `queryByText('2×/day')` is null on Past
+   (`CoursesBrowseScreen.test.tsx:64–69`).
+6. **S10 "Last used" preview — FIXED** via the review's sanctioned fallback
+   path. New `src/features/browse/useAsNeededHistory.ts` mirrors M4's
+   exception exactly — same query key `['asNeededHistory', taskId]` as
+   `src/features/task/useAsNeededHistory.ts` (so the two copies share one
+   cache, no divergence), logic-free repo passthrough, header flags the
+   now-two-module promotion signal for the architect. `AsNeededRow`
+   (`RoutinesBrowseScreen.tsx:147–165`) sorts history descending and passes
+   `Last used MMM d` to `AsNeededCard`. Test
+   `RoutinesBrowseScreen.test.tsx:80–91` uses two out-of-order entries and
+   asserts the spec's own example string "Last used Mar 3" — the most-recent
+   one wins.
+7. **Apostrophes + copy routing — FIXED.**
+   `grep -rn '’' src/features/today src/features/browse src/features/search`
+   → zero matches. All three sibling browse screens plus S14 now render the
+   error banner via `BROWSE_SHARED_COPY.errorReadFailure`/`.retry`
+   (`EventsBrowseScreen.tsx:79`, `CoursesBrowseScreen.tsx:61`,
+   `ToDosBrowseScreen.tsx:77`, `SearchScreen.tsx:132`); tests assert the
+   straight-apostrophe forms (e.g. `TodayScreen.test.tsx:230` "that's okay").
+
+### Non-blocking notes (new this pass)
+
+- **S11 stale due-today set on row unmount.** `repeatingDueTodayIds` has no
+  cleanup: if a repeating event that reported due-today is deleted (or edited
+  to a one-off) while the tab stays mounted, its id lingers in the set and
+  suppresses the scoped "No events today." empty until the screen remounts.
+  Low probability, self-corrects on remount — but if fixed, do NOT add a naive
+  `useEffect` cleanup calling `onDueTodayChange(false)`: with the current
+  unstable inline-callback identity that cleanup would fire every render and
+  ping-pong the set. A stable per-id callback (or ref-based unmount-only
+  cleanup) is required.
+- **S11 transient empty-state flash:** while a repeating event's occurrence
+  query is in flight, `dueToday` is false and the scoped empty can render for
+  a frame before flipping. Cosmetic; flag for visual-qa.
+- **S11 Upcoming ordering across kinds:** repeating rows are appended after
+  all one-off day groups rather than merged chronologically. Pre-existing
+  behavior pass 1 did not block on; noting for visual-qa, not relitigating.
+- **Double-crossing (for M4/architect, not M3):** `reconcileOccurrence` can
+  return both a level-up and a badge unlock; S24 celebrates only the level-up
+  and drops the badge celebration (the unlock itself persists and shows in
+  S27). If chained celebrations are ever wanted, that is an S24 contract
+  change — M3 is already sending everything S24 would use.
+- Pass-1 non-blocking notes (index.ts stubs, hand-rolled S09 FAB, bare
+  `mutateAsync` awaits, ProgressRing vs. linear bar, S14 ordering) remain
+  open by design — the builder was instructed to leave them; carry to polish.
+
+### Verified (how)
+
+- **Tests run myself:** `npx jest src/features/today src/features/browse
+  src/features/search` → 6 suites / 55 passed, 0 failed (~8.5s). Matches the
+  self-report; +8 tests over pass 1, one covering each blocking item (items
+  4a–4d each have their own).
+- **Type/contract ground truth read directly:** `src/queries/mutations.ts`
+  (`ReconcileResult`, `:216–324`; `logStateResolver` return `:460–462`),
+  committed `app/task/[id]/celebrate.tsx` (S24 param handling + `onContinue`
+  chain order), `docs/MODULES.md:512–549` (§M3 owns/deps/may-not-touch).
+- **Scope discipline:** `git show --stat b5f3114` → 6 files, all
+  `src/features/browse/**` (M3-owned). The remaining item fixes live in the
+  shared multi-agent WIP snapshots `98777ac`/`6cd3db2`; every M3-attributable
+  file in those snapshots (`TodayScreen*`, `SearchScreen*`,
+  `ToDosBrowseScreen*`, `CoursesBrowseScreen*`, `RoutinesBrowseScreen.test`,
+  `today/copy.ts`, `browse/copy.ts`) is inside M3's owned paths; the non-M3
+  files there (`app/achievements/*`, `src/features/progress/*`,
+  `src/features/task/snoozeSlot*`) belong to the M4/M5 builders concurrently
+  in flight per the snapshots' own commit messages. No M3 write to
+  `src/queries`, `src/domain`, `src/ui`, `src/db` (the new
+  `useAsNeededHistory.ts` READS `@/db` — the exact exception pass-1 item 6
+  authorized, correctly flagged in its header).
+- **Import discipline:** grep `@/domain` across `src/features` → only
+  assistant (M6) and progress (M5) files; zero in M3.
+- **Apostrophe byte-check:** grep for U+2019 across all three M3 feature
+  dirs → exit 1 (no matches).
