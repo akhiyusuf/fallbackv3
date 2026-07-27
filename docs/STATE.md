@@ -4,10 +4,13 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — WAVE 1 COMPLETE AND FROZEN. F7 rescope cascade COMPLETE**
-**(PRD + SCHEMA + code, PASS end to end, 2 advisor escalations along the way).**
-**NEXT: brief wave 2 (M3–M7, the remaining 39 screens) — M4's brief needs the**
-**snoozable toggle and one-hop snooze UI folded in before dispatch.**
+**Phase 3 (BUILD) — WAVE 1 + F7 RESCOPE COMPLETE AND FROZEN. WAVE 2 DISPATCHED
+— M3, M4, M5, M6, M7 all launched in parallel** (M4's brief already had the
+F7 UI folded in from the rescope cascade, verified before dispatch — no
+update needed). Path-collision check run across all eight modules before
+launch: 77 owned-path entries, zero collisions. Awaiting all five reports,
+then code-reviewer per module, then qa-tester, then visual-qa, then **Gate
+3** — human reviews screenshots + `review/TEST_REPORT.md`.
 
 ### M2 Supplement B — implementation complete, pending review
 
