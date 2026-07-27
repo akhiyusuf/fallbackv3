@@ -201,3 +201,72 @@ spec-fidelity details.
 - **Verbatim copy byte-check:** `od -c` on the spec's "that's okay" / "Couldn't load
   today" confirms straight apostrophes; `grep -c "’" ALLSCREENS_1.md` → 0 (basis for
   blocking item 7).
+
+## Response (rework pass 1)
+
+All 7 blocking items fixed. Non-blocking notes left untouched, as instructed.
+
+1. Fixed. `SearchScreen.tsx` now has a `tasksQuery.isError` branch (checked before
+   `nothingToSearchYet`) rendering `InlineRetryBanner` wired to `tasksQuery.refetch()`,
+   copy routed through `BROWSE_SHARED_COPY`. Test added.
+2. Fixed. `TodayScreen.tsx`'s `handleLogChip` now appends
+   `badgeKey=result.value.badgesUnlocked[0]` to the S24 route when `!levelUp &&
+   badgesUnlocked.length > 0` (mirroring M4's own `app/task/[id]/index.tsx` gating —
+   levelUp and a milestone badge are mutually exclusive in practice per the celebrate
+   route's doc header). `badgesUnlocked` turned out to be `readonly string[]` (the key
+   directly), not objects with a `.key` field — confirmed against `src/queries/mutations.ts`.
+   Test added mirroring the existing chip-tap test.
+3. Fixed both. S09: `TaskRow`'s `Card` now carries `onPress={onOpen}`; the chip keeps its
+   own `onPressCompact`/`onChange` handlers as a nested pressable (RN doesn't bubble touches
+   from an inner Pressable to an outer one, so the chip's tap remains independent). Added a
+   test asserting a press on the card body navigates to `/task/t1?from=today`. S13: the to-do
+   `Card` is now `onPress`-pressable to `/task/<id>`; the "Details" text link is deleted.
+   Updated the existing test to press the card (disambiguated via `getByRole('button', {name})`
+   since the nested `Checkbox` shares the same accessible name).
+4. Fixed all four in `EventsBrowseScreen.tsx`:
+   a. `RepeatingEventRow` now takes a `section: 'today' | 'upcoming'` prop and computes
+      `dueToday` from its own `useTaskOccurrences` window; the Today section renders it only
+      when due today, and reports that status up to the parent (`onDueTodayChange`) via a
+      small effect so the scoped "No events today." empty state is gated on
+      `todayEvents.length === 0 && repeatingDueTodayIds.size === 0`, not just the one-off count.
+   b. Upcoming day-groups are now rendered from `[...upcomingGroups.keys()].sort(...)`
+      instead of raw Map iteration order.
+   c. Widened nothing — instead, per the review's own suggested alternative, the row no
+      longer early-returns when no occurrence resolves in the 90-day window; it still renders
+      with its recurrence badge, just without the relative-date text.
+   d. Repeating rows now include `formatTimeOfDay(tk.timeOfDay)` in the meta line alongside
+      the date (Upcoming) or alone (Today, where the date is redundant).
+   Four new tests added, one per defect.
+5. Fixed. The dose badge in `CoursesBrowseScreen.tsx` is now gated on `!isPast`. The
+   previously box-checking Past-tab test now asserts `queryByText('2×/day')` is null.
+6. Fixed via the recommended fallback path (narrow, flagged mirror, not an `@/queries`
+   promotion — that's an architect-level change outside this module's write scope).
+   Added `src/features/browse/useAsNeededHistory.ts`, a direct copy of M4's pattern reading
+   `repos.asNeeded.listForTask` via `@tanstack/react-query`'s `useQuery`, header-flagged as
+   the same now-doubly-needed promotion candidate. `RoutinesBrowseScreen.tsx`'s as-needed
+   rows now route through a new `AsNeededRow` sub-component that computes `lastUsedLabel`
+   from the most recent history entry (`Last used ${format(..., 'MMM d')}`) and passes it to
+   `AsNeededCard`. Test added asserting "Last used Mar 3" renders, matching the spec's own
+   example string.
+7. Fixed. All six apostrophes normalized to straight ASCII in `today/copy.ts` and
+   `browse/copy.ts` (verified: `grep -rn "’" src/features/today src/features/browse
+   src/features/search` → no matches). `EventsBrowseScreen.tsx`, `CoursesBrowseScreen.tsx`,
+   and `ToDosBrowseScreen.tsx` now render their read-failure banner via
+   `BROWSE_SHARED_COPY.errorReadFailure`/`.retry` instead of inline duplicate strings.
+   Updated the tests that asserted the old curly form
+   (`TodayScreen.test.tsx`, `RoutinesBrowseScreen.test.tsx`, plus the three sibling browse
+   tests and `SearchScreen.test.tsx`'s new error test, which all shared the same duplicated
+   string).
+
+Verification: `npx jest src/features/today src/features/browse src/features/search` →
+6 suites / 55 tests, all pass (was 6/47 pre-fix; +8 net new tests, no regressions).
+`npx tsc --noEmit` shows zero errors in any M3 path (remaining project-wide errors are
+pre-existing and outside M3's owned paths). `git diff --stat` for this pass touches only
+`src/features/browse/{EventsBrowseScreen,RoutinesBrowseScreen}.{tsx,test.tsx}`,
+`src/features/browse/copy.ts`, and new `src/features/browse/useAsNeededHistory.ts` — the
+other blocking-item fixes (`TodayScreen.tsx`, `SearchScreen.tsx`, `ToDosBrowseScreen.tsx`,
+`CoursesBrowseScreen.tsx`, `today/copy.ts` and their tests) were captured by an interim WIP
+safety-snapshot commit (`98777ac`) made mid-session by the environment's autosave while this
+rework was in progress; their content is identical to what's described above and is included
+in the final commit's parent history, not lost or reverted.
+
