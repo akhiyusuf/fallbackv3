@@ -400,3 +400,155 @@ test` → 23/23 pass. `npx tsc --noEmit` → clean. `git diff --stat` against th
 commit, scoped to M6's owned paths, shows changes only in `src/features/assistant/**`,
 `src/services/ai/**`, `src/services/billing/**`, `server/**`, `app/assistant/**`,
 `app/settings/subscription.tsx`(+test) — no other module's paths touched.
+
+---
+
+# Review — M6 (pass 2)
+VERDICT: PASS
+
+Reviewed the full rework diff (`6971af3..7a0377f`, M6-owned paths; commits `a680a72`,
+`7a0377f`, response in `4a6cb1c`) against pass 1's acceptance criteria.
+
+## Security boundaries — re-verified FIRST, still clean
+- **BYO key**: re-grepped all four M6 client trees — zero `console.*` calls; the key's only
+  sinks remain the `Authorization` header of fetches to the user's own `baseUrl`
+  (`byoProvider.ts:24,108`, `byoProbe.ts:33,47,66` — the probe's calls use the pre-save
+  user-entered values, same boundary). The new `byo.model` SecureStore field
+  (`secureKeyStore.ts:27,54`) stores only a model id, not a secret, and stays inside the
+  same single `expo-secure-store` importer. `byoProvider.ts:37-42` still reads the config
+  fresh per call, caches nothing module-level, and sends no `X-Fallback-*` header.
+  `byoKeyNeverInBackup.test.ts` and `secureKeyStore.test.ts` still pass unmodified in
+  their assertions.
+- **Backend statelessness**: re-read all of `server/src/` post-rework. The new tool-call
+  accumulator (`index.js:107`) is a per-request local `Map`, cleared on flush; the new
+  multipart reader (`index.js:42-75`) is in-memory only, no `fs` anywhere; the receipt is
+  still verified per request and dropped; `logAccess` still receives method/path/status
+  only; `server/package.json` still declares zero dependencies. The message-content-
+  never-logged and receipt-shape tests still pass.
+
+None of the 13 fixes weakened either boundary.
+
+## B1–B13 verification
+- **B1 PASS** — `billing/index.ts:190-191` stamps `latestReceipt` in `refreshEntitlement`.
+  Test `billing.test.ts` ("B1 — refreshEntitlement() alone…") drives it via mocked
+  `getAvailablePurchases` with no `purchase()`/`restore()`, asserts `currentReceipt()`
+  returns the token and `requestPurchase` was never called. Ran it: passes.
+- **B2 PASS** — `subscription.tsx:155-164`: trial days computed from real
+  `entitlement.trialEndsOn` via `diffDays` (argument order verified against
+  `src/lib/date.ts:59` — future date minus today, correct sign); unknown renders honest
+  copy (`trialActiveUnknown`, "Renews —"), never a fabricated number. `renewsOn` populated
+  best-effort from `expirationDateIOS` (`billing/index.ts:63-67,197`), asserted to be
+  `'2026-08-20'` in the new store test. S36 subtitle (`chat.tsx:65-79`) now derives from
+  the entitlement store after an async `refreshEntitlement`, rendering `null` → Skeleton
+  until loaded; the fixture string is gone (grepped: "renews Aug 20" appears nowhere in
+  src/app). Voice/language: `OptionsSheet` fires `onSaveVoiceLanguage` on both selects,
+  `chat.tsx:81-84` persists via `voiceLanguagePrefs.ts` + "Saved" toast; the new module's
+  header honestly discloses in-process-only persistence and why (no SCHEMA column, frozen
+  `@/queries`) — matches the sanctioned `conversationStore.ts` pattern; durable storage is
+  the orchestrator's tracked architect CR, not re-blocked here.
+- **B3 PASS** — `subscription.tsx:66` calls `deepLinkToSubscriptions()`; test asserts the
+  mock was invoked on press.
+- **B4 PASS** — `useAssistantChat.ts:146-149` routes both entitlement codes to
+  `onEntitlementError`; `chat.tsx:51` wires it to `router.push('/assistant/paywall')`.
+  `chat.test.tsx` B4 case asserts the push AND that the offline copy is absent.
+- **B5 PASS** — `byoProvider.ts:87-91,161-208` accumulates `tool_calls` deltas by `index`
+  (id/name from first fragment, `arguments` concatenated), flushes on
+  `finish_reason:'tool_calls'` plus an end-of-stream sweep. `byoProvider.test.ts` streams a
+  3-fragment fixture → exactly one `tool-call` event with fully-parsed args. Verified the
+  args assertion is a deep-equal of the assembled JSON.
+- **B6 PASS** — server mirror at `server/src/index.js:107-126,156-159` (accumulate by
+  index, flush on finish_reason or stream end). Real JSON schemas for all five tools exist
+  on both deployables (`src/services/ai/toolSchemas.ts`, `server/src/toolSchemas.js` —
+  diffed by eye: parallel content, both matching `AssistantToolCall`), wired into
+  `byoProvider.ts:65` and `groq.js:30`. `managedProvider.ts:61` sends tool NAMES and
+  `routes.js:46` + `toolDefinitionsFor` expands them — the shapes agree end to end.
+  `server/src/index.test.js` B6 case runs a real loopback server, fakes only the upstream,
+  streams 3 fragments, asserts ONE SSE `tool-call` frame with complete parsed args.
+- **B7 PASS** — `byoProbe.ts:26-57`: `GET {base}/models` discovery first, candidate order
+  [discovered, gpt-4o-mini], probe validates against `/chat/completions`; model persisted
+  via `setByoConfig` (`byo.tsx:38`) and used by `byoProvider.ts:59` with `gpt-4o-mini`
+  only as the last-resort fallback for pre-field configs. Test asserts a Groq-model config
+  sends `llama-3.3-70b-versatile`, and the fallback case sends `gpt-4o-mini` only when no
+  model was saved.
+- **B8 PASS** — `resolveClarification` (`useAssistantChat.ts:198-220`) appends a resolution
+  turn and re-runs `streamAndApply`, so the re-proposed tool call goes through the SAME
+  `handleToolCall` → `useToolExecutor` path; `log_state`/`delete_task` confirmations now
+  surface `result.summary` only after the mutation succeeded (`:115-120`). This is the
+  pass-1 acceptance's sanctioned "re-send" variant. `useAssistantChat.test.tsx` B8 case
+  asserts `useLogState.mutateAsync` fires with the chosen taskId before the confirmation
+  line appears, and that no mutation fires at clarification time.
+- **B9 PASS** — `chat.tsx:49` forwards `continueId` as `conversationId`;
+  `useAssistantChat.ts:54-68` seeds transcript + `historyRef` from `listMessages`;
+  `streamAndApply` sends `historyRef.current` (full running history) every turn. Tests:
+  seeded transcript of 2, same `conversationId`, and second send carries 3 messages
+  (first user + assistant reply + new turn), never `[latest]`.
+- **B10 PASS** — `toolExecutor.ts:124-145` reverts every `Partial<TaskDraft>` field from
+  the captured `previousDraft`, steps included. Test patches `importance`+`timeOfDay`,
+  undoes, asserts both restored in the revert patch.
+- **B11 PASS** — (a) `chat.tsx:113-130`: mic toggle rechecks `getRecordingPermissionsAsync`
+  and routes to `/assistant/mic-primer?context=recovery` on denial; the comment is now
+  truthful (only the native record loop remains stubbed, marked as the one seam). Tests
+  cover both denied (navigates, no "Listening…") and granted (enters voice) paths.
+  (b) `mic-primer.tsx:44-64`: recovery rechecks on `AppState → 'active'`, not immediately
+  after `openSettings()`; tests (via the official `expo-router/testing-library`) assert no
+  immediate recheck and that the fired AppState handler navigates to S32 listening once
+  granted. (c) `server/src/index.js:220-228` wires `/v1/transcribe` through a real
+  zero-dependency multipart/raw-body reader into the already-tested `handleTranscribe`;
+  `index.test.js` B11 case proves the route responds 401 (not 501) over a real socket.
+- **B12 PASS** — `byo.tsx:43` schedules the navigation at 600ms for BOTH success states
+  (the branch is gone). Test drives the degraded path, asserts the banner renders before
+  navigation and that a ≥600ms timer was scheduled.
+- **B13 PASS (as the review's sanctioned fallback)** — `receipt.js:10-28` now carries a
+  loud "⚠️ NOT PRODUCTION-READY — DELIBERATELY FAILS CLOSED" header that accurately states
+  what a real deploy must provision (Apple ES256 JWT, Google OAuth token) and explicitly
+  retracts the previous false `fetchImpl` claim. URLs/methods now match the real endpoint
+  shapes (Apple GET `/inApps/v1/transactions/{id}`; Google GET
+  `.../applications/{pkg}/purchases/subscriptions/{sku}/tokens/{token}`), with optional
+  env-provided Authorization. Fail-closed behavior preserved and tested (network failure →
+  `entitlement_invalid`, never persists, shape tests). New tests pin both URL shapes and
+  methods. This matches the fallback pass 1 explicitly offered; full credentialed
+  verification remains a correctly-flagged infra/architect follow-up.
+
+## Non-blocking notes (pass 2)
+1. `server/src/receipt.js:40-45` — the OLD, disavowed comment ("the concrete verifier is
+   injected via `fetchImpl` so a deploy wires its real credentials without touching this
+   file's logic") still sits inside `verifyReceipt`'s body, directly contradicting the
+   corrected header above it. Delete it next touch — it is exactly the sentence the header
+   now calls false.
+2. `app/assistant/chat.tsx:13` — `AssistantHeader` is imported but unused. Dead import.
+3. `src/db/lifecycle.ts:25` (M1-owned, read-only observation) — `SECURE_STORE_KEYS` clears
+   only `byo.baseUrl`/`byo.apiKey`; the new `byo.model` (and pre-existing
+   `byo.supportsTranscription`) survive `eraseAll`. Inert and non-secret (config resolves
+   to `null` without key+url), but the architect should add both names to M1's erase list.
+4. `useAssistantChat.ts:155-167` — an assistant turn that produces ONLY tool calls (no
+   text) appends nothing to `historyRef`, so on the next turn the model has no record of
+   its own action. Multi-turn works (B9's criterion is met); this is a fidelity refinement:
+   consider recording an assistant history entry carrying `toolCalls`.
+5. `voiceLanguagePrefs.ts` — in-process only, honestly disclosed in the header; the
+   durable-storage follow-up is tracked as an architect CR per the orchestrator. Accepted.
+6. Full-suite jest prints "a worker process has failed to exit gracefully" (repo-wide,
+   likely leaked timers/AppState listeners under test); all 693 tests pass. Worth a
+   `--detectOpenHandles` sweep someday, not an M6 gate.
+7. Pass-1 non-blocking notes 1–14 remain advisory; note 12's suggested behavioural parity
+   fixture is now substantially covered by the mirrored B5/B6 tests (same 3-fragment
+   fixture through both providers).
+
+## Verified (what I checked and HOW)
+- Read every changed M6 file in the rework range end-to-end: `byoProvider.ts`,
+  `byoProbe.ts`, `secureKeyStore.ts`, `toolSchemas.ts`, `managedProvider.ts` (unchanged,
+  re-read for the tools-shape handshake), `useAssistantChat.ts`, `toolExecutor.ts`,
+  `voiceLanguagePrefs.ts`, `OptionsSheet.tsx`, `copy.ts`, `chat.tsx`, `mic-primer.tsx`,
+  `byo.tsx`, `subscription.tsx`, `billing/index.ts`, `server/src/{index,routes,groq,
+  receipt,toolSchemas}.js`, plus every new/changed test named above.
+- `npx jest` (full repo) → **99 suites / 693 tests, all pass** (builder claimed 692; count
+  is now 693 — one higher, all green). `cd server && npm test` → **23/23 pass**.
+  `npx tsc --noEmit` → clean (exit 0).
+- Scope: `git diff --name-only 6971af3..7a0377f` filtered to M6's MODULES.md path list —
+  M6-attributable changes stay inside `src/features/assistant/**`, `src/services/ai/**`,
+  `src/services/billing/**`, `server/**`, `app/assistant/**`,
+  `app/settings/subscription.tsx`(+test). Files outside M6 in that range all belong to the
+  M3/M4/M5/M7 reworks that landed interleaved in the same window and carry their own
+  reviews. Frozen/shared paths (`src/db`, `src/queries`, `src/domain`, `src/types`,
+  `src/lib`, `src/components`, `package.json`, jest config, `docs/**`, `design-input/**`)
+  show **zero** changes in the range (checked with an explicit pathspec diff — empty).
+  No new dependency anywhere (`server/package.json` still dependency-free).
