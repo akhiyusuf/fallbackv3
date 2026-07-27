@@ -274,3 +274,80 @@ make the a11y label truthful. Acceptance test: pressing the element labeled
   testing pattern followed: no `expo-router` mock (uses the shipped
   `expo-router/testing-library` harness — a legitimate reading of the rule), local
   `expo-crypto` mock only, `@testing-library/react-native` throughout.
+
+## Response
+
+All 7 blocking items fixed, entirely within M4's owned paths. `npx jest app/add
+app/task src/features/task` → 13 suites / 78 tests, all pass. `tsc --noEmit`
+clean for every touched file (pre-existing, unrelated errors in
+`src/features/assistant`/`src/services/*` untouched by this pass remain, as
+expected — not M4's paths).
+
+1. **Fixed, as prescribed.** `src/features/task/snoozeSlot.ts` now takes an
+   `isDueToday` input and gates rendering 3 on
+   `sourceVacatedYesterday && !isDueToday` — "Undo snooze" only when the
+   displayed (today's) card is demonstrably the dormant visitor. The residual
+   C6 shape (today's own occurrence also carries a forward pointer) is
+   documented in the header block exactly as the review described: fails safe
+   via W-1s's `VALIDATION_FAILED`, zero writes, existing failure toast. Did
+   NOT raise the architect CR (`Occurrence.sourceDate` / `useSnoozeState`) —
+   kept the fix local per the prompt's stated preference. Replaced
+   `index.test.tsx:75-102` with acceptance tests A and B exactly as specified,
+   kept the same-day disabled test unchanged, and added a 9th pure-function
+   case to `snoozeSlot.test.ts` pinning the fixed behavior directly.
+2. **Fixed.** Stat line now built from `perTaskConsistency` (imported from
+   `@/domain`, no reimplementation) over the displayed month; renders
+   `"${percent}% showed up — ${numerator} of ${denominator} days"`; off days
+   excluded from the denominator via the pinned algorithm itself. Added a
+   month-fixture test asserting the exact sentence "71% showed up — 5 of 7
+   days" (4 ideal + 1 fallback + 2 missed + 2 off).
+3. **Fixed.** `onCellPress` wired on the heatmap; past-day taps (`date <
+   today`) open a `Dialog`-based popover with a single `StateChip` that
+   writes through `useLogState` with the tapped date — never a hand-addressed
+   row. No snooze controls in the popover. Added a test covering open + edit
+   + persistence + re-render, and asserting the absence of Snooze/Undo
+   controls inside the popover.
+4. **Fixed.** Emptiness now keyed on `useConsistency({scope:'per-task',
+   window:'all-time', taskId})` (all-time denominator + off count both zero),
+   not the displayed month. Added a test: task with a July log, August fully
+   unlogged → August still renders real missed fills, no blanked grid.
+5. **Fixed.** One row per `task.dosesPerDay`, each a full four-state
+   `StateChip` (not `Checkbox`). The persisted model is a contiguous
+   `dosesCompleted` count, not a per-dose bitmap — documented in-code that
+   Done/Fallback/Skip on a dose row all "handle" it (advance the count),
+   To-do un-handles it and everything after (count stays contiguous by
+   construction). Added a `dosesPerDay: 3` test asserting three independently
+   loggable StateChips.
+6. **Fixed.** The `Tag` itself is now the tap target (wrapped in `Pressable`,
+   since `Tag` has no `onPress`), opening the inline `Radio` picker; removed
+   both "Edit importance"/"Edit necessity" ghost buttons; accessibility label
+   now truthfully describes the real (now Pressable) affordance. Added a test
+   pressing the Importance tag and asserting the Radio picker opens.
+7. **Fixed, all four sub-items.** S16-S19 now show the standard failure toast
+   and leave form state untouched on a failed `createTask.mutateAsync`; added
+   one test per screen (routine/event/course/todo) that monkey-patches
+   `fake.repos.tasks.insert` to fail (test-local, does not touch
+   `src/queries/testSupport/fakeRepos.ts` — that file is M2's frozen path;
+   the fake repo object is a plain, unfrozen JS object, so reassigning one
+   method for the duration of a single test is a legitimate test-only
+   technique, same house pattern already used elsewhere in the codebase for
+   `jest.mock('@/queries', ...)`-style hook overrides) and asserts the toast
+   fires, no navigation occurs, and the typed data survives. S17/S18 gained a
+   local `isValidLocalDateString` check (`src/features/task/dateValidation.ts`,
+   M4-owned — does not touch `validateTaskDraft`) that surfaces a visible
+   inline error for an unparseable free-typed date, with one test per screen.
+   S22's `delete.tsx` no longer replaces the button row on failure — both
+   "Delete <noun>" and "Keep it" now render alongside the retry banner,
+   re-enabled (only disabled while a delete is in flight); added a test
+   asserting both buttons present and enabled after a forced delete failure.
+
+**Scope discipline.** Touched only `src/features/task/{snoozeSlot.ts,
+snoozeSlot.test.ts, dateLabel.ts, dateValidation.ts (new)}`,
+`app/task/[id]/{index.tsx, index.test.tsx, delete.tsx, delete.test.tsx}`,
+`app/add/{routine,event,course,todo}.tsx` and their `.test.tsx` files —
+all within M4's owned paths per MODULES.md. Did not touch `src/domain`,
+`src/queries` (including `testSupport/fakeRepos.ts`), or any other module's
+files. No new dependency added.
+
+**Non-blocking notes:** left untouched per the prompt's explicit scope
+instruction (out of scope for this pass).
