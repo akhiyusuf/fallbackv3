@@ -1,179 +1,159 @@
-# Review — PRD.md §3.7 F7 amendment + REQUIREMENTS.md R9 CHANGE NOTE (pass 1)
+# Review — PRD.md §3.7 F7 amendment + REQUIREMENTS.md R9 CHANGE NOTE (pass 2)
 VERDICT: CHANGES_REQUIRED
 
-Scope of this review: the amendment landed in commit `ab2b11a` only — PRD
-header banner (25–32), §3.7 (382–456), §3B/F26 cost line (719–723), §4
-non-goal (1090–1095), §6 fixture (1177–1182), §7 open item (1278–1283),
-Decisions item 21 (1503–1551); REQUIREMENTS.md R9 (262–272). Product judgment
-on the narrowing itself is settled human direction (STATE.md "IN PROGRESS —
-F7 rescope") and was not re-litigated.
+Pass 2, reviewing commit `2bf2266` against the pass-1 review. All three
+pass-1 substantive findings are genuinely fixed (see Verified), and the
+banner-footprint item received its waiver disposition from the orchestrator.
+REQUIREMENTS.md has zero diff this pass (confirmed: commit touches PRD.md
+only), which is correct — R9 needed no change.
+
+Two NEW blocking items, both introduced by this pass's rework — specifically
+by the displayed-occurrence binding and the state-list edit. Both are cases
+where the architect (or M4) would have to invent user-visible product
+behavior. Nothing from pass 1 remains open.
 
 ## Blocking items
 
-1. **"No design change is requested or implied" (Decisions item 21(b), PRD
-   ~1516–1517) is false as stated, and precedence over S20 is left ambiguous.**
-   The load-bearing factual claim IS verified true: `ALLSCREENS_1.md` line 1025
-   reads verbatim `**Actions.** IconButton + label, three: "Duplicate",
-   "Snooze", "Move to another day".` — two distinct buttons, exactly as item 21
-   quotes it, and "Move to another day" appears nowhere in the design outside
-   S20 (only lines 1025, 1055, 1072; no dedicated move screen exists — S21 is
-   the icon picker). So the core premise survives. But the amendment changes
-   more of S20 than "drop one of two buttons":
-   - `ALLSCREENS_1.md` line 1055: "Snooze / Move to another day → **inline
-     pickers**, stay on S20". The approved design's Snooze itself opens a
-     picker; PRD 399–401 now requires the target be "**computed, never
-     chosen** — the user is offered no date to pick." That is a contradiction
-     with the controlling design, not a no-op.
-   - PRD 402–411 adds an "Undo snooze" action, a disabled-Snooze state with a
-     screen-reader reason (416–418), and a snoozed-occurrence state; PRD
-     412–415 adds a `snoozable` inline toggle. None exist anywhere in
-     Gate-2-approved S20, and no copy for any of them exists in the design.
-   - Internal wobble inside §3.7 itself: line 396–397 makes the action row
-     "**'Duplicate' + 'Snooze'** only" a copy-inspection acceptance criterion,
-     but line 403 says a snoozed occurrence offers "only **Undo snooze**" —
-     a qa-tester asserting the row is exactly ["Duplicate","Snooze"] fails on
-     the §6 fixture's mandatory already-snoozed occurrence (1181–1182).
-   Item 21(b) simultaneously asserts `design-input/**` "remains … controlling".
-   Wave 1's worst systemic defect class (STATE.md: "the design is controlling;
-   prose describing it is not" — M0's nine blockers) is exactly this ambiguity;
-   M4 will hit it on day one.
-   **Fix:** in §3.7 or item 21(b): (i) drop or qualify "No design change is
-   requested or implied"; (ii) enumerate the S20 deltas explicitly (Move button
-   removed; Snooze inline picker → single computed tap; Undo-snooze, disabled
-   state + reason copy, and the `snoozable` toggle added as NEW surfaces with
-   no design source, to be reviewed as rendered output at Gate 3); (iii) state
-   precedence: §3.7 supersedes `ALLSCREENS_1.md` lines 1025/1055/1072 on these
-   F7 surfaces only, S20 controlling for everything else; (iv) restate the
-   copy-inspection criterion per action-row state (never-snoozed / snoozed /
-   non-snoozable). **Acceptance test:** a builder holding only §3.7 + S20 can
-   list which S20 lines are superseded without asking, and line 1055 can no
-   longer be read as requiring a snooze picker.
+1. **"Undo is always available on a snoozed occurrence" (PRD 463) is
+   unsatisfiable, or ambiguous, under the new displayed-occurrence binding
+   (PRD 443–448) in at least two concrete cases the spec itself makes
+   reachable.** The snooze slot's rendering is "determined by the sheet's
+   displayed occurrence" (428–429), and the only display surface is S20's
+   today-scoped occurrence card, with the heatmap drill-down explicitly
+   offering no snooze control (445–448). Walk the guarantee through:
+   - **(i) Immediately after snoozing** (the mis-tap scenario the delegated
+     undo call at item 21 cites as its core rationale): today's occurrence
+     relocates to D+1, so today is vacated. Is the "displayed occurrence" now
+     the snoozed occurrence (→ rendering 3, "Undo snooze") or is it "no
+     occurrence at all (the task is not due on the sheet's date)" (→ rendering
+     2, disabled, per 434–435 and the edge case at 486–487)? The text supports
+     both readings. If rendering 2, Undo is unreachable at the exact moment
+     the delegated call says it matters most.
+   - **(ii) The same-task natural-target merge** — in scope by this
+     document's own invariant (494–497: "the target day's own occurrence is
+     unchanged"; item 21, 1604–1611). Daily task, yesterday's occurrence
+     snoozed onto naturally-due today: today's card displays today's OWN
+     occurrence (never-snoozed → rendering 1). The snoozed visitor is
+     displayed nowhere, today or any later day — so its guaranteed Undo has
+     no surface, ever. The acceptance criterion and the binding rule cannot
+     both hold as written.
+   (The non-merge cross-day case resolves correctly: on D+1 a visitor on a
+   non-natural date IS the displayed occurrence → rendering 3. Only (i) and
+   (ii) break.)
+   **Fix:** pin the card's display rule for a snoozed occurrence — e.g. "after
+   snoozing, the sheet's occurrence card continues to display the snoozed
+   occurrence, marked as snoozed to D+1, with the slot in rendering 3" — and
+   then either (a) specify the display/undo surface for the merge case (ii),
+   or (b) explicitly scope the undo guarantee ("always available while the
+   snoozed occurrence is the sheet's displayed occurrence") AND reconcile
+   that scoping with the delegated call's reversibility rationale in item 21,
+   flagging any newly-irreversible case to the human the same way undo itself
+   was flagged. **Acceptance test:** for each of (i) and (ii), a builder can
+   answer "what does the card show, and where does the user tap Undo?" from
+   §3.7 alone, and no reachable snoozed occurrence contradicts whatever the
+   undo-availability sentence ends up promising.
 
-2. **Which occurrence Snooze binds to, and which occurrence states are
-   snoozable, are unspecified — the architect must invent product behavior to
-   rewrite SCHEMA §4.2's W-1 analog.** PRD 399–400 says "Tapping **Snooze** on
-   an occurrence dated D", but Snooze is a sheet-level action (394–397) and
-   nothing says which occurrence D is: today's? What renders when the sheet is
-   opened on a day the task is not due? Can a past **missed** occurrence be
-   snoozed (e.g. via the heatmap drill-down, S20 line 1057)? Can a completed
-   (ideal/fallback) or off occurrence be snoozed, or only pending? The undo
-   bullet's "any previously-earned XP award re-affirmed" (409) *implies*
-   completed occurrences are snoozable but never says so. The old contract had
-   an explicit answer (SCHEMA §4.2 W-1: any resolvable state except not-due is
-   movable) — an advisor ruling under the OLD scope that the amended PRD
-   neither adopts nor replaces. §3.7's edge list (430–452) covers non-snoozable
-   tasks, second-snooze, toggle-off-while-snoozed, cross-task merge, same-task
-   natural target, off target — but not this.
-   **Fix:** one or two sentences in §3.7 pinning (a) the occurrence the
-   manage-sheet Snooze acts on and its rendering when that occurrence is
-   absent/not-due, and (b) the set of snoozable occurrence states — or an
-   explicit delegation with a named owner if it is deliberately open.
-   **Acceptance test:** qa-tester can enumerate the full enabled/disabled
-   matrix for the Snooze action without reading SCHEMA.md.
-
-3. **Item 21's downstream case guidance (PRD ~1545–1551) misclassifies the
-   survivors: C8 is unreachable under one-hop, C6 is reachable and unnamed.**
-   Item 21 tells the architect the merge cases "C4, C4b, C4r, **C8**" remain
-   load-bearing. C8 (SCHEMA §4.2 line 371) is same-task double-inbound A1→B,
-   A2→B with A1≠A2 — impossible when every pointer spans exactly one day, since
-   both sources would be B−1, the same row; §3.7's own line 403–404 ("no
-   occurrence is ever more than one day from its own date") proves it
-   unreachable. Meanwhile the C6 shape (SCHEMA line 369: visitor + residue
-   coexisting on one date) IS still reachable one-hop: daily task due D and
-   D+1; snooze D+1's occurrence to D+2, then snooze D's to D+1 — two legal
-   single hops on two never-snoozed occurrences. Item 21 neither names C6 as
-   surviving nor does §3.7's prose state its product outcome ("target day's own
-   occurrence is unchanged", 441, doesn't address a target whose own occurrence
-   has itself been snoozed away). Given the architect's next task is a large
-   §4.2 deletion and STATE.md already warns "don't over-simplify", naming a
-   dead case as load-bearing while omitting a live one invites deleting C6
-   with the chain machinery.
-   **Fix:** correct item 21's surviving-case list (drop C8 as unreachable
-   same-task, or re-scope it to the still-legal cross-task shared date, which
-   is per-task inbound and needs no double-inbound machinery; add the C6
-   shape), and add one §3.7 sentence stating the consecutive-occurrence
-   double-snooze outcome. **Acceptance test:** no case item 21 names
-   "load-bearing" is unreachable under §3.7's rules, and the reachable
-   visitor+residue coexistence shape is named with its product behavior.
-
-4. **Footprint deviation (procedural):** the top-of-file amendment banner (PRD
-   25–32) is outside the authorized footprint (§3.7, the one F26 line, §4, §6,
-   §7, Decisions appendix), which the orchestrator's brief classes as a defect
-   regardless of quality. I verified it carries zero normative content — it is
-   a pure pointer to §3.7/item 21, mirroring the existing post-approval note
-   block directly above it, and smuggles no scope. **Fix:** orchestrator
-   records a waiver in its routing note (recommended — the banner aids
-   discoverability for readers of §1–§3.6), or spec-writer deletes it.
-   **Acceptance test:** an explicit disposition either way.
+2. **"A logged occurrence carries its chip state, step detail and XP award
+   with it to D + 1" (PRD 455–456) is new this pass, unqualified, and
+   collides with the same-task natural-target edge case (494–497).** When the
+   target day is naturally due, §3.7 says the target's own occurrence "is
+   unchanged" — so the visitor's carried state cannot be what D+1 displays,
+   and if its XP award also "carries to D+1" while the target's own
+   occurrence can independently earn there, the date double-credits (the
+   exact exploit shape M2's reviewer adversarially probed per STATE.md). The
+   undo bullet's "re-affirmed" (465) already implies the award may lapse in
+   between, contradicting an unqualified "carries with it." As written, the
+   architect must choose between the two sentences when rewriting SCHEMA
+   §4.2's merge handling — a product call, not an engineering one.
+   **Fix:** qualify the sentence — the carried state/award apply when the
+   snoozed occurrence is the resolved occurrence at D+1; when the target's
+   own occurrence is present, state the visitor's award status during the
+   merge (dormant/not counted until undo, or whatever the spec-writer pins
+   under the existing delegated-call flag), bounded by two invariants §3.7
+   already implies: never double-credit one date, and undo restores the
+   original state and award exactly. **Acceptance test:** for "complete at D,
+   snooze onto naturally-due D+1," §3.7 yields exactly one answer to "what
+   does D+1 display, and does the app currently count the visitor's XP?" —
+   and no reading permits two awards for one date.
 
 ## Non-blocking notes
 
-- **R9 states "is undoable" as flat fact (REQUIREMENTS 264–265)** without the
-  delegated-call flag. Mitigated: the CHANGE NOTE (267–272) routes the reader
-  to PRD §3.7 + item 21 as settled scope, where the flag is unmistakable.
-  Optional one-liner: "(undoability is a flagged delegated call — PRD
-  Decisions item 21)".
-- **The delegated undo call itself is sound and adequately flagged.** Assessed
-  per the brief: the reasoning (product-wide reversibility — R4 off-days
-  neutral, calm-retry on every persist failure, F25 recovery surface, no
-  streaks; a one-way push would be the app's only irreversible occurrence
-  action; a mis-tap permanently relocating an occurrence) holds against the
-  upstream docs, and both the §3.7 banner (391) and item 21's bold DELEGATED
-  CALL paragraph (~1535–1544) flag it, including the secondary sub-decision
-  (undo resets to never-snoozed) with an explicit reversal invitation to the
-  human. It stands as a placeholder decision.
-- **§7's new open item (1278–1283) names OWNER: designer / screen-designer** —
-  agents the PROJECT OVERRIDE forbids invoking. In practice this resolves as
-  M4 + human review at Gate 3. Same pre-existing wrinkle as the F27 history
-  item (already noted in REVIEW-PRD.md finding 3), so not blocking; consider
-  "OWNER: human (at Gate 3)".
-- Commit `ab2b11a`'s message overreaches in two spots the artifact itself does
-  not: "no date-picker UI exists anywhere in the app" (the PRD correctly
-  scopes to occurrence-management flows, 397–398 — create flows may
-  legitimately carry date inputs) and "F3B" for §3B. Message-only; no action.
-- R9's short in-body summary sentence (264–266) slightly duplicates §3.7
-  rather than purely pointing, but it is consistent with it and follows the R4
-  CHANGE NOTE precedent (REQUIREMENTS 63). Acceptable.
+- §7's amended open item (1338–1344) still names OWNER: designer /
+  screen-designer — agents the PROJECT OVERRIDE forbids invoking; in practice
+  it lands on M4 + Gate-3 human review. Pre-existing wrinkle (same as F27's
+  item, noted in REVIEW-PRD.md), carried, not blocking.
+- The copy-inspection acceptance narrowed from "any occurrence-management
+  flow" (pass 1) to "anywhere in the sheet" (440–442). No drop in practice:
+  S20 is the design's only snooze surface (grep of ALLSCREENS_1.md: zero
+  snooze/move references outside S20), S23 is explicitly excluded (498–499),
+  and §4's non-goal (1146–1153) preserves the app-wide ban on move actions,
+  pickers, and hooks. Worth keeping the §4 pairing intact in future edits.
+- The "Evidence" paragraph (413–421) is interpretive rationale (alarm-clock =
+  fixed push vs calendar = free selection), but its factual substrate is
+  verbatim-accurate (verified below) and it is framed as evidence, not as a
+  design instruction. Fine.
+- Rendering rules 1–3 (430–439) are mutually exclusive and total given a
+  defined displayed occurrence (snoozed → 3, regardless of `snoozable`; else
+  non-snoozable-or-absent → 2; else → 1), and rendering 3's precedence over a
+  later `snoozable`-off matches the edge case at 488–490. Clean — the pass-1
+  wobble is genuinely resolved, modulo blocking item 1's display-rule gap.
 
 ## Verified
 
-- **Footprint (git):** `git show --stat ab2b11a` — exactly two files touched
-  (PRD.md, REQUIREMENTS.md); every PRD hunk lands in the authorized sections
-  except the header banner (blocking item 4); the only REQUIREMENTS hunk is
-  R9. `STATUS: APPROVED` (PRD) and `STATUS: DRAFT` (REQUIREMENTS) unchanged.
-- **R9 CHANGE NOTE accuracy:** pre-image (diff) confirms R9 previously listed
-  "snooze, move to another day" as two actions; the note describes the change
-  correctly, points to PRD §3.7 + Decisions item 21 as authoritative, and
-  "nothing else in R9 changes" is true (edit/duplicate/icon-color/heatmap/
-  delete-with-confirmation untouched). Precedent claim (R4-style CHANGE NOTE)
-  confirmed at REQUIREMENTS line 63.
-- **Design mapping, checked directly against
-  `design-input/fallback-handoff/uploads/ALLSCREENS_1.md`:** line 1025 quote
-  verbatim-exact; "Snooze" and "Move to another day" are separate buttons, not
-  synonyms; "Move to another day" appears only within S20 (1025/1055/1072) —
-  no orphaned screen or cross-screen reference. Line 1055's "inline pickers"
-  contradiction and the missing Undo/disabled/toggle surfaces → blocking
-  item 1. (`design-input/**` untouched by the amendment, confirmed.)
-- **S20 inline-edit pattern is real, not invented:** line 1005 (name:
-  "inline-editable `Input`-as-text; edits persist on blur") and line 1006
-  (Importance/Necessity tags → "inline `Radio` picker … stays on S20") — the
-  §3.7 claim at 413–415 cites exactly these.
-- **F26 cross-reference fix (PRD 719–723):** diff shows only
-  "snooze/move (F7)" → "the one-hop snooze (F7)" within an otherwise unchanged
-  sentence; pure factual correction to a removed action's name, no scope
-  change.
-- **Testability spot-checks:** second-snooze-impossible (402–406) and
-  disabled-not-hidden (416–418) are testable as written given §6's mandated
-  fixtures (1177–1182: one non-snoozable task, one already-snoozed
-  occurrence); the remaining gap is the state/binding matrix → blocking
-  item 2.
-- **Completeness against SCHEMA §4.2 C1–C11 (lines 360–374):** C1 → PRD
-  407–411 + 439–442 (exact restore, award re-affirmed, denominator). C2, C3,
-  C5, W-2 → moot/unreachable one-hop, correctly listed for deletion in
-  item 21. C4/C4r/C4b → PRD 439–442. C7 → PRD 407–409. C9/C10/C11 residue and
-  write-carrier discipline → item 21 keeps them load-bearing, matching
-  STATE.md's pass-5 reviewer mandate on `designateCarrier`. Gaps found: C8
-  misclassified as surviving, C6 reachable but unnamed (blocking item 3);
-  snoozable-state set / occurrence binding unspecified (blocking item 2).
-- **Merges-not-eliminated invariant:** consistent across §3.7 (436–439), §4
-  (1094–1095), item 21 (~1530–1534), and STATE.md's warning.
+- **Footprint (git):** `git show --stat 2bf2266` — PRD.md only;
+  REQUIREMENTS.md zero diff as the orchestrator stated. All hunks fall in
+  §3.7, §3B (F27 "Does NOT do" — same pure-cross-reference class as the
+  cleared F26 fix: no occurrence set ⇒ no snooze, no S23 slot), §4, §6, §7,
+  Decisions item 21, plus one pointer sentence in the waived header banner
+  (29–31, still zero normative content). `STATUS: APPROVED` unchanged.
+- **Pass-1 finding 1 (design precedence) — FIXED.** The three-row table
+  (398–405) names ALLSCREENS_1.md lines 1025/1072, line 1055, and the three
+  additions; the still-controlling list (407–411) enumerates the untouched
+  S20 surfaces. Completeness re-checked against the full S20 spec
+  (ALLSCREENS_1.md 995–1090): the only F7-interaction lines in the Gate-2
+  design are 1025, 1055, 1072 — all named; no other screen references
+  snooze or move (repo-wide grep of ALLSCREENS_1.md). Icon evidence
+  independently re-verified by me against
+  `design-input/fallback-handoff/Fallback Handoff.dc.html` line 867:
+  `data-lucide="copy"`→Duplicate, `data-lucide="alarm-clock"`→Snooze,
+  `data-lucide="calendar-days"`→"Move day", exactly as cited; "Move day"
+  appears nowhere else in that file.
+- **Pass-1 finding 2 (occurrence binding + state list) — FIXED, with one new
+  consequence (blocking item 1).** Binding pinned to the sheet's displayed
+  occurrence with the heatmap drill-down excluded (443–448); not-due sheet
+  state specified (486–487). The closed list (452–457) — pending / ideal /
+  fallback / missed / off, not-due excluded — was walked against the state
+  model: F3's chip states (To do/Done/Fallback/Skip → pending/ideal/fallback/
+  missed), F4's off, and resolution's not-due partition exhaustively; the
+  design's own S20 legend carries exactly these six. No sixth state exists
+  (multi-dose partial days are pending until resolved; "showed up" is the
+  ideal∪fallback rollup, not a state). The list's "missed (Skip-chipped, or a
+  day that ended unlogged)" is a faithful compression of §3's
+  single-source-of-truth definition (106–119) — both arms present, the
+  pending-today carve-out preserved verbatim in the "pending (unlogged,
+  un-Skipped today)" entry — a gloss, not a redefinition. (Note: the
+  "ended unlogged" arm is vacuous through the today-scoped card, which is
+  consistent, not contradictory.)
+- **Pass-1 finding 3 (case classification) — FIXED.** Zero SCHEMA case-IDs
+  remain anywhere in PRD.md (grep). Item 21's product invariant (1604–1619):
+  in-scope bullet 2 is exactly the C6 shape with a worked example matching
+  the pass-1 derivation; eliminated (ii) is exactly C8's same-task
+  double-inbound with the correct injectivity argument (strict D→D+1 maps
+  distinct sources to distinct targets); eliminated (i) covers C3/C5 chains
+  and the W-2 guard; A→A (C2) is unreachable via the computed target;
+  C1/C7 map to §3.7's undo bullet; C4/C4b/C4r map to 494–497 plus the
+  cross-task bullet; the residue/write-carrier survival clause (1620–1627)
+  preserves the C9–C11 discipline without naming it. The architect can derive
+  the full mapping from the invariant + §3.7 without a round-trip — except
+  for the two questions in blocking items 1–2, which are product gaps, not
+  mapping gaps.
+- **Collapse-drop audit (orchestrator's fourth focus):** every pass-1
+  acceptance obligation re-located in the rework — disabled-not-hidden + SR
+  reason + zero-writes (434–435), second-snooze-impossible + qa assertion
+  (458–462), toggle-off-keeps-undo (488–490), cross-task merge legality
+  (490–493), off-target (497–499), as-needed exclusion (503–505), persist
+  failure incl. snooze/undo/toggle (505–508), fixture requirements reworded
+  but intact (§6 1236–1241). The only semantic changes found are the two new
+  blocking items above; the snoozed-occurrence rendering change (pass-1
+  "disabled Snooze + Undo offered" → "Undo replaces Snooze") is the sanctioned
+  wobble fix, applied consistently everywhere it appears.
