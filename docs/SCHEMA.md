@@ -256,9 +256,32 @@ not exactly `date + 1`, **clear the pointer** (`moved_to_date = NULL`), returnin
 occurrence to its own date with its chip/step data intact. This is the conservative
 direction — it can only restore an occurrence to where the user originally put it, never
 invent a snooze the user did not perform, and never destroys logged data (the D-rule already
-guarantees the row's data revives when the occurrence resolves there again). Downstream, F5
-and XP recompute from the restored occurrences on the next read; no separate backfill is
-needed.
+guarantees the row's data revives when the occurrence resolves there again).
+
+**F5 recomputes on read; the XP ledger does NOT — the migration must move the award too.**
+Consistency is derived, so F5 is correct the moment the pointer is cleared. `xp_award` is a
+**ledger, written only inside mutations** (API.md §3, step 3): **no read path ever reconciles
+an award.** So clearing a legacy pointer `S → T` without touching the ledger would strand the
+award at T while the occurrence displays at S.
+
+**Award policy for normalised rows — PINNED: the award moves with the occurrence**, in the
+same transaction, `UPDATE xp_award SET date = S WHERE task_id = τ AND date = T`. This is not
+a new rule: **C7 already pins that XP travels home with the occurrence on undo**, and
+normalising a legacy long-distance pointer *is* an undo of a snooze the current contract can
+no longer express — so it must land in the same end state. Lifetime XP is unchanged (a
+relocation, never a reduction), and both dates are left coherent, so the next mutation
+touching either is a no-op rather than a surprise. **Conflict rule:** in the rare case
+inconsistent legacy data already holds an award at S, keep S's and delete the orphan at T —
+that is removing a second award for one occurrence, which **P4** (at most one `xp_award` per
+`(task, date)`) forbids anyway, not a penalty.
+
+*Rejected: leaving the stale award in place as uncorrected lifetime history.* It reads as the
+conservative option but is not. It leaves **two** latent faults, and reconcile is per-`(task,
+date)` so neither self-heals: a later mutation touching **T** finds no showing-up occurrence
+and **retracts** the award — a silent lifetime-XP drop; and a later mutation touching **S**
+finds `ideal` with no award and **mints a new one** — a silent **double count** for a single
+occurrence. That is the award/outcome incoherence class **C4b exists to forbid**, reached
+through the migration instead of through runtime.
 
 **Definitions** (for task τ, date D):
 - `ownLog(D)` — the `day_log` row keyed `(τ, D)`, if any.
@@ -323,7 +346,7 @@ W-1s SNOOZE preconditions. Reject with VALIDATION_FAILED, zero writes, zero reco
      sole non-snoozable case.
 
 W-1u UNDO preconditions — DIFFERENT, and deliberately narrower. Reject with
-     VALIDATION_FAILED only if:
+     VALIDATION_FAILED, zero writes, zero reconciles, zero events, only if:
        - pointer(D) is null (nothing to undo).
      Nothing else rejects. In particular:
        - D resolving `not-due` is NOT a rejection — it is the NORMAL case. A snoozed
@@ -394,7 +417,7 @@ data-corruption defect class, and the narrower snooze rule does not make it safe
 | C4r | undo from a case-1 target | clears `ownLog(D)` only; D due again with prior data; D+1's own occurrence untouched — exact restore |
 | C5 | **merge-then-vacate.** Snooze D onto a D+1 that **has** its own logged data (case 1, so the visitor goes dormant — this is C4). Then, separately, snooze **D+1's own displayed occurrence** forward to D+2 | reachable through the UI, and the old LIFO reading is **inverted**: once D+1 vacates, its residue pointer no longer supplies data, so the dormant visitor **REVIVES** at D+1 via R-1 clause (c) and its XP **re-materialises** through reconcile. End state matches C6's shape and PRD case 3. Assert the ordering, the revival, and the award re-materialising — a dormant visitor is never destroyed by its host leaving |
 | C6 | daily task: snooze D+1's occurrence to D+2, then snooze D's occurrence to D+1 (two independent one-hop snoozes on **different** occurrences — explicitly in scope, PRD Decisions 21) | D's occurrence is DUE at D+1 via its moved-in record (R-1 clause (c)) — D+1's residue pointer does not annihilate it; D+1's own occurrence stays at D+2 |
-| C7 | snooze D, complete at D+1, then undo | the tap writes to D's OWN row (the visitor), pointer preserved — no row is fabricated at D+1 (T-2 clause-(c)); the award keys on D+1 while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: D due `ideal` with its chip data; D+1 not-due; exactly one award, re-affirmed at D — not lost, not duplicated |
+| C7 | snooze D, complete at D+1, then undo — **fixture constraint: D+1 must be NON-natural** (off-cadence), so the visitor is the only occurrence there and clause (c) is what is under test; a naturally-due D+1 would exercise clause (a)/(b) instead, which is C4/C4b | the tap writes to D's OWN row (the visitor), pointer preserved — no row is fabricated at D+1 (T-2 clause-(c)); the award keys on D+1 while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: D due `ideal` with its chip data; D+1 not-due; exactly one award, re-affirmed at D — not lost, not duplicated |
 | C9 | C6's shape, then a chip/step tap on D+1 | tap VISIBLE at D+1 (outcome per tap; XP for (task, D+1) iff eligible); the write landed on D's row (the visitor), its pointer intact; residue `ownLog(D+1)` byte-unchanged. Undoing D+1's own occurrence home then shadows the visitor per clause (a), its award at D+1 retracted by reconcile (sanctioned, CR-2) and revived by the visitor's own undo |
 | C10 | snooze D, then any occurrence-data write on D | VALIDATION_FAILED; `ownLog(D)` byte-identical; zero events, zero XP delta; undo afterwards revives D exactly as pre-snooze |
 | C11 | any occurrence-data write on a rowless not-due date | VALIDATION_FAILED, zero writes — so a later snooze-in finds no fabricated clause-(a) row |
@@ -742,7 +765,7 @@ without data loss — that fixture is mandatory in M1's test suite.
 {
   "format": "fallback-backup",
   "formatVersion": 1,
-  "schemaVersion": 3,
+  "schemaVersion": 3,          // illustrative — write the live CURRENT_SCHEMA_VERSION
   "createdAt": "2026-07-16T08:03:11.412Z",
   "tables": { "settings": [...], "task": [...], "step": [...], "day_log": [...],
               "off_day_mark": [...], "as_needed_use": [...], "xp_award": [...],

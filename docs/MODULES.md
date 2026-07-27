@@ -237,10 +237,20 @@ day forward. `SCHEMA.md` §2 carries the new column and §4 carries the new cons
      a duplicate inherits the source task's value;
   2. **normalise legacy `day_log.moved_to_date` rows** — any pointer that is not exactly
      `date + 1` is **cleared to NULL** (returns the occurrence to its own date, data intact);
-  3. add `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))` to
+  3. **move that occurrence's XP award with it** — `UPDATE xp_award SET date = <source>
+     WHERE task_id = ? AND date = <old target>`. **This step is not optional.** F5 is derived
+     and self-corrects on read, but `xp_award` is a ledger written **only inside mutations**
+     (API.md §3 step 3) — **no read path reconciles an award**, so a stranded award never
+     repairs itself. Leaving it would cause a silent retraction if a later mutation touches
+     the old target, or a silent **double count** if one touches the source. If an award
+     already exists at the source, keep it and delete the orphan (P4: at most one award per
+     `(task, date)`). Lifetime XP is unchanged by this step — it is a relocation, never a
+     reduction. Rationale and the rejected alternative: SCHEMA §4.2 "Award policy for
+     normalised rows";
+  4. add `CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day'))` to
      `day_log`. SQLite needs a **table rebuild** for this — create/copy/drop/rename, all
-     inside the migration's single transaction. Order matters: normalise **before** adding
-     the constraint, or the migration aborts on legacy data.
+     inside the migration's single transaction. Order matters: normalise and relocate awards
+     **before** adding the constraint, or the migration aborts on legacy data.
 - **M2** — `validateTaskDraft` defaults `snoozable` to `true`; the snooze mutation rejects
   when it is `false` (SCHEMA §4.2 **W-1s**). Turning it off must **not** retract an existing
   snooze, and **undo ignores it entirely** (§4.2 **W-1u**).
