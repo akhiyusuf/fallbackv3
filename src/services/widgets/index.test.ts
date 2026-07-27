@@ -28,7 +28,7 @@ const BASE_SETTINGS = {
 };
 
 /** Flushes every pending microtask (safe for the multi-await chains inside `publishSnapshot()`). */
-const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
+const flushAsync = () => new Promise<void>((resolve) => setImmediate(() => resolve()));
 
 describe('widgets bridge', () => {
   beforeEach(() => {

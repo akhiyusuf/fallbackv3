@@ -72,8 +72,11 @@ async function publishSnapshot(): Promise<Result<void>> {
     });
 
     // `Appearance.getColorScheme()` — review pass 1, blocking item 4: `auto` must resolve
-    // against the device's actual OS scheme, not always fall through to light.
-    const scheme = resolveScheme(settings.theme, Appearance.getColorScheme() ?? null);
+    // against the device's actual OS scheme, not always fall through to light. RN's type
+    // also allows the (rare, Android-only) `'unspecified'` value, which `resolveScheme`
+    // has no third bucket for — treated the same as "unknown," i.e. `null`.
+    const osScheme = Appearance.getColorScheme();
+    const scheme = resolveScheme(settings.theme, osScheme === 'light' || osScheme === 'dark' ? osScheme : null);
     const snapshot = buildWidgetSnapshot({
       tasks: liveTasks,
       chips,

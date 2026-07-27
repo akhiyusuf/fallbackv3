@@ -46,7 +46,7 @@ jest.mock('@/db', () => ({
 }));
 
 /** Flushes every pending microtask (safe for the multi-await chains inside `reschedule()`). */
-const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
+const flushAsync = () => new Promise<void>((resolve) => setImmediate(() => resolve()));
 
 const BASE_PREFS = {
   master: true,

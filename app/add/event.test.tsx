@@ -12,12 +12,14 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent } from '@testing-library/react-native';
+import { userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
+import { useToastStore } from '@/app-shell/stores/toast';
+import { err } from '@/types';
 
 let client: QueryClient;
 function wrapper({ children }: { children: React.ReactNode }) {
