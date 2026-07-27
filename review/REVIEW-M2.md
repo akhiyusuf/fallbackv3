@@ -1,181 +1,178 @@
-# Review — M2 (pass 3)
-VERDICT: ADVISOR_REQUIRED
+# Review — M2 (pass 4 — advisor-compliance check; pass counter reset by the advisor invocation)
+VERDICT: CHANGES_REQUIRED
 
-One blocking defect remains — a new one, in the newest code, found by composing F7 moves
-with themselves. Everything else from passes 1 and 2 is verified fixed, structurally where
-that was demanded, and the arithmetic core is intact. Per the three-pass rule this sets
-ADVISOR_REQUIRED; my diagnosis of the regression pattern, and what I think the advisor
-should actually pin, is at the end — this module is converging (10 → 5 → 1), not thrashing.
+Verified against `review/ADVICE-M2.md`'s binding table (not my superseded pass-3 prose),
+per Ruling 3. The implementation is **compliant with every R-rule, every W-rule, and all
+eight named cases** — each verified as the ADVICE's case, not a nearby one — and the
+no-move paths are **independently confirmed byte-equivalent**. Two things keep this from
+PASS: one harness piece Ruling 2(a) requires is missing, and probing the one composition
+that missing piece exists to cover found a real defect at the seam between the pinned READ
+contract and the (unpinned) chip-write path. The defect's *fix* needs a write-side rule
+the ADVICE doesn't state, so it belongs in the advisor's currently-open batch alongside
+the R-1 merge-variant question — I am not ruling on the contract extension myself.
 
-## Pass-2 item disposition (all verified, none taken on faith)
+## Compliance verification, case by case
 
-- **N1 (path divergence) — fixed structurally, as demanded.** `resolveOneOccurrence`
-  (internal.ts:116-122) shares `fetchMoveWindowLogs` + `buildMovedInIndex` +
-  `resolveOccurrence` with `resolveTaskOccurrences`; `reconcileOccurrence` calls it
-  (mutations.ts:239). Bypass check: grep shows the only production `resolveOccurrence` call
-  sites are the two inside `internal.ts` — no read or mutation path can resolve
-  independently. Divergence-hunting: the two helpers use different fetch windows
-  (`[from−60, to+60]` vs `[D−60, D+60]`), but the new up-front move-distance guard
-  (mutations.ts:587-593) enforces `|source − target| ≤ 60`, which makes every source a
-  batch read can see for target D also visible to the single read, and the double-move
-  tie-break is deterministic (latest source date, `buildMovedInIndex`'s ascending sort) so
-  both paths pick the same winner. Precedence `log ?? movedInLog` with due-ness
-  `movedInLog != null || isDue(...)` (dayState.ts:98-106). End-to-end traces all agree
-  between mutation and read, including across a rollover: move→complete (ideal, one award),
-  move-to-off-cadence-day→complete (ideal, one award), move onto a naturally-due day with
-  its own log (own log wins), move onto an off day (`off`, no retraction — N2 branch),
-  move across a cycle boundary (original `cycleId` preserved). The N1 acceptance tests
-  assert exactly my pass-2 criteria including `numerator === denominator − missed`, and
-  fail by inversion under the pass-2 precedence (`movedInLog ?? log` would read `pending`,
-  not `ideal`) and under the reconcile-blind bug (off-cadence completion would award 0).
-- **N2 (off-day retraction) — fixed**, `else if (occurrence.outcome !== 'off')`
-  (mutations.ts:276-285). The self-found second bug (re-affirmation re-stamping `cycleId`)
-  is genuinely fixed: an existing award's `cycleId` is preserved via `listXpAwards(date,
-  date)` filtered to the task (mutations.ts:255-261); M1's upsert writes the same value
-  back, so downgrade keeps attribution too; orphaned same-date awards (`taskId` null)
-  can't be picked up by the filter. The test is sharp: the seeded January award vs. a
-  pointer that the boundary walk has advanced to June means the re-stamp bug would
-  genuinely flip the asserted `cycleId` — it fails under the bug.
-- **N3 (overlap) — fixed**, and one better than my prescription: `freshCycleWindow`
-  (cycles.ts:46-49) starts exactly at the given date, and the short record ends
-  **yesterday** (mutations.ts:203-207), closing the one-day overlap my own acceptance test
-  would have left at `[oldStart, today]`/`[today, …]`. Degenerate guard checked: live
-  window started today → `shortCycleEnd < startDate` → nothing archived, only the fresh
-  pointer set; two same-day cadence changes cannot produce an invalid or overlapping
-  record. `assertNoOverlappingRecords` is a real interval-intersection check and is applied
-  to the item-2 walk too.
-- **N4 (double-archive) — fixed.** Pointer advances after each successful archive
-  (mutations.ts:162-170); `archiveCycleWindow` has an existence guard on
-  `(cadence, start, recordEnd)` that returns the existing id without re-appending or
-  re-emitting (mutations.ts:115-117); `getOrInitCycleState` returns `{state, persisted}`
-  and both callers refuse to archive against an unpersisted pointer (mutations.ts:157,
-  199-200). Guard false-positive check: windows never legitimately repeat (the pointer is
-  monotonic — advanced only to `nextCycleWindow`, or to `freshCycleWindow(today)` where
-  today ≥ the live start; records survive everything except erase-all, which clears both),
-  and a short record can never collide with a full one at identical bounds because a
-  change on a period's first day takes the degenerate path. Both partial-failure tests
-  (mid-loop append failure; pointer-write failure after the short append) use real
-  fail-injection in the fake and fail under the pass-2 code.
-- **N5 (duplicate `level:up`) — fixed.** The `useToggleStep` re-emit is gone; grep confirms
-  exactly one emit site (mutations.ts:316), documented as the sole one. The test asserts
-  exactly one event through M0's now-isolated (reliably-delivering) bus.
-- **Non-blocking items:** move guard enforced up front with a calm `VALIDATION_FAILED`
-  (better than silent disappearance); tie-breaks deterministic and chained-move behaviour
-  documented and tested; S27 locked-copy provenance note added to the catalogue header;
-  `getOrInitCycleState`'s fallback now uses the leading-partial shape (aligned with M1's
-  genesis seed). The Jest open-handles warning remains, honestly reported as
-  investigated-not-isolated — I accept that: the suite passes deterministically, the
-  teardown is diligent, and this is a known react-query/@testing-library timer interplay;
-  it masks nothing I can find. Worth one more attempt with `--detectOpenHandles` before
-  qa-tester copies the harness, but not blocking.
+**R-rules** (`src/domain/dayState.ts:136-165`): implemented as written. R-1 evaluates a
+present `movedInLog` before any vacate check; `effectiveLog := ownLog(D)` only when its
+pointer is null, else the moved-in record — a vacated own log neither annihilates nor
+supplies data. R-2 and R-3 unchanged. The shared `resolveDueOccurrence` extraction means
+R-1 and R-3 use one computation.
 
-## Regression sweep (pass-2 fixes vs pass-1 establishment)
+**W-rules** (`src/queries/mutations.ts:607-692`): W-0 no-op with zero writes/reconciles/
+events (verified by C2's rows/awards/events assertions); W-1 rejects a `not-due` source
+with zero writes; W-2 measured from every pointer-carrying row (`carrierDates`,
+mutations.ts:630-638) — C3's second test constructs |B−C| ≤ 60 with |A−C| ≈ 150 and is
+rejected with A's pointer untouched; W-3 branch chosen by `inbound(F)` alone —
+`findInboundLogs` (internal.ts:79-84) deliberately returns **every** inbound row un-tie-
+broken for the write side while `buildMovedInIndex` keeps the display tie-break, exactly
+the read/write split the ADVICE draws; ownLog(F) untouched in the visiting branch; ordered
+one-row-at-a-time writes with reconcile-what-was-touched on mid-sequence failure and no
+compensation logic; W-4 reconciles F, T and every written row's date, `day:logged` emitted
+once for T only.
 
-`consistency.ts`, `xp.ts`, `occurrence.ts`, `validation.ts`, `reads.ts` untouched this
-pass (commit e008938 numstat); `cycles.ts` change is additive (`freshCycleWindow`);
-`dayState.ts` changes are confined to the moved path — with no move in play,
-`effectiveLog === log` and every branch is byte-equivalent to the verified pass-1
-behaviour, so all §6.6 golden numbers rest on unchanged code. `notBefore` threading
-unchanged; no new Instant→date conversions (still exactly the two `toLocalDate(new
-Date(...))` sites). Full suite re-run: 147 domain+queries tests pass (279 repo-wide per
-the orchestrator). "streak" still absent. Ownership: the rework commit touches only
-`src/domain/**` and `src/queries/**`, and M2 did not write to `review/` this pass.
+**C1–C8** (`src/queries/moveSemantics.test.ts`, all end-to-end through
+`useMoveOccurrence`/`useLogState` + `useTaskOccurrences`, never domain internals):
+- C1 ✓ data AND XP travel and return; one surviving row, `movedToDate: null`; B not-due.
+- C2 ✓ true no-op — rows and awards deep-equal, zero `day:logged`.
+- C3 ✓ single collapsed pointer A→C, B never a stored target; plus the guard-from-carrier
+  rejection test. B's non-inheritance of A's data asserted.
+- C4/C4r ✓ merge with B carrying genuine pre-existing data (the advisor's open R-1
+  variant — B naturally-due-but-never-logged — is correctly *avoided*, implemented
+  literally, and flagged rather than guessed; I am not ruling on it).
+- C5 ✓ LIFO: the visitor's row redirected, B's own occurrence untouched and still due.
+- C6 ✓ **the advisor's case exactly**: due {Mon,Tue}; B→C then A→B; B resolves due (not
+  annihilated by its own residue), B's occurrence live at C, A vacated. The domain-level
+  pass-3 test was **inverted** per Ruling 3 (dayState.test.ts C6 block), not reworded —
+  it now asserts due-with-A's-data at B and B's data at C.
+- C7 ✓ the D-rule precisely: undo restores A to its **own** pre-move (unlogged) history —
+  not B's completed state; B's row physically survives as dormant residue with its chip
+  data; the award is retracted (0 awards) per CR-2.
+- C8 ✓ display tie-break = later source; a further move redirects **both** inbound rows.
 
-## Blocking item
+**Ruling 2 harness** (`src/queries/mutations.invariants.test.ts`):
+- (a) The enumeration is real: a generator over all (F,T) pairs of the pinned 5-date
+  domain (cadence due on exactly {D1, D3}), lengths 1–3, `expect(count).toBe(16_275)`
+  (25 + 625 + 15,625 — arithmetic checked), asserting P6+P1+P7 per step and P2–P5 per
+  sequence. It runs (~30 s; I ran it). It discriminates: reverting the R-1 order fails
+  P7's no-annihilation check on any C6-shaped sequence; removing W-0 fails the
+  no-self-pointer check; chain non-collapse and guard-from-F regressions are caught by
+  C3's structural assertions. P1 asserts the mutation's returned occurrence deep-equals a
+  subsequent resolve — via `resolveOneOccurrence`, which is the identical function the
+  read hooks' `resolveTaskOccurrences` path shares (N1's structural unification,
+  re-verified by grep: no other resolution call site exists), so I accept it as "the
+  public read surface" in the sense that matters; the true hooks are exercised by C1–C8.
+- (b) 25 ordered pairs × 2 date relations present, with P3's full "off-mark never reduces
+  XP" form asserted inline across the actual mark/unmark round trip.
+- (c) Fail-injected retry idempotence for the multi-write move (C8-shape, second write
+  fails, retry converges with no duplicates) and for logState's XP write. The new
+  `failLogsUpsertAfterCalls` fault is faithful: skip-N-then-fail-once against the real
+  upsert path, no state fakery, reset-cleared.
 
-**B1. Moving an occurrence back to its original day — or to its own day — annihilates it.**
-`src/queries/mutations.ts:583-617` + `src/domain/dayState.ts:92-94`. The vacate check
-(`log.movedToDate !== null` → `not-due`) runs **before** the moved-in check, and
-`useMoveOccurrence` always writes the pointer onto `fromDate`'s own log. Compose two legal
-moves:
-1. **Undo a snooze.** Move A→B (log_A.movedToDate = B). The user changes their mind and
-   moves it back: `useMoveOccurrence(fromDate: B, toDate: A)` creates log_B with
-   `movedToDate = A`. Now A's own log vacates A (its moved-in record from B is never
-   reached — dayState.ts:92 returns first), and B's own log vacates B. The occurrence
-   resolves `not-due` on **both** dates: it has ceased to exist. Any XP it had is
-   retracted (source reconcile), the day leaves the denominator, and no read or mutation
-   can ever reach it again — nothing on the public surface can clear a `movedToDate`.
-2. **Same-day move.** `fromDate === toDate` passes the distance guard (distance 0) and
-   writes `movedToDate = date` onto the date's own log → immediate self-annihilation.
-Re-snoozing *forward* (A→B, then B→C) works — C resolves through B's pointer — so this is
-specifically the **cycle** case, and "undo the snooze" is a completely ordinary user
-intention for F7. Both paths agree on the wrong answer (so N1's structural fix held —
-this is not a divergence), but a pair of legal actions silently destroying an occurrence
-violates F7's basic promise ("affects the occurrence", not "deletes the occurrence") and
-is a data-loss bug M4 would build the snooze UI directly on top of, behind a frozen
-surface, if it shipped in the wave-1 freeze.
-*Good looks like:* normalise at write time so the single-hop invariant holds by
-construction — in `useMoveOccurrence`, if `fromDate`'s due-ness comes from a moved-in
-record (original source S = that record's `date`), update **S**'s log instead of chaining:
-`movedToDate = toDate`, or `movedToDate = null` when `toDate === S` (a true un-move); and
-short-circuit `fromDate === toDate` as a no-op. *Acceptance tests:* (i) move A→B then
-B→A → the occurrence is due on A again (`pending`, or its prior chip state), `not-due` on
-B, denominator restored, a previously-earned award re-affirmable; (ii) move A→A → no-op,
-occurrence still due on A; (iii) move A→B→C → due on C only, and C→A restores A.
+**SCHEMA §4.2 mirror**: extracted the R-1…C8 block from both files and diffed —
+byte-identical (`RULES-MIRROR-IDENTICAL`). ARCHITECTURE §6.1 carries the R-1-precedes-R-2
+footnote; MODULES M4 points at SCHEMA §4.2. No disagreement anywhere.
+
+**No-move byte-equivalence — explicitly confirmed, independently.** I diffed the pass-3
+`resolveOccurrence` body (dca819c:src/domain/dayState.ts:108-141) against the extracted
+`resolveDueOccurrence` (HEAD lines 79-112): textually identical. With no move in play the
+pass-4 flow (R-1 skipped, R-2 skipped, R-3) reduces to exactly the pass-3 evaluation
+order and data. `consistency.ts`, `xp.ts`, `occurrence.ts`, `cycles.ts` (additive only at
+pass 3), `validation.ts`, `internal.ts`'s read paths and `reads.ts` are untouched since
+the pass-3 sweep; the mutation-hook extraction (`logState`/`toggleStep`/`markOffDay`/
+`updateSettings` as named `mutationFn`s) is verbatim relocation — hooks wrap the exact
+functions, not re-implementations. 13 suites / 163 domain+queries tests pass (295
+repo-wide per the orchestrator); every golden number rests on unchanged code.
+
+## Blocking items
+
+**F1. A chip tap on a C6-shape date writes onto the residue row: the user's action never
+registers where they tapped, and teleports onto the departed occurrence.**
+`src/queries/mutations.ts:422-436` (`logState`; same pattern `toggleStep` :479-490 and
+`useLogDose` :517-528). These upserts preserve `movedToDate: existing?.movedToDate ?? null`
+— correct on ordinary dates, wrong when `ownLog(D)` is **residue**. The only date where a
+residue row coexists with a rendered chip is exactly C6's B (due via a moved-in record
+while its own occurrence lives elsewhere) — which the ADVICE pinned as reachable and due.
+Trace, verified against the code line by line:
+1. C6 state: `ownLog(B).movedToDate = C` (residue); `inbound(B) = [log_A]`; B renders a
+   chip (due, pending).
+2. User taps Done on B → `logState(B, 'done')` → `existing` is the residue row → upsert
+   sets `chipState: 'done'` while **preserving `movedToDate = C`**.
+3. Read at B (R-1): own log's pointer is non-null → residue → `effectiveLog = log_A` →
+   **the tap is invisible at B**; the mutation returns outcome `missed`/`pending`,
+   `xpAwarded: 0`, `celebrate: 'none'` for a Done tap.
+4. Read at C: `movedInLog = ownLog(B)` → now chip `done`, manual → **C flips to `ideal`**
+   with no user action at C and no XP award anywhere.
+This violates the D-rule's ownership statement — residue "chip/step data belongs to the
+occurrence that left", and `logState` just overwrote the departed occurrence's travelling
+data with input meant for the visiting one — and it defeats R-1's stated intent ("a real
+user action on D wins"): on a residue-occupied date the user's action *cannot* win,
+because `UNIQUE(task, date)` gives it nowhere to land that R-1 will read. Note the
+harness cannot see this: P1 compares the mutation's resolution to a read that flows
+through the same helper, so both agree on the wrong answer — an intent-vs-outcome gap,
+not a path-divergence gap.
+*The fix requires a write-side rule the ADVICE does not state* — e.g. "a day-level user
+action (chip/step/dose) on a date whose R-1 `effectiveLog` is the moved-in record writes
+to **that record's row** (the visiting occurrence's own row), never to a residue row" —
+which extends the pinned contract, sits directly beside the advisor's open R-1
+merge-variant question, and should be ruled in that same batch. I flag it and deliberately
+do not pin the answer. *Acceptance once ruled:* in the C6 state, tap Done at B → B reads
+`ideal` with one award at `(task, B)`, C is unchanged, and the residue row's chip data is
+untouched; same for a step toggle and a dose log.
+
+**F2. Ruling 2(a)'s completion-interleaved enumeration variant is missing.**
+The ADVICE requires the 16,275-sequence sweep **and** "a variant interleaving one
+completion". `mutations.invariants.test.ts` has no such variant — section (a) is
+moves-only, and section (b)'s pairs (2 operations) cannot reach the 3-operation shapes
+(two moves + a completion) where move × complete compositions live. A required harness
+piece, absent — and precisely the variant aimed at F1's class. (Honest caveat for the
+advisor: as formulated, P1 would *pass* over F1 even in that variant, since both sides
+resolve through the shared helper; if the harness is meant to catch intent-level defects,
+P1 needs a clause like "a Done tap on a due date yields a read of `ideal` or an explicit
+failure" — that sharpening is the advisor's to make, not mine.)
 
 ## Non-blocking notes
 
-- The chained-move representation (pointer chains resolved single-hop at read time) is
-  what makes B1 possible at all; the write-time normalisation above also collapses chains,
-  after which the "chained move vacates B without resurrecting A" dayState test describes
-  a representation that can no longer occur through the public surface — keep it as a
-  defence-in-depth assertion, but re-word its premise.
-- A moved occurrence on an off-cadence target is manual-chip-only (`dueIdealStepIds` is
-  cadence-based, so step checkboxes don't travel with the move). Both paths agree, F23 is
-  silent on moved dates, and the day still resolves correctly through the chip — fine for
-  v1, but note it for M4 so the sheet doesn't render an empty step list oddly.
-- Day-of-change XP (earned before an afternoon cadence switch) stays stamped with the old
-  cycle id, so it lands in the short record's `cyclingXpFinal` while the day's
-  *consistency* belongs to the fresh window — a deliberate, value-preserving asymmetry
-  worth one comment line. Two same-day cadence changes with a log between them orphan that
-  log's cycling XP from every window (lifetime intact) — accepted edge-of-edge.
-- Jest open-handles warning: accepted as reported; see above.
-
-## Why this module keeps regressing — diagnosis for the advisor
-
-**Mostly execution pattern, not spec ambiguity — and it is converging, not thrashing:**
-10 defects → 5 → 1 across passes, every fix real (structural where structure was
-demanded), and zero recidivism — nothing fixed has un-fixed.
-
-1. **Not the spec, with one exception.** Every regression so far violated an *explicit*
-   upstream sentence (off days never a penalty — SCHEMA §7 / PRD §3.4; "never a double
-   archive" — SCHEMA §8; fresh-cycle disjointness — §8's "begins … runs to the next
-   natural boundary"). The specs were adequate; the builder consulted them when answering
-   review items but not when writing *new* code. The **one genuine spec gap** across all
-   three passes is F7's move micro-semantics: SCHEMA gives it one column and one sentence,
-   ALLSCREENS never shows a move flow, and nobody upstream defined chains, un-move,
-   same-day moves, or collisions. B1 lives exactly in that gap, and both move-related
-   findings (pass-2 N1, pass-3 B1) had to be adjudicated against reviewer reasoning rather
-   than a pinned contract.
-2. **The failure mode is consistent:** M2 fixes precisely what the review names, writes
-   tests from the review's acceptance criteria, then extends its own state machine without
-   exploring the interactions *it* just created. Each pass's new defect sat in the newest
-   code, in a composition the named criteria didn't cover (off-retraction × cycle
-   attribution; move-display × move-complete; now move × move). The module is not too
-   large; its mutation layer carries three coupled temporal state machines (move pointers,
-   the cycle pointer, the XP ledger) — too coupled for example-based testing alone.
-3. **What the advisor should pin, concretely:** (a) F7 move semantics as a small state
-   table — legal transitions, chain collapse at write time, un-move, same-day no-op,
-   collision rule — so the B1 fix is made against a contract instead of review prose;
-   (b) a requirement that any new mutation-layer state ships with invariant-style tests
-   (compose the operation with itself and its inverse), the single practice that would
-   have caught all three passes' new defects before review.
+- Open advisor items acknowledged and not ruled on here, per instruction: the R-1
+  naturally-due-never-logged merge variant (implemented literally, flagged, C4 built to
+  avoid it); P2 asserted per-task only (the stated rationale is correct — aggregate
+  `missed` is a post-rounding display remainder, so exact equality genuinely doesn't hold
+  there; ARCHITECTURE §6.2 states the invariant per-task); P7's reversibility clause
+  covered by C1/C4r rather than mechanically (tractability argument is sound; those are
+  the single-visitor cases the clause names).
+- Section (b)'s move op always uses `d → next(d)` — one fixed shape per pair. Compliant
+  with the ADVICE's letter ("one test asserting the pack"); if P1 is sharpened per F2's
+  caveat, widening the pair shapes would come along naturally.
+- `useLogDose` was not extracted to a named function and is not fail-injected in section
+  (c). Structurally identical to `logState`; acceptable — but it inherits F1 and must be
+  included in F1's fix and tests.
+- The Jest open-handles warning persists (known, honestly reported at pass 3, unchanged
+  disposition). The enumeration adds ~30 s to the queries suite; fine for CI, worth a
+  local-iteration note.
+- Ownership: pass-4 changes are confined to `src/queries/**` and `src/domain/**`
+  (commits d6af02f, 584f6a8); the `docs/**` amendments (SCHEMA §4.2, ARCHITECTURE §6.1
+  footnote, MODULES CR-3 note) are the architect's own files per the CR pattern. M2 wrote
+  nothing to `review/`. "streak" grep still clean.
 
 ## Verified
 
-- Ran `npx jest src/domain src/queries --forceExit` → 11 suites, 147 tests, all pass.
-- Read in full: the pass-3 diffs (`dayState.ts`, `internal.ts`, `mutations.ts`,
-  `cycles.ts`, `achievements.ts` header, both test files, `fakeRepos` fail-injection);
-  traced every N-item fix and its test against the pass-2 acceptance criteria;
-  inversion-checked that the N1/N2/N3/N4/N5 tests fail under the code they replaced
-  (including N2's January-award-vs-June-pointer construction, which makes the cycle-id
-  assertion genuinely discriminating).
-- Bypass check for N1's structural claim: grep for `resolveOccurrence` across
-  `src/queries` — only `internal.ts`'s two shared call sites; `reconcileOccurrence` uses
-  `resolveOneOccurrence`; the ≤60-day guard closes the fetch-window asymmetry.
-- Adversarial move compositions traced by hand: forward re-snooze (works), move-back
-  (B1), same-day (B1), move-onto-logged-day, move-onto-off-day, move-across-boundary,
-  chained A→B→C (works).
-- Regression sweep as above; ownership via `git show e008938 --numstat`; "streak" grep
-  clean; review-file integrity: unchanged since my pass-2 commit (`git diff ee3f8d7 HEAD`
-  on this file was empty before this overwrite).
+- `review/ADVICE-M2.md` read in full; every Ruling-3 compliance criterion checked
+  individually (R-precedence delta confined to move-present paths; W-0/W-1/W-2 rejection
+  tests present; guard measured from the carrier; W-3 branch by `inbound(F)` alone with
+  ordered writes; C1–C8 end-to-end; harness (a)–(c) with P1–P7 — (a) minus the missing
+  completion variant, F2).
+- Ran `npx jest src/domain src/queries --forceExit`: 13 suites, 163 tests, green,
+  including the full 16,275-sequence enumeration (count-asserted, ~30 s).
+- Byte-equivalence proven by mechanical diff of the extracted resolution body against the
+  pass-3 committed version (`git show dca819c:… | diff`), plus flow-order reasoning for
+  the no-move path (R-3 ≡ pass-3 order); mutation-hook extraction diffed as verbatim
+  relocation.
+- Enumeration discriminance argued by inversion against four seeded-regression classes
+  (R-1 order, W-0 removal, chain non-collapse, guard-from-F); fault injections inspected
+  for fidelity (one-shot, real error paths, reset-cleared).
+- F1 traced line-by-line through `logState` → R-1 → both reads (B and C), including why
+  every P-invariant as formulated passes over it; confirmed the residue+chip combination
+  is reachable **only** in the C6 shape, so the defect's blast radius is exactly the case
+  the ADVICE pinned as reachable.
+- SCHEMA §4.2 ↔ ADVICE rules block diffed byte-identical; ARCHITECTURE §6.1 footnote and
+  MODULES M4 pointer present and consistent.

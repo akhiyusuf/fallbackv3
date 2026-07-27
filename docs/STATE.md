@@ -4,7 +4,7 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — M0 and M1 PASSED; M2 under final review.**
+**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 mid-implementation, tree RED. See RESUME below.**
 
 ## Phase status
 
@@ -269,8 +269,72 @@ complete and correct throughout; only the labels are imprecise. Known traces:
 **Always use `git log --follow <path>`, never commit titles, to find where a
 module's work landed.**
 
-## Next action
+## RESUME HERE — three agents died mid-task on a session limit
 
-M2's pass-2 review is the last thing blocking the wave-1 freeze. Then: freeze →
-wave 2 (M3–M7) in parallel → code-reviewer each → qa-tester → visual-qa →
-**Gate 3**, where the human reviews screenshots + `review/TEST_REPORT.md`.
+All three were killed by `You've hit your session limit · resets 1:30am (UTC)`.
+Each can be resumed; none had corrupted anything. **The tree is RED and that is
+expected, not damage** — see below.
+
+### Tree state
+
+- `npx tsc --noEmit` — **clean**.
+- `npx jest` — **3 failing / 292 passing**, 38 suites.
+- The 3 failures are in `src/domain/dayState.test.ts` and are **tests encoding the
+  rule Supplement A rejected**. They are correctly failing. M2 landed the source
+  change and died before updating them.
+
+### What M2 had done, and what is left
+
+**Done and committed:** `src/domain/dayState.ts` now implements Supplement A's
+three-clause `effectiveLog` — (a) a live own log wins, (b) **new** a naturally-due
+date with no row resolves `null`, (c) otherwise the moved-in record. The
+implementation reads correctly against the supplement and is well commented.
+
+**Left to do (S1):**
+1. Update the 3 failing tests to the amended rule:
+   - `dayState.test.ts` "with NO real log on the target date, a moved-in occurrence
+     carries its own chip/step data" — expects `ideal`, now `pending`.
+   - the **C6** sub-assertion "B's own occurrence, meanwhile, stays due at C" —
+     expects `ideal`, now `pending`. **Check this one carefully:** the advisor said
+     C6 is untouched by S1. If clause (b) genuinely changes C6's outcome, that is a
+     conflict between Supplement A and Ruling 1 and must go back to the advisor,
+     not be silently re-baselined.
+   - the **C8** "further move redirects BOTH inbound rows" assertion — expects
+     `ideal`, now `missed`. Supplement A reworded C8's data clause, so this test
+     likely needs the reworded expectation rather than a fix.
+2. Add **C4b** with its explicit **no-award assertion against a completed visitor** —
+   that assertion is the point of the case.
+
+**Left to do (S4):** mechanical snapshot-reversal over every accepted move sequence
+of length ≤ 2 (~650), comparing the five-date **resolution map**, never raw rows,
+with the multi-visitor case falling back to liveness-only. Full length-3 reversal
+is explicitly **not** required.
+
+### What the architect had done — nothing yet
+
+It died on `Let me read Supplement A before touching anything.` **`docs/SCHEMA.md`
+§4.2 still mirrors the ORIGINAL table** and is one revision behind. Outstanding:
+replace R-1's `effectiveLog` formula with the three-clause version, add the C4b
+row, replace C8's data clause. Verbatim, verified programmatically. S2/S3/S4 are
+harness operationalisations and must **not** go into §4.2.
+
+**Until that lands, `ADVICE-M2.md` wins over `SCHEMA.md` §4.2 on any disagreement.**
+
+### What the reviewer had done
+
+Pass 4 was in flight. Its last output: **"C1–C8 each match the ADVICE table
+exactly. Now the invariant harness."** So the case-table compliance check passed;
+the P1–P7 harness verification is unfinished. `review/REVIEW-M2.md` is modified in
+the tree and is a **partial** pass-4 review — do not read it as a verdict.
+
+### Order to resume in
+
+1. **M2** finishes S1 + S4 (tree goes green).
+2. **Architect** updates SCHEMA §4.2 — independent, can run in parallel.
+3. **Reviewer** re-runs pass 4 from the top once the tree is green.
+
+## Next action after M2 passes
+
+Freeze wave 1 → wave 2 (M3–M7) in parallel → code-reviewer each → qa-tester →
+visual-qa → **Gate 3**, where the human reviews screenshots +
+`review/TEST_REPORT.md`.

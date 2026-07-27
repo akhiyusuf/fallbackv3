@@ -141,8 +141,31 @@ export function resolveOccurrence(input: {
   // log on this date still wins over the moved-in record (pass-2 N1's rule, unchanged) — a
   // vacated own log (pointer non-null) is residue: it never supplies data and never blocks
   // due-ness either.
+  //
+  // effectiveLog is a THREE-clause formula (ADVICE-M2.md Supplement A, S1 — REPLACES the
+  // original two-clause version):
+  //   (a) ownLog(D), if it exists and its own pointer is null — a real state at D always
+  //       wins (pass-2 N1's rule, unchanged).
+  //   (b) else null, if D is naturally due and ownLog(D) is absent — D's own occurrence is
+  //       present and was never logged: a MERGE never manufactures an outcome (and never an
+  //       XP award) from imported visitor data on a date the user hasn't touched. The merge
+  //       keeps D's blank auto/pending state; the visitor's data stays dormant at its source
+  //       (D-rule) and revives on un-move. The original (literal) formula fell through to the
+  //       visitor's data here, which could mint XP for a day never touched — REJECTED by the
+  //       advisor's Supplement A after M2 flagged the ambiguity rather than guessing.
+  //   (c) else the moved-in record (existing latest-source tie-break) — the visitor is the
+  //       ONLY occurrence present: a non-natural target, or C6's natural-but-vacated target
+  //       (ownLog(D) exists as residue, so (b)'s "absent" doesn't apply — falls through here,
+  //       unchanged from before this amendment).
   if (movedInLog != null) {
-    const effectiveLog = log && log.movedToDate === null ? log : movedInLog;
+    let effectiveLog: DayLog | null;
+    if (log && log.movedToDate === null) {
+      effectiveLog = log; // (a)
+    } else if (log === null && isDue(task, date, notBefore)) {
+      effectiveLog = null; // (b)
+    } else {
+      effectiveLog = movedInLog; // (c)
+    }
     return resolveDueOccurrence(task, date, today, effectiveLog, offMarks, notBefore);
   }
 
