@@ -1,14 +1,18 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import { today } from '@/lib/date';
+import { addDays, today } from '@/lib/date';
 
 const mockUseTasks = jest.fn();
 const mockUseTaskOccurrences = jest.fn();
 jest.mock('@/queries', () => ({
   useTasks: () => mockUseTasks(),
-  useTaskOccurrences: () => mockUseTaskOccurrences(),
+  useTaskOccurrences: (taskId: string, range: { from: string; to: string }) => mockUseTaskOccurrences(taskId, range),
 }));
+
+function occurrence(date: string, overrides: Partial<Record<string, unknown>> = {}) {
+  return { taskId: 'e-repeat', date, outcome: 'pending', dueIdealStepIds: [], completedStepIds: [], chipState: 'todo', dosesRequired: 1, dosesCompleted: 0, ...overrides };
+}
 
 import EventsBrowseScreen from './EventsBrowseScreen';
 
@@ -87,6 +91,54 @@ describe('S11 — Events Browse', () => {
   it('error: renders InlineRetryBanner', async () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() });
     await render(<EventsBrowseScreen />);
-    expect(screen.getByText('Couldn’t load this list. Your data is safe on this device.')).toBeTruthy();
+    expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
+  });
+
+  it('a repeating event due today renders under Today (not just Upcoming), and the scoped empty does not show', async () => {
+    const repeatingToday = event({
+      id: 'e-repeat',
+      name: 'Team dinner',
+      eventDate: null,
+      cadence: { kind: 'daily' },
+      timeOfDay: '19:00',
+    });
+    mockUseTasks.mockReturnValue({ data: [repeatingToday], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUseTaskOccurrences.mockReturnValue({ data: [occurrence(today(), { outcome: 'pending' })] });
+    await render(<EventsBrowseScreen />);
+    expect(screen.getByText('Team dinner')).toBeTruthy();
+    expect(screen.getByText('7:00 PM')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText('No events today.')).toBeNull());
+  });
+
+  it('Upcoming day-groups render in chronological order regardless of repo list order', async () => {
+    const later = event({ id: 'e-later', name: 'Later dinner', eventDate: addDays(today(), 10) });
+    const sooner = event({ id: 'e-sooner', name: 'Sooner checkup', eventDate: addDays(today(), 2) });
+    mockUseTasks.mockReturnValue({ data: [later, sooner], isLoading: false, isError: false, refetch: jest.fn() });
+    await render(<EventsBrowseScreen />);
+    const names = screen.getAllByText(/dinner|checkup/i).map((n) => n.props.children);
+    expect(names.indexOf('Sooner checkup')).toBeLessThan(names.indexOf('Later dinner'));
+  });
+
+  it('a repeating event with no occurrence in the lookahead window still renders in Upcoming, with its recurrence badge', async () => {
+    const yearly = event({ id: 'e-repeat', name: 'Annual physical', eventDate: null, cadence: { kind: 'yearly' } });
+    mockUseTasks.mockReturnValue({ data: [yearly], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUseTaskOccurrences.mockReturnValue({ data: [] }); // nothing resolves inside the 90-day window
+    await render(<EventsBrowseScreen />);
+    expect(screen.getByText('Annual physical')).toBeTruthy();
+    expect(screen.getByText('Repeats · Yearly')).toBeTruthy();
+  });
+
+  it('a repeating row in Upcoming shows its time alongside the recurrence badge', async () => {
+    const weekly = event({
+      id: 'e-repeat',
+      name: 'Weekly sync',
+      eventDate: null,
+      cadence: { kind: 'weekly', weekday: 5, anchorDate: '2020-01-03' },
+      timeOfDay: '09:00',
+    });
+    mockUseTasks.mockReturnValue({ data: [weekly], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUseTaskOccurrences.mockReturnValue({ data: [occurrence(addDays(today(), 5))] });
+    await render(<EventsBrowseScreen />);
+    expect(screen.getByText(/9:00 AM/)).toBeTruthy();
   });
 });

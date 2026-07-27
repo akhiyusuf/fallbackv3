@@ -5,6 +5,9 @@ import { router } from 'expo-router';
 const mockUseTasks = jest.fn();
 jest.mock('@/queries', () => ({ useTasks: () => mockUseTasks() }));
 
+const mockUseAsNeededHistory = jest.fn();
+jest.mock('./useAsNeededHistory', () => ({ useAsNeededHistory: () => mockUseAsNeededHistory() }));
+
 import RoutinesBrowseScreen from './RoutinesBrowseScreen';
 
 function routine(overrides: Partial<Record<string, unknown>> = {}) {
@@ -37,7 +40,10 @@ function routine(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe('S10 — Routines Browse', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseAsNeededHistory.mockReturnValue({ data: [] });
+  });
 
   it('loading: renders skeleton rows', async () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: true, isError: false, refetch: jest.fn() });
@@ -69,6 +75,19 @@ describe('S10 — Routines Browse', () => {
     expect(screen.getByLabelText('Log used it')).toBeTruthy();
     // AsNeededCard never shows cadence text or a due badge for its own row.
     expect(screen.queryByText('daily')).toBeNull();
+  });
+
+  it('an as-needed row with usage history shows the "Last used" preview', async () => {
+    const asNeeded = routine({ id: 'r2', name: 'Emergency plan', isAsNeeded: true, cadence: null, importance: null, necessity: null });
+    mockUseTasks.mockReturnValue({ data: [asNeeded], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUseAsNeededHistory.mockReturnValue({
+      data: [
+        { id: 'u1', taskId: 'r2', date: '2026-03-03', marker: 'ideal', createdAt: '2026-03-03T00:00:00.000Z' },
+        { id: 'u2', taskId: 'r2', date: '2026-01-01', marker: 'fallback', createdAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    });
+    await render(<RoutinesBrowseScreen />);
+    expect(screen.getByText('Last used Mar 3')).toBeTruthy();
   });
 
   it('tapping an as-needed card navigates to S23, never S20', async () => {

@@ -1,6 +1,7 @@
 /**
  * S11 — Events Browse. F11 (browse), F26 (repeating events).
  */
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Calendar } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,7 +13,7 @@ import { SPACE, useTheme } from '@/theme';
 import { Badge, Card, EmptyState, InlineRetryBanner, Skeleton, Tag } from '@/ui';
 import type { LocalDate, TaskWithSteps } from '@/types';
 
-import { S11_COPY } from './copy';
+import { BROWSE_SHARED_COPY, S11_COPY } from './copy';
 import { formatRelativeDayLabel, formatTimeOfDay } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
@@ -40,8 +41,26 @@ export default function EventsBrowseScreen() {
     list.push(e);
     upcomingGroups.set(key, list);
   }
+  const sortedUpcomingGroupDates = [...upcomingGroups.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+
+  // A repeating event's "due today" status only resolves once its own occurrence query
+  // (inside `RepeatingEventRow`) reports back — the Today section's own empty-state gate
+  // (item 4a of review/REVIEW-M3.md) needs to know that BEFORE deciding whether to render
+  // the scoped "No events today." copy, so each repeating row reports here.
+  const [repeatingDueTodayIds, setRepeatingDueTodayIds] = useState<ReadonlySet<string>>(new Set());
+  const reportDueToday = useCallback((id: string, dueToday: boolean) => {
+    setRepeatingDueTodayIds((prev) => {
+      const has = prev.has(id);
+      if (dueToday === has) return prev;
+      const next = new Set(prev);
+      if (dueToday) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
 
   const noEventsAtAll = !tasksQuery.isLoading && !tasksQuery.isError && events.length === 0;
+  const noEventsToday = todayEvents.length === 0 && repeatingDueTodayIds.size === 0;
 
   function openTask(id: string) {
     router.push(withOrigin(`/task/${id}`, 'events') as Href);
@@ -57,7 +76,7 @@ export default function EventsBrowseScreen() {
             <Skeleton height={72} />
           </View>
         ) : tasksQuery.isError ? (
-          <InlineRetryBanner message="Couldn’t load this list. Your data is safe on this device." retryLabel="Retry" onRetry={() => tasksQuery.refetch()} />
+          <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
         ) : noEventsAtAll ? (
           <EmptyState
             icon={Calendar}
@@ -71,34 +90,46 @@ export default function EventsBrowseScreen() {
             <Text accessibilityRole="header" style={[styles.sectionLabel, { color: t.color.text }]}>
               {S11_COPY.todaySection}
             </Text>
-            {todayEvents.length === 0 ? (
+            {noEventsToday ? (
               <EmptyState
                 icon={Calendar}
                 headline={S11_COPY.noEventsTodayHeadlinePrefix}
                 subcopy={`${S11_COPY.noEventsTodaySubcopyPrefix}${weekdayNameOf(todayDate)}${S11_COPY.noEventsTodaySubcopySuffix}`}
               />
-            ) : (
-              <View style={styles.list}>
-                {todayEvents.map((e) => (
-                  <EventRow key={e.id} task={e} onPress={() => openTask(e.id)} />
-                ))}
-              </View>
-            )}
+            ) : null}
+            <View style={styles.list}>
+              {todayEvents.map((e) => (
+                <EventRow key={e.id} task={e} onPress={() => openTask(e.id)} />
+              ))}
+              {repeating.map((e) => (
+                <RepeatingEventRow
+                  key={e.id}
+                  task={e}
+                  today={todayDate}
+                  section="today"
+                  onPress={() => openTask(e.id)}
+                  onDueTodayChange={(due) => reportDueToday(e.id, due)}
+                />
+              ))}
+            </View>
 
             <Text accessibilityRole="header" style={[styles.sectionLabel, { color: t.color.text }]}>
               {S11_COPY.upcomingSection}
             </Text>
             <View style={styles.list}>
-              {[...upcomingGroups.entries()].map(([date, list]) => (
-                <View key={date} style={styles.group}>
-                  <Text style={[styles.groupLabel, { color: t.color.textMuted }]}>{formatRelativeDayLabel(date as never, todayDate)}</Text>
-                  {list.map((e) => (
-                    <EventRow key={e.id} task={e} onPress={() => openTask(e.id)} />
-                  ))}
-                </View>
-              ))}
+              {sortedUpcomingGroupDates.map((date) => {
+                const list = upcomingGroups.get(date) as TaskWithSteps[];
+                return (
+                  <View key={date} style={styles.group}>
+                    <Text style={[styles.groupLabel, { color: t.color.textMuted }]}>{formatRelativeDayLabel(date, todayDate)}</Text>
+                    {list.map((e) => (
+                      <EventRow key={e.id} task={e} onPress={() => openTask(e.id)} />
+                    ))}
+                  </View>
+                );
+              })}
               {repeating.map((e) => (
-                <RepeatingEventRow key={e.id} task={e} today={todayDate} onPress={() => openTask(e.id)} />
+                <RepeatingEventRow key={e.id} task={e} today={todayDate} section="upcoming" onPress={() => openTask(e.id)} />
               ))}
             </View>
           </>
@@ -139,20 +170,53 @@ function EventRow({ task: tk, onPress }: { task: TaskWithSteps; onPress: () => v
   );
 }
 
-function RepeatingEventRow({ task: tk, today: todayDate, onPress }: { task: TaskWithSteps; today: LocalDate; onPress: () => void }) {
+/**
+ * Renders once per (repeating event x section). `section="today"` shows the row only when an
+ * occurrence resolves due TODAY (review item 4a) and reports that status up to the parent so
+ * the Today section's scoped empty state isn't shown alongside a real row (`onDueTodayChange`).
+ * `section="upcoming"` shows the row for every repeating event EXCEPT one already shown under
+ * Today — including one with no occurrence inside the lookahead window, so a yearly cadence
+ * never vanishes from its own tab (review item 4c): the recurrence badge always renders; the
+ * relative-date text is simply omitted when no occurrence resolves within the window.
+ */
+function RepeatingEventRow({
+  task: tk,
+  today: todayDate,
+  section,
+  onPress,
+  onDueTodayChange,
+}: {
+  task: TaskWithSteps;
+  today: LocalDate;
+  section: 'today' | 'upcoming';
+  onPress: () => void;
+  onDueTodayChange?: (dueToday: boolean) => void;
+}) {
   const occQuery = useTaskOccurrences(tk.id, { from: todayDate, to: addDays(todayDate, UPCOMING_WINDOW_DAYS) });
   const t = useTheme();
   const Icon = resolveTaskIcon(tk.icon);
-  const next = (occQuery.data ?? []).find((o) => o.outcome !== 'not-due' && o.date > todayDate);
-  if (!next) return null;
+  const occs = occQuery.data ?? [];
+  const dueToday = occs.some((o) => o.date === todayDate && o.outcome !== 'not-due');
+  const next = occs.find((o) => o.outcome !== 'not-due' && o.date > todayDate);
+
+  useEffect(() => {
+    onDueTodayChange?.(dueToday);
+  }, [dueToday, onDueTodayChange]);
+
+  if (section === 'today' ? !dueToday : dueToday) return null;
+
+  const timeLabel = tk.timeOfDay ? formatTimeOfDay(tk.timeOfDay) : undefined;
+  const dateLabel = section === 'upcoming' && next ? formatRelativeDayLabel(next.date, todayDate) : undefined;
+  const metaParts = [dateLabel, timeLabel].filter((v): v is string => !!v);
+
   return (
-    <Card onPress={onPress} accessibilityLabel={`${tk.name}, Repeats`}>
+    <Card onPress={onPress} accessibilityLabel={`${tk.name}, Repeats${timeLabel ? `, ${timeLabel}` : ''}`}>
       <View style={styles.rowHeader}>
         <Icon size={22} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
         <Text style={[styles.name, { color: t.color.text }]}>{tk.name}</Text>
       </View>
       <View style={styles.rowHeader}>
-        <Text style={[styles.meta, { color: t.color.textMuted }]}>{formatRelativeDayLabel(next.date, todayDate)}</Text>
+        {metaParts.length > 0 ? <Text style={[styles.meta, { color: t.color.textMuted }]}>{metaParts.join(' · ')}</Text> : null}
         <Badge label={`Repeats · ${repeatWord(tk)}`} />
       </View>
     </Card>

@@ -40,9 +40,9 @@ export const S12_COPY = {
   daysLeftSuffix: 'days left',
   completedPrefix: 'Completed',
   noActiveHeadline: 'No active courses right now.',
-  noActiveSubcopy: 'Start a new one whenever you're ready.',
+  noActiveSubcopy: "Start a new one whenever you're ready.",
   noCoursesAtAllHeadline: 'Start your first course',
-  noCoursesAtAllSubcopy: 'Courses are habits with an end date — a medication, a 30-day challenge. Start one when you're ready.',
+  noCoursesAtAllSubcopy: "Courses are habits with an end date — a medication, a 30-day challenge. Start one when you're ready.",
   newCourse: 'New course',
 } as const;
 
@@ -53,7 +53,7 @@ export const S13_COPY = {
   emptyTodosHeadline: 'Nothing here yet.',
   emptyTodosSubcopy: 'Jot down a to-do or note — no schedule required.',
   emptyNotesHeadline: 'No notes yet.',
-  emptyNotesSubcopy: 'Loose thoughts, reminders, anything that doesn't need a schedule.',
+  emptyNotesSubcopy: "Loose thoughts, reminders, anything that doesn't need a schedule.",
   newTodoOrNote: 'New to-do or note',
 } as const;
 

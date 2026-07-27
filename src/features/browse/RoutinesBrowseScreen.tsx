@@ -5,19 +5,21 @@ import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Repeat } from 'lucide-react-native';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { format } from 'date-fns';
 
-import { today, weekdayOf } from '@/lib/date';
+import { parseLocalDate, today, weekdayOf } from '@/lib/date';
 import { useTasks } from '@/queries';
 import { ROUTES, withOrigin } from '@/navigation';
 import { SPACE, useTheme } from '@/theme';
 import { AsNeededCard, Badge, Card, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
-import type { TaskWithSteps, Weekday } from '@/types';
+import type { Id, TaskWithSteps, Weekday } from '@/types';
 
 import { BROWSE_SHARED_COPY, dueSectionLabel, S10_COPY } from './copy';
 import { cadenceLabel, cadenceRunsOnWeekday, importanceLabel, necessityLabel } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
 import { resolveTaskIcon } from './resolveIcon';
+import { useAsNeededHistory } from './useAsNeededHistory';
 import { WEEKDAY_FULL } from './weekdayLabels';
 
 const WEEKDAY_TABS = ([1, 2, 3, 4, 5, 6, 7] as const).map((d) => ({ value: String(d), label: WEEKDAY_FULL[d as Weekday].slice(0, 3) }));
@@ -99,16 +101,7 @@ export default function RoutinesBrowseScreen() {
                 <ScheduledRow key={tk.id} task={tk} showDueBadge={false} cadenceText={`Due ${cadenceLabel(tk.cadence)}`} onPress={() => openTask(tk.id)} />
               ))}
               {asNeeded.map((tk) => (
-                <AsNeededCard
-                  key={tk.id}
-                  name={tk.name}
-                  icon={resolveTaskIcon(tk.icon)}
-                  idealLabel={tk.idealSteps[0] ? `Ideal: ${tk.idealSteps[0].text}` : undefined}
-                  fallbackLabel={tk.fallbackSteps[0] ? `Fallback: ${tk.fallbackSteps[0].text}` : undefined}
-                  onPress={() => openAsNeeded(tk.id)}
-                  onLogUsedIt={() => openAsNeeded(tk.id)}
-                  logButtonLabel={S10_COPY.logUsedIt}
-                />
+                <AsNeededRow key={tk.id} task={tk} onOpen={() => openAsNeeded(tk.id)} />
               ))}
             </View>
           </>
@@ -147,6 +140,27 @@ function ScheduledRow({
         {tk.necessity ? <Tag label={necessityLabel(tk.necessity)} /> : null}
       </View>
     </Card>
+  );
+}
+
+/** S10's as-needed row — adds the "Last used {date}" preview via `useAsNeededHistory`. */
+function AsNeededRow({ task: tk, onOpen }: { task: TaskWithSteps; onOpen: () => void }) {
+  const historyQuery = useAsNeededHistory(tk.id as Id);
+  const history = historyQuery.data ?? [];
+  const mostRecent = [...history].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
+  const lastUsedLabel = mostRecent ? `Last used ${format(parseLocalDate(mostRecent.date), 'MMM d')}` : undefined;
+
+  return (
+    <AsNeededCard
+      name={tk.name}
+      icon={resolveTaskIcon(tk.icon)}
+      idealLabel={tk.idealSteps[0] ? `Ideal: ${tk.idealSteps[0].text}` : undefined}
+      fallbackLabel={tk.fallbackSteps[0] ? `Fallback: ${tk.fallbackSteps[0].text}` : undefined}
+      lastUsedLabel={lastUsedLabel}
+      onPress={onOpen}
+      onLogUsedIt={onOpen}
+      logButtonLabel={S10_COPY.logUsedIt}
+    />
   );
 }
 
