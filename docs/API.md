@@ -189,6 +189,11 @@ useCreateTask()      useUpdateTask()     useDeleteTask()     useDuplicateTask()
 useLogState()        // chip tap: To do / Done / Fallback / Skip
 useToggleStep()      // step checkbox → auto-log per F3
 useLogDose()         // F12
+// ^ these three are the occurrence-data mutations. Each returns VALIDATION_FAILED for a
+//   date with no resolvable occurrence — a vacated move source, or a plainly not-due date
+//   (SCHEMA.md §4.2, T-1). The Result shape is unchanged; this is a new case of an existing
+//   error code. Callers that write to an arbitrary date MUST handle it — chiefly M4's S20
+//   heatmap drill-down, which writes to past dates the user picks.
 useMarkOffDay()      // whole-day or task-day, and un-mark
 useLogAsNeededUse()  // F27 — reference-only
 useMoveOccurrence()  // F7 snooze / move

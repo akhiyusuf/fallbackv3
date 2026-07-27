@@ -252,9 +252,26 @@ earn, that was the deciding fact. The amendment:
   **with a completed visitor** so that **no XP award materialises at the target**.
 - **C8's data clause** is reworded for the same reason.
 
-Supplement A's **S2, S3 and S4 are harness rulings under Ruling 2** and are deliberately
-**not** in §4.2 — they bind M2 and the reviewer, not the schema. Where the ADVICE and §4.2
-ever disagree the ADVICE wins, and Supplement A wins within it.
+**Updated again for Supplement B (2026-07-27).** The pass-4 reviewer found a real defect the
+whole prior contract missed: reads resolve a **carrier** for a date, but writes addressed
+storage by **date-key**, so a chip tap could land on the wrong row — invisible to the user
+and corrupting data belonging to a departed occurrence. §4.2 now carries the **T-rules
+(write-side carrier selection)**: resolve the tapped date first; **reject** the write if
+nothing resolves there (`VALIDATION_FAILED`); otherwise write to whichever carrier the
+read's own clause selection designates, never to a residue row. Plus a second D-rule
+sentence (residue is immutable except via `useMoveOccurrence`) and rows **C9/C10/C11**.
+
+Two things wave 2 should note. One variant of this bug has **nothing to do with moves**:
+writing to an untouched not-due date fabricates a row that a *later, unrelated* move-in
+adopts as truth — phantom credit. That is why T-1 is a general rule, not a move patch. And
+**M4 is directly exposed**: S20's heatmap drill-down writes to arbitrary past dates, so T-1
+is load-bearing product surface there, not defence-in-depth. `docs/API.md` §3 flags the new
+rejection case on `useLogState` / `useToggleStep` / `useLogDose`.
+
+Supplement A's **S2/S3/S4** and Supplement B's **B2** (invariant P8, the F2 harness
+extension) are harness rulings under Ruling 2 and are deliberately **not** in §4.2 — they
+bind M2 and the reviewer, not the schema. Where the ADVICE and §4.2 ever disagree the ADVICE
+wins, and the latest supplement wins within it.
 
 The contract has **two halves and both are required**:
 - **Read precedence** — a moved-in record confers due-ness **before** the vacate check

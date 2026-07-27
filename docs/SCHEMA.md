@@ -227,18 +227,21 @@ category and the only thing that lowers the %.
 
 ### 4.2 `moved_to_date` semantics (F7 move / snooze) — PINNED
 
-> **Provenance.** `review/ADVICE-M2.md` now has **two parts**: the original advisory
-> (Ruling 1) and **Supplement A**, appended after it. The supplement is append-only and
-> **wins wherever it amends the original**. This section mirrors both **verbatim**, already
-> merged, so you do not have to apply the amendments yourself:
+> **Provenance.** `review/ADVICE-M2.md` now has **three parts**: the original advisory
+> (Ruling 1), **Supplement A**, and **Supplement B**. Each is append-only and **wins
+> wherever it amends what came before**. This section mirrors all three **verbatim**,
+> already merged, so you do not have to apply the amendments yourself:
 >
 > - **R-1's `effectiveLog` formula** is Supplement A's three-clause version (S1). The
 >   due-ness clause and the residue principle are the original's, unchanged.
 > - **C4b** is new (S1). **C8's data clause** is Supplement A's rewording (S1).
-> - Everything else — the definitions, R-2/R-3, every W-rule, the other case rows, the
->   D-rule and the boundary notes — is the original, unchanged.
-> - Supplement A's **S2, S3 and S4 are harness rulings under Ruling 2** and deliberately do
->   **not** appear here; they bind M2 and the reviewer, not this schema.
+> - **The T-rules (write-side carrier selection), the D-rule's second sentence, and rows
+>   C9/C10/C11** are Supplement B (B1). The T-rules are the write-side twin of the R-rules:
+>   reads and writes must answer "which row is this occurrence?" with **one** implementation.
+> - Everything else — the definitions, R-2/R-3, every W-rule, C1–C8, and the boundary
+>   notes — is unchanged from the original.
+> - Supplement A's **S2/S3/S4** and Supplement B's **B2** are harness rulings under Ruling 2
+>   and deliberately do **not** appear here; they bind M2 and the reviewer, not this schema.
 >
 > The ADVICE is binding on M2 and its reviewer; this is the same contract made findable for
 > everyone downstream — chiefly **M4**, which builds the snooze/move UI (S20), and the
@@ -324,6 +327,33 @@ W-4  Reconcile every touched date (F, T, and each written r.date) through
      boundary), restored sources re-affirm.
 ```
 
+**Write-side carrier selection (occurrence-data mutations)**
+
+Applies to every occurrence-data mutation: `logState`, `toggleStep`, `useLogDose`.
+
+```
+T-1  Resolve D through the R-rules first. If the occurrence at D resolves
+     `not-due` — a vacated source (R-2), or a plainly not-due date — REJECT the
+     write: VALIDATION_FAILED, zero writes, zero reconciles, zero events. There
+     is no occurrence at D to log. This is load-bearing twice over: it protects
+     residue rows from the write side (C10), and it closes the fabrication path
+     where an inert row written on a not-due date is later adopted as clause-(a)
+     truth by a move-in — phantom credit with no residue involved at all (C11).
+T-2  Otherwise write to the occurrence's data carrier, designated by the SAME
+     clause selection the read uses:
+       clause-(a) shape — ownLog(D) exists, pointer null → update ownLog(D).
+       clause-(b) shape — natural(D), no own row (visitor dormant or absent),
+         and the plain R-3 rowless case → create ownLog(D) fresh, pointer null.
+       clause-(c) shape — the visitor is the occurrence (non-natural D, or
+         natural-but-vacated / C6-shape D) → update the WINNING moved-in row
+         (the row at its source date; latest-source tie-break), changing only
+         its chip/step/dose/override fields and PRESERVING its movedToDate.
+         ownLog(D), if present as residue, is NOT touched.
+T-3  Reconcile and emit against D, the resolved date, exactly as today: the XP
+     award keys on (task, D); `day:logged` carries D. Only the addressed row
+     changes.
+```
+
 **Named cases — each row below is a required test, asserted end-to-end through the
 public surface (hooks + reads), not through internals:**
 
@@ -339,12 +369,26 @@ public surface (hooks + reads), not through internals:**
 | C6 | task due A and B; B→C, then A→B | A's occurrence is DUE at B via its moved-in record (R-1) — B's residue outbound pointer does not annihilate it; B's own occurrence stays at C. **This is the case the pass-3 prescription does not fix** |
 | C7 | A→B, complete at B, then B→A | A restored per C1; B resolves not-due and its award is retracted by reconcile; `ownLog(B)`'s chip data remains as dormant residue (D-rule) |
 | C8 | A1→B and A2→B (double inbound) | both sources vacated; one occurrence at B; data = live `ownLog(B)` if any; else, if B's own natural occurrence is present, B's blank state; else latest-source moved-in. |
+| C9 | due {A,B}; B→C; A→B; then chip/step tap on B | tap VISIBLE at B (outcome per tap; XP for (task,B) iff eligible); the write landed on A's row (the visitor), its pointer intact; residue ownLog(B) byte-unchanged. Then C→B (own occurrence returns): B resolves by its own uncorrupted dormant data (todo → pending, no award — no phantom); visitor's award at B retracted (see semantic note); B→A afterwards revives the visitor's tapped data at A with its award re-affirmed |
+| C10 | A→B; then any occurrence-data write on A | VALIDATION_FAILED; ownLog(A) byte-identical; zero events, zero XP delta; subsequent un-move revives A exactly as pre-move |
+| C11 | any occurrence-data write on a rowless not-due date | VALIDATION_FAILED, zero writes — and therefore a later move-in to that date finds no fabricated clause-(a) row |
+
+**Semantic note the reviewer must not flag as a defect:** after C9's tap-on-visitor,
+a later un-move of the date's own occurrence shadows the visitor (merge doctrine,
+Supplement A: the target's own state wins), so the visitor's tapped completion goes
+dormant on its row and its award at that date is retracted by reconcile — sanctioned
+under CR-2 (the resolved occurrence at that date stopped carrying a showing-up
+state), and fully recoverable by the visitor's own un-move. Transient retraction
+during shadowing is the merge doctrine working, not value loss.
 
 **D-rule (dormant data, pinned so it is not relitigated):** a `day_log` row's chip/step
 data is per-date state. It is inert while no occurrence resolves at that date and
 revives if an occurrence returns there (C1's restore; symmetrically, re-moving onto a
 date with prior data revives that data and reconcile re-affirms). This mirrors F4's
-"restore what was logged" and is intended behaviour, not a defect.
+"restore what was logged" and is intended behaviour, not a defect. Further, residue rows are immutable to every mutation
+except `useMoveOccurrence`; dormant data can change only by the occurrence returning
+home — and data a tap writes to a visitor's row is the visiting occurrence's own
+state, travelling with it exactly as C7 data does.
 
 **Boundary notes:** T may be past or future — a past T resolves under the ordinary
 past-date rules (an unlogged past target reads missed; that is coherent, not a bug).
