@@ -41,7 +41,7 @@ jest.mock('@/lib/date', () => {
 
 import { addDays } from '@/lib/date';
 import { on } from '@/lib/events';
-import { perTaskConsistency } from '@/domain';
+import { occurrencesBetween, perTaskConsistency } from '@/domain';
 import type { AppEvent, Instant, LocalDate, Occurrence, Result, Step, TaskWithSteps, Weekday } from '@/types';
 
 import { fake } from './testSupport/dbMock';
@@ -192,6 +192,24 @@ async function checkP2AndP3(task: TaskWithSteps): Promise<void> {
   expect(lifetimeXp).toBeGreaterThanOrEqual(0); // P3, non-negative
 }
 
+/**
+ * Denominator conservation (review pass 1, blocking item 1's non-blocking note 6): a
+ * one-hop snooze/undo sequence only ever RELOCATES a task's existing occurrences — it can
+ * never create or destroy one. Over this fixed-cadence domain (due on exactly {D1, D3}, task
+ * created exactly on D1, `D6` — "today" — bounding how far any hop can reach), the count of
+ * this task's non-`not-due` dates in `[D1, D6]` must equal its natural due-date count
+ * EXACTLY, after any sequence whatsoever. P2 (`numerator = denominator - missed`) is true by
+ * definition even against a fabricated denominator and cannot see this; this check is what
+ * would have caught blocking item 1's defect (a bare date-keyed "already snoozed" guard let a
+ * single real occurrence fabricate a SECOND live date, which this asserts against directly).
+ */
+async function checkDenominatorConservation(task: TaskWithSteps): Promise<void> {
+  const naturalDueCount = occurrencesBetween(task, D1, D6, D1).length;
+  const occs = await resolveTaskOccurrences(fake.repos, task, D6, D6);
+  const liveCount = occs.filter((o) => o.outcome !== 'not-due').length;
+  expect(liveCount).toBe(naturalDueCount);
+}
+
 describe('P1-P7 — section (a): exhaustive {snooze, undo} sequence enumeration over the 5-date domain', () => {
   test('every sequence of length <= 3 holds P1-P7 after it completes', async () => {
     let count = 0;
@@ -228,6 +246,8 @@ describe('P1-P7 — section (a): exhaustive {snooze, undo} sequence enumeration 
 
         // eslint-disable-next-line no-await-in-loop
         await checkP7(task);
+        // eslint-disable-next-line no-await-in-loop
+        await checkDenominatorConservation(task);
       }
 
       offLevelUp();

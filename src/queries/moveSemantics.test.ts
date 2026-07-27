@@ -106,6 +106,8 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
 const D1 = '2024-06-03' as LocalDate; // Mon
 const D2 = '2024-06-04' as LocalDate; // Tue
 const D3 = '2024-06-05' as LocalDate; // Wed
+const D4 = '2024-06-06' as LocalDate; // Thu
+const D5 = '2024-06-07' as LocalDate; // Fri
 const D6 = '2024-06-08' as LocalDate; // Sat — "today", after every date in the domain
 
 beforeEach(() => {
@@ -228,7 +230,10 @@ describe('C4b — snooze D onto a naturally-due D + 1 that has NEVER been logged
     expect(fake.xpAwards()).toHaveLength(0);
     expect(await fake.repos.progress.lifetimeXp()).toBe(0);
 
-    // C4r: undo restores D exactly, with its data and re-affirmed award.
+    // Undo restores D exactly, with its data and re-affirmed award. NOTE: this is undo from a
+    // CASE-2 target (D + 1 was blank) — not C4r, which SCHEMA pins as undo from a CASE-1
+    // target (a host with its OWN genuine logged data and award). See the dedicated C4r
+    // describe block below for that case.
     const undoOutcome = await undo(client, task.id, D1);
     expect((undoOutcome as { ok: boolean }).ok).toBe(true);
     const restored = await occOn(task.id, D1, client);
@@ -239,6 +244,52 @@ describe('C4b — snooze D onto a naturally-due D + 1 that has NEVER been logged
     // D + 1's own occurrence is untouched throughout: still naturally due (daily), still
     // genuinely unlogged — reads its own blank state (missed, past, unlogged), never 'ideal'.
     expect((await occOn(task.id, D2, client))?.outcome).not.toBe('ideal');
+  });
+});
+
+describe('C4r — undo FROM A CASE-1 TARGET: a host with its OWN genuine logged data and award must be completely untouched by the visitor\'s undo', () => {
+  test('undo clears ownLog(D) only; D due again with its prior data and re-affirmed award; D + 1\'s own row and award are byte/id-identical to their pre-undo snapshot', async () => {
+    // C4's exact fixture: D + 1 (D2) has its own genuine logged ('fallback') data and its own
+    // earned award BEFORE the merge — this is what makes it a case-1 target, distinct from
+    // C4b's blank case-2 target. The load-bearing question C4r asks: when the VISITOR (D1)
+    // undoes, does undo's `reconcileOccurrence(tau, D + 1)` disturb a host it never actually
+    // touched? A bug that clobbers or re-stamps the host's award would pass every other test
+    // in this file.
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    await log(client, task.id, D2, 'fallback'); // D + 1's OWN data and award, pre-existing
+    await log(client, task.id, D1, 'done'); // D's own data, about to become the visitor
+    expect(fake.xpAwards()).toHaveLength(2);
+    const hostAwardBefore = fake.xpAwards().find((a) => a.date === D2)!;
+
+    await snooze(client, task.id, D1); // C4 merge: D vacates, D2 (case 1) unaffected
+    expect((await occOn(task.id, D1, client))?.outcome).toBe('not-due');
+    expect((await occOn(task.id, D2, client))?.outcome).toBe('fallback');
+
+    const hostRowBeforeUndo = fake.logsFor(task.id).find((r) => r.date === D2)!;
+
+    await undo(client, task.id, D1); // C4r: the visitor's own undo
+
+    // D restored exactly: due again, its own prior data, award re-affirmed.
+    const restored = await occOn(task.id, D1, client);
+    expect(restored?.outcome).toBe('ideal');
+    expect(restored?.chipState).toBe('done');
+    expect(fake.logsFor(task.id).find((r) => r.date === D1)?.movedToDate).toBeNull();
+
+    // The host (D + 1) is completely untouched: row byte-identical, and its award survives
+    // with its ORIGINAL id/kind/amount/cycle_id — not re-stamped, not re-minted.
+    const hostRowAfterUndo = fake.logsFor(task.id).find((r) => r.date === D2)!;
+    expect(hostRowAfterUndo).toEqual(hostRowBeforeUndo);
+    expect((await occOn(task.id, D2, client))?.outcome).toBe('fallback');
+
+    const hostAwardAfter = fake.xpAwards().find((a) => a.date === D2)!;
+    expect(hostAwardAfter).toEqual(hostAwardBefore);
+
+    // Exactly two awards total — D's re-affirmed award, and D + 1's untouched one.
+    expect(fake.xpAwards()).toHaveLength(2);
+    expect(fake.xpAwards().find((a) => a.date === D1)).toBeDefined();
   });
 });
 
@@ -486,6 +537,38 @@ describe('C13 — snooze an already-snoozed occurrence', () => {
 
     const rowAfter = fake.logsFor(task.id).find((r) => r.date === D1)!;
     expect(rowAfter).toEqual(rowBefore);
+  });
+
+  test('regression (review pass 1, blocking item 1): snoozing an already-snoozed occurrence THROUGH THE VIEWED DATE — not its own date — is rejected, not fabricated', async () => {
+    // The C13 shape reached a different way: the task is due only on D3. snooze(D3) succeeds,
+    // relocating the occurrence to D4. D4 is now DISPLAYING that already-snoozed occurrence
+    // (a visitor, clause c) — attempting to snooze "the occurrence at D4" must be rejected
+    // exactly like C13, not treated as a fresh, snoozable occurrence of its own. Before the
+    // fix, `snoozeOccurrence`'s "already snoozed" guard read ONLY `ownLog(D4)` (absent, since
+    // D4 has no row of its own) and let the write through, fabricating a SECOND row
+    // (`ownLog(D4).movedToDate = D5`) for an occurrence that does not exist — one real
+    // occurrence then displayed as `missed` on two separate dates (D4 and D5) simultaneously,
+    // inflating the F5 denominator.
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [3] as Weekday[] } }); // D3 only
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const first = await snooze(client, task.id, D3);
+    expect((first as { ok: boolean }).ok).toBe(true);
+    expect((await occOn(task.id, D4, client))?.outcome).not.toBe('not-due'); // the visitor, displaying at D4
+
+    const second = await snooze(client, task.id, D4); // snoozing the VIEWED date, not the occurrence's own date (D3)
+    const res = second as { ok: false; error: { code: string } };
+    expect(res.ok).toBe(false);
+    expect(res.error.code).toBe('VALIDATION_FAILED');
+
+    // Zero writes: exactly the one row from the first (legitimate) snooze — no fabricated
+    // second pointer, and no second `missed` occurrence for this one task.
+    const rows = fake.logsFor(task.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.date).toBe(D3);
+    expect(rows[0]!.movedToDate).toBe(D4);
+    expectNotDue(await occOn(task.id, D5, client)); // no phantom occurrence ever displays here
   });
 });
 

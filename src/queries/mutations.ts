@@ -630,21 +630,30 @@ async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const today = todayLocal();
 
-  // W-1s, all three rejections. Order doesn't matter — any one holding is a reject.
-  const occurrence = await resolveOneOccurrence(repos, task, date, today);
-  if (occurrence.outcome === 'not-due') {
+  // W-1s, all three rejections — routed through `resolveWriteTarget`, i.e. through the SAME
+  // `designateCarrier` decision every read/write at D consumes, never a bare date-keyed
+  // `ownLog(D)` row check (SCHEMA §4.2's standing principle: a date-keyed query in
+  // snooze-adjacent logic is presumptively a blocking defect unless carrier-routed).
+  // `carrier.kind === 'visitor'` is precisely "the occurrence DISPLAYED at D is already
+  // snoozed" — its own row lives at D − 1, not D, so a raw `ownLog(D)` lookup can never see
+  // it, and would otherwise let this write fabricate a second, uncoordinated row at D with
+  // its own pointer (a real occurrence displaying as `missed` on two dates at once).
+  const target = await resolveWriteTarget(repos, task, date, today);
+  if (target.occurrence.outcome === 'not-due') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to snooze.' });
   }
   if (!task.snoozable) {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'This task is not snoozable.' });
   }
-  const existing = (await repos.logs.listForTask(taskId, date, date))[0] ?? null;
-  if (existing && existing.movedToDate !== null) {
+  if (target.carrier.kind === 'visitor') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'This occurrence is already snoozed.' });
   }
+  // Every remaining carrier kind ('own-live' / 'own-create') addresses D's own row — the only
+  // row W-2 is ever allowed to write for a snooze.
+  const existing = target.existing;
 
   // W-2: ONE row, D's own — the target is D + 1, computed, never chosen.
-  const target = addDays(date, 1);
+  const nextDate = addDays(date, 1);
   const nowIso = now();
   const writeResult = await repos.logs.upsert({
     id: existing?.id ?? newId(),
@@ -654,7 +663,7 @@ async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
     isManualOverride: existing?.isManualOverride ?? false,
     completedStepIds: existing?.completedStepIds ?? [],
     dosesCompleted: existing?.dosesCompleted ?? 0,
-    movedToDate: target,
+    movedToDate: nextDate,
     createdAt: existing?.createdAt ?? nowIso,
     updatedAt: nowIso,
   });
@@ -662,8 +671,8 @@ async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
 
   // W-3: reconcile BOTH dates; `day:logged` carries the date the occurrence now lives at (D + 1).
   await reconcileOccurrence(taskId, date);
-  const targetReconcile = await reconcileOccurrence(taskId, target);
-  emit({ type: 'day:logged', taskId, date: target });
+  const targetReconcile = await reconcileOccurrence(taskId, nextDate);
+  emit({ type: 'day:logged', taskId, date: nextDate });
   return ok({ occurrence: targetReconcile.occurrence });
 }
 

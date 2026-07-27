@@ -170,7 +170,17 @@ export function createFakeRepos(): FakeRepos {
           failAppendOnce = false;
           return err({ code: 'WRITE_FAILED', message: 'forced test failure' });
         }
-        xpAwards.set(`${award.taskId ?? 'null'}:${award.date}`, award);
+        const key = `${award.taskId ?? 'null'}:${award.date}`;
+        const existing = xpAwards.get(key);
+        // Mirrors `progressRepository.ts`'s real SQL exactly: `ON CONFLICT (task_id, date) DO
+        // UPDATE SET kind = excluded.kind, amount = excluded.amount, cycle_id =
+        // excluded.cycle_id` — `id` and `created_at` are NOT in that SET clause, so a
+        // re-affirmation (reconcile touching an occurrence whose award already exists)
+        // preserves the original row's identity. A blind `.set(key, award)` here previously
+        // replaced the whole object on every call, silently re-stamping `id`/`created_at` on
+        // every touch and diverging from production — caught by C4r's award-identity
+        // assertion (review pass 1, blocking item 2).
+        xpAwards.set(key, existing ? { ...existing, kind: award.kind, amount: award.amount, cycleId: award.cycleId } : award);
         return ok(undefined);
       },
       retractXpAward: async (taskId, date) => {
