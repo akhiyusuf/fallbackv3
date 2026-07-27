@@ -67,7 +67,10 @@ export function FirstTaskScreen() {
     void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
     await finishOnboardingProgress();
     setSaving(false);
-    router.replace('/today' as Href);
+    // Cross-module contract (M3, S09): `?justAdded=1` is Today's first-task-added landing
+    // state, so the very first routine the user creates surfaces its own confirmation there
+    // instead of a plain, unremarkable Today load.
+    router.replace('/today?justAdded=1' as Href);
   }
 
   return (

@@ -65,7 +65,7 @@ describe('S08 — Onboarding: First Task', () => {
     expect(draft.isAsNeeded).toBe(false);
 
     await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ onboardingCompletedAt: expect.any(String) }));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today?justAdded=1'));
     replace.mockRestore();
   });
 

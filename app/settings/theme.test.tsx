@@ -1,9 +1,10 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
+import React from 'react';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { useThemeStore, useToastStore } from '@/app-shell';
-import { ACCENTS, DEFAULT_ACCENT, PALETTES } from '@/theme';
+import { ACCENTS, buildTheme, DEFAULT_ACCENT, PALETTES, ThemeContext } from '@/theme';
 
 const mockSettingsData: { current: unknown } = { current: undefined };
 const mockUpdateSettingsMutateAsync = jest.fn();
@@ -15,6 +16,23 @@ jest.mock('@/queries', () => ({
 import S43ThemeAndAccent from './theme';
 import { S43_COPY } from '@/features/settings/copy';
 
+/**
+ * `app/_layout.tsx` (M0-owned, frozen) is what derives `ThemeContext`'s live value from
+ * `useThemeStore` in the real app — see its `AppShell` component. This harness reproduces
+ * just that wiring so the "live" half of F8 (an accent pick recolouring the preview
+ * IMMEDIATELY, in the same render pass the swatch tap causes) is actually exercised here,
+ * the same way it is in the shipped app.
+ */
+function renderWithLiveTheme(ui: React.ReactElement) {
+  function Harness() {
+    const mode = useThemeStore((s) => s.mode);
+    const accent = useThemeStore((s) => s.accent);
+    const theme = buildTheme(mode === 'dark' ? 'dark' : 'light', accent);
+    return <ThemeContext.Provider value={theme}>{ui}</ThemeContext.Provider>;
+  }
+  return render(<Harness />);
+}
+
 describe('S43 — Theme & Accent', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -25,13 +43,13 @@ describe('S43 — Theme & Accent', () => {
   });
 
   it('default: Auto theme and Forge Orange accent are pre-selected', async () => {
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
     expect(screen.getByLabelText('Appearance, Auto selected')).toBeTruthy();
     expect(screen.getByLabelText('Accent color, Forge Orange selected')).toBeTruthy();
   });
 
   it('renders the accent-only helper and the accent-invariance caption verbatim', async () => {
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
     expect(screen.getByText(S43_COPY.accentHelper)).toBeTruthy();
     expect(screen.getByText(S43_COPY.previewCaption)).toBeTruthy();
   });
@@ -53,7 +71,7 @@ describe('S43 — Theme & Accent', () => {
 
   it('picking a new accent recolors the Button and ProgressRing in the preview, live', async () => {
     const user = userEvent.setup();
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
 
     const colorsBefore = collectColors(screen.getByTestId('theme-preview'));
     expect(colorsBefore).toContain(ACCENTS[DEFAULT_ACCENT].base); // the primary Button's face colour + ProgressRing's stroke
@@ -68,7 +86,7 @@ describe('S43 — Theme & Accent', () => {
 
   it('the four StateChips in the preview do NOT recolor with the accent — they stay on their fixed signal colours', async () => {
     const user = userEvent.setup();
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
 
     const doneColorsBefore = collectColors(screen.getByTestId('preview-chip-done'));
     const fallbackColorsBefore = collectColors(screen.getByTestId('preview-chip-fallback'));
@@ -99,7 +117,7 @@ describe('S43 — Theme & Accent', () => {
   it('a persist failure reverts the selection and shows the calm retry toast', async () => {
     mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
     const user = userEvent.setup();
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
     await user.press(screen.getByLabelText('Accent color, Berry'));
     await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(S43_COPY.errorToast));
     expect(useThemeStore.getState().accent).toBe(DEFAULT_ACCENT);
@@ -108,7 +126,7 @@ describe('S43 — Theme & Accent', () => {
   it('tap back chevron navigates to S41', async () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
-    await render(<S43ThemeAndAccent />);
+    await renderWithLiveTheme(<S43ThemeAndAccent />);
     await user.press(screen.getByLabelText('Back'));
     expect(push).toHaveBeenCalledWith('/settings');
     push.mockRestore();

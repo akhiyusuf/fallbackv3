@@ -14,8 +14,10 @@
  * through this path. If the architect disagrees, this is the one call site to redirect.
  */
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { AppState, type AppStateStatus } from 'react-native';
 
+import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
 import { on } from '@/lib/events';
 import { addDays, parseLocalDate, today } from '@/lib/date';
@@ -25,6 +27,22 @@ import type { LocalDate, NotificationScheduler, Result } from '@/types';
 import { buildRollingSchedule } from './schedule';
 
 const REMINDER_PREFIX = 'fallback-reminder:';
+
+/**
+ * F14's deep-link contract, cross-module (see the coordinator note this module's final
+ * report responds to): `/today` accepts `?reentry=1&taskId=<id>` for the "gentle re-entry"
+ * tap-through — ARCHITECTURE §9.3's "deep-links to S09's re-entry state." Any other reminder
+ * kind just opens Today plain; M3 didn't document a param for those, and inventing one here
+ * would be exactly the "say so, don't silently use something else" case the note warns about
+ * — so a routine-due/event-starting/course-dose/course-ending-soon/milestone tap opens
+ * `/today` with no query, which is Today's own default landing state.
+ */
+function routeForTap(data: Record<string, unknown> | undefined): string {
+  if (data?.kind === 'gentle-reentry' && typeof data.taskId === 'string') {
+    return `/today?reentry=1&taskId=${data.taskId}`;
+  }
+  return '/today';
+}
 
 function triggerDateFor(date: LocalDate, timeOfDay: string): Date {
   const [hh, mm] = timeOfDay.split(':').map(Number);
@@ -66,12 +84,16 @@ async function reschedule(): Promise<Result<void>> {
     for (const reminder of schedule) {
       await Notifications.scheduleNotificationAsync({
         identifier: `${REMINDER_PREFIX}${reminder.id}`,
-        content: { title: reminder.title, body: reminder.body },
+        content: { title: reminder.title, body: reminder.body, data: { kind: reminder.kind, taskId: reminder.taskId } },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: triggerDateFor(reminder.date, reminder.timeOfDay),
         },
       });
+    }
+
+    if (settings.notifications.gentleReentry) {
+      await scheduleGentleReentry(tasks);
     }
 
     if (settings.notifications.dailyDigest) {
@@ -88,6 +110,37 @@ async function reschedule(): Promise<Result<void>> {
     return ok(undefined);
   } catch (cause) {
     return err({ code: 'UNKNOWN', message: 'Failed to reschedule notifications.', cause });
+  }
+}
+
+/**
+ * ARCHITECTURE §9.3: "one invitation back after an off day" — a single reactive nudge, not
+ * part of the rolling 7-day precompute (`schedule.ts` stays pure; this needs yesterday's log
+ * data). Fires today, carrying the FIRST task that was genuinely missed yesterday (due,
+ * tracked, not off, no showing-up chip) — that task id is what `/today?reentry=1&taskId=`
+ * deep-links to. An off day yesterday is deliberately NOT a re-entry trigger (PRD F4: off
+ * days are a sanctioned rest, never a lapse to be nudged back from).
+ */
+async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.tasks.list>>): Promise<void> {
+  const yesterday = addDays(today(), -1);
+  const [logs, offMarks] = await Promise.all([repos.logs.listForDate(yesterday), repos.offDays.listRange(yesterday, yesterday)]);
+  const logByTask = new Map(logs.map((l) => [l.taskId, l]));
+
+  for (const task of tasks) {
+    if (task.deletedAt || task.isAsNeeded || task.type === 'todo') continue;
+    const occurrence = resolveOccurrence({ task, date: yesterday, today: today(), log: logByTask.get(task.id) ?? null, offMarks });
+    if (occurrence.outcome === 'missed') {
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${REMINDER_PREFIX}gentle-reentry:${yesterday}`,
+        content: {
+          title: 'A quiet invitation back',
+          body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.',
+          data: { kind: 'gentle-reentry', taskId: task.id },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDateFor(today(), '09:00') },
+      });
+      return; // one invitation, not one per missed task (ARCHITECTURE §9.3's own wording).
+    }
   }
 }
 
@@ -144,11 +197,19 @@ export function initNotificationsBridge(): () => void {
     if (state === 'active') void reschedule();
   });
 
+  // F14 tap-through — see `routeForTap`'s doc comment for the deep-link contract this
+  // fulfils (`/today?reentry=1&taskId=<id>` for gentle re-entry, plain `/today` otherwise).
+  const tapSub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+    router.push(routeForTap(data) as never);
+  });
+
   void reschedule();
 
   return () => {
     unsubscribers.forEach((unsub) => unsub());
     appStateSub.remove();
+    tapSub.remove();
     bridgeInitialized = false;
   };
 }

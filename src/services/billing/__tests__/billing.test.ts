@@ -1,26 +1,15 @@
-const mockIapModule = {
-  initConnection: jest.fn(async () => true),
-  fetchProducts: jest.fn(async () => [
-    { id: 'fallback.ai.monthly', displayPrice: '$4.99' },
-    { id: 'fallback.ai.annual', displayPrice: '$39.99' },
-  ]),
-  finishTransaction: jest.fn(async () => undefined),
-  getAvailablePurchases: jest.fn(async () => []),
-  purchaseUpdatedListener: jest.fn(() => ({ remove: jest.fn() })),
-  purchaseErrorListener: jest.fn(() => ({ remove: jest.fn() })),
-  requestPurchase: jest.fn(async () => undefined),
-};
+/**
+ * `expo-iap` is mocked via the root-level manual mock `__mocks__/expo-iap.js` — see that
+ * file's header for why an in-file `jest.mock('expo-iap', factory, { virtual: true })`
+ * silently breaks once the mock is consumed indirectly (as it is here, through
+ * `../index.ts`). No `jest.mock('expo-iap')` call is needed in this file.
+ */
+import * as ExpoIap from 'expo-iap';
 
-// `{ virtual: true }`: `expo-iap`'s `main` entry ships raw ESM (`import`/`export`) rather
-// than CJS despite its `package.json` `main` field, and it isn't in `jest.config.js`'s
-// transform whitelist (unlike `lucide-react-native`/`standard-navigation`, which the
-// architect's fix already names — see MODULES.md's "House testing pattern"). Without
-// `virtual: true`, Jest still attempts to resolve/probe the real module to shape the
-// mock and silently yields `undefined` instead of throwing, so every call through the
-// (correctly-registered) mock factory fails with "Cannot read properties of undefined".
-// `virtual: true` tells Jest never to touch the real module at all. This is a local,
-// test-only workaround — no `src/**` production import changes.
-jest.mock('expo-iap', () => mockIapModule, { virtual: true });
+const mockInitConnection = ExpoIap.initConnection as jest.Mock;
+const mockFetchProducts = ExpoIap.fetchProducts as jest.Mock;
+const mockGetAvailablePurchases = ExpoIap.getAvailablePurchases as jest.Mock;
+const mockRequestPurchase = ExpoIap.requestPurchase as jest.Mock;
 
 const mockAuthenticateAsync = jest.fn();
 jest.mock('expo-local-authentication', () => ({
@@ -35,6 +24,11 @@ import { billing } from '../index';
 describe('billing (F17) — expo-iap + biometric gate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchProducts.mockResolvedValue([
+      { id: 'fallback.ai.monthly', displayPrice: '$4.99' },
+      { id: 'fallback.ai.annual', displayPrice: '$39.99' },
+    ]);
+    mockGetAvailablePurchases.mockResolvedValue([]);
     useEntitlementStore.getState().setEntitlement({
       source: 'none',
       plan: null,
@@ -46,10 +40,16 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
     });
   });
 
+  // Runs first — `latestReceipt` is module-level state in `../index.ts` with no reset hook,
+  // so this must execute before any purchase()/restore() call in this same file mutates it.
+  it('currentReceipt() is in-memory only — starts null, never touches SecureStore/SQLite/disk', async () => {
+    expect(await billing.currentReceipt()).toBeNull();
+  });
+
   it('init() opens the store connection', async () => {
     const result = await billing.init();
     expect(result.ok).toBe(true);
-    expect(mockIapModule.initConnection).toHaveBeenCalled();
+    expect(mockInitConnection).toHaveBeenCalled();
   });
 
   it('getProducts() maps the two SKUs to {sku, plan, localizedPrice}', async () => {
@@ -66,9 +66,9 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
     mockAuthenticateAsync.mockResolvedValue({ success: true });
     await billing.purchase('monthly');
     expect(mockAuthenticateAsync).toHaveBeenCalled();
-    expect(mockIapModule.requestPurchase).toHaveBeenCalled();
+    expect(mockRequestPurchase).toHaveBeenCalled();
     const biometricOrder = mockAuthenticateAsync.mock.invocationCallOrder[0] ?? -1;
-    const purchaseOrder = mockIapModule.requestPurchase.mock.invocationCallOrder[0] ?? -2;
+    const purchaseOrder = mockRequestPurchase.mock.invocationCallOrder[0] ?? -2;
     expect(biometricOrder).toBeLessThan(purchaseOrder);
   });
 
@@ -78,12 +78,12 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe('CANCELLED');
-    expect(mockIapModule.requestPurchase).not.toHaveBeenCalled();
+    expect(mockRequestPurchase).not.toHaveBeenCalled();
   });
 
   it('a store purchase error resolves calmly (no throw) and reports nothing charged', async () => {
     mockAuthenticateAsync.mockResolvedValue({ success: true });
-    mockIapModule.requestPurchase.mockRejectedValueOnce(new Error('store down'));
+    mockRequestPurchase.mockRejectedValueOnce(new Error('store down'));
     const result = await billing.purchase('monthly');
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -91,7 +91,7 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   });
 
   it('restore() needs no login — it only re-reads store purchase records', async () => {
-    mockIapModule.getAvailablePurchases.mockResolvedValueOnce([{ productId: 'fallback.ai.annual', purchaseToken: 'tok-1' }] as never);
+    mockGetAvailablePurchases.mockResolvedValue([{ productId: 'fallback.ai.annual', purchaseToken: 'tok-1' }]);
     const result = await billing.restore();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -100,14 +100,10 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   });
 
   it('restore() with nothing active returns false without error (calm toast, not a failure)', async () => {
-    mockIapModule.getAvailablePurchases.mockResolvedValueOnce([]);
+    mockGetAvailablePurchases.mockResolvedValueOnce([]);
     const result = await billing.restore();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value).toBe(false);
-  });
-
-  it('currentReceipt() is in-memory only — starts null, never touches SecureStore/SQLite/disk', async () => {
-    expect(await billing.currentReceipt()).toBeNull();
   });
 });
