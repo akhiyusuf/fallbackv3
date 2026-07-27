@@ -4,7 +4,65 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
-**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 mid-implementation, tree RED. See RESUME below.**
+**Phase 3 (BUILD) — M0/M1 PASSED and frozen. M2 mid-implementation, tree GREEN
+(301 tests). A human product decision is QUEUED behind the in-flight fix — see
+"QUEUED — F7 rescope" immediately below before doing anything else in this phase.**
+
+## QUEUED — F7 (snooze) rescope, human-directed, 2026-07-27
+
+The human watched the review/advisor cost of general "move to any date"
+semantics (4 review passes, 2 advisor supplements, ~300 tests to make arbitrary
+moves, chains and merges correct) and decided to narrow the feature rather than
+keep hardening it. Given directly in conversation, not through the pipeline —
+recorded here per the same pattern as the Gate 2 approval.
+
+**Three decisions, all final:**
+
+1. **Snooze becomes exactly-one-hop, ever.** A task may be pushed to the next
+   day, once. No arbitrary target date, no re-snoozing an already-snoozed
+   occurrence, no chains, no undo-then-resnooze. An occurrence is in exactly one
+   of two states: on its original day, or pushed exactly one day forward (with
+   undo available back to original — confirm with the human whether undo
+   survives the rescope or whether "one hop, ever" means the hop is also
+   irreversible; not yet asked).
+2. **Sequencing: let the in-flight fix land first.** Do NOT redirect M2 or the
+   architect away from finishing Supplement B (the T-1/T-2/T-3 write-side
+   carrier fix) and getting it through review. Get to a clean, fully-correct
+   baseline under the CURRENT (unrestricted) semantics, THEN simplify on top of
+   that baseline. Nothing in flight right now should be interrupted for this.
+3. **Snoozable is a per-task toggle, and — per the human's own words — "we need
+   to allow other task settings to be editable as well as this one."** This
+   reads as broader than just the snoozable flag: general task-settings
+   editability (not just at creation) is now in scope, not only for this one
+   toggle. **Needs a follow-up clarifying question before implementation**:
+   whether this means (a) make snoozable specifically editable post-creation,
+   consistent with however other settings already work, or (b) there is a
+   known gap in general task editing that should be fixed as part of this work.
+   Do not guess — ask when this phase starts.
+
+**Impact, once started — not yet begun:**
+- This is a scope change to an **APPROVED** PRD (F7). It should go back through
+  something like a spec-writer amendment + artifact-reviewer PASS before the
+  architect touches SCHEMA/ARCHITECTURE again — treat as a mini Gate-1-style
+  change, not a silent edit, even though it's fully human-directed.
+- Almost certainly a **net deletion** of complexity: the general move/chain/merge
+  machinery M2 is about to finish (C1–C11, the P1–P8 invariant pack, the 16,275
+  + 3,250-sequence enumerations) gets replaced by something much smaller. Do not
+  throw away the finished, reviewed baseline — branch the simplification from
+  it, since "exactly one hop" still needs *some* of the same correctness
+  thinking (e.g. does merge still exist if two different tasks can each get
+  snoozed onto the same day independently?).
+- Design impact: `design-input/` is Gate-2-approved and the human's design —
+  check whether S20's snooze/move UI (arbitrary date picker, if any) needs to
+  change to match. Per the PROJECT OVERRIDE in `CLAUDE.md`, do not regenerate
+  design agents; if the mockups need to change, that goes back to the human,
+  not to screen-designer.
+- Module impact: F7 correctness currently sits entirely in M2. The snoozable
+  toggle and general task editability sit in **M4** (task authoring &
+  management, S15–S24, not yet started — wave 2). M4's brief should carry this
+  from the start rather than be retrofitted later.
+
+**Do not start any of this until M2's current pass and its review are done.**
 
 ## Phase status
 
