@@ -48,6 +48,7 @@ function buildTask(): Task {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    snoozable: true,
   } as Task;
 }
 

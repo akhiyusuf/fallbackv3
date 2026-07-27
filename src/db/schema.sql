@@ -1,10 +1,11 @@
--- M1. Reference DDL for the CURRENT schema (v2) — the cumulative effect of every
+-- M1. Reference DDL for the CURRENT schema (v3) — the cumulative effect of every
 -- migration in src/db/migrations/. Normative prose: docs/SCHEMA.md.
 --
 -- This file is NOT executed by the app or by tests; it exists for human review only.
 -- The migrations themselves (src/db/migrations/001_initial.ts,
--- src/db/migrations/002_offday_whole_day_unique.ts) are canonical. Keep this file in sync
--- when a migration is added.
+-- src/db/migrations/002_offday_whole_day_unique.ts,
+-- src/db/migrations/003_snoozable_and_one_hop_check.ts) are canonical. Keep this file in
+-- sync when a migration is added.
 
 CREATE TABLE settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -55,6 +56,8 @@ CREATE TABLE task (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
+  -- migration 3 (CR-4): PRD §3.7 per-task snooze gate, default on.
+  snoozable INTEGER NOT NULL DEFAULT 1 CHECK (snoozable IN (0,1)),
   CHECK (is_as_needed = 0 OR type = 'routine')
 );
 CREATE INDEX idx_task_type_deleted ON task(type, deleted_at);
@@ -78,7 +81,9 @@ CREATE TABLE day_log (
   is_manual_override INTEGER NOT NULL DEFAULT 0 CHECK (is_manual_override IN (0,1)),
   completed_step_ids TEXT NOT NULL DEFAULT '[]',
   doses_completed INTEGER NOT NULL DEFAULT 0,
-  moved_to_date TEXT,
+  -- migration 3 (CR-4): one-hop snooze only — SCHEMA §4.2. Table-rebuilt to add this;
+  -- SQLite has no ALTER TABLE ADD CONSTRAINT.
+  moved_to_date TEXT CHECK (moved_to_date IS NULL OR moved_to_date = date(date, '+1 day')),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (task_id, date)

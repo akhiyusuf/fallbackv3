@@ -58,6 +58,7 @@ interface TaskRow {
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted_at: string | null;
+  readonly snoozable: number;
 }
 
 interface StepRow {
@@ -174,6 +175,9 @@ function taskRowToTask(row: TaskRow): Task {
     createdAt: row.created_at as Instant,
     updatedAt: row.updated_at as Instant,
     deletedAt: row.deleted_at as Instant | null,
+    // CR-4 (PRD §3.7 / SCHEMA §2). Default-on gate, editable post-creation from S20;
+    // duplicate() below inherits this via its plain `{ ...sourceTask }` spread.
+    snoozable: row.snoozable === 1,
   };
 }
 
@@ -200,7 +204,7 @@ const TASK_COLUMNS = `
   id, type, name, note, icon, color, is_as_needed, cadence_kind, cadence_weekdays,
   cadence_weekday, cadence_day_of_month, cadence_month, cadence_anchor_date, event_date,
   time_of_day, start_date, end_date, doses_per_day, is_tracked, importance, necessity,
-  todo_done_at, created_at, updated_at, deleted_at
+  todo_done_at, created_at, updated_at, deleted_at, snoozable
 `;
 
 function taskParams(task: Task): unknown[] {
@@ -231,6 +235,7 @@ function taskParams(task: Task): unknown[] {
     task.createdAt,
     task.updatedAt,
     task.deletedAt,
+    task.snoozable ? 1 : 0,
   ];
 }
 
@@ -278,7 +283,7 @@ export function createTaskRepository(db: DbClient) {
       try {
         await db.withTransactionAsync(async () => {
           await db.runAsync(
-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(task),
           );
           for (const step of steps) {
@@ -305,7 +310,7 @@ export function createTaskRepository(db: DbClient) {
              cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
              cadence_anchor_date=?, event_date=?, time_of_day=?, start_date=?, end_date=?,
              doses_per_day=?, is_tracked=?, importance=?, necessity=?, todo_done_at=?,
-             created_at=?, updated_at=?, deleted_at=? WHERE id=?`,
+             created_at=?, updated_at=?, deleted_at=?, snoozable=? WHERE id=?`,
             [...taskParams(merged).slice(1), id],
           );
           if (steps) {
@@ -353,7 +358,7 @@ export function createTaskRepository(db: DbClient) {
         const newSteps: Step[] = (stepsByTask.get(id) ?? []).map((s) => ({ ...s, id: newId(), taskId: newTaskId }));
         await db.withTransactionAsync(async () => {
           await db.runAsync(
-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(copy),
           );
           for (const step of newSteps) {

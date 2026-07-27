@@ -36,6 +36,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    snoozable: true,
     ...overrides,
   } as Task;
 }
@@ -56,6 +57,25 @@ describe('TaskRepository', () => {
     expect(fetched?.idealSteps).toHaveLength(1);
     expect(fetched?.fallbackSteps).toHaveLength(1);
     expect(fetched?.idealSteps[0]?.text).toBe('Sit for 10 min');
+  });
+
+  // CR-4 (docs/MODULES.md top matter, SCHEMA §2). Default on; editable post-creation;
+  // a duplicate inherits the source task's value.
+  it('snoozable defaults to true, round-trips through insert/get, is editable, and a duplicate inherits it', async () => {
+    const { repos } = await freshDb();
+    const task = buildTask();
+    expect(task.snoozable).toBe(true);
+    await repos.tasks.insert(task, []);
+    expect((await repos.tasks.get(task.id))?.snoozable).toBe(true);
+
+    const patched = await repos.tasks.update(task.id, { snoozable: false });
+    expect(patched.ok).toBe(true);
+    expect((await repos.tasks.get(task.id))?.snoozable).toBe(false);
+
+    const dup = await repos.tasks.duplicate(task.id);
+    expect(dup.ok).toBe(true);
+    if (!dup.ok) return;
+    expect((await repos.tasks.get(dup.value))?.snoozable).toBe(false);
   });
 
   it('update() patches fields and can replace the step set', async () => {

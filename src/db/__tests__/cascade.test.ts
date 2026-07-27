@@ -38,6 +38,7 @@ function buildTask(overrides: Partial<Task> = {}): Task {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    snoozable: true,
     ...overrides,
   } as Task;
 }
