@@ -40,12 +40,24 @@ export function buildRollingSchedule(input: {
   readonly tasks: readonly TaskWithSteps[];
   readonly prefs: NotificationPrefs;
   readonly today: LocalDate;
+  /**
+   * SCHEMA §4.2's standing principle (review pass 1, blocking item 3's `schedule.ts` note):
+   * `isDue` is cadence-only, so a date the user has SNOOZED AWAY (that date's own `day_log`
+   * row has `movedToDate` set — carrier `none` per `designateCarrier`'s R-2) would otherwise
+   * still get a "routine due" reminder despite being vacated. Keys are
+   * `` `${taskId}:${date}` ``. This does NOT re-implement carrier/clause selection — it is
+   * the one fact (`movedToDate != null` on D's own row) `isDue`-only cadence math cannot see;
+   * the caller (a real `repos` read) supplies it since this function stays pure/no I/O.
+   */
+  readonly vacatedDates?: ReadonlySet<string>;
 }): readonly ScheduledReminder[] {
-  const { tasks, prefs, today } = input;
+  const { tasks, prefs, today, vacatedDates } = input;
   if (!prefs.master) return [];
 
   const horizon: LocalDate[] = [];
   for (let i = 0; i < NOTIFICATION_HORIZON_DAYS; i++) horizon.push(addDays(today, i));
+
+  const isVacated = (taskId: string, date: LocalDate): boolean => vacatedDates?.has(`${taskId}:${date}`) ?? false;
 
   const out: ScheduledReminder[] = [];
 
@@ -54,7 +66,7 @@ export function buildRollingSchedule(input: {
 
     if (task.type === 'routine' && !task.isAsNeeded && prefs.routineDue) {
       for (const date of horizon) {
-        if (!isDue(task, date)) continue;
+        if (!isDue(task, date) || isVacated(task.id, date)) continue;
         out.push({
           id: `routine-due:${task.id}:${date}`,
           kind: 'routine-due',
@@ -69,7 +81,7 @@ export function buildRollingSchedule(input: {
 
     if (task.type === 'event' && prefs.eventStarting) {
       for (const date of horizon) {
-        if (!isDue(task, date)) continue;
+        if (!isDue(task, date) || isVacated(task.id, date)) continue;
         out.push({
           id: `event-starting:${task.id}:${date}`,
           kind: 'event-starting',
@@ -85,7 +97,7 @@ export function buildRollingSchedule(input: {
     if (task.type === 'course') {
       if (prefs.courseDose) {
         for (const date of horizon) {
-          if (!isDue(task, date)) continue;
+          if (!isDue(task, date) || isVacated(task.id, date)) continue;
           out.push({
             id: `course-dose:${task.id}:${date}`,
             kind: 'course-dose',

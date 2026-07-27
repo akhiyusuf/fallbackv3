@@ -1,6 +1,7 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { StyleSheet } from 'react-native';
 
 import { useThemeStore, useToastStore } from '@/app-shell';
 import { DEFAULT_ACCENT } from '@/theme';
@@ -10,6 +11,11 @@ jest.mock('expo-secure-store', () => ({
   setItemAsync: jest.fn().mockResolvedValue(undefined),
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),
 }));
+
+const mockInitNotificationsBridge = jest.fn();
+jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
+const mockInitWidgetsBridge = jest.fn();
+jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
 
 const mockSettingsData: { current: unknown } = { current: undefined };
 const mockUpdateSettingsMutateAsync = jest.fn();
@@ -50,6 +56,24 @@ describe('S06 — Onboarding: Make it yours', () => {
     expect(screen.queryByLabelText('Skip onboarding')).toBeNull();
     expect(screen.getByLabelText('Forge Orange, selected')).toBeTruthy();
     expect(screen.getByLabelText(`${S06_COPY.remindersRowLabel}, off`)).toBeTruthy();
+  });
+
+  it('renders all 5 progress dots complete (the last step of the pitch tour), and the preview button is not in the disabled visual state', async () => {
+    await render(<S06OnboardingMakeItYours />);
+    for (let dot = 1; dot <= 5; dot++) {
+      expect(screen.getByTestId(`onboarding-dot-${dot}`)).toBeTruthy();
+    }
+    const preview = screen.getByLabelText('Preview, illustrative only');
+    expect(preview.props.accessibilityState?.disabled).not.toBe(true);
+    // The kit's inert (disabled/loading) treatment applies a 0.5-opacity style — asserting its
+    // absence proves `pointerEvents="none"` was used instead of `disabled` (blocking item 5).
+    expect(StyleSheet.flatten(preview.props.style).opacity).not.toBe(0.5);
+  });
+
+  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+    await render(<S06OnboardingMakeItYours />);
+    expect(mockInitNotificationsBridge).toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).toHaveBeenCalled();
   });
 
   it('picking an accent updates the app-wide theme store immediately', async () => {

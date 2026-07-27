@@ -25,7 +25,8 @@ import {
 } from 'expo-iap';
 
 import { useEntitlementStore } from '@/app-shell';
-import type { BillingProvider, Result } from '@/types';
+import { toLocalDate } from '@/lib/date';
+import type { BillingProvider, LocalDate, Result } from '@/types';
 import { err, ok } from '@/types';
 
 export const SKUS = { monthly: 'fallback.ai.monthly', annual: 'fallback.ai.annual' } as const;
@@ -49,10 +50,20 @@ interface MinimalPurchase {
   readonly purchaseToken?: string;
   readonly jwsRepresentationIOS?: string;
   readonly transactionReceipt?: string;
+  readonly expirationDateIOS?: number | null;
 }
 
 function receiptOf(purchase: MinimalPurchase): string | null {
   return purchase.jwsRepresentationIOS ?? purchase.purchaseToken ?? purchase.transactionReceipt ?? null;
+}
+
+/** Best-effort renewal date from whatever the store purchase record carries. `null` (never
+ *  a fabricated date) when the platform/purchase shape doesn't expose one — callers must
+ *  render "unknown" rather than invent a number (docs review B2). */
+function renewsOnOf(purchase: MinimalPurchase): LocalDate | null {
+  const ms = purchase.expirationDateIOS;
+  if (typeof ms === 'number' && Number.isFinite(ms)) return toLocalDate(new Date(ms));
+  return null;
 }
 
 async function requestBiometricConfirmation(): Promise<Result<void>> {
@@ -164,6 +175,10 @@ export const billing: BillingProvider = {
     }
   },
 
+  // B1: this is the ONLY path that repopulates `latestReceipt` on a cold app launch — S44,
+  // the assistant screens, and app-shell's own boot sequence all call this. Without stamping
+  // the receipt here, a paying subscriber's `currentReceipt()` stays null forever after a
+  // relaunch until they happen to tap Restore Purchases.
   async refreshEntitlement(): Promise<Result<void>> {
     try {
       const purchases = (await getAvailablePurchases()) as readonly MinimalPurchase[];
@@ -172,8 +187,15 @@ export const billing: BillingProvider = {
         useEntitlementStore.getState().patchEntitlement({ source: 'none', plan: null, status: 'none', renewsOn: null, trialEndsOn: null });
         return ok(undefined);
       }
+      const receipt = receiptOf(active);
+      if (receipt) latestReceipt = receipt;
       const plan = planForSku(active.productId ?? '') ?? 'monthly';
-      useEntitlementStore.getState().patchEntitlement({ source: 'subscription', plan, status: 'active' });
+      useEntitlementStore.getState().patchEntitlement({
+        source: 'subscription',
+        plan,
+        status: 'active',
+        renewsOn: renewsOnOf(active),
+      });
       return ok(undefined);
     } catch (cause) {
       return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store — try again.", cause });

@@ -119,6 +119,8 @@ export function useToolExecutor() {
             undo: {
               toolCallId: call.id,
               label: `Edited ${existing.name}`,
+              // B10: revert the FULL previous draft — the model can patch any Partial<TaskDraft>
+              // field, so a revert that restores only a subset leaves half the edit applied.
               revert: async () => {
                 const revertSteps = stepsFromDraft(previousDraft, existing.id);
                 await updateTask.mutateAsync({
@@ -126,8 +128,18 @@ export function useToolExecutor() {
                   patch: {
                     name: previousDraft.name,
                     note: previousDraft.note ?? null,
+                    icon: previousDraft.icon,
+                    color: previousDraft.color,
                     cadence: previousDraft.cadence ?? null,
+                    eventDate: previousDraft.eventDate ?? null,
                     timeOfDay: previousDraft.timeOfDay ?? null,
+                    startDate: previousDraft.startDate ?? null,
+                    endDate: previousDraft.endDate ?? null,
+                    dosesPerDay: previousDraft.dosesPerDay,
+                    isTracked: previousDraft.isTracked,
+                    importance: previousDraft.importance ?? null,
+                    necessity: previousDraft.necessity ?? null,
+                    snoozable: previousDraft.snoozable,
                   },
                   steps: revertSteps,
                 });

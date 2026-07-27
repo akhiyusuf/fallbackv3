@@ -23,6 +23,17 @@ jest.mock('@/services/ai', () => ({
   getAssistantProvider: () => mockGetAssistantProvider(),
   appendMessage: jest.fn(async () => ({ ok: true, value: undefined })),
   upsertConversation: jest.fn(async () => ({ ok: true, value: undefined })),
+  listMessages: jest.fn(async () => []),
+}));
+
+const mockRefreshEntitlement = jest.fn(async () => ({ ok: true, value: undefined }));
+jest.mock('@/services/billing', () => ({
+  billing: { refreshEntitlement: () => mockRefreshEntitlement() },
+}));
+
+const mockGetRecordingPermissionsAsync = jest.fn(async () => ({ granted: false }));
+jest.mock('expo-audio', () => ({
+  getRecordingPermissionsAsync: () => mockGetRecordingPermissionsAsync(),
 }));
 
 import S32AssistantConversation from './chat';
@@ -51,5 +62,39 @@ describe('S32 — Assistant Conversation', () => {
     await userEvent.type(screen.getByLabelText('Type your request'), 'add a run');
     await userEvent.press(screen.getByLabelText('Send'));
     expect(await screen.findByText(/Done — created it/)).toBeTruthy();
+  });
+
+  it('B4 — an ENTITLEMENT_REQUIRED error mid-chat routes to the paywall, never renders "offline"', async () => {
+    async function* entitlementErrorStream() {
+      yield { type: 'error', code: 'ENTITLEMENT_REQUIRED', message: 'x' };
+    }
+    mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => entitlementErrorStream(), capabilities: async () => ({ chat: true, transcription: true }) });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    await render(<S32AssistantConversation />);
+    await userEvent.type(screen.getByLabelText('Type your request'), 'add a run');
+    await userEvent.press(screen.getByLabelText('Send'));
+    await Promise.resolve();
+    expect(push).toHaveBeenCalledWith('/assistant/paywall');
+    expect(screen.queryByText(S32_COPY.offline)).toBeNull();
+    push.mockRestore();
+  });
+
+  it('B11 — tapping the mic with permission denied navigates to S37 recovery, never enters "Listening…"', async () => {
+    mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: false });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    await render(<S32AssistantConversation />);
+    await userEvent.press(screen.getByLabelText('Switch to voice'));
+    expect(push).toHaveBeenCalledWith('/assistant/mic-primer?context=recovery');
+    expect(screen.queryByText(S32_COPY.listening)).toBeNull();
+    push.mockRestore();
+  });
+
+  it('B11 — tapping the mic with permission granted enters voice modality', async () => {
+    mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: true });
+    await render(<S32AssistantConversation />);
+    await userEvent.press(screen.getByLabelText('Switch to voice'));
+    expect(await screen.findByText(S32_COPY.listening)).toBeTruthy();
   });
 });

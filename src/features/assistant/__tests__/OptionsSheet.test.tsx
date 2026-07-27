@@ -75,4 +75,26 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
     await userEvent.press(screen.getByText(S36_COPY.manageSubscription));
     expect(onManageSubscription).toHaveBeenCalled();
   });
+
+  it('B2 — changing Voice fires onSaveVoiceLanguage with the current language + the new voice', async () => {
+    const onSaveVoiceLanguage = jest.fn();
+    await render(
+      <OptionsSheet
+        visible
+        onClose={jest.fn()}
+        onNewConversation={jest.fn()}
+        onConversationHistory={jest.fn()}
+        onManageSubscription={jest.fn()}
+        onAccountAndSync={jest.fn()}
+        onHelp={jest.fn()}
+        subscriptionSubtitle="x"
+        onSaveVoiceLanguage={onSaveVoiceLanguage}
+      />,
+    );
+    await userEvent.press(screen.getByText(S36_COPY.voiceAndLanguage));
+    await screen.findByText(S36_COPY.languageLabel);
+    await userEvent.press(screen.getByLabelText('Voice, Warm — default'));
+    await userEvent.press(await screen.findByText('Calm'));
+    expect(onSaveVoiceLanguage).toHaveBeenCalledWith('en-US', 'calm');
+  });
 });

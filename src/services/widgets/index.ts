@@ -18,12 +18,13 @@
  * back to `Paths.document` if the App Group entry isn't present (e.g. no provisioned iCloud/
  * App Group container yet, or under test) so a publish never fails outright over it.
  */
+import { Appearance } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
 import { on } from '@/lib/events';
-import { now, today } from '@/lib/date';
+import { addDays, now, today } from '@/lib/date';
 import { ACCENTS, PALETTES, resolveScheme } from '@/theme';
 import { err, ok } from '@/types';
 import type { Result, WidgetBridge } from '@/types';
@@ -40,31 +41,43 @@ function snapshotTargetDirectory(): Directory {
 
 async function publishSnapshot(): Promise<Result<void>> {
   try {
+    const todayDate = today();
+    const yesterday = addDays(todayDate, -1);
     const [settings, tasks, offMarks] = await Promise.all([
       repos.settings.get(),
       repos.tasks.list(),
-      repos.offDays.listRange(today(), today()),
+      repos.offDays.listRange(todayDate, todayDate),
     ]);
-    const logs = await repos.logs.listForDate(today());
+    // SCHEMA §4.2's standing principle / ADVICE-M2.md Ruling 1: under the one-hop snooze
+    // contract `inbound(D)` can only originate at `D − 1`, so a bare date-keyed lookup of
+    // today's log alone is incomplete input to `designateCarrier` — a task snoozed AWAY from
+    // today (own row, `movedToDate` != today) must NOT count as due here, and a task snoozed
+    // INTO today (a visitor row from yesterday) must. `resolveOccurrence`'s resolved `outcome`
+    // (not raw `isDue`) is what `buildWidgetSnapshot` filters on below.
+    const [logs, priorLogs] = await Promise.all([repos.logs.listForDate(todayDate), repos.logs.listForDate(yesterday)]);
     const logByTask = new Map(logs.map((l) => [l.taskId, l]));
+    const movedInByTask = new Map(priorLogs.filter((l) => l.movedToDate === todayDate).map((l) => [l.taskId, l]));
 
     const liveTasks = tasks.filter((t) => !t.deletedAt);
     const chips: ResolvedTaskChip[] = liveTasks.map((t) => {
       const occurrence = resolveOccurrence({
         task: t,
-        date: today(),
-        today: today(),
+        date: todayDate,
+        today: todayDate,
         log: logByTask.get(t.id) ?? null,
         offMarks,
+        movedInLog: movedInByTask.get(t.id) ?? null,
       });
-      return { taskId: t.id, chipState: occurrence.chipState };
+      return { taskId: t.id, chipState: occurrence.chipState, outcome: occurrence.outcome };
     });
 
-    const scheme = resolveScheme(settings.theme, null);
+    // `Appearance.getColorScheme()` — review pass 1, blocking item 4: `auto` must resolve
+    // against the device's actual OS scheme, not always fall through to light.
+    const scheme = resolveScheme(settings.theme, Appearance.getColorScheme() ?? null);
     const snapshot = buildWidgetSnapshot({
       tasks: liveTasks,
       chips,
-      date: today(),
+      date: todayDate,
       scheme,
       accent: settings.accent,
       accentHex: ACCENTS[settings.accent].base,
@@ -79,6 +92,24 @@ async function publishSnapshot(): Promise<Result<void>> {
     return ok(undefined);
   } catch (cause) {
     return err({ code: 'WRITE_FAILED', message: 'Failed to publish the widget snapshot.', cause });
+  }
+}
+
+/**
+ * Review pass 1, blocking item 2: M1 emits `store:erased` SPECIFICALLY for this bridge
+ * (`src/db/lifecycle.ts`, MODULES.md M1 non-negotiable — "clears … widget snapshot files
+ * too"). The snapshot JSON carries task names, so a stale one surviving erase-all is a
+ * privacy leak on the home screen, not just a staleness bug. Deletes the file outright
+ * (best-effort — the empty/fresh store `publishSnapshot()` right after via `store:ready`
+ * republishes a clean, empty snapshot anyway, so this only needs to not throw).
+ */
+async function clearSnapshot(): Promise<void> {
+  try {
+    const file = new File(snapshotTargetDirectory(), SNAPSHOT_FILENAME);
+    if (file.exists) file.delete();
+  } catch {
+    // Best-effort: a delete failure here must never surface as an erase-all failure — the
+    // very next `store:ready` publish overwrites this file with an empty snapshot anyway.
   }
 }
 
@@ -100,6 +131,11 @@ export function initWidgetsBridge(): () => void {
     on('day:logged', () => void publishSnapshot()),
     on('offday:changed', () => void publishSnapshot()),
     on('settings:changed', () => void publishSnapshot()),
+    // Erase-all: wipe the stale (privacy-relevant) snapshot; the paired `store:ready` fired
+    // right after by `eraseAll()` republishes a clean, empty one. `store:ready` alone also
+    // covers a plain fresh-boot initial publish.
+    on('store:erased', () => void clearSnapshot()),
+    on('store:ready', () => void publishSnapshot()),
   ];
 
   void publishSnapshot();

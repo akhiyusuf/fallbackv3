@@ -7,12 +7,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useThemeStore } from '@/app-shell';
 import { useToastStore } from '@/app-shell';
 import { useSettings, useUpdateSettings } from '@/queries';
+import { initNotificationsBridge } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { ACCENTS, DEFAULT_ACCENT, SPACE, useTheme } from '@/theme';
 import { Button } from '@/ui';
 import { Switch } from '@/ui';
 import type { AccentKey } from '@/types';
 
 import { S06_COPY } from './copy';
+import { OnboardingShell } from './OnboardingShell';
 import { useOnboardingStepMarker } from './useOnboardingResume';
 
 const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
@@ -29,6 +32,14 @@ export function PersonalizeScreen() {
 
   const [remindersOn, setRemindersOn] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount —
+  // S06 is the last pitch-tour screen and reachable on its own after a resumed-after-kill
+  // launch, so it needs to be able to arm both bridges independently of S41/S42/S46.
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
 
   // Hydrating a previously-chosen accent if onboarding was interrupted and resumed — S06's own
   // "Loading" state: instant local read, no skeleton needed.
@@ -63,63 +74,61 @@ export function PersonalizeScreen() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <View style={styles.content}>
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
-          {S06_COPY.headline}
-        </Text>
-        <Text style={[styles.body, { color: t.color.textMuted }]}>{S06_COPY.body}</Text>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S06_COPY.accentSectionLabel}</Text>
-          <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.accentHelper}</Text>
-          <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel={S06_COPY.accentSectionLabel}>
-            {ACCENT_ORDER.map((key) => {
-              const selected = accent === key;
-              const swatch = ACCENTS[key];
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => setAccent(key)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={`${swatch.label}${selected ? ', selected' : ''}`}
-                  style={[styles.swatch, { backgroundColor: swatch.base }]}
-                >
-                  {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-          <Button label={S06_COPY.previewLabel} onPress={() => {}} disabled accessibilityLabel="Preview, illustrative only" />
+    <OnboardingShell
+      step={5}
+      headline={S06_COPY.headline}
+      body={S06_COPY.body}
+      onNext={handleNext}
+      nextLoading={saving}
+      allStepsComplete
+    >
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S06_COPY.accentSectionLabel}</Text>
+        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.accentHelper}</Text>
+        <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel={S06_COPY.accentSectionLabel}>
+          {ACCENT_ORDER.map((key) => {
+            const selected = accent === key;
+            const swatch = ACCENTS[key];
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setAccent(key)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={`${swatch.label}${selected ? ', selected' : ''}`}
+                style={[styles.swatch, { backgroundColor: swatch.base }]}
+              >
+                {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
+              </Pressable>
+            );
+          })}
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S06_COPY.remindersSectionLabel}</Text>
-          <View style={styles.switchRow}>
-            <Text style={[styles.switchLabel, { color: t.color.text }]}>{S06_COPY.remindersRowLabel}</Text>
-            <Switch
-              value={remindersOn}
-              onValueChange={setRemindersOn}
-              accessibilityLabel={`${S06_COPY.remindersRowLabel}, ${remindersOn ? 'on' : 'off'}`}
-            />
-          </View>
-          <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.remindersHelper}</Text>
+        {/* pointerEvents="none" (not `disabled`) — review pass 1, blocking item 5: the spec
+            wants a normal accent-filled, non-interactive preview so the accent effect is
+            immediately visible, not the kit's 0.5-opacity inert treatment. Matches S43
+            (`app/settings/theme.tsx`). */}
+        <View pointerEvents="none">
+          <Button label={S06_COPY.previewLabel} onPress={() => {}} accessibilityLabel="Preview, illustrative only" />
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <Button label="Next" onPress={handleNext} loading={saving} accessibilityLabel="Next" fullWidth />
+      <View style={styles.section}>
+        <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S06_COPY.remindersSectionLabel}</Text>
+        <View style={styles.switchRow}>
+          <Text style={[styles.switchLabel, { color: t.color.text }]}>{S06_COPY.remindersRowLabel}</Text>
+          <Switch
+            value={remindersOn}
+            onValueChange={setRemindersOn}
+            accessibilityLabel={`${S06_COPY.remindersRowLabel}, ${remindersOn ? 'on' : 'off'}`}
+          />
+        </View>
+        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.remindersHelper}</Text>
       </View>
-    </View>
+    </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { flex: 1, padding: SPACE.s3, gap: SPACE.s4 },
-  headline: { fontSize: 28, fontWeight: '700' },
-  body: { fontSize: 16, lineHeight: 24 },
   section: { gap: SPACE.s2 },
   sectionLabel: { fontSize: 16, fontWeight: '600' },
   helper: { fontSize: 14, lineHeight: 20 },
@@ -127,5 +136,4 @@ const styles = StyleSheet.create({
   swatch: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   switchLabel: { fontSize: 16, fontWeight: '500' },
-  footer: { padding: SPACE.s3 },
 });

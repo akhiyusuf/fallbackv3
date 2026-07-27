@@ -71,10 +71,13 @@ export const S46_COPY = {
 
 export const S49_COPY = {
   title: 'Help & about',
+  // `a11yDestination` — review pass 1, blocking item 7: each row must announce its OWN
+  // destination type ("Contact support, opens email"), not one blanket "opens email" label
+  // copied across all three Support rows.
   supportSection: [
-    { label: 'Contact support', toast: 'Opening your email app…' },
-    { label: 'FAQ & guides', toast: 'Opening FAQ & guides…' },
-    { label: 'Rate Fallback', toast: 'Opening the App Store…' },
+    { label: 'Contact support', toast: 'Opening your email app…', a11yDestination: 'opens email' },
+    { label: 'FAQ & guides', toast: 'Opening FAQ & guides…', a11yDestination: 'opens an external help center' },
+    { label: 'Rate Fallback', toast: 'Opening the App Store…', a11yDestination: 'opens the app store' },
   ],
   legalSection: [
     { label: 'Privacy policy', toast: 'Opening…' },

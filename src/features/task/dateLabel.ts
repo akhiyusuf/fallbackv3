@@ -14,3 +14,9 @@ export function todayLongLabel(date: LocalDate): string {
   const wd = weekdayOf(date);
   return `Today, ${WEEKDAY_ABBR[wd - 1]} ${shortDateLabel(date)}`;
 }
+
+/** Item 3 (S20 heatmap drill-down popover) — a past day's label, same idiom as `todayLongLabel` minus the "Today," prefix. */
+export function dayLongLabel(date: LocalDate): string {
+  const wd = weekdayOf(date);
+  return `${WEEKDAY_ABBR[wd - 1]} ${shortDateLabel(date)}`;
+}

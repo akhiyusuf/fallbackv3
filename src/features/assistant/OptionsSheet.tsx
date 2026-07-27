@@ -9,6 +9,7 @@ import { CreditCard, History, Languages, MessageSquarePlus, ShieldCheck, HelpCir
 import { SPACE, useTheme } from '@/theme';
 import { Card, Dialog, Select, Skeleton } from '@/ui';
 import { S36_COPY } from './copy';
+import { getVoiceLanguagePrefs } from './voiceLanguagePrefs';
 
 export interface OptionsSheetProps {
   readonly visible: boolean;
@@ -42,8 +43,8 @@ export function OptionsSheet({
 }: OptionsSheetProps) {
   const t = useTheme();
   const [expanded, setExpanded] = useState(false);
-  const [language, setLanguage] = useState('en-US');
-  const [voice, setVoice] = useState('warm');
+  const [language, setLanguage] = useState(() => getVoiceLanguagePrefs().language);
+  const [voice, setVoice] = useState(() => getVoiceLanguagePrefs().voice);
 
   function handleLanguageChange(value: string) {
     setLanguage(value);

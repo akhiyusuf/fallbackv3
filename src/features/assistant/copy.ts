@@ -172,6 +172,7 @@ export const S44_COPY = {
   renewsPrefix: 'Renews',
   trialEndsPrefix: 'Trial ends in',
   trialSuffix: 'days, then $4.99/mo',
+  trialActiveUnknown: 'Your free trial is active.',
   freeFraming: "You're on the free plan. Free tier keeps every core feature — Fallback AI is optional.",
   segmentMonthly: 'Monthly · $4.99/mo',
   segmentAnnual: 'Annual · $39.99/yr · Save 33%',

@@ -15,7 +15,8 @@ import { ONBOARDING_SHELL_COPY } from './copy';
 
 export interface OnboardingShellProps {
   readonly step: 1 | 2 | 3 | 4 | 5;
-  readonly icon: IconComponent;
+  /** `undefined` => no decorative icon (S06 — spec's Contents list no icon for this screen). */
+  readonly icon?: IconComponent;
   readonly headline: string;
   readonly body: string;
   readonly onNext: () => void;
@@ -23,6 +24,13 @@ export interface OnboardingShellProps {
   readonly onSkip?: () => void;
   readonly nextLabel?: string;
   readonly nextDisabled?: boolean;
+  readonly nextLoading?: boolean;
+  /**
+   * S06 (review pass 1, blocking item 5): the last pitch-tour screen renders ALL 5 dots as
+   * complete/filled, and the a11y announcement reads the literal "Step 5 of 5." — not the
+   * per-step "Step N of 5. <headline>" every other S02–S05 screen announces.
+   */
+  readonly allStepsComplete?: boolean;
   readonly children?: ReactNode;
 }
 
@@ -37,14 +45,17 @@ export function OnboardingShell({
   onSkip,
   nextLabel = ONBOARDING_SHELL_COPY.next,
   nextDisabled = false,
+  nextLoading = false,
+  allStepsComplete = false,
   children,
 }: OnboardingShellProps) {
   const t = useTheme();
 
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility?.(`Step ${step} of ${TOTAL_STEPS}. ${headline}`);
+    const message = allStepsComplete ? `Step ${TOTAL_STEPS} of ${TOTAL_STEPS}.` : `Step ${step} of ${TOTAL_STEPS}. ${headline}`;
+    AccessibilityInfo.announceForAccessibility?.(message);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, allStepsComplete]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
@@ -62,9 +73,10 @@ export function OnboardingShell({
           {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
             <View
               key={dot}
+              testID={`onboarding-dot-${dot}`}
               style={[
                 styles.dot,
-                { backgroundColor: dot === step ? t.accent.base : t.color.border },
+                { backgroundColor: allStepsComplete || dot === step ? t.accent.base : t.color.border },
               ]}
             />
           ))}
@@ -72,7 +84,7 @@ export function OnboardingShell({
       </View>
 
       <View style={styles.content}>
-        <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" />
+        {Icon ? <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" /> : null}
         <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
           {headline}
         </Text>
@@ -81,7 +93,7 @@ export function OnboardingShell({
       </View>
 
       <View style={styles.footer}>
-        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} accessibilityLabel={nextLabel} fullWidth />
+        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />
       </View>
     </View>
   );

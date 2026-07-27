@@ -1,10 +1,11 @@
 /** S07 — Notification Permission Primer. route: /onboarding/notifications-primer. Features: F9, F14. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Bell } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { notifications } from '@/services/notifications';
+import { initNotificationsBridge, notifications } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { SPACE, useTheme } from '@/theme';
 import { Button, Card } from '@/ui';
 
@@ -17,6 +18,14 @@ export function NotificationsPrimerScreen() {
   const [requesting, setRequesting] = useState(false);
   useOnboardingStepMarker('/onboarding/notifications-primer');
 
+  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount — arms
+  // both bridges for a session that reaches S07 without having passed through an earlier
+  // M7 screen (S07 is reachable straight from a resumed-after-kill S06).
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
+
   async function proceed() {
     router.replace('/onboarding/first-task' as Href);
   }
@@ -25,7 +34,10 @@ export function NotificationsPrimerScreen() {
     setRequesting(true);
     // F9: fully usable if declined — the OS outcome (granted or denied) never forks the flow,
     // it only forks whether reminders will actually fire later (S07's own spec, Interactions).
-    await notifications.requestPermission();
+    const result = await notifications.requestPermission();
+    // A permission GRANT alone emits no bus event — nothing else re-arms in this session
+    // without an explicit re-arm here (review pass 1, blocking item 1).
+    if (result.ok && result.value) void notifications.reschedule();
     setRequesting(false);
     await proceed();
   }

@@ -5,8 +5,10 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { format } from 'date-fns';
 import { ArrowUp, Keyboard, Mic, MoreHorizontal, Sparkles, X } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { getRecordingPermissionsAsync } from 'expo-audio';
 
 import { AssistantHeader } from '@/features/assistant/AssistantHeader';
 import { ClarificationModal } from '@/features/assistant/ClarificationModal';
@@ -14,15 +16,22 @@ import { OptionsSheet } from '@/features/assistant/OptionsSheet';
 import { EditUndoBanner } from '@/features/assistant/EditUndoBanner';
 import { TaskCreatedCard } from '@/features/assistant/TaskCreatedCard';
 import { TranscriptBubble } from '@/features/assistant/TranscriptBubble';
-import { S32_COPY } from '@/features/assistant/copy';
+import { S36_COPY, S32_COPY } from '@/features/assistant/copy';
 import { useAssistantChat } from '@/features/assistant/useAssistantChat';
+import { setVoiceLanguagePrefs } from '@/features/assistant/voiceLanguagePrefs';
+import { useEntitlementStore, useToastStore } from '@/app-shell';
+import { billing } from '@/services/billing';
+import { parseLocalDate } from '@/lib/date';
+import type { Id } from '@/types';
 import { SPACE, useTheme } from '@/theme';
 import { Button, Card, IconButton, Input, InlineRetryBanner, Skeleton } from '@/ui';
 
 export default function S32AssistantConversation() {
   const t = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{ opening?: string; listen?: string }>();
+  const showToast = useToastStore((s) => s.show);
+  const entitlement = useEntitlementStore((s) => s.entitlement);
+  const params = useLocalSearchParams<{ opening?: string; listen?: string; continueId?: string }>();
   const {
     items,
     isStreaming,
@@ -33,14 +42,46 @@ export default function S32AssistantConversation() {
     dismissClarification,
     retryLast,
     recap,
-  } = useAssistantChat({ initialModality: params.listen === '1' ? 'voice' : 'text' });
+  } = useAssistantChat({
+    initialModality: params.listen === '1' ? 'voice' : 'text',
+    // B9 — S35's "continue" passes `continueId`; forward it so the SAME conversation thread
+    // (and its prior history) resumes instead of silently starting a new one.
+    conversationId: params.continueId ? (params.continueId as Id) : undefined,
+    // B4 — an entitlement error mid-chat routes to the paywall, never the offline footer.
+    onEntitlementError: () => router.push('/assistant/paywall' as Href),
+  });
 
   const [modality, setModality] = useState<'voice' | 'text'>(params.listen === '1' ? 'voice' : 'text');
   const [text, setText] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const [showRecap, setShowRecap] = useState(false);
+  const [subtitleLoaded, setSubtitleLoaded] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const sentOpeningRef = useRef(false);
+
+  // B2 — S36's Manage-subscription subtitle must reflect REAL entitlement data, fetched
+  // async (Skeleton while loading — `OptionsSheet` already renders one for `null`), never
+  // the hardcoded spec-fixture string.
+  useEffect(() => {
+    let alive = true;
+    void billing.refreshEntitlement().finally(() => {
+      if (alive) setSubtitleLoaded(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const subscriptionSubtitle = !subtitleLoaded
+    ? null
+    : entitlement.status === 'active' || entitlement.status === 'trial'
+      ? `Fallback AI · ${entitlement.renewsOn ? `renews ${format(parseLocalDate(entitlement.renewsOn), 'MMM d')}` : 'active'}`
+      : 'Fallback AI · Free plan';
+
+  function handleSaveVoiceLanguage(language: string, voice: string) {
+    setVoiceLanguagePrefs({ language, voice });
+    showToast(S36_COPY.savedToast, 'success');
+  }
 
   useEffect(() => {
     if (params.opening && !sentOpeningRef.current) {
@@ -69,11 +110,23 @@ export default function S32AssistantConversation() {
     setText('');
   }
 
-  function handleMicToggle() {
-    // A production build wires this to `expo-audio`'s recorder + mic-permission recheck.
-    // Permission is re-verified here rather than trusted from S31's snapshot (spec: "tapping
-    // the mic toggle while the OS mic permission is off ... navigates to S37, recovery").
-    setModality((m) => (m === 'voice' ? 'text' : 'voice'));
+  async function handleMicToggle() {
+    if (modality === 'voice') {
+      setModality('text');
+      return;
+    }
+    // B11 — permission IS re-verified here (not trusted from S31's snapshot): spec — "tapping
+    // the mic toggle while the OS mic permission is off ... navigates to S37, recovery".
+    const status = await getRecordingPermissionsAsync();
+    if (!status.granted) {
+      router.push('/assistant/mic-primer?context=recovery' as Href);
+      return;
+    }
+    setModality('voice');
+    // Honest disclosure of what's still stubbed: the native record → transcribe → send loop
+    // itself (driving `expo-audio`'s recorder against real hardware) is legitimately
+    // untestable under Jest and is not wired here — this toggle only switches the footer's
+    // visual modality state. That capture loop is the one seam left behind this comment.
   }
 
   if (showRecap) {
@@ -195,7 +248,8 @@ export default function S32AssistantConversation() {
           setShowOptions(false);
           router.push('/settings/help' as Href);
         }}
-        subscriptionSubtitle="Fallback AI · renews Aug 20"
+        subscriptionSubtitle={subscriptionSubtitle}
+        onSaveVoiceLanguage={handleSaveVoiceLanguage}
       />
     </View>
   );

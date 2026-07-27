@@ -6,12 +6,15 @@
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
+import { deepLinkToSubscriptions } from 'expo-iap';
+import { format } from 'date-fns';
 
 import { AssistantHeader } from '@/features/assistant/AssistantHeader';
 import { S44_COPY } from '@/features/assistant/copy';
 import { billing } from '@/services/billing';
 import { useEntitlementStore } from '@/app-shell';
 import { useToastStore } from '@/app-shell';
+import { parseLocalDate, diffDays, today } from '@/lib/date';
 import { SPACE, useTheme } from '@/theme';
 import { Badge, Button, Card, InlineRetryBanner, Skeleton } from '@/ui';
 
@@ -57,7 +60,13 @@ export default function S44ManageSubscription() {
   }
 
   function handleManageInStore() {
+    // B3: cancellation must hand off to the platform's own subscription-management surface —
+    // a toast alone leaves the user with no way to actually cancel in the shipped app.
     showToast(S44_COPY.opensAppStore, 'neutral');
+    void deepLinkToSubscriptions().catch(() => {
+      // Calm, non-blocking — the toast above already told the user what's supposed to
+      // happen; a platform-side failure to deep-link isn't a Fallback error to surface.
+    });
   }
 
   async function handleRestore() {
@@ -93,8 +102,8 @@ export default function S44ManageSubscription() {
                   </Text>
                   <Text style={[styles.renewLine, { color: t.color.textMuted }]}>
                     {entitlement.status === 'trial'
-                      ? `${S44_COPY.trialEndsPrefix} 3 ${S44_COPY.trialSuffix}`
-                      : `${S44_COPY.renewsPrefix} ${entitlement.renewsOn ?? '—'}`}
+                      ? trialLine(entitlement.trialEndsOn)
+                      : renewLine(entitlement.renewsOn)}
                   </Text>
                 </>
               ) : (
@@ -137,6 +146,21 @@ export default function S44ManageSubscription() {
       </View>
     </View>
   );
+}
+
+// B2: these two derive display text from REAL entitlement data only — never a hardcoded
+// sample number (the spec's "Trial ends in 3 days" is illustrative copy, not a constant).
+// When the store hasn't told us a date yet, render an honest "unknown" framing instead of
+// fabricating one.
+function trialLine(trialEndsOn: string | null): string {
+  if (!trialEndsOn) return S44_COPY.trialActiveUnknown;
+  const days = Math.max(0, diffDays(trialEndsOn as never, today()));
+  return `${S44_COPY.trialEndsPrefix} ${days} ${S44_COPY.trialSuffix}`;
+}
+
+function renewLine(renewsOn: string | null): string {
+  if (!renewsOn) return `${S44_COPY.renewsPrefix} —`;
+  return `${S44_COPY.renewsPrefix} ${format(parseLocalDate(renewsOn as never), 'MMM d')}`;
 }
 
 function SegmentOption({ label, selected, onPress }: { readonly label: string; readonly selected: boolean; readonly onPress: () => void }) {

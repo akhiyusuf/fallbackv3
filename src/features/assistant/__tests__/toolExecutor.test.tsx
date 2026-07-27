@@ -103,6 +103,48 @@ describe('useToolExecutor — tool calls are proposals, never actions', () => {
     expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
   });
 
+  it('B10 — update_task undo reverts the FULL previous draft, not just name/note/cadence/timeOfDay', async () => {
+    mockTasksData.current = [
+      {
+        id: 't1',
+        type: 'routine',
+        name: 'Run',
+        note: null,
+        icon: 'Repeat',
+        color: 'forge-orange',
+        isAsNeeded: false,
+        cadence: { kind: 'daily' },
+        eventDate: null,
+        timeOfDay: '07:00',
+        startDate: null,
+        endDate: null,
+        dosesPerDay: 1,
+        isTracked: true,
+        importance: 'med',
+        necessity: 'recommended',
+        todoDoneAt: null,
+        snoozable: true,
+        createdAt: 'x',
+        updatedAt: 'x',
+        deletedAt: null,
+      },
+    ];
+    mockUpdateTaskMutateAsync.mockResolvedValue({ ok: true, value: undefined });
+    const { result } = await renderHook(() => useToolExecutor(), { wrapper });
+    const outcome = await result.current.applyToolCall({
+      id: 'c8' as never,
+      name: 'update_task',
+      args: { taskId: 't1' as never, patch: { importance: 'high', timeOfDay: '08:00' } },
+    });
+    expect(outcome.applied).toBe(true);
+    mockUpdateTaskMutateAsync.mockClear();
+    await outcome.undo?.revert();
+    expect(mockUpdateTaskMutateAsync).toHaveBeenCalledTimes(1);
+    const revertPatch = mockUpdateTaskMutateAsync.mock.calls[0][0].patch;
+    expect(revertPatch.importance).toBe('med');
+    expect(revertPatch.timeOfDay).toBe('07:00');
+  });
+
   it('a failed persist (repository Result.err) is reported as not applied, never a false success', async () => {
     mockCreateTaskMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'x' } });
     const { result } = await renderHook(() => useToolExecutor(), { wrapper });

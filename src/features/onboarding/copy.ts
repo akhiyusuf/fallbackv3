@@ -93,6 +93,6 @@ export const S08_COPY = {
   save: 'Save routine',
   nameError: 'Add a name to continue',
   idealError: 'Add an ideal version to continue',
-  fallbackError: 'Add a fallback version to continue',
+  fallbackError: 'Add a fallback to continue',
   saveFailure: "Couldn't save — try again",
 } as const;

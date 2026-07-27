@@ -19,6 +19,7 @@ import {
   CalendarHeatmap,
   Card,
   Checkbox,
+  Dialog,
   IconButton,
   InlineRetryBanner,
   Input,
@@ -32,8 +33,9 @@ import {
 } from '@/ui';
 import { ROUTES, useOriginAwareBack } from '@/navigation';
 import { addDays, endOfMonth, startOfMonth, today as todayFn } from '@/lib/date';
-import { isDue } from '@/domain';
+import { isDue, perTaskConsistency } from '@/domain';
 import {
+  useConsistency,
   useDuplicateTask,
   useLogDose,
   useLogState,
@@ -47,10 +49,10 @@ import {
 } from '@/queries';
 import { useToastStore } from '@/app-shell/stores/toast';
 import { cadenceSummary } from '@/features/task/cadenceLabel';
-import { todayLongLabel } from '@/features/task/dateLabel';
+import { dayLongLabel, todayLongLabel } from '@/features/task/dateLabel';
 import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
 import { iconByName } from '@/features/task/iconCatalog';
-import type { ChipState, Id, Importance, Necessity, LocalDate, Weekday } from '@/types';
+import type { ChipState, Id, Importance, Necessity, LocalDate, Occurrence, Weekday } from '@/types';
 
 const IMPORTANCE_OPTIONS = [
   { value: 'high', label: 'High' },
@@ -62,6 +64,14 @@ const NECESSITY_OPTIONS = [
   { value: 'recommended', label: 'Recommended' },
   { value: 'optional', label: 'Optional' },
 ];
+
+// SCHEMA §2 pins `doses_per_day` unbounded — the spec fixture's "Morning dose · 9:00a" /
+// "Evening dose · 9:00p" copy is the 2-dose fixture's own labels, not a cap (REVIEW-M4.md item
+// 5); any other dose count falls back to a generic ordinal label.
+function doseLabel(index: number, total: number): string {
+  if (total === 2) return index === 0 ? 'Morning dose · 9:00a' : 'Evening dose · 9:00p';
+  return `Dose ${index + 1}`;
+}
 
 export default function S20ManageTaskSheet() {
   const t = useTheme();
@@ -80,6 +90,13 @@ export default function S20ManageTaskSheet() {
   const monthFrom = startOfMonth(monthAnchor);
   const monthTo = endOfMonth(monthAnchor);
   const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
+  // Item 4 fix: emptiness is keyed on TASK-LIFETIME history (any log/off-mark ever), never the
+  // displayed month alone — a task neglected in just this month, but logged in others, must
+  // still show its real missed fills. `useConsistency`'s all-time per-task scope is the cheap
+  // existing read for this (M2's one pinned algorithm — no new query hook needed).
+  const lifetimeConsistencyQuery = useConsistency({ scope: 'per-task', window: 'all-time', taskId });
+
+  const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
 
   const updateTask = useUpdateTask();
   const logState = useLogState();
@@ -118,6 +135,18 @@ export default function S20ManageTaskSheet() {
     if (result.value.celebrate === 'ideal' || result.value.celebrate === 'fallback') {
       goCelebrate(result.value.celebrate, result.value.xpAwarded, !!result.value.levelUp, result.value.badgesUnlocked);
     }
+  }
+
+  // Item 5 fix: each dose row carries its own full four-state StateChip. The persisted model
+  // (`dosesCompleted: number`, SCHEMA §2) is a contiguous handled-count, not a per-dose
+  // bitmap — Done/Fallback/Skip all "handle" a dose (advance the count to at least index+1,
+  // matching the day-level rule line's "once both are handled"); To-do un-handles it (and
+  // every dose after it, since the count is contiguous by construction).
+  async function onDoseChipChange(index: number, chip: ChipState) {
+    const current = todayOccurrence?.dosesCompleted ?? 0;
+    const dosesCompleted = chip === 'todo' ? Math.min(current, index) : Math.max(current, index + 1);
+    const result = await logDose.mutateAsync({ taskId, date: today, dosesCompleted });
+    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
   }
 
   async function onToggleStep(stepId: Id) {
@@ -235,12 +264,34 @@ export default function S20ManageTaskSheet() {
     year: 'numeric',
   });
 
-  const isEmptyHistory = (monthOccQuery.data ?? []).every((o) => o.chipState === null && o.outcome !== 'off');
+  // Item 4 fix: keyed on TASK-LIFETIME emptiness (any log/off-mark ever, via the all-time
+  // per-task consistency read), never the displayed month alone — a task with real history in
+  // OTHER months whose displayed month was simply neglected must show its genuine missed
+  // fills, not a blanked grid. `undefined` while the lifetime read is still loading — never
+  // flash the empty state.
+  const isEmptyHistory =
+    lifetimeConsistencyQuery.data !== undefined &&
+    lifetimeConsistencyQuery.data.denominator === 0 &&
+    lifetimeConsistencyQuery.data.breakdown.off === 0;
   const heatmapDays = (monthOccQuery.data ?? []).map((o) => ({
     date: o.date,
     dayOfMonth: Number(o.date.slice(8, 10)),
     outcome: isEmptyHistory && o.outcome === 'missed' ? ('not-due' as const) : o.outcome,
   }));
+
+  // Item 2 fix: derive the stat line from M2's ONE pinned `perTaskConsistency` implementation
+  // over the displayed month, never a local hand-rolled count (which wrongly included `off`
+  // days in the denominator and omitted the percent).
+  const monthConsistency = perTaskConsistency({
+    taskId,
+    occurrences: monthOccQuery.data ?? [],
+    window: { from: monthFrom, to: monthTo },
+    today,
+  });
+  const statLine =
+    isEmptyHistory || monthConsistency.percent === null
+      ? undefined
+      : `${monthConsistency.percent}% showed up — ${monthConsistency.numerator} of ${monthConsistency.denominator} days`;
 
   const parentDays: readonly Weekday[] =
     task.cadence?.kind === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
@@ -275,10 +326,14 @@ export default function S20ManageTaskSheet() {
                 testID="s20-importance-picker"
               />
             ) : (
-              <Tag
-                label={task.importance ? IMPORTANCE_OPTIONS.find((o) => o.value === task.importance)?.label ?? '' : 'Importance'}
-                accessibilityLabel={`Importance, ${task.importance ?? 'not set'}. Double tap to change.`}
-              />
+              <Pressable
+                onPress={() => setEditingImportance(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Importance, ${task.importance ? IMPORTANCE_OPTIONS.find((o) => o.value === task.importance)?.label : 'not set'}. Opens picker.`}
+                testID="s20-importance-tag"
+              >
+                <Tag label={task.importance ? IMPORTANCE_OPTIONS.find((o) => o.value === task.importance)?.label ?? '' : 'Importance'} />
+              </Pressable>
             )}
             {editingNecessity ? (
               <Radio
@@ -289,22 +344,16 @@ export default function S20ManageTaskSheet() {
                 testID="s20-necessity-picker"
               />
             ) : (
-              <Tag
-                label={task.necessity ? NECESSITY_OPTIONS.find((o) => o.value === task.necessity)?.label ?? '' : 'Necessity'}
-                accessibilityLabel={`Necessity, ${task.necessity ?? 'not set'}. Double tap to change.`}
-              />
+              <Pressable
+                onPress={() => setEditingNecessity(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Necessity, ${task.necessity ? NECESSITY_OPTIONS.find((o) => o.value === task.necessity)?.label : 'not set'}. Opens picker.`}
+                testID="s20-necessity-tag"
+              >
+                <Tag label={task.necessity ? NECESSITY_OPTIONS.find((o) => o.value === task.necessity)?.label ?? '' : 'Necessity'} />
+              </Pressable>
             )}
           </View>
-          {!editingImportance || !editingNecessity ? (
-            <View style={styles.tagEditButtons}>
-              {!editingImportance ? (
-                <Button label="Edit importance" onPress={() => setEditingImportance(true)} variant="ghost" accessibilityLabel="Edit importance" />
-              ) : null}
-              {!editingNecessity ? (
-                <Button label="Edit necessity" onPress={() => setEditingNecessity(true)} variant="ghost" accessibilityLabel="Edit necessity" />
-              ) : null}
-            </View>
-          ) : null}
         </View>
       </View>
 
@@ -330,24 +379,19 @@ export default function S20ManageTaskSheet() {
                 you override it with the day chip above.
               </Text>
               <View style={styles.doseRow}>
-                <Checkbox
-                  checked={(todayOccurrence?.dosesCompleted ?? 0) >= 1}
-                  onToggle={() =>
-                    logDose.mutateAsync({ taskId, date: today, dosesCompleted: (todayOccurrence?.dosesCompleted ?? 0) >= 1 ? 0 : 1 })
-                  }
-                  label="Morning dose · 9:00a"
-                />
-                <Checkbox
-                  checked={(todayOccurrence?.dosesCompleted ?? 0) >= 2}
-                  onToggle={() =>
-                    logDose.mutateAsync({
-                      taskId,
-                      date: today,
-                      dosesCompleted: (todayOccurrence?.dosesCompleted ?? 0) >= 2 ? 1 : 2,
-                    })
-                  }
-                  label="Evening dose · 9:00p"
-                />
+                {Array.from({ length: task.dosesPerDay }, (_, i) => i).map((i) => {
+                  const dosesCompleted = todayOccurrence?.dosesCompleted ?? 0;
+                  const doseDone = dosesCompleted >= i + 1;
+                  return (
+                    <StateChip
+                      key={i}
+                      value={doseDone ? 'done' : 'todo'}
+                      onChange={(chip) => onDoseChipChange(i, chip)}
+                      accessibilityLabel={doseLabel(i, task.dosesPerDay)}
+                      testID={`s20-dose-chip-${i}`}
+                    />
+                  );
+                })}
               </View>
             </>
           ) : (
@@ -463,20 +507,64 @@ export default function S20ManageTaskSheet() {
           monthLabel={monthLabel}
           onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
           onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
-          statLine={
-            isEmptyHistory
-              ? undefined
-              : `${heatmapDays.filter((d) => d.outcome === 'ideal' || d.outcome === 'fallback').length} of ${
-                  heatmapDays.filter((d) => d.outcome !== 'not-due' && d.outcome !== 'pending').length
-                } days shown up`
-          }
+          onCellPress={(date) => {
+            // Item 3 fix: past-day drill-down (PRD §3.7 preserves this; today/future have
+            // nothing settled yet to view/edit, so only a genuinely past day opens the popover).
+            if (date < today) setPopoverDate(date);
+          }}
+          statLine={statLine}
           emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : undefined}
           accessibilityLabel={`Calendar, ${monthLabel}`}
         />
       )}
 
       <Button label="Delete routine" onPress={onDelete} variant="danger" accessibilityLabel="Delete routine" testID="s20-delete" />
+
+      {popoverDate ? (
+        <DayLogPopover
+          taskId={taskId}
+          date={popoverDate}
+          occurrence={monthOccQuery.data?.find((o) => o.date === popoverDate)}
+          onClose={() => setPopoverDate(null)}
+          logState={logState}
+          showToast={showToast}
+        />
+      ) : null}
     </ScrollView>
+  );
+}
+
+/**
+ * S20 heatmap past-day drill-down (item 3, PRD §3.7 "keeps its existing view/edit-that-day's-
+ * log behavior"). Every write routes through M2's `useLogState` (the same mutation the
+ * today-card chip uses) with the TAPPED date, never a hand-addressed row (SCHEMA §4.2 watch
+ * site). No snooze controls here — snooze is exclusively today's action row.
+ */
+function DayLogPopover({
+  taskId,
+  date,
+  occurrence,
+  onClose,
+  logState,
+  showToast,
+}: {
+  readonly taskId: Id;
+  readonly date: LocalDate;
+  readonly occurrence: Occurrence | undefined;
+  readonly onClose: () => void;
+  readonly logState: ReturnType<typeof useLogState>;
+  readonly showToast: (message: string, tone?: 'success' | 'warning') => void;
+}) {
+  async function onChange(chip: ChipState) {
+    const result = await logState.mutateAsync({ taskId, date, chip });
+    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+  }
+
+  const label = dayLongLabel(date);
+  return (
+    <Dialog visible onClose={onClose} title={label} presentation="center" accessibilityLabel={`Log for ${label}`} testID="s20-day-popover">
+      <StateChip value={occurrence?.chipState ?? null} onChange={onChange} accessibilityLabel="Day state" testID="s20-day-popover-chip" />
+    </Dialog>
   );
 }
 

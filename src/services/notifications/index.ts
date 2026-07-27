@@ -19,12 +19,13 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
+import { clearOnboardingProgress } from '@/features/onboarding/progress';
 import { on } from '@/lib/events';
 import { addDays, parseLocalDate, today } from '@/lib/date';
 import { err, ok } from '@/types';
 import type { LocalDate, NotificationScheduler, Result } from '@/types';
 
-import { buildRollingSchedule } from './schedule';
+import { buildRollingSchedule, NOTIFICATION_HORIZON_DAYS } from './schedule';
 
 const REMINDER_PREFIX = 'fallback-reminder:';
 
@@ -79,7 +80,16 @@ async function reschedule(): Promise<Result<void>> {
     if (!(await hasPermission())) return ok(undefined); // fully usable if declined — a silent no-op, not an error
 
     const tasks = await repos.tasks.list();
-    const schedule = buildRollingSchedule({ tasks, prefs: settings.notifications, today: today() });
+    // SCHEMA §4.2's standing principle (review pass 1, blocking item 3): `buildRollingSchedule`
+    // is cadence-only (`isDue`), so a date the user snoozed AWAY (its own `day_log` row has
+    // `movedToDate` set — carrier `none`) still needs to be excluded here, or a vacated
+    // occurrence gets a "routine due" reminder it should never fire. One extra range read
+    // across the horizon, keyed `taskId:date`, passed in as data — never a second carrier
+    // implementation.
+    const horizonEnd = addDays(today(), NOTIFICATION_HORIZON_DAYS - 1);
+    const horizonLogs = await repos.logs.listRange(today(), horizonEnd);
+    const vacatedDates = new Set(horizonLogs.filter((l) => l.movedToDate !== null).map((l) => `${l.taskId}:${l.date}`));
+    const schedule = buildRollingSchedule({ tasks, prefs: settings.notifications, today: today(), vacatedDates });
 
     for (const reminder of schedule) {
       await Notifications.scheduleNotificationAsync({
@@ -123,12 +133,28 @@ async function reschedule(): Promise<Result<void>> {
  */
 async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.tasks.list>>): Promise<void> {
   const yesterday = addDays(today(), -1);
-  const [logs, offMarks] = await Promise.all([repos.logs.listForDate(yesterday), repos.offDays.listRange(yesterday, yesterday)]);
+  const dayBeforeYesterday = addDays(yesterday, -1);
+  // SCHEMA §4.2's standing principle: a visiting occurrence snoozed INTO yesterday (a
+  // one-hop move from the day before) resolves through `designateCarrier` too, or a task
+  // missed only via that visitor row would silently never trigger the re-entry invitation.
+  const [logs, priorLogs, offMarks] = await Promise.all([
+    repos.logs.listForDate(yesterday),
+    repos.logs.listForDate(dayBeforeYesterday),
+    repos.offDays.listRange(yesterday, yesterday),
+  ]);
   const logByTask = new Map(logs.map((l) => [l.taskId, l]));
+  const movedInByTask = new Map(priorLogs.filter((l) => l.movedToDate === yesterday).map((l) => [l.taskId, l]));
 
   for (const task of tasks) {
     if (task.deletedAt || task.isAsNeeded || task.type === 'todo') continue;
-    const occurrence = resolveOccurrence({ task, date: yesterday, today: today(), log: logByTask.get(task.id) ?? null, offMarks });
+    const occurrence = resolveOccurrence({
+      task,
+      date: yesterday,
+      today: today(),
+      log: logByTask.get(task.id) ?? null,
+      offMarks,
+      movedInLog: movedInByTask.get(task.id) ?? null,
+    });
     if (occurrence.outcome === 'missed') {
       await Notifications.scheduleNotificationAsync({
         identifier: `${REMINDER_PREFIX}gentle-reentry:${yesterday}`,
@@ -191,6 +217,18 @@ export function initNotificationsBridge(): () => void {
     on('day:logged', () => void reschedule()),
     on('badge:unlocked', () => void sendMilestoneNotification()),
     on('level:up', () => void sendMilestoneNotification()),
+    // Review pass 1, blocking item 2: erase-all must cancel every armed reminder (privacy-
+    // relevant — an erased task's name would otherwise still surface via a fired notification)
+    // and, since M7 also owns the onboarding resume pointer (outside M1's SecureStore sweep,
+    // `src/db/lifecycle.ts`'s `SECURE_STORE_KEYS`), clear it too so a post-erase user restarts
+    // the pitch tour at S02 instead of silently resuming a stale mid-tour position. Colocated
+    // here (rather than a third bridge) since this init already reaches every mount point that
+    // matters (S06/S07/S41/S42/S46) and the two cleanups share the same trigger.
+    on('store:erased', () => {
+      void cancelAll();
+      void clearOnboardingProgress();
+    }),
+    on('store:ready', () => void reschedule()),
   ];
 
   const appStateSub = AppState.addEventListener('change', (state: AppStateStatus) => {
