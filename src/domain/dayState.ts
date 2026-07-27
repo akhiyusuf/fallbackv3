@@ -112,6 +112,37 @@ function resolveDueOccurrence(
   };
 }
 
+/**
+ * ADVICE-M2.md Supplement B, B1 — the ONE pure "which row is this occurrence's data?"
+ * answerer. `resolveOccurrence` below (the read path) and `src/queries/internal.ts`'s
+ * write-target resolver (the write path, T-1/T-2) BOTH consume this — no second
+ * implementation of the clause selection may exist anywhere. F1 happened precisely because
+ * reads resolved a carrier (Supplement A's clauses a/b/c) while writes addressed storage by
+ * raw date-key independently; this function is what makes "which row" have exactly one
+ * answer.
+ *
+ * `natural` is `isDue(task, date, notBefore)`, computed once by the caller (this function
+ * stays a plain data triple -> decision, no task/date logic of its own).
+ */
+export type Carrier =
+  | { readonly kind: 'own-live'; readonly log: DayLog } // Supplement A clause (a)
+  | { readonly kind: 'own-create' } // Supplement A clause (b), or the plain R-3 rowless case
+  | { readonly kind: 'visitor'; readonly row: DayLog } // Supplement A clause (c)
+  | { readonly kind: 'none' }; // R-2 vacated source, or R-3 plainly not-due
+
+export function designateCarrier(input: { log: DayLog | null; movedInLog: DayLog | null; natural: boolean }): Carrier {
+  const { log, movedInLog, natural } = input;
+  if (movedInLog != null) {
+    if (log && log.movedToDate === null) return { kind: 'own-live', log }; // (a) — a real state at D always wins
+    if (log === null && natural) return { kind: 'own-create' }; // (b) — merge keeps D's blank state, never manufactures one
+    return { kind: 'visitor', row: movedInLog }; // (c) — the visitor is the only occurrence present
+  }
+  if (log && log.movedToDate !== null) return { kind: 'none' }; // R-2 — vacated, never "missed" here
+  if (!natural) return { kind: 'none' }; // R-3 — plainly not-due
+  if (log) return { kind: 'own-live', log };
+  return { kind: 'own-create' };
+}
+
 export function resolveOccurrence(input: {
   task: TaskWithSteps;
   date: LocalDate;
@@ -137,54 +168,24 @@ export function resolveOccurrence(input: {
   // moved-in record confers due-ness UNCONDITIONALLY, evaluated BEFORE any vacate check.
   // This is what makes C6 resolve correctly — task due on both A and B; B->C then A->B: B's
   // own row is itself residue (pointing onward to C), but that residue must never annihilate
-  // A's occurrence, which is genuinely due at B via the moved-in record. A real, NON-vacated
-  // log on this date still wins over the moved-in record (pass-2 N1's rule, unchanged) — a
-  // vacated own log (pointer non-null) is residue: it never supplies data and never blocks
-  // due-ness either.
+  // A's occurrence, which is genuinely due at B via the moved-in record.
   //
-  // effectiveLog is a THREE-clause formula (ADVICE-M2.md Supplement A, S1 — REPLACES the
-  // original two-clause version):
-  //   (a) ownLog(D), if it exists and its own pointer is null — a real state at D always
-  //       wins (pass-2 N1's rule, unchanged).
-  //   (b) else null, if D is naturally due and ownLog(D) is absent — D's own occurrence is
-  //       present and was never logged: a MERGE never manufactures an outcome (and never an
-  //       XP award) from imported visitor data on a date the user hasn't touched. The merge
-  //       keeps D's blank auto/pending state; the visitor's data stays dormant at its source
-  //       (D-rule) and revives on un-move. The original (literal) formula fell through to the
-  //       visitor's data here, which could mint XP for a day never touched — REJECTED by the
-  //       advisor's Supplement A after M2 flagged the ambiguity rather than guessing.
-  //   (c) else the moved-in record (existing latest-source tie-break) — the visitor is the
-  //       ONLY occurrence present: a non-natural target, or C6's natural-but-vacated target
-  //       (ownLog(D) exists as residue, so (b)'s "absent" doesn't apply — falls through here,
-  //       unchanged from before this amendment).
-  if (movedInLog != null) {
-    let effectiveLog: DayLog | null;
-    if (log && log.movedToDate === null) {
-      effectiveLog = log; // (a)
-    } else if (log === null && isDue(task, date, notBefore)) {
-      effectiveLog = null; // (b)
-    } else {
-      effectiveLog = movedInLog; // (c)
-    }
-    return resolveDueOccurrence(task, date, today, effectiveLog, offMarks, notBefore);
+  // The carrier decision itself lives in `designateCarrier` above (Supplement B) — this
+  // function only turns that decision into an `Occurrence`.
+  const carrier = designateCarrier({ log, movedInLog: movedInLog ?? null, natural: isDue(task, date, notBefore) });
+  switch (carrier.kind) {
+    case 'own-live':
+      return resolveDueOccurrence(task, date, today, carrier.log, offMarks, notBefore);
+    case 'own-create':
+      return resolveDueOccurrence(task, date, today, null, offMarks, notBefore);
+    case 'visitor':
+      return resolveDueOccurrence(task, date, today, carrier.row, offMarks, notBefore);
+    case 'none':
+      // R-2 (vacated source) and R-3 (plainly not-due) both land here — never "missed", on
+      // any day; `log?.chipState` surfaces a vacated own log's last chip as residue metadata
+      // only, exactly as before this refactor.
+      return notDueOccurrence(task, date, log?.chipState ?? null);
   }
-
-  // R-2: no moved-in record — THIS date's own occurrence may have relocated elsewhere, in
-  // which case it vacates this date entirely, regardless of cadence due-ness — never
-  // "missed" here, on any day (SCHEMA §4 `moved_to_date`). Only reached once R-1 has ruled
-  // out a moved-in record — the precedence delta from pass-2's code, which checked this
-  // first and could wrongly annihilate a moved-in occurrence (C6).
-  if (log && log.movedToDate !== null) {
-    return notDueOccurrence(task, date, log.chipState);
-  }
-
-  // R-3: ordinary natural resolution — byte-equivalent to every no-move code path before
-  // this change (ADVICE-M2.md: "with no move in play, behaviour must remain
-  // byte-equivalent").
-  if (!isDue(task, date, notBefore)) {
-    return notDueOccurrence(task, date, log?.chipState ?? null);
-  }
-  return resolveDueOccurrence(task, date, today, log, offMarks, notBefore);
 }
 
 /** Auto-log rule (F3): all due ideal steps complete -> ideal; >=1 but not all -> fallback; 0 -> todo. */

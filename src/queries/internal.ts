@@ -4,7 +4,8 @@
  * the documented hooks only.
  */
 import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
-import { occurrencesBetween, resolveOccurrence } from '@/domain';
+import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence } from '@/domain';
+import type { Carrier } from '@/domain';
 import type { DayLog, Id, LocalDate, Occurrence, Repositories, TaskWithSteps } from '@/types';
 
 export function todayLocal(): LocalDate {
@@ -135,6 +136,45 @@ export async function resolveOneOccurrence(repos: Repositories, task: TaskWithSt
   const log = logs.find((l) => l.date === date) ?? null;
   const movedInByDate = buildMovedInIndex(logs, date, date);
   return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog: movedInByDate.get(date) ?? null });
+}
+
+export interface WriteTarget {
+  /** The resolved occurrence AT the tapped date `D` — reused so callers don't re-resolve. */
+  readonly occurrence: Occurrence;
+  readonly carrier: Carrier;
+  /**
+   * The date whose ROW must actually be written: `D` itself for `own-live`/`own-create`, or
+   * the winning visitor's own SOURCE date for `visitor` (never `D`, per T-2 — a residue row at
+   * `D` is never touched by a write).
+   */
+  readonly targetDate: LocalDate;
+  /** The existing row at `targetDate`, if any (own row or the visitor's own row). */
+  readonly existing: DayLog | null;
+}
+
+/**
+ * ADVICE-M2.md Supplement B, B1/T-1/T-2 — the write-side twin of `resolveOneOccurrence`.
+ * Resolves `D` through the exact same `designateCarrier` decision `resolveOccurrence` (the
+ * read path) uses — see that function's doc comment: no second implementation of the clause
+ * selection may exist. Every occurrence-data mutation (`logState`, `toggleStep`,
+ * `useLogDose`) calls this FIRST: `carrier.kind === 'none'` is T-1's rejection (nothing
+ * resolves at `D` — a vacated source, or a plainly not-due date); otherwise `targetDate` /
+ * `existing` tell the caller exactly which row to upsert (T-2), never the raw tapped-date row
+ * when a visitor is the occurrence.
+ */
+export async function resolveWriteTarget(repos: Repositories, task: TaskWithSteps, date: LocalDate, today: LocalDate): Promise<WriteTarget> {
+  const notBefore = creationLocalDate(task);
+  const [logs, offMarks] = await Promise.all([fetchMoveWindowLogs(repos, task.id, date, date), repos.offDays.listRange(date, date)]);
+  const log = logs.find((l) => l.date === date) ?? null;
+  const movedInLog = buildMovedInIndex(logs, date, date).get(date) ?? null;
+  const natural = isDue(task, date, notBefore);
+  const carrier = designateCarrier({ log, movedInLog, natural });
+  const occurrence = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+
+  if (carrier.kind === 'visitor') return { occurrence, carrier, targetDate: carrier.row.date, existing: carrier.row };
+  // 'own-live', 'own-create', and 'none' all address D's own row (T-1 rejects 'none' before
+  // any write is attempted — the caller never actually upserts in that case).
+  return { occurrence, carrier, targetDate: date, existing: log };
 }
 
 /** Every due occurrence of EVERY live (non-deleted) task, for the aggregate scope. */

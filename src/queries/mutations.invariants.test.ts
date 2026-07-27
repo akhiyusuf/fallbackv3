@@ -39,7 +39,7 @@ import type { AppEvent, Instant, LocalDate, Result, Step, TaskWithSteps, Weekday
 
 import { fake } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
-import { resolveOneOccurrence, resolveTaskOccurrences } from './internal';
+import { resolveOneOccurrence, resolveTaskOccurrences, resolveWriteTarget } from './internal';
 import { __testing__ } from './mutations';
 
 const { moveOccurrence, logState, toggleStep, markOffDay, updateSettings } = __testing__;
@@ -294,6 +294,123 @@ describe('P1-P7 — section (a), S4: pair-space snapshot-reversal (ADVICE-M2.md 
   });
 });
 
+/**
+ * ADVICE-M2.md Supplement B, B2 — P8, and the F2 harness extension (section (b)). P8 is
+ * asserted from a full-store snapshot rather than just the pointer map, so P8a's "byte-
+ * identical residue row" and P8b's "no mutation but `useMoveOccurrence` ever touches
+ * `movedToDate`" are both covered by one comparison.
+ */
+function snapshotStore(taskId: TaskWithSteps['id']): ReadonlyArray<Record<string, unknown>> {
+  return fake.logsFor(taskId).map((r) => ({ ...r })); // deep-enough copy — DayLog fields are all primitives/arrays of primitives
+}
+
+/**
+ * P8b, standalone: no mutation OTHER than `useMoveOccurrence` ever sets, clears, or changes
+ * any row's `movedToDate` — checked around ANY non-move op, without needing to know which row
+ * it targeted. A brand-new row (T-2's own-create) must always be born with a null pointer.
+ */
+function checkP8b(before: ReadonlyArray<Record<string, unknown>>, after: ReadonlyArray<Record<string, unknown>>): void {
+  const beforeByDate = new Map(before.map((r) => [r.date as LocalDate, r]));
+  const afterByDate = new Map(after.map((r) => [r.date as LocalDate, r]));
+  for (const [date, row] of beforeByDate) {
+    expect(afterByDate.has(date)).toBe(true); // no pre-existing row is ever deleted by a non-move mutation
+    expect(afterByDate.get(date)!.movedToDate).toEqual(row.movedToDate); // the pointer NEVER changes
+  }
+  for (const [date, row] of afterByDate) {
+    if (!beforeByDate.has(date)) expect(row.movedToDate).toBeNull(); // a freshly-created row never gets a pointer
+  }
+}
+
+/**
+ * P8a + P8b together, for a call site that knows exactly which row T-2 was ALLOWED to touch
+ * (`targetDate` — the carrier: own row, or the winning visitor's own row). Its CONTENT fields
+ * (chip/step/dose/override) may legitimately change, but its `movedToDate` must not (T-2:
+ * "preserving its movedToDate"). Every OTHER row — true residue, per the D-rule addition —
+ * must be fully byte-unchanged.
+ */
+function checkP8aAndP8b(before: ReadonlyArray<Record<string, unknown>>, after: ReadonlyArray<Record<string, unknown>>, targetDate: LocalDate): void {
+  checkP8b(before, after);
+  const beforeByDate = new Map(before.map((r) => [r.date as LocalDate, r]));
+  const afterByDate = new Map(after.map((r) => [r.date as LocalDate, r]));
+  for (const [date, row] of beforeByDate) {
+    if (date !== targetDate) expect(afterByDate.get(date)).toEqual(row); // P8a — every non-target row (true residue) is fully byte-unchanged
+  }
+}
+
+describe('P8 — Supplement B, B2: residue immutability, pointer-writer exclusivity, write visibility, plus the F2 harness (move, move, tap)', () => {
+  test('every ACCEPTED move sequence of length <= 2, composed with one logState(\'done\') tap on each of the 5 domain dates, holds P1-P8', async () => {
+    let attempted = 0;
+    let tapAccepted = 0;
+    let tapRejected = 0;
+
+    for (const seq of sequences(2)) {
+      for (const tapDate of DOMAIN) {
+        attempted += 1;
+        fake.reset();
+        const task = makeTask();
+        fake.seedTask(task);
+
+        // eslint-disable-next-line no-await-in-loop
+        let sequenceAccepted = true;
+        // eslint-disable-next-line no-await-in-loop
+        for (const step of seq) {
+          // eslint-disable-next-line no-await-in-loop
+          const r = await moveOccurrence({ taskId: task.id, fromDate: step.from, toDate: step.to });
+          if (!r.ok) {
+            sequenceAccepted = false;
+            break;
+          }
+        }
+        if (!sequenceAccepted) continue; // only ACCEPTED move sequences compose with the tap, per B2
+
+        const storeBefore = snapshotStore(task.id);
+        const xpBefore = await fake.repos.progress.lifetimeXp();
+        // eslint-disable-next-line no-await-in-loop
+        const target = await resolveWriteTarget(fake.repos, task, tapDate, D6); // the one true carrier answer, computed BEFORE the tap
+        const events: AppEvent[] = [];
+        const offDayLogged = on('day:logged', (e) => events.push(e));
+        const offXpAwarded = on('xp:awarded', (e) => events.push(e));
+
+        // eslint-disable-next-line no-await-in-loop
+        const tapResult = await logState({ taskId: task.id, date: tapDate, chip: 'done' });
+
+        offDayLogged();
+        offXpAwarded();
+        const storeAfter = snapshotStore(task.id);
+
+        checkP8aAndP8b(storeBefore, storeAfter, target.targetDate); // P8a/P8b — regardless of accept/reject
+
+        if (!tapResult.ok) {
+          tapRejected += 1;
+          expect(events).toHaveLength(0); // rejected write — zero events
+          expect(storeAfter).toEqual(storeBefore); // byte-identical store on rejection
+          expect(await fake.repos.progress.lifetimeXp()).toBe(xpBefore);
+          continue;
+        }
+        tapAccepted += 1;
+
+        // P8c — write visibility: the post-write read reflects the write, and the mutation's
+        // own returned outcome agrees with it (P1, extended to the tap itself).
+        // eslint-disable-next-line no-await-in-loop
+        const read = await resolveOneOccurrence(fake.repos, task, tapDate, D6);
+        expect(tapResult.value.outcome).toBe(read.outcome);
+        expect(read.chipState).toBe('done'); // the tap's own chip is what the read reflects
+
+        // eslint-disable-next-line no-await-in-loop
+        await checkP7(task);
+        // eslint-disable-next-line no-await-in-loop
+        await checkP2AndP3(task);
+        checkP4();
+        checkP5();
+      }
+    }
+
+    expect(attempted).toBe(3_250); // 650 (S4's sequence count) x 5 (domain dates)
+    expect(tapAccepted).toBeGreaterThan(0);
+    expect(tapRejected).toBeGreaterThan(0); // both branches of T-1 actually exercised, not vacuously
+  });
+});
+
 /* ============================================================== (b) cross-operation pairs */
 
 type OpResult = Result<unknown>;
@@ -332,8 +449,8 @@ function buildOps(task: TaskWithSteps): Array<{ name: string; run: (date: LocalD
   ];
 }
 
-describe('P1-P7 — section (b): cross-operation pairs on same/adjacent dates', () => {
-  test('every ordered pair of {move, logState, toggleStep, markOffDay/unmark, updateSettings-cadence}, same and adjacent dates, holds P2-P7', async () => {
+describe('P1-P8 — section (b): cross-operation pairs on same/adjacent dates', () => {
+  test('every ordered pair of {move, logState, toggleStep, markOffDay/unmark, updateSettings-cadence}, same and adjacent dates, holds P2-P8', async () => {
     const dateRelations: Array<{ label: string; d1: LocalDate; d2: LocalDate }> = [
       { label: 'same', d1: D3, d2: D3 },
       { label: 'adjacent', d1: D3, d2: D4 },
@@ -351,9 +468,16 @@ describe('P1-P7 — section (b): cross-operation pairs on same/adjacent dates', 
           const opJ = ops.find((o) => o.name === nameJ)!;
 
           // eslint-disable-next-line no-await-in-loop
+          const beforeI = snapshotStore(task.id);
+          // eslint-disable-next-line no-await-in-loop
           await opI.run(relation.d1);
+          if (nameI !== 'move') checkP8b(beforeI, snapshotStore(task.id)); // P8b — every non-move op, on its own
+
+          // eslint-disable-next-line no-await-in-loop
+          const beforeJ = snapshotStore(task.id);
           // eslint-disable-next-line no-await-in-loop
           await opJ.run(relation.d2);
+          if (nameJ !== 'move') checkP8b(beforeJ, snapshotStore(task.id));
 
           // eslint-disable-next-line no-await-in-loop
           await checkP7(task);

@@ -396,8 +396,8 @@ describe('C6 — a task due on both A and B: B -> C, then A -> B. A resolves DUE
   });
 });
 
-describe('C7 — move, complete at the target, then undo: the completed data stays with the target as dormant residue (D-rule)', () => {
-  test('undo restores A to its pre-move (unlogged) state; the target\'s completed data is not deleted, just no longer due', async () => {
+describe('C7 — move, complete at the target, then undo: the completion travels WITH the moved occurrence (ADVICE-M2.md Supplement B, T-2)', () => {
+  test('a tap on the visiting occurrence writes to A\'s OWN row (the visitor), preserving its pointer — not a fresh row fabricated at B; undo brings the completion back with it', async () => {
     const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] as Weekday[] } }); // D1 only — D2 off-cadence
     fake.seedTask(task);
     const client = freshClient();
@@ -412,21 +412,32 @@ describe('C7 — move, complete at the target, then undo: the completed data sta
     });
     expect((await occOn(task.id, D2, client))?.outcome).toBe('ideal');
     expect(fake.xpAwards()).toHaveLength(1);
+    expect(fake.xpAwards()[0]!.date).toBe(D2); // XP is about the occurrence the user tapped (T-3 keys on D)
+
+    // Supplement B, T-2: B is a non-natural date whose only occurrence is the moved-in
+    // visitor (A) — the write lands on A's OWN row, at A's own date, preserving A's pointer.
+    // Exactly ONE row exists; it is NOT keyed at B.
+    const rows = fake.logsFor(task.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.date).toBe(D1);
+    expect(rows[0]!.chipState).toBe('done');
+    expect(rows[0]!.movedToDate).toBe(D2); // the pointer is preserved, not cleared by the write
 
     await act(async () => {
       await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D2, toDate: D1 }); // undo
     });
 
+    // The completion travels home WITH the occurrence — this is the corrected behaviour F1
+    // exists to guarantee: a tap is about the occurrence, not the date it happened to be
+    // showing at.
     const a = await occOn(task.id, D1, client);
-    expect(a?.outcome).not.toBe('ideal'); // A did NOT inherit B's completed state — it's restored to its own (unlogged) history
+    expect(a?.outcome).toBe('ideal');
+    expect(a?.chipState).toBe('done');
     expectNotDue(await occOn(task.id, D2, client)); // off-cadence, and no longer fed by a moved-in record
-    expect(fake.xpAwards()).toHaveLength(0); // the now-not-due B is not XP-eligible; the award was retracted (CR-2)
-
-    // D-rule: B's own row (with its completed data) still physically exists — dormant, not deleted.
-    const bRow = fake.logsFor(task.id).find((r) => r.date === D2);
-    expect(bRow).toBeDefined();
-    expect(bRow!.chipState).toBe('done');
-    expect(bRow!.movedToDate).toBeNull();
+    expect(fake.xpAwards()).toHaveLength(1); // re-affirmed at A, not lost, not duplicated
+    expect(fake.xpAwards()[0]!.date).toBe(D1);
+    expect(fake.logsFor(task.id)).toHaveLength(1);
+    expect(fake.logsFor(task.id)[0]!.movedToDate).toBeNull();
   });
 });
 
@@ -473,5 +484,151 @@ describe('C8 — double inbound merge: two sources land on the same target; the 
     const rows = fake.logsFor(task.id);
     expect(rows.find((r) => r.date === A1)?.movedToDate).toBe(C);
     expect(rows.find((r) => r.date === A2)?.movedToDate).toBe(C);
+  });
+});
+
+describe('C9 (ADVICE-M2.md Supplement B, the discovered shape): due {A,B}; B->C; A->B; tap on B lands on the visitor (A), residue (B) byte-unchanged', () => {
+  test('the tap is visible at B, its data lives on A\'s row with A\'s pointer intact, and B\'s residue is untouched — then the un-move shadow retracts and revives correctly', async () => {
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2] as Weekday[] } }); // A (D1), B (D2) both due; C (D3) not due
+    fake.seedTask(task);
+    const client = freshClient();
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D2, toDate: D3 }); // B -> C
+    });
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D1, toDate: D2 }); // A -> B
+    });
+
+    const bResidueBefore = fake.logsFor(task.id).find((r) => r.date === D2)!;
+    expect(bResidueBefore.movedToDate).toBe(D3); // B is residue, pointing onward to C
+
+    const { result: logResult } = await rh(() => useLogState(), client);
+    await act(async () => {
+      await logResult.current.mutateAsync({ taskId: task.id, date: D2, chip: 'done' }); // tap on B
+    });
+
+    // Tap VISIBLE at B — outcome per the tap, XP keyed on (task, B) (T-3: reconcile/emit key on
+    // D, the tapped date, regardless of where the data physically lives).
+    const b = await occOn(task.id, D2, client);
+    expect(b?.outcome).toBe('ideal');
+    expect(fake.xpAwards()).toHaveLength(1);
+    expect(fake.xpAwards()[0]!.date).toBe(D2);
+
+    // The write landed on A's row (the visitor) — its pointer is INTACT (still -> B), not
+    // cleared or redirected by the tap.
+    const aRow = fake.logsFor(task.id).find((r) => r.date === D1)!;
+    expect(aRow.chipState).toBe('done');
+    expect(aRow.movedToDate).toBe(D2);
+
+    // Residue ownLog(B) is byte-unchanged by the tap.
+    const bResidueAfter = fake.logsFor(task.id).find((r) => r.date === D2)!;
+    expect(bResidueAfter).toEqual(bResidueBefore);
+
+    // C -> B: B's own occurrence returns (un-move). It resolves by its own UNCORRUPTED
+    // dormant data (never touched by the tap) — blank auto chip, pending/missed, no award. No
+    // phantom completion leaks in from the visitor that was shadowing it.
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D3, toDate: D2 });
+    });
+    const bReturned = await occOn(task.id, D2, client);
+    expect(bReturned?.outcome).not.toBe('ideal');
+    expect(bReturned?.chipState).not.toBe('done');
+
+    // Semantic note (Supplement A/B, pinned so a later reviewer doesn't mistake this for a
+    // bug): the visitor's award at B is retracted here — the resolved occurrence at B stopped
+    // carrying a showing-up state the moment B's own (blank) occurrence shadowed it. This is
+    // the merge doctrine's SANCTIONED transient retraction (CR-2), not value loss — the data
+    // is still on A's row and fully recoverable by A's own un-move, asserted next.
+    expect(fake.xpAwards()).toHaveLength(0);
+
+    // B -> A afterwards: the visitor's tapped data revives at A, award re-affirmed.
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D2, toDate: D1 });
+    });
+    const a = await occOn(task.id, D1, client);
+    expect(a?.outcome).toBe('ideal');
+    expect(a?.chipState).toBe('done');
+    expect(fake.xpAwards()).toHaveLength(1);
+    expect(fake.xpAwards()[0]!.date).toBe(D1);
+  });
+});
+
+describe('C10 (ADVICE-M2.md Supplement B): a write on a vacated source date is rejected, and the source\'s data survives uncorrupted', () => {
+  test('A->B, then any occurrence-data write on A -> VALIDATION_FAILED, zero writes, zero events, zero XP delta; a later un-move revives A exactly as pre-move', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    const { result: logResult } = await rh(() => useLogState(), client);
+    await act(async () => {
+      await logResult.current.mutateAsync({ taskId: task.id, date: D1, chip: 'fallback' }); // A has prior data
+    });
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D1, toDate: D2 });
+    });
+
+    const aRowBefore = fake.logsFor(task.id).find((r) => r.date === D1)!;
+    const xpBefore = await fake.repos.progress.lifetimeXp();
+
+    const events: AppEvent[] = [];
+    const offDayLogged = on('day:logged', (e) => events.push(e));
+    const offXpAwarded = on('xp:awarded', (e) => events.push(e));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: D1, chip: 'done' }); // T-1: A is a vacated source
+    });
+    const res = outcome as { ok: false; error: { code: string } };
+    expect(res.ok).toBe(false);
+    expect(res.error.code).toBe('VALIDATION_FAILED');
+    expect(events).toHaveLength(0); // zero events
+
+    const aRowAfter = fake.logsFor(task.id).find((r) => r.date === D1)!;
+    expect(aRowAfter).toEqual(aRowBefore); // byte-identical — the rejected write touched nothing
+    expect(await fake.repos.progress.lifetimeXp()).toBe(xpBefore); // zero XP delta
+
+    offDayLogged();
+    offXpAwarded();
+
+    // A later un-move revives A exactly as pre-move (its ORIGINAL 'fallback' data, never the
+    // rejected 'done' tap, which never wrote anywhere).
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D2, toDate: D1 });
+    });
+    const a = await occOn(task.id, D1, client);
+    expect(a?.outcome).toBe('fallback');
+    expect(a?.chipState).toBe('fallback');
+  });
+});
+
+describe('C11 (ADVICE-M2.md Supplement B): a write on a rowless not-due date is rejected, and no row is fabricated for a later move-in to adopt', () => {
+  test('VALIDATION_FAILED, zero writes; a subsequent move-in to that same date is NOT hijacked by a fabricated row', async () => {
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] as Weekday[] } }); // D1 only — D2 is rowless and not due
+    fake.seedTask(task);
+    const client = freshClient();
+    const { result: logResult } = await rh(() => useLogState(), client);
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: D2, chip: 'done' });
+    });
+    const res = outcome as { ok: false; error: { code: string } };
+    expect(res.ok).toBe(false);
+    expect(res.error.code).toBe('VALIDATION_FAILED');
+    expect(fake.logsFor(task.id)).toHaveLength(0); // no row fabricated
+
+    // A later move-in to D2 must resolve via the VISITOR clause (c), not a phantom clause-(a)
+    // own-live row the rejected write might otherwise have left behind.
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D1, toDate: D2 });
+    });
+    expect(fake.logsFor(task.id)).toHaveLength(1); // exactly the move's own write — nothing left over from the rejection
+    const d2 = await occOn(task.id, D2, client);
+    expect(d2?.outcome).not.toBe('ideal'); // no phantom 'done' from the earlier rejected write
+    expect(d2?.chipState).not.toBe('done');
   });
 });

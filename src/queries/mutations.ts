@@ -55,7 +55,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { findInboundLogs, MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, todayLocal } from './internal';
+import { findInboundLogs, MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, resolveWriteTarget, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -418,25 +418,41 @@ export function useDuplicateTask() {
  * invariant harness (`mutations.invariants.test.ts`) can drive it directly against the fakes
  * for exhaustive enumeration, without the overhead of a React render per case — it is the
  * exact function `useLogState`'s `mutationFn` runs, not a re-implementation.
+ *
+ * ADVICE-M2.md Supplement B, T-1/T-2/T-3: resolves `D` through `resolveWriteTarget` (the SAME
+ * `designateCarrier` decision every read uses — see that function's doc comment) BEFORE
+ * writing anything. `carrier.kind === 'none'` (T-1) rejects — a vacated source or a plainly
+ * not-due date has no occurrence to log, zero writes. Otherwise the upsert targets
+ * `target.targetDate` / `target.existing` (T-2) — D's own row for `own-live`/`own-create`, or
+ * the WINNING VISITOR's own row (at its source date, pointer preserved) when the occurrence at
+ * D is a moved-in visitor — never the residue row physically keyed at D. Reconcile/emit still
+ * key on `input.date` (T-3, unchanged): the XP award and `day:logged` are about the occurrence
+ * the user tapped, wherever its data physically lives.
  */
 async function logState(input: { taskId: Id; date: LocalDate; chip: ChipState }) {
-  const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
+  const task = await repos.tasks.get(input.taskId);
+  if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  if (target.carrier.kind === 'none') {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
+  }
+  const existing = target.existing;
   const nowIso = now();
   const persistResult = await repos.logs.upsert({
     id: existing?.id ?? newId(),
     taskId: input.taskId,
-    date: input.date,
+    date: target.targetDate,
     chipState: input.chip,
     isManualOverride: true,
     completedStepIds: existing?.completedStepIds ?? [],
     dosesCompleted: existing?.dosesCompleted ?? 0,
-    movedToDate: existing?.movedToDate ?? null,
+    movedToDate: existing?.movedToDate ?? null, // T-2: preserves a visitor row's own pointer; own rows always had null here anyway
     createdAt: existing?.createdAt ?? nowIso,
     updatedAt: nowIso,
   });
   if (!persistResult.ok) return err(persistResult.error);
 
-  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date); // T-3
   emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
   if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
 
@@ -453,11 +469,18 @@ export function useLogState() {
   });
 }
 
-/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
+/** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
 async function toggleStep(input: { taskId: Id; date: LocalDate; stepId: Id }) {
   const task = await repos.tasks.get(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
-  const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  if (target.carrier.kind === 'none') {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
+  }
+  const existing = target.existing;
+  // Due-ness is evaluated AT `input.date` (the tapped date), matching `resolveDueOccurrence`
+  // — steps can carry their own `dueWeekdays` subset, which is about the date the occurrence
+  // is showing due, not about where its data physically lives.
   const dueIds = dueIdealStepIds(task, input.date);
   const completed = new Set(existing?.completedStepIds ?? []);
   if (completed.has(input.stepId)) completed.delete(input.stepId);
@@ -479,12 +502,12 @@ async function toggleStep(input: { taskId: Id; date: LocalDate; stepId: Id }) {
   const persistResult = await repos.logs.upsert({
     id: existing?.id ?? newId(),
     taskId: input.taskId,
-    date: input.date,
+    date: target.targetDate,
     chipState: chip,
     isManualOverride: false, // step-driven auto-log, not a manual chip tap
     completedStepIds,
     dosesCompleted: existing?.dosesCompleted ?? 0,
-    movedToDate: existing?.movedToDate ?? null,
+    movedToDate: existing?.movedToDate ?? null, // T-2
     createdAt: existing?.createdAt ?? nowIso,
     updatedAt: nowIso,
   });
@@ -508,29 +531,38 @@ export function useToggleStep() {
   });
 }
 
+/** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
+async function logDose(input: { taskId: Id; date: LocalDate; dosesCompleted: number }) {
+  const task = await repos.tasks.get(input.taskId);
+  if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  if (target.carrier.kind === 'none') {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
+  }
+  const existing = target.existing;
+  const nowIso = now();
+  const persistResult = await repos.logs.upsert({
+    id: existing?.id ?? newId(),
+    taskId: input.taskId,
+    date: target.targetDate,
+    chipState: existing?.chipState ?? null,
+    isManualOverride: existing?.isManualOverride ?? false,
+    completedStepIds: existing?.completedStepIds ?? [],
+    dosesCompleted: input.dosesCompleted,
+    movedToDate: existing?.movedToDate ?? null, // T-2
+    createdAt: existing?.createdAt ?? nowIso,
+    updatedAt: nowIso,
+  });
+  if (!persistResult.ok) return err(persistResult.error);
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date); // T-3
+  emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
+  return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
+}
+
 export function useLogDose() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { taskId: Id; date: LocalDate; dosesCompleted: number }) => {
-      const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
-      const nowIso = now();
-      const persistResult = await repos.logs.upsert({
-        id: existing?.id ?? newId(),
-        taskId: input.taskId,
-        date: input.date,
-        chipState: existing?.chipState ?? null,
-        isManualOverride: existing?.isManualOverride ?? false,
-        completedStepIds: existing?.completedStepIds ?? [],
-        dosesCompleted: input.dosesCompleted,
-        movedToDate: existing?.movedToDate ?? null,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
-      });
-      if (!persistResult.ok) return err(persistResult.error);
-      const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
-      emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
-      return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
-    },
+    mutationFn: logDose,
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
   });
 }
@@ -741,6 +773,7 @@ export const __testing__ = {
   moveOccurrence,
   logState,
   toggleStep,
+  logDose,
   markOffDay,
   updateSettings,
 };
