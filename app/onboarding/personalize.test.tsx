@@ -60,8 +60,10 @@ describe('S06 — Onboarding: Make it yours', () => {
 
   it('renders all 5 progress dots complete (the last step of the pitch tour), and the preview button is not in the disabled visual state', async () => {
     await render(<S06OnboardingMakeItYours />);
+    // The dots container is `accessibilityElementsHidden` (decorative — the shell's own
+    // convention), so RNTL's default queries exclude it; opt back in explicitly.
     for (let dot = 1; dot <= 5; dot++) {
-      expect(screen.getByTestId(`onboarding-dot-${dot}`)).toBeTruthy();
+      expect(screen.getByTestId(`onboarding-dot-${dot}`, { includeHiddenElements: true })).toBeTruthy();
     }
     const preview = screen.getByLabelText('Preview, illustrative only');
     expect(preview.props.accessibilityState?.disabled).not.toBe(true);
