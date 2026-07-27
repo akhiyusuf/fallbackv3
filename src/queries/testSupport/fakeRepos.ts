@@ -60,6 +60,15 @@ export interface FakeRepos {
   failAppendCycleRecordOnCall(callNumber: number): void;
   /** Fails only the next call to `cycleState.set` — for N4's pointer-write-failure tests. */
   failNextCycleStateSet(): void;
+  /**
+   * ADVICE-M2.md Ruling 2, section (c): fail-injected retry idempotence for every multi-write
+   * mutation. `useMoveOccurrence`'s visiting-occurrence branch (W-3) can issue more than one
+   * `logs.upsert` call in a single mutation (one per redirected inbound row, e.g. C8's double
+   * inbound). Skips `skipCalls` calls to `logs.upsert`, then fails exactly the next one
+   * (one-shot) — so a specific call in a multi-write sequence can be made to fail without
+   * touching the calls before it.
+   */
+  failLogsUpsertAfterCalls(skipCalls: number): void;
   xpAwards(): readonly XpAward[];
   cycleRecords(): readonly CycleRecord[];
   unlocks(): readonly AchievementUnlock[];
@@ -82,6 +91,7 @@ export function createFakeRepos(): FakeRepos {
   let failAppendCycleRecordAtCall: number | null = null;
   let appendCycleRecordCallCount = 0;
   let failCycleStateSetOnce = false;
+  let skipUpsertCalls: number | null = null;
 
   const repos: Repositories = {
     tasks: {
@@ -119,6 +129,14 @@ export function createFakeRepos(): FakeRepos {
       listForTask: async (taskId, from, to) => [...logs.values()].filter((l) => l.taskId === taskId && l.date >= from && l.date <= to),
       listRange: async (from, to) => [...logs.values()].filter((l) => l.date >= from && l.date <= to),
       upsert: async (log) => {
+        if (skipUpsertCalls !== null) {
+          if (skipUpsertCalls > 0) {
+            skipUpsertCalls -= 1;
+          } else {
+            skipUpsertCalls = null;
+            return err({ code: 'WRITE_FAILED', message: 'forced test failure' });
+          }
+        }
         logs.set(`${log.taskId}:${log.date}`, log);
         return ok(undefined);
       },
@@ -220,6 +238,7 @@ export function createFakeRepos(): FakeRepos {
       failAppendCycleRecordAtCall = null;
       appendCycleRecordCallCount = 0;
       failCycleStateSetOnce = false;
+      skipUpsertCalls = null;
     },
     seedTask(t) {
       tasks.set(t.id, t);
@@ -238,6 +257,9 @@ export function createFakeRepos(): FakeRepos {
     },
     failNextCycleStateSet() {
       failCycleStateSetOnce = true;
+    },
+    failLogsUpsertAfterCalls(skipCalls) {
+      skipUpsertCalls = skipCalls;
     },
     xpAwards: () => [...xpAwards.values()],
     cycleRecords: () => cycleRecords,

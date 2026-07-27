@@ -55,7 +55,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, todayLocal } from './internal';
+import { findInboundLogs, MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -413,86 +413,97 @@ export function useDuplicateTask() {
 
 /* ------------------------------------------------------------------ logging */
 
+/**
+ * Extracted as a standalone function (not just an inline `mutationFn`) so the P1-P7
+ * invariant harness (`mutations.invariants.test.ts`) can drive it directly against the fakes
+ * for exhaustive enumeration, without the overhead of a React render per case — it is the
+ * exact function `useLogState`'s `mutationFn` runs, not a re-implementation.
+ */
+async function logState(input: { taskId: Id; date: LocalDate; chip: ChipState }) {
+  const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
+  const nowIso = now();
+  const persistResult = await repos.logs.upsert({
+    id: existing?.id ?? newId(),
+    taskId: input.taskId,
+    date: input.date,
+    chipState: input.chip,
+    isManualOverride: true,
+    completedStepIds: existing?.completedStepIds ?? [],
+    dosesCompleted: existing?.dosesCompleted ?? 0,
+    movedToDate: existing?.movedToDate ?? null,
+    createdAt: existing?.createdAt ?? nowIso,
+    updatedAt: nowIso,
+  });
+  if (!persistResult.ok) return err(persistResult.error);
+
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
+  emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
+  if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
+
+  const celebrate: 'none' | 'ideal' | 'fallback' =
+    occurrence?.outcome === 'ideal' ? 'ideal' : occurrence?.outcome === 'fallback' ? 'fallback' : 'none';
+  return ok({ outcome: occurrence?.outcome ?? 'not-due', xpAwarded, celebrate, levelUp, badgesUnlocked });
+}
+
 export function useLogState() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { taskId: Id; date: LocalDate; chip: ChipState }) => {
-      const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
-      const nowIso = now();
-      const persistResult = await repos.logs.upsert({
-        id: existing?.id ?? newId(),
-        taskId: input.taskId,
-        date: input.date,
-        chipState: input.chip,
-        isManualOverride: true,
-        completedStepIds: existing?.completedStepIds ?? [],
-        dosesCompleted: existing?.dosesCompleted ?? 0,
-        movedToDate: existing?.movedToDate ?? null,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
-      });
-      if (!persistResult.ok) return err(persistResult.error);
-
-      const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
-      emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
-      if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
-
-      const celebrate: 'none' | 'ideal' | 'fallback' =
-        occurrence?.outcome === 'ideal' ? 'ideal' : occurrence?.outcome === 'fallback' ? 'fallback' : 'none';
-      return ok({ outcome: occurrence?.outcome ?? 'not-due', xpAwarded, celebrate, levelUp, badgesUnlocked });
-    },
+    mutationFn: logState,
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
   });
+}
+
+/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
+async function toggleStep(input: { taskId: Id; date: LocalDate; stepId: Id }) {
+  const task = await repos.tasks.get(input.taskId);
+  if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
+  const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
+  const dueIds = dueIdealStepIds(task, input.date);
+  const completed = new Set(existing?.completedStepIds ?? []);
+  if (completed.has(input.stepId)) completed.delete(input.stepId);
+  else completed.add(input.stepId);
+  const completedStepIds = [...completed];
+
+  const chip = autoChipState({
+    taskId: input.taskId,
+    date: input.date,
+    outcome: 'pending',
+    dueIdealStepIds: dueIds,
+    completedStepIds,
+    chipState: null,
+    dosesRequired: task.dosesPerDay,
+    dosesCompleted: existing?.dosesCompleted ?? 0,
+  });
+
+  const nowIso = now();
+  const persistResult = await repos.logs.upsert({
+    id: existing?.id ?? newId(),
+    taskId: input.taskId,
+    date: input.date,
+    chipState: chip,
+    isManualOverride: false, // step-driven auto-log, not a manual chip tap
+    completedStepIds,
+    dosesCompleted: existing?.dosesCompleted ?? 0,
+    movedToDate: existing?.movedToDate ?? null,
+    createdAt: existing?.createdAt ?? nowIso,
+    updatedAt: nowIso,
+  });
+  if (!persistResult.ok) return err(persistResult.error);
+
+  // `level:up` is emitted once, inside `reconcileOccurrence` alone (review pass 2,
+  // blocking item N5 — this hook was re-emitting it for the same crossing, producing a
+  // duplicate milestone notification via M7's scheduler). Every mutation that calls
+  // `reconcileOccurrence` follows this same convention: reconcile emits, callers don't.
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
+  emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
+  if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
+  return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
 }
 
 export function useToggleStep() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { taskId: Id; date: LocalDate; stepId: Id }) => {
-      const task = await repos.tasks.get(input.taskId);
-      if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
-      const existing = (await repos.logs.listForTask(input.taskId, input.date, input.date))[0] ?? null;
-      const dueIds = dueIdealStepIds(task, input.date);
-      const completed = new Set(existing?.completedStepIds ?? []);
-      if (completed.has(input.stepId)) completed.delete(input.stepId);
-      else completed.add(input.stepId);
-      const completedStepIds = [...completed];
-
-      const chip = autoChipState({
-        taskId: input.taskId,
-        date: input.date,
-        outcome: 'pending',
-        dueIdealStepIds: dueIds,
-        completedStepIds,
-        chipState: null,
-        dosesRequired: task.dosesPerDay,
-        dosesCompleted: existing?.dosesCompleted ?? 0,
-      });
-
-      const nowIso = now();
-      const persistResult = await repos.logs.upsert({
-        id: existing?.id ?? newId(),
-        taskId: input.taskId,
-        date: input.date,
-        chipState: chip,
-        isManualOverride: false, // step-driven auto-log, not a manual chip tap
-        completedStepIds,
-        dosesCompleted: existing?.dosesCompleted ?? 0,
-        movedToDate: existing?.movedToDate ?? null,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
-      });
-      if (!persistResult.ok) return err(persistResult.error);
-
-      // `level:up` is emitted once, inside `reconcileOccurrence` alone (review pass 2,
-      // blocking item N5 — this hook was re-emitting it for the same crossing, producing a
-      // duplicate milestone notification via M7's scheduler). Every mutation that calls
-      // `reconcileOccurrence` follows this same convention: reconcile emits, callers don't.
-      const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
-      emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
-      if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
-      return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
-    },
+    mutationFn: toggleStep,
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
   });
 }
@@ -526,24 +537,27 @@ export function useLogDose() {
 
 /* ------------------------------------------------------------------ off days (F4) */
 
+/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
+async function markOffDay(input: { date: LocalDate; taskId: Id | null; mark: boolean }) {
+  if (input.mark) {
+    const priorChipState = input.taskId
+      ? ((await repos.logs.listForTask(input.taskId, input.date, input.date))[0]?.chipState ?? null)
+      : null;
+    const result = await repos.offDays.mark({ id: newId(), date: input.date, taskId: input.taskId, priorChipState, createdAt: now() });
+    if (!result.ok) return err(result.error);
+  } else {
+    const result = await repos.offDays.unmark(input.date, input.taskId);
+    if (!result.ok) return err(result.error);
+  }
+  emit({ type: 'offday:changed', date: input.date });
+  if (input.taskId) await reconcileOccurrence(input.taskId, input.date);
+  return ok(undefined);
+}
+
 export function useMarkOffDay() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { date: LocalDate; taskId: Id | null; mark: boolean }) => {
-      if (input.mark) {
-        const priorChipState = input.taskId
-          ? ((await repos.logs.listForTask(input.taskId, input.date, input.date))[0]?.chipState ?? null)
-          : null;
-        const result = await repos.offDays.mark({ id: newId(), date: input.date, taskId: input.taskId, priorChipState, createdAt: now() });
-        if (!result.ok) return err(result.error);
-      } else {
-        const result = await repos.offDays.unmark(input.date, input.taskId);
-        if (!result.ok) return err(result.error);
-      }
-      emit({ type: 'offday:changed', date: input.date });
-      if (input.taskId) await reconcileOccurrence(input.taskId, input.date);
-      return ok(undefined);
-    },
+    mutationFn: markOffDay,
     onSuccess: () => invalidateCommon(qc),
   });
 }
@@ -566,73 +580,137 @@ export function useLogAsNeededUse() {
 /* ------------------------------------------------------------------ snooze/move (F7) */
 
 /**
- * Review pass 1, blocking item 6: F7 snooze/move. Persists `movedToDate` on the SOURCE date's
- * log row (as before), then reconciles BOTH dates through the real pipeline: the source date
- * now resolves `not-due` (vacated — `resolveOccurrence`'s `log.movedToDate` check) rather than
- * being left to rot into `missed`, and the target date resolves through `movedInLog` (see
- * `dayState.ts`), becoming a genuine due occurrence even on a date the cadence wouldn't
- * naturally place it. Reconciling the source date also retracts any XP that occurrence had
- * already earned (CR-2) — moving something un-does its old date's completion, consistent with
- * "affects the occurrence, not the cadence": the occurrence itself relocated.
+ * F7 snooze/move, implemented against ADVICE-M2.md Ruling 1's binding W-0..W-4 contract
+ * (superseding the pass-3 "good looks like" prose, which does not fix C6). Definitions:
+ * `ownLog(D)` = the `(task, D)` row; `pointer(D)` = that row's `movedToDate` when non-null
+ * (a non-null pointer marks the row as RESIDUE for D); `inbound(F)` = every row whose
+ * `movedToDate === F` (an occurrence currently VISITING F via a prior move).
  *
- * A move beyond `MOVE_SEARCH_PAD_DAYS` is rejected up front (review pass 2 non-blocking
- * note): `internal.ts`'s move lookup only searches a bounded window around a resolve range,
- * so a further move would silently vanish from every future read while its source date stays
- * vacated — better to refuse it here than produce that silent data loss.
+ * W-0 no-op (F === T): zero writes, zero reconciles, zero events.
+ * W-1 F must resolve to something other than `not-due` (never move from a date with
+ *     nothing there — never fabricate, never move an already-vacated occurrence).
+ * W-2 distance guard measured from the row that will CARRY the pointer (each redirected
+ *     inbound row, or F itself in the own-pointer branch) — never from F when inbound
+ *     rows exist, or a collapsed chain could silently outrun the search window.
+ * W-3 branch chosen by `inbound(F)` ALONE: if non-empty, the VISITING occurrence moves —
+ *     every inbound row is either cleared (un-move, when its own date equals T) or
+ *     redirected to T (chain collapse); `ownLog(F)` is never touched in this branch. If
+ *     empty, F's own live occurrence moves: `ownLog(F).movedToDate = T`.
+ * W-4 reconcile every touched date; emit `day:logged` for T exactly once.
+ *
+ * No transaction primitive exists on `Repositories` (advisor-confirmed) — inbound rows are
+ * written one at a time, each a legal state under the R-rules on its own, and a mid-sequence
+ * failure reconciles whatever was already touched before returning the error; no undo logic.
  */
+/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness (the
+ *  enumeration in particular runs this directly, thousands of times, without React). */
+async function moveOccurrence(input: { taskId: Id; fromDate: LocalDate; toDate: LocalDate }) {
+  const { taskId, fromDate, toDate } = input;
+  const task = await repos.tasks.get(taskId);
+  if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
+  const today = todayLocal();
+
+  // W-0.
+  if (fromDate === toDate) {
+    const occurrence = await resolveOneOccurrence(repos, task, fromDate, today);
+    return ok({ occurrence });
+  }
+
+  // W-1.
+  const sourceOccurrence = await resolveOneOccurrence(repos, task, fromDate, today);
+  if (sourceOccurrence.outcome === 'not-due') {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'Cannot move an occurrence from a date it is not due.' });
+  }
+
+  // W-3's branch selector, computed up front so W-2 can measure from the right row(s).
+  const inboundRows = await findInboundLogs(repos, taskId, fromDate);
+
+  // W-2 — measured from the pointer-carrying row(s), never from `fromDate` itself when
+  // inbound rows exist (a chain-collapse redirect moves THEIR pointer, not F's).
+  const carrierDates = inboundRows.length > 0 ? inboundRows.map((r) => r.date) : [fromDate];
+  for (const carrierDate of carrierDates) {
+    if (Math.abs(diffDays(toDate, carrierDate)) > MOVE_SEARCH_PAD_DAYS) {
+      return err({
+        code: 'VALIDATION_FAILED' as const,
+        message: `Cannot move an occurrence more than ${MOVE_SEARCH_PAD_DAYS} days from its original date.`,
+      });
+    }
+  }
+
+  const touched = new Set<LocalDate>([fromDate, toDate]);
+  const nowIso = now();
+
+  if (inboundRows.length > 0) {
+    // The VISITING occurrence moves — redirect every inbound pointer aimed at F.
+    for (const r of inboundRows) {
+      const newMovedToDate = r.date === toDate ? null : toDate; // un-move vs. redirect
+      const writeResult = await repos.logs.upsert({ ...r, movedToDate: newMovedToDate, updatedAt: nowIso });
+      touched.add(r.date);
+      if (!writeResult.ok) {
+        for (const d of touched) await reconcileOccurrence(taskId, d); // reconcile what's touched, no undo
+        return err(writeResult.error);
+      }
+    }
+    // ownLog(F) is deliberately NOT written here — see the W-3 doc comment above.
+  } else {
+    // F's own live occurrence moves.
+    const existing = (await repos.logs.listForTask(taskId, fromDate, fromDate))[0] ?? null;
+    const writeResult = await repos.logs.upsert({
+      id: existing?.id ?? newId(),
+      taskId,
+      date: fromDate,
+      chipState: existing?.chipState ?? null,
+      isManualOverride: existing?.isManualOverride ?? false,
+      completedStepIds: existing?.completedStepIds ?? [],
+      dosesCompleted: existing?.dosesCompleted ?? 0,
+      movedToDate: toDate,
+      createdAt: existing?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+    });
+    if (!writeResult.ok) {
+      for (const d of touched) await reconcileOccurrence(taskId, d);
+      return err(writeResult.error);
+    }
+  }
+
+  // W-4.
+  let targetReconcile: ReconcileResult | null = null;
+  for (const d of touched) {
+    const reconciled = await reconcileOccurrence(taskId, d);
+    if (d === toDate) targetReconcile = reconciled;
+  }
+  emit({ type: 'day:logged', taskId, date: toDate });
+  return ok({ occurrence: targetReconcile?.occurrence ?? null });
+}
+
 export function useMoveOccurrence() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { taskId: Id; fromDate: LocalDate; toDate: LocalDate }) => {
-      const distance = Math.abs(diffDays(input.toDate, input.fromDate));
-      if (distance > MOVE_SEARCH_PAD_DAYS) {
-        return err({
-          code: 'VALIDATION_FAILED' as const,
-          message: `Cannot move an occurrence more than ${MOVE_SEARCH_PAD_DAYS} days from its original date.`,
-        });
-      }
-      const existing = (await repos.logs.listForTask(input.taskId, input.fromDate, input.fromDate))[0] ?? null;
-      const nowIso = now();
-      const persistResult = await repos.logs.upsert({
-        id: existing?.id ?? newId(),
-        taskId: input.taskId,
-        date: input.fromDate,
-        chipState: existing?.chipState ?? null,
-        isManualOverride: existing?.isManualOverride ?? false,
-        completedStepIds: existing?.completedStepIds ?? [],
-        dosesCompleted: existing?.dosesCompleted ?? 0,
-        movedToDate: input.toDate,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
-      });
-      if (!persistResult.ok) return err(persistResult.error);
-
-      await reconcileOccurrence(input.taskId, input.fromDate);
-      const target = await reconcileOccurrence(input.taskId, input.toDate);
-      emit({ type: 'day:logged', taskId: input.taskId, date: input.toDate });
-      return ok({ occurrence: target.occurrence });
-    },
+    mutationFn: moveOccurrence,
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
   });
 }
 
 /* ------------------------------------------------------------------ settings */
 
+/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
+async function updateSettings(patch: Partial<Settings>): Promise<Result<Settings>> {
+  // Review pass 1, blocking item 1: a cadence change finalises the in-progress cycle
+  // BEFORE the patch takes effect — archive always precedes the switch.
+  if (patch.cycleCadence) {
+    const cadenceResult = await finalizeCycleForCadenceChange(patch.cycleCadence);
+    if (!cadenceResult.ok) return err(cadenceResult.error);
+  }
+  const result = await repos.settings.patch(patch);
+  if (!result.ok) return result;
+  emit({ type: 'settings:changed' });
+  return result;
+}
+
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<Settings>): Promise<Result<Settings>> => {
-      // Review pass 1, blocking item 1: a cadence change finalises the in-progress cycle
-      // BEFORE the patch takes effect — archive always precedes the switch.
-      if (patch.cycleCadence) {
-        const cadenceResult = await finalizeCycleForCadenceChange(patch.cycleCadence);
-        if (!cadenceResult.ok) return err(cadenceResult.error);
-      }
-      const result = await repos.settings.patch(patch);
-      if (!result.ok) return result;
-      emit({ type: 'settings:changed' });
-      return result;
-    },
+    mutationFn: updateSettings,
     onSuccess: (result, patch) => {
       qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       // `Settings.cycleCadence` is always present on `result` (it's non-optional) — check the
@@ -647,9 +725,22 @@ export function useUpdateSettings() {
 }
 
 /**
- * Exported for `mutations.test.ts` ONLY (review pass 1, blocking item 10 — "the buggiest code
- * in this module... have zero coverage"). Not part of the documented `@/queries` surface
- * (docs/API.md §3 lists the hooks only); a feature module has no reason to import these
- * directly — call the hooks above instead.
+ * Exported for `src/queries`'s own test files ONLY (review pass 1, blocking item 10; ADVICE-
+ * M2.md Ruling 2's P1-P7 harness). Not part of the documented `@/queries` surface (docs/API.md
+ * §3 lists the hooks only) — a feature module has no reason to import these directly, and
+ * every one of them is the EXACT function its `use*` hook wraps as `mutationFn`, not a
+ * re-implementation; extracting them out of the `useMutation({...})` call site is what lets
+ * the harness enumerate thousands of move sequences without a React render per case.
  */
-export const __testing__ = { reconcileCycleBoundaries, finalizeCycleForCadenceChange, archiveCycleWindow, getOrInitCycleState, reconcileOccurrence };
+export const __testing__ = {
+  reconcileCycleBoundaries,
+  finalizeCycleForCadenceChange,
+  archiveCycleWindow,
+  getOrInitCycleState,
+  reconcileOccurrence,
+  moveOccurrence,
+  logState,
+  toggleStep,
+  markOffDay,
+  updateSettings,
+};
