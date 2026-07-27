@@ -47,9 +47,9 @@ async function discoverModel(baseUrl: string, apiKey: string): Promise<string | 
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!response.ok) return null;
-    const json = (await response.json()) as { data?: readonly { id?: string }[] } | readonly { id?: string }[];
-    const list = Array.isArray(json) ? json : (json.data ?? []);
-    const first = list.find((m): m is { id: string } => typeof m?.id === 'string');
+    const json = (await response.json()) as { data?: readonly { id?: string }[]; id?: string }[] | { data?: readonly { id?: string }[] };
+    const list: readonly { id?: string }[] = Array.isArray(json) ? json : (json.data ?? []);
+    const first = list.find((m): m is { id: string } => typeof m.id === 'string');
     return first?.id ?? null;
   } catch {
     return null;

@@ -63,7 +63,7 @@ describe('ByoAssistantProvider — streamChat tool-call assembly (B5) and model 
 
     const toolCallEvents = events.filter((e): e is { type: 'tool-call'; call: { args: unknown } } => (e as { type: string }).type === 'tool-call');
     expect(toolCallEvents).toHaveLength(1);
-    expect(toolCallEvents[0].call.args).toEqual({ name: 'Morning run', idealSteps: [], fallbackSteps: [] });
+    expect(toolCallEvents[0]?.call.args).toEqual({ name: 'Morning run', idealSteps: [], fallbackSteps: [] });
   });
 
   it('falls back to gpt-4o-mini only when no model was discovered/saved', async () => {

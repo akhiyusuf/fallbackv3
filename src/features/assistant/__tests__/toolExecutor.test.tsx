@@ -127,6 +127,8 @@ describe('useToolExecutor — tool calls are proposals, never actions', () => {
         createdAt: 'x',
         updatedAt: 'x',
         deletedAt: null,
+        idealSteps: [{ id: 's1', taskId: 't1', role: 'ideal', text: 'Full run', position: 0, dueWeekdays: null }],
+        fallbackSteps: [{ id: 's2', taskId: 't1', role: 'fallback', text: 'Short walk', position: 0, dueWeekdays: null }],
       },
     ];
     mockUpdateTaskMutateAsync.mockResolvedValue({ ok: true, value: undefined });

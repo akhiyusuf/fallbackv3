@@ -21,9 +21,9 @@ jest.mock('@/queries', () => ({
   useLogState: () => ({ mutateAsync: mockLogStateMutateAsync }),
 }));
 
-const mockAppendMessage = jest.fn(async () => ({ ok: true, value: undefined }));
-const mockUpsertConversation = jest.fn(async () => ({ ok: true, value: undefined }));
-const mockListMessages = jest.fn(async () => [] as unknown[]);
+const mockAppendMessage = jest.fn(async (_m: unknown) => ({ ok: true, value: undefined }));
+const mockUpsertConversation = jest.fn(async (_c: unknown) => ({ ok: true, value: undefined }));
+const mockListMessages = jest.fn(async (_id: unknown) => [] as unknown[]);
 const mockGetAssistantProvider = jest.fn();
 jest.mock('@/services/ai', () => ({
   getAssistantProvider: () => mockGetAssistantProvider(),
@@ -123,7 +123,7 @@ describe('useAssistantChat', () => {
 
     // Second call's history includes the first user turn + first assistant reply + the new
     // user turn — never just `[latest]`.
-    expect(seenMessageCounts[1]).toBeGreaterThan(seenMessageCounts[0]);
+    expect(seenMessageCounts[1]).toBeGreaterThan(seenMessageCounts[0] ?? 0);
     expect(seenMessageCounts[1]).toBe(3);
   });
 });
