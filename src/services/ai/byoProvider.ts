@@ -10,14 +10,15 @@
  * `secureKeyStore` for each call and is never cached in a module-level variable, a zustand
  * store, or anything else that could be inadvertently serialized or logged.
  */
-import type { AssistantCapabilities, AssistantEvent, AssistantProvider, Result } from '@/types';
+import type { AssistantCapabilities, AssistantEvent, AssistantProvider, AssistantToolCall, Result } from '@/types';
 import { err, ok } from '@/types';
 
 import { GUARDRAIL_SYSTEM_PROMPT, classifyGuardrail } from './guardrails';
 import { getByoConfig, type ByoConfig } from './secureKeyStore';
 import { parseEventStream } from './sse';
+import { TOOL_DEFINITIONS } from './toolSchemas';
 
-const TOOLS = ['create_task', 'update_task', 'delete_task', 'log_state', 'ask_clarification'] as const;
+const FALLBACK_MODEL = 'gpt-4o-mini';
 
 function authedHeaders(config: ByoConfig): Record<string, string> {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` };
@@ -53,13 +54,15 @@ export function createByoAssistantProvider(): AssistantProvider {
           headers: authedHeaders(config),
           signal,
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            // B7 — the model discovered at save time (S40's probe), never a hardcoded
+            // OpenAI-only id that 404s on Groq/local-model endpoints.
+            model: config.model ?? FALLBACK_MODEL,
             stream: true,
             messages: [
               { role: 'system', content: GUARDRAIL_SYSTEM_PROMPT },
               ...messages.map((m) => ({ role: m.role, content: m.text })),
             ],
-            tools: TOOLS.map((name) => ({ type: 'function', function: { name } })),
+            tools: TOOL_DEFINITIONS,
           }),
         });
       } catch {
@@ -77,10 +80,15 @@ export function createByoAssistantProvider(): AssistantProvider {
         if (!screen.hasLiteralLoggingRequest) return;
       }
 
+      // B5 — OpenAI-compatible streaming fragments tool-call arguments across MANY chunks,
+      // keyed by `index`; only the first fragment carries `id`/`function.name`. Accumulate
+      // across the whole stream and flush only once a call is actually complete, instead of
+      // dropping every tool call by only reading `text-delta`/`done`.
+      const pendingToolCalls = new Map<number, PendingToolCall>();
       for await (const chunk of parseEventStream(response.body)) {
-        const event = mapOpenAiChunkToEvent(chunk);
-        if (event) yield event;
+        for (const event of processOpenAiChunk(chunk, pendingToolCalls)) yield event;
       }
+      for (const event of flushPendingToolCalls(pendingToolCalls)) yield event;
     },
 
     async transcribe({ uri, signal }): Promise<Result<string>> {
@@ -128,13 +136,74 @@ function refusalText(category: ReturnType<typeof classifyGuardrail>['category'])
   }
 }
 
-/** Best-effort mapping of an OpenAI-compatible chat-completion stream chunk onto `AssistantEvent`. */
-function mapOpenAiChunkToEvent(chunk: unknown): AssistantEvent | null {
-  if (!chunk || typeof chunk !== 'object') return null;
-  const c = chunk as { choices?: readonly { delta?: { content?: string; tool_calls?: unknown[] }; finish_reason?: string | null }[] };
-  const choice = c.choices?.[0];
-  if (!choice) return null;
-  if (choice.delta?.content) return { type: 'text-delta', delta: choice.delta.content };
-  if (choice.finish_reason === 'stop') return { type: 'done', summary: '' };
-  return null;
+interface PendingToolCall {
+  id: string;
+  name: string;
+  args: string;
+}
+
+interface OpenAiToolCallDelta {
+  readonly index?: number;
+  readonly id?: string;
+  readonly function?: { readonly name?: string; readonly arguments?: string };
+}
+
+interface OpenAiStreamChunk {
+  readonly choices?: readonly {
+    readonly delta?: { readonly content?: string; readonly tool_calls?: readonly OpenAiToolCallDelta[] };
+    readonly finish_reason?: string | null;
+  }[];
+}
+
+/** B5 — processes one OpenAI-compatible stream chunk: emits `text-delta`/`done` immediately,
+ *  and accumulates any `tool_calls` deltas into `pending` (keyed by index), flushing complete
+ *  tool calls once the choice's `finish_reason` says so. */
+function processOpenAiChunk(chunk: unknown, pending: Map<number, PendingToolCall>): AssistantEvent[] {
+  if (!chunk || typeof chunk !== 'object') return [];
+  const choice = (chunk as OpenAiStreamChunk).choices?.[0];
+  if (!choice) return [];
+
+  const events: AssistantEvent[] = [];
+  if (choice.delta?.content) events.push({ type: 'text-delta', delta: choice.delta.content });
+
+  const toolCalls = choice.delta?.tool_calls;
+  if (Array.isArray(toolCalls)) {
+    for (const fragment of toolCalls) {
+      const index = fragment.index ?? 0;
+      const existing = pending.get(index) ?? { id: fragment.id ?? `call_${index}`, name: '', args: '' };
+      if (fragment.id) existing.id = fragment.id;
+      if (fragment.function?.name) existing.name = fragment.function.name;
+      if (fragment.function?.arguments) existing.args += fragment.function.arguments;
+      pending.set(index, existing);
+    }
+  }
+
+  if (choice.finish_reason === 'tool_calls') events.push(...flushPendingToolCalls(pending));
+  if (choice.finish_reason === 'stop') events.push({ type: 'done', summary: '' });
+
+  return events;
+}
+
+function flushPendingToolCalls(pending: Map<number, PendingToolCall>): AssistantEvent[] {
+  const events: AssistantEvent[] = [];
+  for (const [, call] of pending) {
+    const assembled = assembleToolCall(call);
+    if (assembled) events.push({ type: 'tool-call', call: assembled });
+  }
+  pending.clear();
+  return events;
+}
+
+function assembleToolCall(call: PendingToolCall): AssistantToolCall | null {
+  if (!call.name) return null;
+  let args: unknown;
+  try {
+    args = JSON.parse(call.args || '{}');
+  } catch {
+    args = {};
+  }
+  // The model produced these per the JSON schema in `TOOL_DEFINITIONS`; downstream
+  // `useToolExecutor`/`validateTaskDraft` re-validate every field before anything is
+  // applied — this cast only shapes the envelope, it grants no trust.
+  return { id: call.id as never, name: call.name as never, args: args as never };
 }

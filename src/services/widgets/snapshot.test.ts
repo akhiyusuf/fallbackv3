@@ -45,11 +45,14 @@ function task(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
 describe('buildWidgetSnapshot', () => {
   const date = '2026-07-27' as LocalDate;
 
-  it('includes only tasks due today, never an as-needed routine', () => {
+  it('includes only tasks with a resolved due outcome today, never an as-needed routine', () => {
     const tasks = [task(), task({ id: 't2' as never, isAsNeeded: true, cadence: null })];
     const snapshot = buildWidgetSnapshot({
       tasks,
-      chips: [],
+      // t1 is due today with nothing logged yet -> 'pending' (today hasn't ended); t2 is
+      // as-needed, never due, so the caller would resolve it to 'not-due' — its absence from
+      // `chips` altogether (as here) is treated the same way: not included.
+      chips: [{ taskId: 't1' as never, chipState: 'todo', outcome: 'pending' }],
       date,
       scheme: 'light',
       accent: 'forge-orange',
@@ -98,8 +101,8 @@ describe('buildWidgetSnapshot', () => {
     const snapshot = buildWidgetSnapshot({
       tasks,
       chips: [
-        { taskId: 't1' as never, chipState: 'done' },
-        { taskId: 't2' as never, chipState: 'todo' },
+        { taskId: 't1' as never, chipState: 'done', outcome: 'ideal' },
+        { taskId: 't2' as never, chipState: 'todo', outcome: 'pending' },
       ],
       date,
       scheme: 'dark',

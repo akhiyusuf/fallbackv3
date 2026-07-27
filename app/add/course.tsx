@@ -16,6 +16,8 @@ import { useCreateTask } from '@/queries';
 import { addDays, today as todayFn } from '@/lib/date';
 import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
+import { isValidLocalDateString } from '@/features/task/dateValidation';
+import { useToastStore } from '@/app-shell/stores/toast';
 
 const WEEKDAY_NAME_TO_NUM: Record<string, Weekday> = {
   Monday: 1,
@@ -38,6 +40,7 @@ export default function S18CreateCourse() {
   const router = useRouter();
   const goBack = useOriginAwareBack(ROUTES.addPickType);
   const createTask = useCreateTask();
+  const showToast = useToastStore((s) => s.show);
 
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState<LocalDate>(todayFn());
@@ -48,6 +51,7 @@ export default function S18CreateCourse() {
   const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
 
   const [nameError, setNameError] = useState<string | undefined>();
+  const [startDateError, setStartDateError] = useState<string | undefined>();
   const [endDateError, setEndDateError] = useState<string | undefined>();
   const [cadenceError, setCadenceError] = useState<string | undefined>();
   const [idealError, setIdealError] = useState<string | undefined>();
@@ -89,7 +93,18 @@ export default function S18CreateCourse() {
     const validated = validateTaskDraft(draft);
 
     setNameError(draft.name.trim().length === 0 ? 'Give this course a name to save it.' : undefined);
-    setEndDateError(!draft.endDate ? 'Set an end date — a course always runs for a fixed span.' : undefined);
+    // Item 7 fix: `validateTaskDraft` (M2, frozen) only checks presence, never shape — an
+    // unparseable free-typed date must still surface a visible error, not fail silently.
+    const startDateInvalid = !isValidLocalDateString(startDate);
+    setStartDateError(startDateInvalid ? "That date doesn't look right — use YYYY-MM-DD." : undefined);
+    const endDateInvalid = draft.endDate !== null && !isValidLocalDateString(draft.endDate);
+    setEndDateError(
+      !draft.endDate
+        ? 'Set an end date — a course always runs for a fixed span.'
+        : endDateInvalid
+          ? "That date doesn't look right — use YYYY-MM-DD."
+          : undefined,
+    );
     setCadenceError(
       draft.cadence?.kind === 'specific-weekdays' && draft.cadence.weekdays.length === 0 ? 'Pick at least one day this course runs.' : undefined,
     );
@@ -101,9 +116,13 @@ export default function S18CreateCourse() {
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));
 
-    if (!validated.ok) return;
+    if (!validated.ok || startDateInvalid || endDateInvalid) return;
     const result = await createTask.mutateAsync(draft);
-    if (result.ok) router.replace(ROUTES.today);
+    if (result.ok) {
+      router.replace(ROUTES.today);
+    } else {
+      showToast("Couldn't save that — try again.", 'warning');
+    }
   }
 
   return (
@@ -116,7 +135,7 @@ export default function S18CreateCourse() {
       </View>
 
       <Input label="Course name" value={name} onChangeText={setName} placeholder="e.g. Antibiotics" error={nameError} accessibilityLabel="Course name" />
-      <Input label="Start date" value={startDate} onChangeText={(v) => setStartDate(v as LocalDate)} accessibilityLabel="Start date" />
+      <Input label="Start date" value={startDate} onChangeText={(v) => setStartDate(v as LocalDate)} error={startDateError} accessibilityLabel="Start date" />
       <Input
         label="End date"
         value={endDate}

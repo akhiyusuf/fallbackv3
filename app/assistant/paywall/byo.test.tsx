@@ -54,6 +54,21 @@ describe('S40 — BYO AI Key Setup', () => {
     replace.mockRestore();
   });
 
+  it('B12 — the degraded-success banner is actually visible before navigating away, not instant (0ms)', async () => {
+    mockProbe.mockResolvedValue({ ok: true, transcription: false });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    await render(<S40ByoAiKeySetup />);
+    await fillForm();
+    await userEvent.press(screen.getByTestId('s40-save'));
+    expect(await screen.findByText(S40_COPY.successDegraded)).toBeTruthy();
+    // The banner must still be on screen immediately after it renders — the old bug
+    // navigated on the very next tick (0ms delay).
+    expect(replace).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(replace).toHaveBeenCalledWith('/assistant/chat');
+    replace.mockRestore();
+  });
+
   it('reveal/mask toggle switches the API key field between secure and plaintext', async () => {
     await render(<S40ByoAiKeySetup />);
     const field = screen.getByTestId('s40-api-key');

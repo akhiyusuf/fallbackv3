@@ -71,22 +71,19 @@ export default function S22DeleteConfirmation() {
           "{name}" and its history will be removed. This can't be undone.
         </Text>
 
-        {failed ? (
-          <InlineRetryBanner message="Couldn't delete — try again." onRetry={confirmDelete} tone="warning" />
-        ) : (
-          <View style={styles.buttons}>
-            <Button
-              label={`Delete ${noun}`}
-              onPress={confirmDelete}
-              variant="danger"
-              loading={deleteTask.isPending}
-              disabled={deleteTask.isPending}
-              accessibilityLabel={`Delete ${noun}`}
-              fullWidth
-            />
-            <Button label="Keep it" onPress={keepIt} variant="secondary" disabled={deleteTask.isPending} accessibilityLabel="Keep it" fullWidth />
-          </View>
-        )}
+        {failed ? <InlineRetryBanner message="Couldn't delete — try again." onRetry={confirmDelete} tone="warning" /> : null}
+        <View style={styles.buttons}>
+          <Button
+            label={`Delete ${noun}`}
+            onPress={confirmDelete}
+            variant="danger"
+            loading={deleteTask.isPending}
+            disabled={deleteTask.isPending}
+            accessibilityLabel={`Delete ${noun}`}
+            fullWidth
+          />
+          <Button label="Keep it" onPress={keepIt} variant="secondary" disabled={deleteTask.isPending} accessibilityLabel="Keep it" fullWidth />
+        </View>
       </View>
     </View>
   );

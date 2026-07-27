@@ -17,6 +17,8 @@ import { useCreateTask } from '@/queries';
 import { today as todayFn } from '@/lib/date';
 import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
+import { isValidLocalDateString } from '@/features/task/dateValidation';
+import { useToastStore } from '@/app-shell/stores/toast';
 
 const WEEKDAY_NAME_TO_NUM: Record<string, Weekday> = {
   Monday: 1,
@@ -39,6 +41,7 @@ export default function S17CreateEvent() {
   const router = useRouter();
   const goBack = useOriginAwareBack(ROUTES.addPickType);
   const createTask = useCreateTask();
+  const showToast = useToastStore((s) => s.show);
 
   const [name, setName] = useState('');
   const [eventDate, setEventDate] = useState<LocalDate>(todayFn());
@@ -50,6 +53,7 @@ export default function S17CreateEvent() {
   const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([]);
 
   const [nameError, setNameError] = useState<string | undefined>();
+  const [dateError, setDateError] = useState<string | undefined>();
   const [cadenceError, setCadenceError] = useState<string | undefined>();
   const [bannerDay, setBannerDay] = useState<string | undefined>();
   const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
@@ -86,6 +90,10 @@ export default function S17CreateEvent() {
     const validated = validateTaskDraft(draft);
 
     setNameError(draft.name.trim().length === 0 ? 'Give this event a name to save it.' : undefined);
+    // Item 7 fix: `validateTaskDraft` (M2, frozen) only checks presence, never shape — an
+    // unparseable free-typed date must still surface a visible error, not fail silently.
+    const dateInvalid = !repeats && !isValidLocalDateString(eventDate);
+    setDateError(dateInvalid ? "That date doesn't look right — use YYYY-MM-DD." : undefined);
     setCadenceError(
       repeats && draft.cadence?.kind === 'specific-weekdays' && draft.cadence.weekdays.length === 0
         ? 'Pick at least one day this event repeats on.'
@@ -95,9 +103,13 @@ export default function S17CreateEvent() {
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));
 
-    if (!validated.ok) return;
+    if (!validated.ok || dateInvalid) return;
     const result = await createTask.mutateAsync(draft);
-    if (result.ok) router.replace(ROUTES.today);
+    if (result.ok) {
+      router.replace(ROUTES.today);
+    } else {
+      showToast("Couldn't save that — try again.", 'warning');
+    }
   }
 
   return (
@@ -110,7 +122,7 @@ export default function S17CreateEvent() {
       </View>
 
       <Input label="Event name" value={name} onChangeText={setName} placeholder="e.g. Dentist visit" error={nameError} accessibilityLabel="Event name" />
-      <Input label="Date" value={eventDate} onChangeText={(v) => setEventDate(v as LocalDate)} accessibilityLabel="Date" />
+      <Input label="Date" value={eventDate} onChangeText={(v) => setEventDate(v as LocalDate)} error={dateError} accessibilityLabel="Date" />
       <Input label="Time" value={timeOfDay} onChangeText={setTimeOfDay} placeholder="Optional" accessibilityLabel="Time" />
 
       <Radio

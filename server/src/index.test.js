@@ -36,9 +36,12 @@ async function withServer(run) {
 }
 
 test('B6 — POST /v1/chat assembles a tool call fragmented across 3+ SSE chunks into ONE complete tool-call frame', async () => {
-  const originalFetch = globalThis.fetch;
+  // Only the SERVER's outbound call (to the receipt verifier / Groq) is faked — the test's
+  // own request to the local test server below must go over the real loopback fetch.
+  const realFetch = globalThis.fetch;
   let call = 0;
-  globalThis.fetch = async () => {
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('127.0.0.1')) return realFetch(url, opts);
     call += 1;
     if (call === 1) return { ok: true, status: 200 }; // receipt verify
     const frame1 = { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'create_task', arguments: '{"name":' } }] } }] };
@@ -66,7 +69,7 @@ test('B6 — POST /v1/chat assembles a tool call fragmented across 3+ SSE chunks
       assert.deepEqual(toolCallFrames[0].call.args, { name: 'Morning run', idealSteps: [], fallbackSteps: [] });
     });
   } finally {
-    globalThis.fetch = originalFetch;
+    globalThis.fetch = realFetch;
   }
 });
 

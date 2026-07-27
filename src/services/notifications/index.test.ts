@@ -1,6 +1,9 @@
 /** House pattern (docs/MODULES.md top matter): plain jest, no RNTL needed for a non-UI service. */
 import { router } from 'expo-router';
 
+import { emit } from '@/lib/events';
+import { addDays, today } from '@/lib/date';
+
 const mockCancelAll = jest.fn().mockResolvedValue(undefined);
 const mockSchedule = jest.fn().mockResolvedValue('id');
 const mockGetPermissions = jest.fn();
@@ -17,18 +20,33 @@ jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
+const mockClearOnboardingProgress = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/features/onboarding/progress', () => ({ clearOnboardingProgress: () => mockClearOnboardingProgress() }));
+
 const mockSettingsGet = jest.fn();
 const mockTasksList = jest.fn();
-const mockLogsListForDate = jest.fn().mockResolvedValue([]);
+/** Per-date log rows, keyed by exact LocalDate — tests set this to exercise movedInLog/vacated lookups. */
+const logsByDate = new Map<string, unknown[]>();
+const mockLogsListForDate = jest.fn((date: string) => Promise.resolve(logsByDate.get(date) ?? []));
+const mockLogsListRange = jest.fn((from: string, to: string) => {
+  const out: unknown[] = [];
+  for (const [date, logs] of logsByDate) {
+    if (date >= from && date <= to) out.push(...logs);
+  }
+  return Promise.resolve(out);
+});
 const mockOffDaysListRange = jest.fn().mockResolvedValue([]);
 jest.mock('@/db', () => ({
   repos: {
     settings: { get: () => mockSettingsGet() },
     tasks: { list: () => mockTasksList() },
-    logs: { listForDate: () => mockLogsListForDate() },
+    logs: { listForDate: (date: string) => mockLogsListForDate(date), listRange: (from: string, to: string) => mockLogsListRange(from, to) },
     offDays: { listRange: () => mockOffDaysListRange() },
   },
 }));
+
+/** Flushes every pending microtask (safe for the multi-await chains inside `reschedule()`). */
+const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
 
 const BASE_PREFS = {
   master: true,
@@ -45,11 +63,11 @@ const BASE_PREFS = {
 describe('notifications service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    logsByDate.clear();
     mockGetPermissions.mockResolvedValue({ granted: true });
     mockRequestPermissions.mockResolvedValue({ granted: true });
     mockSettingsGet.mockResolvedValue({ notifications: BASE_PREFS });
     mockTasksList.mockResolvedValue([]);
-    mockLogsListForDate.mockResolvedValue([]);
     mockOffDaysListRange.mockResolvedValue([]);
   });
 
@@ -123,7 +141,6 @@ describe('notifications service', () => {
     mockTasksList.mockResolvedValue([
       { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
     ]);
-    mockLogsListForDate.mockResolvedValue([]); // no chip ever set -> missed once the day has ended
     const { notifications } = require('./index') as typeof import('./index');
     await notifications.reschedule();
     const reentryCall = mockSchedule.mock.calls.find((c) => c[0].content.data?.kind === 'gentle-reentry');
@@ -166,5 +183,70 @@ describe('notifications service', () => {
 
     push.mockRestore();
     dispose();
+  });
+
+  it('store:erased cancels every armed reminder AND clears the onboarding resume pointer (review pass 1, blocking item 2)', async () => {
+    const { initNotificationsBridge } = require('./index') as typeof import('./index');
+    const dispose = initNotificationsBridge();
+    mockCancelAll.mockClear(); // initNotificationsBridge's own mount-time reschedule() already cleared once
+
+    emit({ type: 'store:erased' });
+    await flushAsync();
+
+    expect(mockCancelAll).toHaveBeenCalled();
+    expect(mockClearOnboardingProgress).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('store:ready re-arms reminders (initial publish on fresh/reopened boot)', async () => {
+    const { initNotificationsBridge } = require('./index') as typeof import('./index');
+    const dispose = initNotificationsBridge();
+    mockSchedule.mockClear();
+    mockTasksList.mockResolvedValue([
+      { id: 'r1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+    ]);
+
+    emit({ type: 'store:ready' });
+    await flushAsync();
+
+    expect(mockSchedule).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('gentle re-entry fires for a task that was MISSED yesterday only via a snoozed-in (visitor) occurrence — bare date-keyed resolution would miss this (review pass 1, blocking item 3)', async () => {
+    const yesterday = addDays(today(), -1);
+    const dayBeforeYesterday = addDays(yesterday, -1);
+    mockTasksList.mockResolvedValue([
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'weekly', days: [] }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+    ]);
+    // t1 is NOT naturally due yesterday (weekly, no days) — but its own row at
+    // `dayBeforeYesterday` was snoozed forward INTO yesterday (`movedToDate === yesterday`),
+    // making it a visitor occurrence there. No chip was ever set on the visitor row -> missed.
+    logsByDate.set(dayBeforeYesterday, [
+      { taskId: 't1', date: dayBeforeYesterday, chipState: null, isManualOverride: false, completedStepIds: [], dosesCompleted: 0, movedToDate: yesterday, createdAt: '', updatedAt: '' },
+    ]);
+    const { notifications } = require('./index') as typeof import('./index');
+    await notifications.reschedule();
+    const reentryCall = mockSchedule.mock.calls.find((c) => c[0].content.data?.kind === 'gentle-reentry');
+    expect(reentryCall).toBeTruthy();
+    expect(reentryCall[0].content.data.taskId).toBe('t1');
+  });
+
+  it('no routine-due reminder fires on a date the user snoozed AWAY, even though cadence still says it is due (review pass 1, blocking item 3)', async () => {
+    const vacatedDate = today();
+    mockTasksList.mockResolvedValue([
+      { id: 't1', type: 'routine', name: 'Evening walk', isAsNeeded: false, cadence: { kind: 'daily' }, timeOfDay: null, endDate: null, deletedAt: null, idealSteps: [], fallbackSteps: [], dosesPerDay: 1 },
+    ]);
+    // t1's own row at today is vacated (moved forward) — cadence still says today is due, but
+    // the occurrence itself was relocated, so no "routine due" reminder should fire for today.
+    logsByDate.set(vacatedDate, [
+      { taskId: 't1', date: vacatedDate, chipState: null, isManualOverride: false, completedStepIds: [], dosesCompleted: 0, movedToDate: addDays(vacatedDate, 1), createdAt: '', updatedAt: '' },
+    ]);
+    const { notifications } = require('./index') as typeof import('./index');
+    await notifications.reschedule();
+    const todayReminder = mockSchedule.mock.calls.find(
+      (c) => c[0].content.data?.kind === 'routine-due' && c[0].identifier === `fallback-reminder:routine-due:t1:${vacatedDate}`,
+    );
+    expect(todayReminder).toBeUndefined();
   });
 });

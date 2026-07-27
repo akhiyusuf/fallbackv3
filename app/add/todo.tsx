@@ -13,6 +13,7 @@ import { Button, Card, IconButton, Input, Radio, Textarea } from '@/ui';
 import { ROUTES, useOriginAwareBack } from '@/navigation';
 import { validateTaskDraft } from '@/domain';
 import { useCreateTask } from '@/queries';
+import { useToastStore } from '@/app-shell/stores/toast';
 import type { Importance, Necessity, TaskDraft } from '@/types';
 
 const IMPORTANCE_OPTIONS = [
@@ -31,6 +32,7 @@ export default function S19CreateToDoNote() {
   const router = useRouter();
   const goBack = useOriginAwareBack(ROUTES.addPickType);
   const createTask = useCreateTask();
+  const showToast = useToastStore((s) => s.show);
 
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
@@ -48,7 +50,11 @@ export default function S19CreateToDoNote() {
     setNameError(draft.name.trim().length === 0 ? 'Give this a name to save it.' : undefined);
     if (!validated.ok) return;
     const result = await createTask.mutateAsync(draft);
-    if (result.ok) router.replace(ROUTES.today);
+    if (result.ok) {
+      router.replace(ROUTES.today);
+    } else {
+      showToast("Couldn't save that — try again.", 'warning');
+    }
   }
 
   return (

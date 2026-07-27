@@ -35,10 +35,12 @@ export default function S40ByoAiKeySetup() {
       setStatus('invalid');
       return;
     }
-    await setByoConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), supportsTranscription: probe.transcription });
+    await setByoConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), supportsTranscription: probe.transcription, model: probe.model });
     setStatus(probe.transcription ? 'success-full' : 'success-degraded');
-    const delay = probe.transcription ? 600 : 0;
-    setTimeout(() => router.replace('/assistant/chat' as Href), delay);
+    // B12 — BOTH banners carry information the user must actually read; the degraded one
+    // ("this endpoint doesn't support voice") is the more important of the two to not skip
+    // past. Neither may navigate before it has had time to render.
+    setTimeout(() => router.replace('/assistant/chat' as Href), 600);
   }
 
   const isValidating = status === 'validating';

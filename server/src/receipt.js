@@ -6,6 +6,26 @@
  *
  * `verifyReceipt` takes its HTTP client as a parameter so it is unit-testable without a
  * network call (see `receipt.test.js`).
+ *
+ * ⚠️ NOT PRODUCTION-READY — DELIBERATELY FAILS CLOSED, not a placeholder pretending otherwise.
+ * Real Apple/Google verification needs deploy-provisioned credentials this codebase does not
+ * have: Apple's App Store Server API requires a JWT bearer token signed with the deploy's own
+ * private key (ES256, `kid`/`iss`/`bid` claims); Google's Play Developer API requires an
+ * OAuth2 access token from a service account plus the app's package name. Neither can be
+ * fabricated here, and this file does not pretend to have them — a PREVIOUS version of this
+ * comment incorrectly claimed injecting `fetchImpl` alone was sufficient to wire real
+ * verification; that was false (`fetchImpl` swaps the network client, not the URL, method,
+ * or missing Authorization header).
+ *
+ * What IS real below: the request shape matches each platform's actual verification endpoint
+ * (Apple: GET `/inApps/v1/transactions/{id}`; Google: GET
+ * `.../applications/{package}/purchases/subscriptions/{sku}/tokens/{token}`), and an
+ * `Authorization` header is attached when a deploy supplies `APPLE_AUTH_TOKEN` /
+ * `GOOGLE_ACCESS_TOKEN` via env. Absent those env vars (the default, including in this
+ * codebase's own tests), requests still go out with no credentials and simply fail per the
+ * platform's own 401 — this function's CONTRACT (never persist, return one of the two
+ * documented codes, verify per request, fail closed on any error) is what's tested and
+ * load-bearing; wiring real deploy credentials is an infra task, not a logic change here.
  */
 
 /**
@@ -31,22 +51,35 @@ export async function verifyReceipt({ platform, receipt, fetchImpl }) {
   }
 }
 
+const APPLE_VERIFY_BASE = process.env.APPLE_VERIFY_BASE_URL ?? 'https://api.storekit.itunes.apple.com';
+const GOOGLE_PACKAGE_NAME = process.env.GOOGLE_PACKAGE_NAME ?? 'app.fallback.android';
+// A receipt token alone doesn't say which SKU it's for; Google's endpoint needs the SKU in
+// the path, so a real deploy tries the app's known SKUs in turn.
+const GOOGLE_SUBSCRIPTION_SKUS = (process.env.GOOGLE_SUBSCRIPTION_SKUS ?? 'fallback.ai.monthly,fallback.ai.annual')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 async function verifyAppleReceipt(receipt, fetchImpl) {
-  const response = await fetchImpl('https://api.storekit.itunes.apple.com/inApps/v1/transactions/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ signedTransaction: receipt }),
+  const headers = { 'Content-Type': 'application/json' };
+  if (process.env.APPLE_AUTH_TOKEN) headers.Authorization = `Bearer ${process.env.APPLE_AUTH_TOKEN}`;
+  const response = await fetchImpl(`${APPLE_VERIFY_BASE}/inApps/v1/transactions/${encodeURIComponent(receipt)}`, {
+    method: 'GET',
+    headers,
   });
   if (!response.ok) return { ok: false, code: response.status === 410 ? 'entitlement_expired' : 'entitlement_invalid' };
   return { ok: true };
 }
 
 async function verifyGoogleReceipt(receipt, fetchImpl) {
-  const response = await fetchImpl('https://androidpublisher.googleapis.com/androidpublisher/v3/applications/purchases/subscriptions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ purchaseToken: receipt }),
-  });
-  if (!response.ok) return { ok: false, code: response.status === 410 ? 'entitlement_expired' : 'entitlement_invalid' };
-  return { ok: true };
+  const headers = { 'Content-Type': 'application/json' };
+  if (process.env.GOOGLE_ACCESS_TOKEN) headers.Authorization = `Bearer ${process.env.GOOGLE_ACCESS_TOKEN}`;
+  for (const sku of GOOGLE_SUBSCRIPTION_SKUS) {
+    const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(GOOGLE_PACKAGE_NAME)}/purchases/subscriptions/${encodeURIComponent(sku)}/tokens/${encodeURIComponent(receipt)}`;
+    // eslint-disable-next-line no-await-in-loop
+    const response = await fetchImpl(url, { method: 'GET', headers });
+    if (response.ok) return { ok: true };
+    if (response.status === 410) return { ok: false, code: 'entitlement_expired' };
+  }
+  return { ok: false, code: 'entitlement_invalid' };
 }

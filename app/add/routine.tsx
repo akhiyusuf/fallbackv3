@@ -15,6 +15,7 @@ import { emptyRunOccurrences, validateTaskDraft } from '@/domain';
 import { useCreateTask } from '@/queries';
 import type { Cadence, Importance, Necessity, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
+import { useToastStore } from '@/app-shell/stores/toast';
 import { ChevronLeft } from 'lucide-react-native';
 
 const IMPORTANCE_OPTIONS = [
@@ -49,6 +50,7 @@ export default function S16CreateRoutine() {
   const router = useRouter();
   const goBack = useOriginAwareBack(ROUTES.addPickType);
   const createTask = useCreateTask();
+  const showToast = useToastStore((s) => s.show);
 
   const [name, setName] = useState('');
   const [isAsNeeded, setIsAsNeeded] = useState(false);
@@ -116,7 +118,13 @@ export default function S16CreateRoutine() {
     if (!validated.ok) return;
 
     const result = await createTask.mutateAsync(draft);
-    if (result.ok) router.replace(ROUTES.today);
+    if (result.ok) {
+      router.replace(ROUTES.today);
+    } else {
+      // Item 7 fix: a failed save must never be silent — form data is untouched (no state
+      // reset below), so the user can retry with the same input.
+      showToast("Couldn't save that — try again.", 'warning');
+    }
   }
 
   return (

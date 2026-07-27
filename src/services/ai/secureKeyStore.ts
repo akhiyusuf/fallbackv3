@@ -24,21 +24,26 @@ import * as SecureStore from 'expo-secure-store';
 const BASE_URL_KEY = 'byo.baseUrl';
 const API_KEY_KEY = 'byo.apiKey';
 const SUPPORTS_TRANSCRIPTION_KEY = 'byo.supportsTranscription';
+const MODEL_KEY = 'byo.model';
 
 export interface ByoConfig {
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly supportsTranscription: boolean;
+  /** B7 — the chat-completion model id discovered at save time (S40's probe). `undefined`
+   *  for configs saved before this field existed; callers fall back to a last-resort default. */
+  readonly model?: string;
 }
 
 export async function getByoConfig(): Promise<ByoConfig | null> {
-  const [baseUrl, apiKey, supportsTranscription] = await Promise.all([
+  const [baseUrl, apiKey, supportsTranscription, model] = await Promise.all([
     SecureStore.getItemAsync(BASE_URL_KEY),
     SecureStore.getItemAsync(API_KEY_KEY),
     SecureStore.getItemAsync(SUPPORTS_TRANSCRIPTION_KEY),
+    SecureStore.getItemAsync(MODEL_KEY),
   ]);
   if (!baseUrl || !apiKey) return null;
-  return { baseUrl, apiKey, supportsTranscription: supportsTranscription === '1' };
+  return { baseUrl, apiKey, supportsTranscription: supportsTranscription === '1', model: model ?? undefined };
 }
 
 export async function setByoConfig(config: ByoConfig): Promise<void> {
@@ -46,6 +51,7 @@ export async function setByoConfig(config: ByoConfig): Promise<void> {
     SecureStore.setItemAsync(BASE_URL_KEY, config.baseUrl),
     SecureStore.setItemAsync(API_KEY_KEY, config.apiKey),
     SecureStore.setItemAsync(SUPPORTS_TRANSCRIPTION_KEY, config.supportsTranscription ? '1' : '0'),
+    config.model ? SecureStore.setItemAsync(MODEL_KEY, config.model) : SecureStore.deleteItemAsync(MODEL_KEY),
   ]);
 }
 
@@ -54,6 +60,7 @@ export async function clearByoConfig(): Promise<void> {
     SecureStore.deleteItemAsync(BASE_URL_KEY),
     SecureStore.deleteItemAsync(API_KEY_KEY),
     SecureStore.deleteItemAsync(SUPPORTS_TRANSCRIPTION_KEY),
+    SecureStore.deleteItemAsync(MODEL_KEY),
   ]);
 }
 
