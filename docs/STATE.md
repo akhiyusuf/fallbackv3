@@ -5,8 +5,9 @@ _Updated after landing the human-supplied `docs/` bundle._
 ## Current position
 
 **Phase 3 (BUILD) — WAVE 1 COMPLETE. M0, M1, M2 all PASSED and frozen. F7
-rescope IN PROGRESS — spec-writer amending PRD.md now. Do not brief wave 2
-until this cascade (PRD → SCHEMA/ARCHITECTURE → M2 simplification) lands.**
+rescope: PRD amendment DONE (PASS, pass 4 + 1 advisor escalation). NEXT:
+architect rewrites SCHEMA §4.2. Do not brief wave 2 until this cascade
+(PRD → SCHEMA/ARCHITECTURE → M2 simplification) lands.**
 
 ### M2 Supplement B — implementation complete, pending review
 
@@ -69,23 +70,45 @@ day" entirely. No design regeneration needed — this is removing one of two
 already-distinct buttons from an approved screen, not redesigning anything.
 `design-input/**` is not being touched.
 
-**Cascade now running:**
-1. **spec-writer** amending `docs/PRD.md` §3.7 (F7) — IN PROGRESS. Scoped to
-   the three decisions above; explicitly told not to expand scope, not to touch
-   other features, not to touch `design-input/**`. `STATUS: APPROVED` line is
-   NOT being reset — this is a scoped amendment within Gate 1, not a reopening.
-2. Next: artifact-reviewer on the amended PRD (against REQUIREMENTS.md, same as
-   the original Gate-1 review pattern).
-3. Then: architect rewrites SCHEMA §4.2 — this should be a **large deletion**:
-   most of C1–C11, the P1–P8 harness, and the 16,275/3,250-sequence enumerations
-   go away, replaced by something much smaller for the one-hop rule. **Do not
-   discard `designateCarrier` or the single-answerer discipline** — the pass-5
-   reviewer explicitly flagged this as the one thing that must survive the
-   rescope, since it's what closed the F1 defect class structurally.
-4. Then: M2 (or a fresh instance with full context) implements the simplified
+**Cascade status:**
+1. **PRD amendment — DONE.** `docs/PRD.md` §3.7 (F7), §4, §6, §7, Decisions
+   item 21, plus one cross-reference fix in §3B/F26 and one in F27. Four review
+   passes (4 → 2 → 1 → 0 blocking findings) plus **one advisor escalation**
+   (`review/ADVICE-PRD-F7.md`) on pass 3, which found the true defect vector —
+   the "one live outcome" rule's own shorthand name dropped its per-task scope,
+   so every restatement inherited the omission — and prescribed a structural
+   rename rather than three local patches. **PASS at pass 4**
+   (`review/REVIEW-PRD-F7-amendment.md`). `STATUS: APPROVED` was never reset —
+   this was a scoped amendment within Gate 1, not a reopening.
+
+   Two genuine open product gaps surfaced during this and deliberately left
+   unresolved rather than invented: (a) `docs/PRD.md` §7 — no design surface
+   currently lets a user reach "Undo snooze" for an occurrence that's become
+   dormant because its target date resolved its own state (the common case for
+   any daily-cadence task); checked against all five browse tabs (S10–S14),
+   none exist. Needs a designer/human decision before qa-tester can write the
+   reachability assertion — does **not** block the F7 build itself. (b) the
+   undo-survives-the-rescope call remains a spec-writer delegated inference,
+   not literal human instruction, with an explicit reversal handle if the human
+   disagrees (undo works, but a used-once snooze could instead stay spent).
+
+   Handoff note the amendment itself now carries for the architect: adopt the
+   "one live outcome per task per date" name in SCHEMA §4.2 too, so the two
+   documents stay aligned.
+
+2. **NEXT — architect rewrites `docs/SCHEMA.md` §4.2.** Should be a **large
+   deletion**: most of C1–C11, the P1–P8 invariant pack, and the
+   16,275/3,250-sequence enumerations go away, replaced by something much
+   smaller for the one-hop rule. **Do not discard `designateCarrier` or the
+   single-answerer discipline** — the pass-5 code reviewer explicitly flagged
+   this as the one thing that must survive the rescope, since it's what closed
+   the F1 defect class structurally. PRD item 21's closing clause now says the
+   same thing explicitly, not implicitly.
+3. Then: M2 (or a fresh instance with full context) implements the simplified
    version, code-reviewed same as any other pass.
-5. `docs/MODULES.md`'s **M4** brief (task authoring, S15–S24, not yet started)
-   gets the snoozable toggle and the one-hop snooze UI from the start.
+4. `docs/MODULES.md`'s **M4** brief (task authoring, S15–S24, not yet started)
+   gets the snoozable toggle and the one-hop snooze UI from the start, plus the
+   §7(a) open item above so it's not silently invented mid-build.
 
 **Note for whoever picks this up next:** merges are NOT eliminated by this
 rescope — two different tasks can still independently snooze onto the same
