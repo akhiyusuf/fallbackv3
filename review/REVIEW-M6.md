@@ -332,3 +332,71 @@ anywhere but your provider."), offline copy, refusal-adjacent copy all verbatim.
 all imports (`expo-audio`, `expo-iap`, `expo-local-authentication`,
 `expo-secure-store`, `date-fns`) are pre-declared in the frozen `package.json` — no
 dependency added. The word "streak" appears nowhere in the module (grepped).
+
+---
+
+## Response (rework pass)
+
+All 13 blocking items fixed. Summary below; see individual file headers/comments for the
+full rationale on each (marked `B1`–`B13` inline).
+
+- **B1** — fixed. `refreshEntitlement()` now stamps `latestReceipt` from the active
+  purchase; `renewsOn` populated too (best-effort, from `expirationDateIOS`). Test:
+  `billing.test.ts` "refreshEntitlement() alone repopulates currentReceipt()".
+- **B2** — fixed. `trialLine`/`renewLine` in `subscription.tsx` derive from real
+  `entitlement.trialEndsOn`/`renewsOn`, never a hardcoded "3"; unknown renders an honest
+  "unknown" framing, never a fabricated number. S36's subtitle in `chat.tsx` is now fetched
+  async via `billing.refreshEntitlement()` + the entitlement store, rendering `null` (→
+  Skeleton) until loaded. Voice/language now call `onSaveVoiceLanguage`, persisted via a new
+  `voiceLanguagePrefs.ts` (in-process; see that file's header for why not durable — SCHEMA.md
+  has no column and `@/queries` is frozen without one, the same class of gap
+  `conversationStore.ts` already documents) with a "Saved" toast.
+- **B3** — fixed. `handleManageInStore` now calls `deepLinkToSubscriptions()`.
+- **B4** — fixed. `useAssistantChat` routes `ENTITLEMENT_REQUIRED`/`ENTITLEMENT_EXPIRED` to
+  `onEntitlementError`, wired in `chat.tsx` to `router.push('/assistant/paywall')`.
+- **B5** — fixed. `byoProvider.ts` now accumulates `tool_calls` deltas by `index` across the
+  whole stream and flushes complete calls. Test: `byoProvider.test.ts`, 3-chunk fixture.
+- **B6** — fixed. Server accumulates by index in `writeSseFromGroqStream`; both client
+  (`src/services/ai/toolSchemas.ts`) and server (`server/src/toolSchemas.js`) now send real
+  JSON schemas per tool. Test: `server/src/index.test.js`.
+- **B7** — fixed. `byoProbe.ts` discovers a model via `GET {base}/models` at save time,
+  falling back to `gpt-4o-mini` only as a last resort; persisted in `secureKeyStore`'s new
+  `model` field and used by `byoProvider.ts`.
+- **B8** — fixed. `resolveClarification` re-sends the resolution to the model (same running
+  history) and lets it re-propose the real tool call, applied through the same
+  `handleToolCall` path as any other turn. Also fixed: `log_state`/`delete_task` now surface
+  their REAL `result.summary` in the transcript (previously only create/update did).
+- **B9** — fixed. `chat.tsx` forwards `continueId` as `conversationId`; `useAssistantChat`
+  seeds from `listMessages` and sends the full running history (not `[latest]`) every turn.
+- **B10** — fixed. `update_task` undo now restores every `Partial<TaskDraft>` field from
+  `previousDraft`, not a subset.
+- **B11** — fixed. `chat.tsx`'s mic toggle rechecks permission via
+  `getRecordingPermissionsAsync` and routes to `/assistant/mic-primer?context=recovery` on
+  denial (comment corrected to be honest — only the native record loop itself remains
+  stubbed, clearly marked). `mic-primer.tsx`'s recovery path now rechecks on
+  `AppState` → `'active'` instead of immediately after `openSettings()`. The backend's
+  `/v1/transcribe` is wired with a minimal zero-dependency multipart/raw-body reader instead
+  of a hardcoded 501.
+- **B12** — fixed. `byo.tsx` now waits ≥600ms before navigating for BOTH the full-success and
+  degraded-success banners.
+- **B13** — resolved via the review's documented fallback option: the Apple/Google URLs now
+  match the real verification endpoints' shape (methods, paths, optional env-provided
+  Authorization), and the header now reads "NOT PRODUCTION-READY — DELIBERATELY FAILS CLOSED"
+  with an honest explanation of what a real deploy still needs to provide (signed JWT / OAuth
+  credentials), replacing the previous false claim that `fetchImpl` injection alone fixed
+  wrong URLs. Full production-grade Apple JWT signing / Google OAuth flow remains out of
+  scope for this pass (no crypto/JWT dependency is declared in ARCHITECTURE.md) — flagged as
+  a genuine follow-up for an architect-approved dependency addition if real verification is
+  needed before ship.
+
+**Ambiguity resolved**: B2's "voice/language persist immediately" has no SCHEMA.md column and
+no `@/queries` mutation (frozen without one) — resolution taken: in-process persistence via a
+new M6-owned module (`voiceLanguagePrefs.ts`), with the gap flagged in that file's header for
+the architect, mirroring the sanctioned `conversationStore.ts` pattern already accepted in
+this same review.
+
+**Verification**: `npx jest` (full suite) → 99 suites / 692 tests pass. `cd server && npm
+test` → 23/23 pass. `npx tsc --noEmit` → clean. `git diff --stat` against this review's base
+commit, scoped to M6's owned paths, shows changes only in `src/features/assistant/**`,
+`src/services/ai/**`, `src/services/billing/**`, `server/**`, `app/assistant/**`,
+`app/settings/subscription.tsx`(+test) — no other module's paths touched.
