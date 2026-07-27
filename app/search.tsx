@@ -3,16 +3,8 @@
  * Owner: M3. Features: F15.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S14)
  */
-import { ScreenStub } from '@/ui/ScreenStub';
+import SearchScreen from '@/features/search/SearchScreen';
 
 export default function S14FilterAndSearch() {
-  return (
-    <ScreenStub
-      screen="S14"
-      title="Filter & Search"
-      route="/search"
-      module="M3"
-      features="F15"
-    />
-  );
+  return <SearchScreen />;
 }

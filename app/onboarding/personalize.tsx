@@ -3,16 +3,8 @@
  * Owner: M7. Features: F9, F8.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S06)
  */
-import { ScreenStub } from '@/ui/ScreenStub';
+import { PersonalizeScreen } from '@/features/onboarding';
 
 export default function S06OnboardingMakeItYours() {
-  return (
-    <ScreenStub
-      screen="S06"
-      title="Onboarding: Make it yours"
-      route="/onboarding/personalize"
-      module="M7"
-      features="F9, F8"
-    />
-  );
+  return <PersonalizeScreen />;
 }

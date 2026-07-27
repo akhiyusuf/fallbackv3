@@ -1,0 +1,14 @@
+{
+  "name": "fallback-assistant-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "M6-owned thin managed-assistant backend (F16/F17). Holds no accounts, stores no user data. Contract: docs/API.md §4. Zero npm dependencies — Node's built-in http/fetch/test runner only, so it adds nothing to docs/ARCHITECTURE.md's dependency list.",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test src/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
