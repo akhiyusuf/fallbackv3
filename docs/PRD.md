@@ -22,6 +22,14 @@ STATUS: APPROVED
 > authoritative, **not** spec-writer interpretations awaiting veto. **No item in §7
 > is OWNER: human.** See §3.5 and Decisions appendix items 6, 13 & 18.
 
+> **Post-approval amendment (2026-07-27) — F7 §3.7 only.** A human-directed
+> **narrowing** of F7's occurrence management: snooze is now **exactly one day
+> forward, once** (undoable), the arbitrary-date **"Move to another day" action is
+> removed**, and **`snoozable` becomes a per-task setting editable after creation**.
+> This is a scoped change **inside** the approved Gate 1 — `STATUS: APPROVED` is
+> unchanged and Gate 1 is not reopened. No other feature section is affected. See
+> §3.7 and **Decisions appendix item 21**.
+
 ---
 
 ## 1. Summary
@@ -376,27 +384,76 @@ state (no new writes).
 **Story.** As Maya, I want one sheet to manage a task, so I can edit, tidy, and remove
 habits without hunting through screens.
 
+> **Scope narrowed 2026-07-27 (human-directed, inside the approved Gate 1).** F7's
+> occurrence management is now **one-hop snooze only**. The arbitrary-target-date
+> **"Move to another day" action is removed**, and a new per-task **`snoozable`**
+> setting gates whether Snooze is offered at all. See **Decisions appendix item 21**
+> for the change, its motivation, and the one flagged delegated call (undo).
+
 **Acceptance.**
-- One sheet offers **edit, duplicate, pick icon/color, snooze, move to another day,
-  delete**.
+- One sheet offers **edit, duplicate, pick icon/color, snooze, delete**.
+- **No arbitrary-date "move" action exists anywhere in the app.** The "Move to another
+  day" control is **removed** — verifiable by copy inspection (the manage-sheet action
+  row is **"Duplicate" + "Snooze"** only) and by the absence of any date picker,
+  calendar target-picker, or free target-date input in any occurrence-management flow.
+- **Snooze is exactly one hop forward, and only once.** Tapping **Snooze** on an
+  occurrence dated D relocates that occurrence to **D + 1 calendar day**. The target is
+  **computed, never chosen** — the user is offered no date to pick.
+- **An already-snoozed occurrence cannot be snoozed again.** Its Snooze action is
+  **disabled**; only **Undo snooze** is offered. Consequently **no occurrence is ever
+  more than one day from its own date, and chains (A→B→C) are unreachable by
+  construction** — qa-tester must assert that a second snooze on the same occurrence is
+  impossible through the UI and writes nothing.
+- **Undo is always available on a snoozed occurrence.** "Undo snooze" returns the
+  occurrence to its original day and restores its pre-snooze state **exactly** — chip
+  state, step detail, and any previously-earned XP award re-affirmed. After undo the
+  occurrence is in the **never-snoozed** state and may be snoozed again — still only
+  ever one day forward.
+- **`snoozable` is a per-task boolean.** The task creator sets it at create time
+  (**default: on**), and it is **editable after creation** from this sheet using the
+  same inline-edit pattern already used for the task name and the Importance /
+  Necessity pickers. The change persists (F1) and takes effect immediately.
+- **When a task is not snoozable, its Snooze action renders disabled — not hidden.**
+  The disabled state is exposed to the screen reader with its reason; activating it
+  does nothing and writes nothing.
+- **Snooze and undo affect the occurrence, not the cadence.** The task's occurrence set
+  for every other date is unchanged, and no cadence, recurrence, or sub-step schedule
+  is edited by either action.
 - **Delete** requires explicit confirmation.
 - The sheet shows a **per-day calendar heatmap** colored by the fixed signals (ideal /
   fallback / off / missed — per the §3 "missed" definition).
-- Edit, duplicate, move persist (F1) and reflect immediately on Today and F5.
-- All controls screen-reader-labeled and contrast-compliant in both themes.
+- Edit, duplicate, icon/color, snooze, undo-snooze, and the `snoozable` toggle all
+  persist (F1) and reflect immediately on Today and F5.
+- All controls screen-reader-labeled and contrast-compliant in both themes, including
+  the disabled Snooze action.
 
 **Edge/error/empty.** Duplicate copies definitions, metadata, and toggle state (F23)
-but starts with **empty history**. Move/snooze affects the occurrence, not the cadence.
-Delete of a task with history removes its records from F5 recompute. **As-needed
-routine (F27) history:** with no due days, it shows **only the dates it was manually
-logged as used/triggered** (ideal/fallback marker if defined) — no off/missed/
-ideal-by-due-day cells; unused dates blank, never "missed". Treatment (used-dates list
-vs. sparse marker calendar) is a design surface (§7). Persist failure → action reverts
-with calm retry; no partial writes. Cancel-delete → no change. Empty history → neutral
-grid (no missed cells).
+but starts with **empty history**; the duplicate inherits the source task's
+`snoozable` value. **Snooze on a non-snoozable task:** action disabled, zero writes,
+zero state change. **Snooze on an already-snoozed occurrence:** action disabled, only
+Undo offered. **Turning `snoozable` off while one of that task's occurrences is
+currently snoozed** does **not** retract the existing snooze — **Undo stays available**
+for that occurrence, and no new snooze can be started. **Two different tasks may each
+snooze one day forward onto the same date:** this is **legal and expected**, not an
+error — each occurrence remains its own task's occurrence, is logged independently, and
+counts independently in F5. **Snooze target is a day the same task is already naturally
+due:** the snoozed occurrence leaves its original day (which leaves the F5 denominator)
+and the target day's own occurrence is unchanged; undo restores the original day
+exactly. **Snooze target is an off-marked day:** the occurrence resolves **off** there
+per F4 — no miss, no penalty, no XP retraction — and undo restores it. Delete of a task
+with history removes its records from F5 recompute. **As-needed routine (F27) history:**
+with no due days, it shows **only the dates it was manually logged as used/triggered**
+(ideal/fallback marker if defined) — no off/missed/ideal-by-due-day cells; unused dates
+blank, never "missed". Treatment (used-dates list vs. sparse marker calendar) is a
+design surface (§7). As-needed routines have no occurrences, so **snooze does not apply
+to them at all**. Persist failure on any action — snooze, undo, the `snoozable` toggle,
+edit, duplicate, delete — reverts the control with calm retry; no partial writes, never
+a false "saved". Cancel-delete → no change. Empty history → neutral grid (no missed
+cells).
 
-**Data touched.** Task record (edit/duplicate/icon/color), occurrence records
-(snooze/move), deletion cascade across log + off-day records for that task.
+**Data touched.** Task record (edit / duplicate / icon / color / **`snoozable`
+boolean**), the snoozed occurrence's own record (its **one-day-forward relocation**,
+cleared on undo), deletion cascade across log + off-day records for that task.
 
 ### 3.8 F8 — Theme, accent & fixed signal colors  (covers R12)
 
@@ -660,8 +717,9 @@ daily/specific-weekday base.
   no occurrence set; F26 does not touch it.
 Depends on F11. **Cost surface (§5):** a recurrence engine generating sparse, unbounded
 occurrence streams with period anchoring, month-end/leap-day edge cases, and correct
-interaction with off-days (F4), consistency (F5), subsetting (F23/F24), snooze/move (F7),
-notifications (F14). Changes only occurrence-set generation, not the core mechanic.
+interaction with off-days (F4), consistency (F5), subsetting (F23/F24), the one-hop
+snooze (F7), notifications (F14). Changes only occurrence-set generation, not the core
+mechanic.
 
 ### F13 — Achievements: Level / XP system (lifetime, monotonic)  (R7)
 XP/Level with **Showing up / Fallback wins / Milestones** categories and **All / Earned /
@@ -1029,6 +1087,12 @@ v1.
 - **Renaming or re-branding the app away from "Fallback."** Streakforge is a design system.
 - **Custom/arbitrary recurrence rules beyond the R23 cadence set** — no "every 3rd Tuesday," no
   "2nd and 4th weekends," no cron-style rules. The F26 cadence picker is a **closed set**.
+- **Arbitrary-target-date occurrence moves, and any multi-day or chained snooze (F7,
+  human-directed 2026-07-27).** Snooze is **exactly one day forward, once**, with undo. Do not
+  build, stub toward, or leave hooks for: a "move to another day" action, a target-date picker,
+  a snooze of more than one day, re-snoozing an already-snoozed occurrence, or any chain of
+  moves. (Two *different* tasks each snoozing onto the same date is still legal — that is not
+  what this non-goal removes. See §3.7 and Decisions item 21.)
 - **Consistency tracking / a %-shown-up figure for as-needed routines (R24 / F27).** The
   as-needed variant is **deliberately untracked**; computing, showing, or "gamifying" a
   consistency % for it is a non-goal. Its manual logging is **reference-only** history with
@@ -1110,6 +1174,12 @@ Groq via the thin backend — disclosed to the user (F9/paywall copy).
   (F2/F23); coarser cadences and repeating Events are F26 (P1). No custom/cron cadence (§4). Each
   cadence yields the task's **occurrence set** (F5 and F23/F24 compute over it). **The as-needed
   variant (F27) has NO cadence and NO occurrence set.**
+- **Per-task `snoozable` flag (F7):** a persisted boolean on the task record, **default on**,
+  editable after creation. Ship the demo fixture with **at least one non-snoozable task** (e.g. a
+  fixed-time "School run" routine) alongside snoozable ones, so qa-tester can assert the Snooze
+  action renders **disabled** on the former and enabled on the latter, and that toggling the
+  setting flips that state immediately. Also ship **one already-snoozed occurrence** so the
+  disabled-second-snooze and the undo-restores-original-day cases are reproducible on-screen.
 - **Per-sub-step, per-parent-occurrence toggle state (R22 / F23 / F24):** a **persisted** on/off
   toggle per sub-step, a **subset of the parent's own occurrence set** (for the P0 daily/weekday
   cadence this is its selected weekdays). Stored on the task's ideal/fallback step records; the
@@ -1205,6 +1275,12 @@ Decisions item 18).
   it" control lives, the exact history treatment (used-dates list vs. sparse marker calendar), and
   how the create flow lets a user pick the as-needed variant. The functional rules are **fixed**.
   **OWNER: designer / screen-designer.**
+- **Where the per-task `snoozable` toggle is surfaced in the create flows (F7 × F2/F11).** §3.7
+  pins the **functional** rules — the flag exists, defaults **on**, is **editable after creation**
+  from the manage sheet via the existing inline-edit pattern, and renders Snooze **disabled (not
+  hidden)** when off. Open (design only): whether the create screens expose the toggle up front or
+  leave it to the manage sheet, and its exact placement/copy there. **The functional rules are
+  fixed and must not be re-opened. OWNER: designer / screen-designer.**
 - **Cloud sync mechanism & depth (both platforms).** What provides sync on **Android** (iCloud has
   no Android equivalent): a platform cloud-drive, a cross-platform sync layer, or none — and is
   real multi-device conflict resolution required in v1, or is best-effort/local-authoritative the
@@ -1423,3 +1499,53 @@ Decisions item 18).
     remains the primary at-a-glance number); F28 is a new, separate, secondary surface beneath it
     (placement a screen-designer call, §7), never on Today. Ship-blocking accessibility rider: a
     non-color-only, screen-reader-readable representation (§5).
+
+21. **(2026-07-27) F7 occurrence management NARROWED to a one-hop, per-task-gated snooze —
+    human-directed amendment inside the approved Gate 1.** Recorded here rather than by re-running
+    the planning pipeline; `STATUS: APPROVED` is unchanged and Gate 1 is **not** reopened.
+    **What changed (authoritative in §3.7; §4 carries the matching non-goal; REQUIREMENTS R9 carries
+    a matching CHANGE NOTE):**
+    - **(a) Snooze is exactly one hop, once.** An occurrence dated D moves to **D + 1** and no
+      further. There is **no target-date input** anywhere, and an **already-snoozed occurrence
+      cannot be snoozed again** — so **chains are unreachable by construction**, not merely
+      discouraged.
+    - **(b) The arbitrary-date "Move to another day" action is removed** from the product. The
+      approved design already carried **"Snooze" and "Move to another day" as two distinct buttons**
+      in S20's action row (`design-input/fallback-handoff/uploads/ALLSCREENS_1.md`, S20 — "Actions.
+      IconButton + label, three: 'Duplicate', 'Snooze', 'Move to another day'"), so this **drops one
+      of two already-separate buttons**. **No design change is requested or implied** —
+      `design-input/**` remains Gate-2-approved and controlling, and is not to be regenerated.
+    - **(c) `snoozable` becomes a per-task boolean**, chosen by the task creator (a school run
+      shouldn't be snoozable; a homework assignment might be), **default on**, and **editable after
+      creation** from the manage sheet via S20's **existing** inline-edit pattern (inline-editable
+      name, tag pickers) — an extension of an editability pattern that already exists, not a new one.
+      When off, Snooze renders **disabled, not hidden**.
+    **Why (the motivation, recorded so it is not re-expanded later).** The general form — any
+    occurrence to any future date, chained moves, cross-task merges — took **four engineering review
+    passes and two senior-advisor escalations**, and produced roughly **300 automated tests** just to
+    cover chains, merges, and one subtle data-corruption defect. The human watched that cost and
+    elected to **narrow the feature rather than keep hardening it**. This is **settled human product
+    direction**, not a reviewer's or spec-writer's inference, and is not to be second-guessed or
+    re-broadened.
+    **Deliberately still true — merges are NOT eliminated.** Two *different* tasks may each snooze
+    one day forward onto the same date, so **two occurrences can still share a date**. That is fine
+    and expected. What was eliminated is **arbitrary-distance targets and chains**, not the mere
+    possibility of two tasks meeting on one day. Do not re-litigate merges.
+    **DELEGATED CALL — flagged as spec-writer inference, NOT a literal human instruction.** The human
+    specified one-hop and per-task gating but did **not** separately rule on undo. Under delegation I
+    have pinned: **undo survives the rescope** — a snoozed occurrence can always be returned to its
+    original day, restoring its prior state exactly, and **after undo it is in the never-snoozed
+    state and may be snoozed again (still only ever one day forward).** *Reasoning:* the product's
+    whole posture is forgiveness and reversibility (no streaks, off days neutral, calm retry on every
+    failure, an explicit erase/recovery surface), a one-way push-forward would be the app's only
+    irreversible occurrence action, and "one hop with no undo" would let a single mis-tap permanently
+    relocate an occurrence. Re-snoozing after undo is not a chain: the occurrence is back at its own
+    date and can still only ever reach D + 1. **Visible to the human: if snooze should be one-way, or
+    if a used-once snooze should stay spent through an undo, that is theirs to reverse.**
+    **Downstream consequence (NOT fixed by this amendment).** `docs/SCHEMA.md` §4.2's move contract —
+    the R-/W-/T-rules and case table C1–C11 — is now **broader than this PRD requires**: chain
+    collapse (C3, C5), the ±60-day distance guard (W-2), and every arbitrary-target branch describe
+    capability the PRD no longer asks for. **The architect owns reconciling SCHEMA / ARCHITECTURE /
+    MODULES to this narrower contract**; no schema, architecture or source file was edited here. The
+    **merge** cases (C4, C4b, C4r, C8) and the residue / write-carrier rules remain **load-bearing** —
+    two tasks can still meet on one date, so those must not be deleted along with the chain machinery.

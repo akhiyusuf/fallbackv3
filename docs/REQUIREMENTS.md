@@ -260,8 +260,16 @@ Core (free):
   (High/Med/Low) and Necessity (Must-do/Recommended/Optional) using these two
   fixed vocabularies (no free-form tags).
 - **R9** User can manage any task from one sheet: edit, duplicate, pick an
-  icon/color, view a per-day calendar heatmap, snooze, move to another day, and
-  delete (with confirmation).
+  icon/color, view a per-day calendar heatmap, snooze, and delete (with
+  confirmation). Snooze moves an occurrence **exactly one day forward, once**, and
+  is undoable; whether a task can be snoozed at all is a **per-task setting the
+  creator chooses and can still edit after creation.**
+  **CHANGE NOTE (human-directed, narrows the prior reading):** this requirement
+  previously read "snooze, move to another day," i.e. two actions — a snooze plus
+  an **arbitrary-target-date move**. The human has since **removed the
+  arbitrary-date move entirely** and **capped snooze at a single one-day hop**, and
+  added the per-task snoozable setting. The settled scope lives in **PRD §3.7** and
+  **PRD Decisions item 21**; nothing else in R9 changes.
 - **R10** User can receive gentle, invitational notifications: reminders (routine
   due, event starting, course dose, course ending) and encouragement (missed-day
   re-entry, milestone), all individually toggleable, plus a daily digest.
