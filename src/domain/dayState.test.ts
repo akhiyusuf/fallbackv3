@@ -162,10 +162,15 @@ describe('resolveOccurrence — F7 snooze/move (review pass 1, blocking item 6)'
     expect(tomorrow.outcome).toBe('pending');
   });
 
-  test('with NO real log on the target date, a moved-in occurrence carries its own chip/step data', () => {
+  test('with NO real log on the target date, a naturally-due-and-never-logged target keeps its OWN blank state (ADVICE-M2.md Supplement A, S1, clause (b)) — the visitor\'s chip/step data contributes nothing', () => {
     const moved = log({ date: d('2024-06-01'), movedToDate: d('2024-06-02'), chipState: 'done', isManualOverride: true });
+    // `task` (top of file) is `daily` cadence, so 2024-06-02 is naturally due on its own
+    // account — this is a MERGE onto a naturally-due, never-logged date, not a genuinely
+    // off-cadence target. Supplement A: a merge never manufactures an outcome (or XP) from
+    // imported visitor data on a date the user hasn't touched — the target's own blank state
+    // wins; the visitor's data stays dormant at its source.
     const target = resolveOccurrence({ task, date: d('2024-06-02'), today: d('2024-06-02'), log: null, offMarks: [], movedInLog: moved });
-    expect(target.outcome).toBe('ideal');
+    expect(target.outcome).toBe('pending'); // blank auto chip ('todo'), not the imported 'done'
   });
 
   test('N1 (review pass 2): a REAL log on the target date always wins over a moved-in record — the moved-then-completed flow', () => {
@@ -208,9 +213,13 @@ describe('resolveOccurrence — F7 snooze/move (review pass 1, blocking item 6)'
 });
 
 describe('resolveOccurrence — C6 (ADVICE-M2.md Ruling 1, R-1 before R-2 — overrides the pass-3 "chained move vacates B" test, which is INVERTED here per the advisor\'s explicit instruction, not reworded)', () => {
-  // Daily cadence: naturally due on every date, so BOTH A and B are natural occurrences of
-  // the SAME task — the exact "task due A and B" premise C6 requires.
-  const task = makeTask({ cadence: { kind: 'daily' } });
+  // A (2024-06-01, Sat) and B (2024-06-02, Sun) are BOTH natural occurrences of the SAME task
+  // — the exact "task due A and B" premise C6 requires. C (2024-06-03, Mon) is deliberately
+  // OFF-cadence: C6 is about a moved-in visitor landing on a date where the visitor is the
+  // ONLY occurrence present (clause (c)) — using `daily` here (so C is natural too) would
+  // instead exercise Supplement A's clause (b) merge-onto-naturally-due-unlogged-date rule at
+  // C, which is a different, already-covered case (see the C4b test below), not this one.
+  const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [6, 7] } }); // Sat, Sun only
 
   test('task due on both B and A; B->C then A->B: A resolves DUE at B via the moved-in record — B\'s own residue outbound pointer does not annihilate it', () => {
     // B's own row: B's occurrence itself already moved on to C (residue at B).

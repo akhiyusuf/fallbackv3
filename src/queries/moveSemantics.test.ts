@@ -302,6 +302,49 @@ describe('C4 / C4r — merge (A -> B where B is naturally due) and un-merge (B -
     expect(b?.outcome).toBe('fallback'); // still exactly B's own data, never touched by either move
     expect(fake.logsFor(task.id).find((r) => r.date === D1)?.movedToDate).toBeNull();
   });
+
+  test('C4b (ADVICE-M2.md Supplement A, S1): A -> B where B is naturally due and NEVER logged — B keeps its own BLANK state; a completed visitor mints NO XP award at B', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    // A is COMPLETED before the move — this is the exact shape Supplement A's rationale names:
+    // moving a completed occurrence onto an unlogged natural due date must never mint an
+    // outcome, and must never mint XP, off the imported chip.
+    const { result: logResult } = await rh(() => useLogState(), client);
+    await act(async () => {
+      await logResult.current.mutateAsync({ taskId: task.id, date: D1, chip: 'done' });
+    });
+    expect(fake.xpAwards()).toHaveLength(1);
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10);
+
+    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D1, toDate: D2 });
+    });
+
+    expect((await occOn(task.id, D1, client))?.outcome).toBe('not-due'); // A vacated
+
+    const b = await occOn(task.id, D2, client);
+    expect(b?.outcome).not.toBe('ideal'); // B never inherits the completed visitor's outcome
+    expect(b?.chipState).not.toBe('done'); // and never its chip either — B's OWN blank state, per clause (b)
+
+    // The explicit no-award assertion — this is the entire point of C4b, not decoration.
+    expect(fake.xpAwards()).toHaveLength(0); // A's award was retracted (CR-2, now-vacated source); NOTHING was minted at B
+    expect(await fake.repos.progress.lifetimeXp()).toBe(0);
+
+    // B -> A afterwards restores A with its prior data and re-affirms its award, per C1/C4r
+    // mechanics — the visitor's data was dormant at its source the whole time (D-rule), not
+    // lost.
+    await act(async () => {
+      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: D2, toDate: D1 });
+    });
+    const a = await occOn(task.id, D1, client);
+    expect(a?.outcome).toBe('ideal');
+    expect(a?.chipState).toBe('done');
+    expect(fake.xpAwards()).toHaveLength(1);
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10);
+  });
 });
 
 describe('C5 — merge then move the visitor away (B -> C): B keeps its own identity (LIFO)', () => {
@@ -389,7 +432,12 @@ describe('C7 — move, complete at the target, then undo: the completed data sta
 
 describe('C8 — double inbound merge: two sources land on the same target; the display tie-breaks to the LATER source date', () => {
   test('both A1 and A2 vacate; B shows A2\'s data (A2 > A1); a further move on B redirects BOTH inbound rows', async () => {
-    const task = makeTask({ cadence: { kind: 'daily' } });
+    // B (D4) is deliberately OFF-cadence here, so the visitor is the only occurrence present
+    // and the tie-break (Supplement A's reworded C8 data clause, third arm: "else
+    // latest-source moved-in") is actually what's under test — B being naturally due would
+    // instead exercise clause (b)'s merge-keeps-blank-state rule, which is a different case
+    // (see C4b).
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2] as Weekday[] } }); // D1, D2 only
     fake.seedTask(task);
     const client = freshClient();
     const A1 = D1;

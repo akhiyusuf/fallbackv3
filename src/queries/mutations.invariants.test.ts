@@ -225,6 +225,75 @@ describe('P1-P7 — section (a): exhaustive move-sequence enumeration (ADVICE-M2
   });
 });
 
+/**
+ * ADVICE-M2.md Supplement A, S4 (binding, tightens Ruling 2's P7 reversibility clause): two
+ * named cases (C1, C4r) are not sufficient — a reversal that restores due-ness while
+ * corrupting dormant residue would pass every liveness assertion above unless it happened to
+ * land in exactly one of those two shapes. Bound middle path: mechanical snapshot-reversal
+ * over every ACCEPTED sequence of length <= 2 (~650), comparing the full five-date RESOLUTION
+ * map (never raw rows) before the final move against after inverting it. Full length-3
+ * reversal is explicitly not required (2-3x runtime cost, not proportionate) — this section
+ * covers only the final move of each length-<=2 sequence, which is what full length-3
+ * reversal would layer on top of a base already covered by section (a)'s liveness pack.
+ */
+async function resolutionMap(task: TaskWithSteps): Promise<unknown[]> {
+  return Promise.all(DOMAIN.map((date) => resolveOneOccurrence(fake.repos, task, date, D6)));
+}
+
+describe('P1-P7 — section (a), S4: pair-space snapshot-reversal (ADVICE-M2.md Supplement A)', () => {
+  test('every accepted sequence of length <= 2: reversing the FINAL move restores the exact resolution map (single-visitor case), or at least P7 liveness (multi-visitor case)', async () => {
+    let sequenceCount = 0;
+    let reversalChecked = 0;
+    let livenessOnlyChecked = 0;
+
+    for (const seq of sequences(2)) {
+      sequenceCount += 1;
+      fake.reset();
+      const task = makeTask();
+      fake.seedTask(task);
+
+      // eslint-disable-next-line no-await-in-loop
+      for (const step of seq.slice(0, -1)) await moveOccurrence({ taskId: task.id, fromDate: step.from, toDate: step.to });
+
+      const finalStep = seq[seq.length - 1]!;
+      if (finalStep.from === finalStep.to) continue; // W-0 no-ops excluded — trivially reversible
+
+      // Multi-visitor case: the target already carries an inbound pointer BEFORE the final
+      // move — per S4, liveness-only for the reversal, not snapshot equality (the final move
+      // would produce 2+ inbound rows at the target, which C8's tie-break — not a 1:1
+      // restore — legitimately governs).
+      // eslint-disable-next-line no-await-in-loop
+      const priorInbound = fake.logsFor(task.id).filter((r) => r.movedToDate === finalStep.to);
+      const isMultiVisitor = priorInbound.length > 0;
+
+      // eslint-disable-next-line no-await-in-loop
+      const snapshot = isMultiVisitor ? null : await resolutionMap(task);
+
+      // eslint-disable-next-line no-await-in-loop
+      const finalResult = await moveOccurrence({ taskId: task.id, fromDate: finalStep.from, toDate: finalStep.to });
+      if (!finalResult.ok) continue; // not an ACCEPTED sequence — nothing to reverse
+
+      // eslint-disable-next-line no-await-in-loop
+      const inverseResult = await moveOccurrence({ taskId: task.id, fromDate: finalStep.to, toDate: finalStep.from });
+      if (!inverseResult.ok) continue; // the inverse itself was rejected (e.g. a 60-day-guard edge) — nothing more to assert here
+
+      if (isMultiVisitor) {
+        // eslint-disable-next-line no-await-in-loop
+        await checkP7(task);
+        livenessOnlyChecked += 1;
+      } else {
+        // eslint-disable-next-line no-await-in-loop
+        const restored = await resolutionMap(task);
+        expect(restored).toEqual(snapshot);
+        reversalChecked += 1;
+      }
+    }
+
+    expect(sequenceCount).toBe(650); // 25 (len 1) + 625 (len 2)
+    expect(reversalChecked + livenessOnlyChecked).toBeGreaterThan(0); // the check actually ran, not vacuously skipped throughout
+  });
+});
+
 /* ============================================================== (b) cross-operation pairs */
 
 type OpResult = Result<unknown>;
