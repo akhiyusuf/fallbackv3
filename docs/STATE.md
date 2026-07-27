@@ -5,9 +5,9 @@ _Updated after landing the human-supplied `docs/` bundle._
 ## Current position
 
 **Phase 3 (BUILD) — WAVE 1 COMPLETE. M0, M1, M2 all PASSED and frozen. F7
-rescope: PRD amendment DONE (PASS, pass 4 + 1 advisor escalation). NEXT:
-architect rewrites SCHEMA §4.2. Do not brief wave 2 until this cascade
-(PRD → SCHEMA/ARCHITECTURE → M2 simplification) lands.**
+rescope: PRD amendment DONE (PASS + 1 advisor escalation); SCHEMA §4.2 DONE
+(PASS + 1 advisor escalation). NEXT: M2 implements the simplified code. Do
+not brief wave 2 until this cascade lands.**
 
 ### M2 Supplement B — implementation complete, pending review
 
@@ -96,16 +96,48 @@ already-distinct buttons from an approved screen, not redesigning anything.
    "one live outcome per task per date" name in SCHEMA §4.2 too, so the two
    documents stay aligned.
 
-2. **NEXT — architect rewrites `docs/SCHEMA.md` §4.2.** Should be a **large
-   deletion**: most of C1–C11, the P1–P8 invariant pack, and the
-   16,275/3,250-sequence enumerations go away, replaced by something much
-   smaller for the one-hop rule. **Do not discard `designateCarrier` or the
-   single-answerer discipline** — the pass-5 code reviewer explicitly flagged
-   this as the one thing that must survive the rescope, since it's what closed
-   the F1 defect class structurally. PRD item 21's closing clause now says the
-   same thing explicitly, not implicitly.
-3. Then: M2 (or a fresh instance with full context) implements the simplified
-   version, code-reviewed same as any other pass.
+2. **DONE — `docs/SCHEMA.md` §4.2 rewritten for the one-hop contract.**
+   `review/REVIEW-SCHEMA-F7-rescope.md` **PASS at pass 5**, plus **one advisor
+   escalation** (`review/ADVICE-SCHEMA-F7.md`) on pass 3 — a legacy-data
+   migration paragraph tried to relocate XP awards unconditionally on
+   normalization, which the advisor traced to a genuine defect: the same
+   award/outcome incoherence C4b was built to forbid, reachable through the
+   migration's own cleanup path. The ruling produced a four-branch
+   per-occurrence decision table (A/B1/B2/B3) keyed by carrier identity, not by
+   date — and while implementing it, the architect found and fixed a **fourth**
+   instance of that same date-vs-carrier confusion in its own prior work
+   (`docs/MODULES.md` CR-4's migration steps had award-relocation running
+   *after* pointer-clearing, reading data already destroyed).
+
+   Five review passes total: 6 blocking findings → 1 → 1 → 1 → 0. Converging
+   throughout; the escalation exists in the trail precisely because a
+   worse-than-reported bug was caught before it reached code.
+
+   **Standing principle now pinned in SCHEMA §4.2 for all future work**: any
+   bare date-keyed access to `day_log` or `xp_award` in snooze-adjacent logic
+   is presumptively a blocking code-review finding, unless routed through
+   `designateCarrier` or the migration's own predicates. Five named watch
+   sites for when code review resumes: `off_day_mark.prior_chip_state`
+   restore, M4's S20 heatmap drill-down, backup-restore repair logic, cycle
+   finalization, future sync-merge.
+
+   `designateCarrier`/`resolveWriteTarget` and the single-answerer discipline
+   survive untouched, as required. §4.2's own size barely changed in prose
+   (173→214 lines) — the real simplification is structural: write rules 5→3,
+   the tie-break rule eliminated outright (now provably unreachable rather
+   than merely resolved), a write that touched N ordered rows with no
+   transaction primitive now touches exactly one, and one-hop is enforced at
+   the storage layer via a `CHECK` constraint, not just in application logic.
+
+3. **NEXT — M2 implements the simplified code against this contract.**
+   Explicit handoff note from the pass-5 review: build against §4.2's runtime
+   rules and the split W-1s/W-1u preconditions, **never** against CR-3's
+   Historical block (superseded, kept only for rationale); the migration
+   follows CR-4's six-step order exactly (snapshot worklist → delete-then-
+   reinsert awards identity-preserving → clear pointers → rebuild table).
+   Code-reviewed same as any other pass — and per the standing principle
+   above, a bare date-keyed query in this area is a blocking finding by
+   default, not a judgment call.
 4. `docs/MODULES.md`'s **M4** brief (task authoring, S15–S24, not yet started)
    gets the snoozable toggle and the one-hop snooze UI from the start, plus the
    §7(a) open item above so it's not silently invented mid-build.
