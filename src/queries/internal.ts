@@ -2,11 +2,20 @@
  * M2 — private helpers shared by `reads.ts` and `mutations.ts`. Not part of the public
  * `@/queries` surface (not re-exported from `index.ts`); every feature module keeps using
  * the documented hooks only.
+ *
+ * F7 rescope (`docs/SCHEMA.md` §4.2, `docs/PRD.md` §3.7): a `day_log.moved_to_date` pointer is
+ * now constrained to exactly `date + 1` — one hop, once. The only date that can ever be
+ * "inbound" for a given `D` is `D − 1`, so every lookup below is a fixed one-day window, never
+ * a padded search. The old ±60-day `MOVE_SEARCH_PAD_DAYS` scan and its display-side tie-break
+ * (`buildMovedInIndex`) are dead: `|inbound(D)| ≤ 1` is now a storage-level invariant
+ * (`UNIQUE(task_id, date)` + the one-hop `CHECK`), so there is never more than one candidate to
+ * choose between.
  */
 import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
 import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
-import type { DayLog, Id, LocalDate, Occurrence, Repositories, TaskWithSteps } from '@/types';
+import type { DayLog, Occurrence, Repositories, TaskWithSteps } from '@/types';
+import type { LocalDate } from '@/types';
 
 export function todayLocal(): LocalDate {
   return clockToday();
@@ -38,54 +47,10 @@ function iterationFrom(task: TaskWithSteps, notBefore: LocalDate): LocalDate {
 }
 
 /**
- * How far outside [from, to] to search for an F7 move landing inside it (review pass 1,
- * blocking item 6). Bounded rather than unbounded — a snooze/move realistically lands within
- * weeks, not years, of its source date; this keeps the query O(bounded range) instead of
- * O(whole history) on every resolve. Exported so `useMoveOccurrence` (mutations.ts) can
- * reject a move past this bound up front (review pass 2 non-blocking note) rather than
- * silently dropping the occurrence from every future read while leaving the source vacated.
+ * Every due occurrence of ONE task between its own earliest possible date and `to`, resolved.
+ * Fetches `[from − 1, to]` — the single extra leading day is exactly enough to see every
+ * possible inbound pointer into the window (one-hop: only `D − 1` can ever point at `D`).
  */
-export const MOVE_SEARCH_PAD_DAYS = 60;
-
-/**
- * The READ-side tie-break for `movedInLog` (ADVICE-M2.md Ruling 1's `inbound(D)`, display
- * form): if two DIFFERENT source dates both point at the same target date (C8's double
- * inbound), the entry with the LATER source `date` wins, deterministically — sorting
- * ascending before inserting means the last `.set()` for a given target key is always the
- * most-recently-dated source (review pass 2 non-blocking note; was previously whatever order
- * the repository happened to return, i.e. undefined). The WRITE side (`findInboundLogs`
- * below) does not tie-break — it returns every matching row, because redirecting a visiting
- * occurrence away must move every inbound pointer aimed at it, not just the displayed one.
- */
-function buildMovedInIndex(logs: readonly DayLog[], from: LocalDate, to: LocalDate): Map<LocalDate, DayLog> {
-  const candidates = logs
-    .filter((l) => l.movedToDate !== null && l.movedToDate >= from && l.movedToDate <= to)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const map = new Map<LocalDate, DayLog>();
-  for (const l of candidates) map.set(l.movedToDate as LocalDate, l);
-  return map;
-}
-
-async function fetchMoveWindowLogs(repos: Repositories, taskId: TaskWithSteps['id'], from: LocalDate, to: LocalDate): Promise<readonly DayLog[]> {
-  const searchFrom = addDays(from, -MOVE_SEARCH_PAD_DAYS);
-  const searchTo = addDays(to, MOVE_SEARCH_PAD_DAYS);
-  return repos.logs.listForTask(taskId, searchFrom, searchTo);
-}
-
-/**
- * ADVICE-M2.md Ruling 1 — `inbound(D)`: EVERY row whose `movedToDate === D`, within the
- * bounded search window, sorted ascending by source date. This is deliberately NOT the same
- * as the read side's `buildMovedInIndex` (which tie-breaks down to one winner for display):
- * `useMoveOccurrence`'s write-side branch selection ("the branch is chosen by inbound(F),
- * nothing else", W-3) needs every matching row so a double-inbound date (C8) redirects all
- * of them, not just the one the read side currently shows.
- */
-export async function findInboundLogs(repos: Repositories, taskId: Id, date: LocalDate): Promise<DayLog[]> {
-  const logs = await fetchMoveWindowLogs(repos, taskId, date, date);
-  return logs.filter((l) => l.movedToDate === date).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-}
-
-/** Every due occurrence of ONE task between its own earliest possible date and `to`, resolved. */
 export async function resolveTaskOccurrences(
   repos: Repositories,
   task: TaskWithSteps,
@@ -98,44 +63,40 @@ export async function resolveTaskOccurrences(
 
   const dueDates = occurrencesBetween(task, from, to, notBefore);
 
-  const [logs, offMarks] = await Promise.all([fetchMoveWindowLogs(repos, task.id, from, to), repos.offDays.listRange(from, to)]);
-
+  const searchFrom = addDays(from, -1);
+  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, searchFrom, to), repos.offDays.listRange(from, to)]);
   const logByDate = new Map(logs.map((l) => [l.date, l]));
-  const movedInByDate = buildMovedInIndex(logs, from, to);
 
   const allDates = new Set<LocalDate>(dueDates);
-  for (const target of movedInByDate.keys()) allDates.add(target);
+  for (const l of logs) {
+    // A row just outside [from, to] (at `from − 1`) can still point INTO the window.
+    if (l.movedToDate !== null && l.movedToDate >= from && l.movedToDate <= to) allDates.add(l.movedToDate);
+  }
 
   return [...allDates]
     .sort()
-    .map((date) =>
-      resolveOccurrence({
-        task,
-        date,
-        today,
-        log: logByDate.get(date) ?? null,
-        offMarks,
-        notBefore,
-        movedInLog: movedInByDate.get(date) ?? null,
-      }),
-    );
+    .map((date) => {
+      const log = logByDate.get(date) ?? null;
+      const priorLog = logByDate.get(addDays(date, -1)) ?? null;
+      const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
+      return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+    });
 }
 
 /**
- * Resolves exactly ONE `(task, date)` occurrence — the SAME move lookup and the SAME
- * precedence `resolveTaskOccurrences` uses, so a mutation's reconciliation and every read
- * resolve through one construction, not two parallel implementations (review pass 2,
- * blocking item N1: `reconcileOccurrence` in `mutations.ts` previously called
- * `resolveOccurrence` directly, without ever looking up `movedInLog`, so a moved-then-
- * completed occurrence diverged between what the mutation awarded XP for and what every read
- * displayed). `mutations.ts`'s `reconcileOccurrence` calls this instead of resolving inline.
+ * Resolves exactly ONE `(task, date)` occurrence — the SAME lookup `resolveTaskOccurrences`
+ * uses, so a mutation's reconciliation and every read resolve through one construction, not
+ * two parallel implementations (review pass 2, blocking item N1). `mutations.ts`'s
+ * `reconcileOccurrence` calls this instead of resolving inline.
  */
 export async function resolveOneOccurrence(repos: Repositories, task: TaskWithSteps, date: LocalDate, today: LocalDate): Promise<Occurrence> {
   const notBefore = creationLocalDate(task);
-  const [logs, offMarks] = await Promise.all([fetchMoveWindowLogs(repos, task.id, date, date), repos.offDays.listRange(date, date)]);
+  const priorDate = addDays(date, -1);
+  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, priorDate, date), repos.offDays.listRange(date, date)]);
   const log = logs.find((l) => l.date === date) ?? null;
-  const movedInByDate = buildMovedInIndex(logs, date, date);
-  return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog: movedInByDate.get(date) ?? null });
+  const priorLog = logs.find((l) => l.date === priorDate) ?? null;
+  const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
+  return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
 }
 
 export interface WriteTarget {
@@ -144,8 +105,8 @@ export interface WriteTarget {
   readonly carrier: Carrier;
   /**
    * The date whose ROW must actually be written: `D` itself for `own-live`/`own-create`, or
-   * the winning visitor's own SOURCE date for `visitor` (never `D`, per T-2 — a residue row at
-   * `D` is never touched by a write).
+   * the winning visitor's own SOURCE date for `visitor` (always `D − 1` now, never `D`, per
+   * T-2 — a residue row at `D` is never touched by a write).
    */
   readonly targetDate: LocalDate;
   /** The existing row at `targetDate`, if any (own row or the visitor's own row). */
@@ -153,20 +114,22 @@ export interface WriteTarget {
 }
 
 /**
- * ADVICE-M2.md Supplement B, B1/T-1/T-2 — the write-side twin of `resolveOneOccurrence`.
- * Resolves `D` through the exact same `designateCarrier` decision `resolveOccurrence` (the
- * read path) uses — see that function's doc comment: no second implementation of the clause
- * selection may exist. Every occurrence-data mutation (`logState`, `toggleStep`,
- * `useLogDose`) calls this FIRST: `carrier.kind === 'none'` is T-1's rejection (nothing
- * resolves at `D` — a vacated source, or a plainly not-due date); otherwise `targetDate` /
- * `existing` tell the caller exactly which row to upsert (T-2), never the raw tapped-date row
- * when a visitor is the occurrence.
+ * SCHEMA.md §4.2, "Write-side carrier selection" (T-1/T-2) — the write-side twin of
+ * `resolveOneOccurrence`. Resolves `D` through the exact same `designateCarrier` decision
+ * `resolveOccurrence` (the read path) uses — see that function's doc comment: **no second
+ * implementation of the clause selection may exist**. Every occurrence-data mutation
+ * (`logState`, `toggleStep`, `useLogDose`) calls this FIRST: `carrier.kind === 'none'` is
+ * T-1's rejection (nothing resolves at `D` — a vacated source, or a plainly not-due date);
+ * otherwise `targetDate`/`existing` tell the caller exactly which row to upsert (T-2), never
+ * the raw tapped-date row when a visitor is the occurrence.
  */
 export async function resolveWriteTarget(repos: Repositories, task: TaskWithSteps, date: LocalDate, today: LocalDate): Promise<WriteTarget> {
   const notBefore = creationLocalDate(task);
-  const [logs, offMarks] = await Promise.all([fetchMoveWindowLogs(repos, task.id, date, date), repos.offDays.listRange(date, date)]);
+  const priorDate = addDays(date, -1);
+  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, priorDate, date), repos.offDays.listRange(date, date)]);
   const log = logs.find((l) => l.date === date) ?? null;
-  const movedInLog = buildMovedInIndex(logs, date, date).get(date) ?? null;
+  const priorLog = logs.find((l) => l.date === priorDate) ?? null;
+  const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
   const natural = isDue(task, date, notBefore);
   const carrier = designateCarrier({ log, movedInLog, natural });
   const occurrence = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });

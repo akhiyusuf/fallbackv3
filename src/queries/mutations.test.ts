@@ -34,7 +34,7 @@ import type { AppEvent, Instant, LocalDate, Step, Task, TaskWithSteps, Weekday }
 import { fake } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import { QUERY_KEYS } from './index';
-import { useLogState, useMarkOffDay, useMoveOccurrence, useToggleStep, useUpdateSettings, __testing__ } from './mutations';
+import { useLogState, useMarkOffDay, useSnoozeOccurrence, useToggleStep, useUpdateSettings, __testing__ } from './mutations';
 import { useConsistency, useTaskOccurrences, useTasks } from './reads';
 
 const { reconcileCycleBoundaries, finalizeCycleForCadenceChange } = __testing__;
@@ -104,6 +104,7 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: null,
     necessity: null,
     todoDoneAt: null,
+    snoozable: true,
     createdAt: '2023-01-01T00:00:00.000Z' as Instant,
     updatedAt: '2023-01-01T00:00:00.000Z' as Instant,
     deletedAt: null,
@@ -208,15 +209,15 @@ describe('useLogState — item 7: XP write failures are never reported as succes
   });
 });
 
-describe('useMoveOccurrence — item 6: F7 snooze/move through the real pipeline', () => {
-  test('the source date resolves not-due and the target date resolves pending', async () => {
+describe('useSnoozeOccurrence — F7 one-hop snooze through the real pipeline (SCHEMA.md §4.2)', () => {
+  test('the source date resolves not-due and D + 1 resolves pending', async () => {
     const task = makeTask({ cadence: { kind: 'daily' } });
     fake.seedTask(task);
     const client = freshClient();
 
-    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    const { result: snoozeResult } = await rh(() => useSnoozeOccurrence(), client);
     await act(async () => {
-      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-01' as LocalDate, toDate: '2024-06-02' as LocalDate });
+      await snoozeResult.current.mutateAsync({ taskId: task.id, date: '2024-06-01' as LocalDate });
     });
 
     const { result: occResult } = await rh(
@@ -401,18 +402,18 @@ function assertNoOverlappingRecords(records: readonly { startDate: LocalDate; en
   }
 }
 
-describe('N1 — moved-then-completed occurrence must agree between the mutation path and every read (review pass 2)', () => {
-  test('acceptance (i): move today -> tomorrow, complete the target the next day — the read shows ideal, exactly one XP award, and numerator === denominator - missed holds', async () => {
-    // Created ON the move's source date so `all-time` consistency only ever sees the 2 days
+describe('N1 — snoozed-then-completed occurrence must agree between the mutation path and every read (review pass 2, still binding under the F7 rescope)', () => {
+  test('acceptance (i): snooze today -> tomorrow, complete the target the next day — the read shows ideal, exactly one XP award, and numerator === denominator - missed holds', async () => {
+    // Created ON the snooze's source date so `all-time` consistency only ever sees the 2 days
     // this test cares about — a task created earlier would legitimately accumulate real
     // missed days in between, which isn't what this test is about.
     const task = makeTask({ cadence: { kind: 'daily' }, createdAt: '2024-06-01T00:00:00.000Z' as Instant });
     fake.seedTask(task);
     const client = freshClient();
 
-    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
+    const { result: snoozeResult } = await rh(() => useSnoozeOccurrence(), client);
     await act(async () => {
-      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-01' as LocalDate, toDate: '2024-06-02' as LocalDate });
+      await snoozeResult.current.mutateAsync({ taskId: task.id, date: '2024-06-01' as LocalDate });
     });
 
     clock.today = '2024-06-02'; // advance the clock to "the next day"
@@ -446,22 +447,22 @@ describe('N1 — moved-then-completed occurrence must agree between the mutation
     expect(c.denominator).toBe(1);
   });
 
-  test('acceptance (ii): moving to an off-cadence target date still awards XP and reads ideal once completed', async () => {
+  test('acceptance (ii): snoozing onto an off-cadence D + 1 still awards XP and reads ideal once completed', async () => {
     const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1] as Weekday[] } }); // Mondays only
     fake.seedTask(task);
     const client = freshClient();
 
-    const { result: moveResult } = await rh(() => useMoveOccurrence(), client);
-    // 2024-06-03 is a Monday; move it to Wednesday 2024-06-05, off-cadence.
+    const { result: snoozeResult } = await rh(() => useSnoozeOccurrence(), client);
+    // 2024-06-03 is a Monday; D + 1 (computed) is Tuesday 2024-06-04, off-cadence.
     await act(async () => {
-      await moveResult.current.mutateAsync({ taskId: task.id, fromDate: '2024-06-03' as LocalDate, toDate: '2024-06-05' as LocalDate });
+      await snoozeResult.current.mutateAsync({ taskId: task.id, date: '2024-06-03' as LocalDate });
     });
 
-    clock.today = '2024-06-05';
+    clock.today = '2024-06-04';
     const { result: logResult } = await rh(() => useLogState(), client);
     let outcome: unknown;
     await act(async () => {
-      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-05' as LocalDate, chip: 'done' });
+      outcome = await logResult.current.mutateAsync({ taskId: task.id, date: '2024-06-04' as LocalDate, chip: 'done' });
     });
     const res = outcome as { ok: true; value: { xpAwarded: number; outcome: string } };
     expect(res.ok).toBe(true);

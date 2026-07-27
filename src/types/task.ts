@@ -90,6 +90,13 @@ export interface Task {
   /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
   readonly todoDoneAt: Instant | null;
 
+  /**
+   * CR-4 (MODULES.md), PRD §3.7. Per-task gate on whether F7 Snooze is offered at all —
+   * default `true` at create time (M2's `validateTaskDraft`). Turning it off never retracts
+   * an already-snoozed occurrence (SCHEMA.md §4.2 W-1s/W-1u).
+   */
+  readonly snoozable: boolean;
+
   readonly createdAt: Instant;
   readonly updatedAt: Instant;
   readonly deletedAt: Instant | null;
@@ -117,6 +124,8 @@ export interface TaskDraft {
   readonly isTracked?: boolean;
   readonly importance?: Importance | null;
   readonly necessity?: Necessity | null;
+  /** CR-4. Defaults to `true` when omitted (M2's `validateTaskDraft`). */
+  readonly snoozable?: boolean;
   readonly idealSteps: readonly StepDraft[];
   readonly fallbackSteps: readonly StepDraft[];
 }

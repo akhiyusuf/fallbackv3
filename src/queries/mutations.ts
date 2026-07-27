@@ -23,7 +23,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
-import { addDays, diffDays, now } from '@/lib/date';
+import { addDays, now } from '@/lib/date';
 import { repos } from '@/db';
 import {
   autoChipState,
@@ -55,7 +55,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { findInboundLogs, MOVE_SEARCH_PAD_DAYS, resolveAllOccurrences, resolveOneOccurrence, resolveWriteTarget, todayLocal } from './internal';
+import { resolveAllOccurrences, resolveOneOccurrence, resolveWriteTarget, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -351,6 +351,7 @@ export function useCreateTask() {
         importance: draft.importance ?? null,
         necessity: draft.necessity ?? null,
         todoDoneAt: null,
+        snoozable: draft.snoozable ?? true, // CR-4
         createdAt: nowIso,
         updatedAt: nowIso,
         deletedAt: null,
@@ -609,116 +610,105 @@ export function useLogAsNeededUse() {
   });
 }
 
-/* ------------------------------------------------------------------ snooze/move (F7) */
+/* ------------------------------------------------------------------ snooze/undo (F7) */
 
 /**
- * F7 snooze/move, implemented against ADVICE-M2.md Ruling 1's binding W-0..W-4 contract
- * (superseding the pass-3 "good looks like" prose, which does not fix C6). Definitions:
- * `ownLog(D)` = the `(task, D)` row; `pointer(D)` = that row's `movedToDate` when non-null
- * (a non-null pointer marks the row as RESIDUE for D); `inbound(F)` = every row whose
- * `movedToDate === F` (an occurrence currently VISITING F via a prior move).
+ * F7 one-hop snooze, per `docs/SCHEMA.md` §4.2's W-1s..W-3 (superseding the pre-rescope
+ * arbitrary-target `useMoveOccurrence` — PRD §3.7, Decisions item 21). `D` is always the
+ * occurrence's OWN date, passed by the caller (the sheet resolves which occurrence it is
+ * displaying); the target `D + 1` is COMPUTED here, never chosen — there is no target-date
+ * input anywhere in this function's signature.
  *
- * W-0 no-op (F === T): zero writes, zero reconciles, zero events.
- * W-1 F must resolve to something other than `not-due` (never move from a date with
- *     nothing there — never fabricate, never move an already-vacated occurrence).
- * W-2 distance guard measured from the row that will CARRY the pointer (each redirected
- *     inbound row, or F itself in the own-pointer branch) — never from F when inbound
- *     rows exist, or a collapsed chain could silently outrun the search window.
- * W-3 branch chosen by `inbound(F)` ALONE: if non-empty, the VISITING occurrence moves —
- *     every inbound row is either cleared (un-move, when its own date equals T) or
- *     redirected to T (chain collapse); `ownLog(F)` is never touched in this branch. If
- *     empty, F's own live occurrence moves: `ownLog(F).movedToDate = T`.
- * W-4 reconcile every touched date; emit `day:logged` for T exactly once.
- *
- * No transaction primitive exists on `Repositories` (advisor-confirmed) — inbound rows are
- * written one at a time, each a legal state under the R-rules on its own, and a mid-sequence
- * failure reconciles whatever was already touched before returning the error; no undo logic.
+ * Dead, deliberately not reintroduced (SCHEMA §4.2): the same-day no-op guard (D + 1 can
+ * never equal D), the ±60-day distance guard (there is no distance to guard), and the
+ * redirect-inbound-pointers write branch (reachable only via chains, which are now
+ * unreachable by construction — `|inbound(D)| ≤ 1` is a storage invariant).
  */
-/** See `logState`'s doc comment — same reasoning, extracted for the invariant harness (the
- *  enumeration in particular runs this directly, thousands of times, without React). */
-async function moveOccurrence(input: { taskId: Id; fromDate: LocalDate; toDate: LocalDate }) {
-  const { taskId, fromDate, toDate } = input;
+async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
+  const { taskId, date } = input;
   const task = await repos.tasks.get(taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const today = todayLocal();
 
-  // W-0.
-  if (fromDate === toDate) {
-    const occurrence = await resolveOneOccurrence(repos, task, fromDate, today);
-    return ok({ occurrence });
+  // W-1s, all three rejections. Order doesn't matter — any one holding is a reject.
+  const occurrence = await resolveOneOccurrence(repos, task, date, today);
+  if (occurrence.outcome === 'not-due') {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to snooze.' });
+  }
+  if (!task.snoozable) {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'This task is not snoozable.' });
+  }
+  const existing = (await repos.logs.listForTask(taskId, date, date))[0] ?? null;
+  if (existing && existing.movedToDate !== null) {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'This occurrence is already snoozed.' });
   }
 
-  // W-1.
-  const sourceOccurrence = await resolveOneOccurrence(repos, task, fromDate, today);
-  if (sourceOccurrence.outcome === 'not-due') {
-    return err({ code: 'VALIDATION_FAILED' as const, message: 'Cannot move an occurrence from a date it is not due.' });
-  }
-
-  // W-3's branch selector, computed up front so W-2 can measure from the right row(s).
-  const inboundRows = await findInboundLogs(repos, taskId, fromDate);
-
-  // W-2 — measured from the pointer-carrying row(s), never from `fromDate` itself when
-  // inbound rows exist (a chain-collapse redirect moves THEIR pointer, not F's).
-  const carrierDates = inboundRows.length > 0 ? inboundRows.map((r) => r.date) : [fromDate];
-  for (const carrierDate of carrierDates) {
-    if (Math.abs(diffDays(toDate, carrierDate)) > MOVE_SEARCH_PAD_DAYS) {
-      return err({
-        code: 'VALIDATION_FAILED' as const,
-        message: `Cannot move an occurrence more than ${MOVE_SEARCH_PAD_DAYS} days from its original date.`,
-      });
-    }
-  }
-
-  const touched = new Set<LocalDate>([fromDate, toDate]);
+  // W-2: ONE row, D's own — the target is D + 1, computed, never chosen.
+  const target = addDays(date, 1);
   const nowIso = now();
+  const writeResult = await repos.logs.upsert({
+    id: existing?.id ?? newId(),
+    taskId,
+    date,
+    chipState: existing?.chipState ?? null,
+    isManualOverride: existing?.isManualOverride ?? false,
+    completedStepIds: existing?.completedStepIds ?? [],
+    dosesCompleted: existing?.dosesCompleted ?? 0,
+    movedToDate: target,
+    createdAt: existing?.createdAt ?? nowIso,
+    updatedAt: nowIso,
+  });
+  if (!writeResult.ok) return err(writeResult.error);
 
-  if (inboundRows.length > 0) {
-    // The VISITING occurrence moves — redirect every inbound pointer aimed at F.
-    for (const r of inboundRows) {
-      const newMovedToDate = r.date === toDate ? null : toDate; // un-move vs. redirect
-      const writeResult = await repos.logs.upsert({ ...r, movedToDate: newMovedToDate, updatedAt: nowIso });
-      touched.add(r.date);
-      if (!writeResult.ok) {
-        for (const d of touched) await reconcileOccurrence(taskId, d); // reconcile what's touched, no undo
-        return err(writeResult.error);
-      }
-    }
-    // ownLog(F) is deliberately NOT written here — see the W-3 doc comment above.
-  } else {
-    // F's own live occurrence moves.
-    const existing = (await repos.logs.listForTask(taskId, fromDate, fromDate))[0] ?? null;
-    const writeResult = await repos.logs.upsert({
-      id: existing?.id ?? newId(),
-      taskId,
-      date: fromDate,
-      chipState: existing?.chipState ?? null,
-      isManualOverride: existing?.isManualOverride ?? false,
-      completedStepIds: existing?.completedStepIds ?? [],
-      dosesCompleted: existing?.dosesCompleted ?? 0,
-      movedToDate: toDate,
-      createdAt: existing?.createdAt ?? nowIso,
-      updatedAt: nowIso,
-    });
-    if (!writeResult.ok) {
-      for (const d of touched) await reconcileOccurrence(taskId, d);
-      return err(writeResult.error);
-    }
-  }
-
-  // W-4.
-  let targetReconcile: ReconcileResult | null = null;
-  for (const d of touched) {
-    const reconciled = await reconcileOccurrence(taskId, d);
-    if (d === toDate) targetReconcile = reconciled;
-  }
-  emit({ type: 'day:logged', taskId, date: toDate });
-  return ok({ occurrence: targetReconcile?.occurrence ?? null });
+  // W-3: reconcile BOTH dates; `day:logged` carries the date the occurrence now lives at (D + 1).
+  await reconcileOccurrence(taskId, date);
+  const targetReconcile = await reconcileOccurrence(taskId, target);
+  emit({ type: 'day:logged', taskId, date: target });
+  return ok({ occurrence: targetReconcile.occurrence });
 }
 
-export function useMoveOccurrence() {
+export function useSnoozeOccurrence() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: moveOccurrence,
+    mutationFn: snoozeOccurrence,
+    onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
+  });
+}
+
+/**
+ * F7 undo, per SCHEMA §4.2's W-1u..W-3 — deliberately NARROWER than snooze's preconditions.
+ * `D` is the occurrence's own (pre-snooze) date. The ONLY rejection is `pointer(D)` being
+ * null (nothing to undo): `D` resolving `not-due` is the NORMAL case for undo (a snoozed
+ * occurrence's own date always reads not-due via R-2), and `task.snoozable` is irrelevant —
+ * turning it off must never strand an already-snoozed occurrence.
+ */
+async function undoSnooze(input: { taskId: Id; date: LocalDate }) {
+  const { taskId, date } = input;
+  const task = await repos.tasks.get(taskId);
+  if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
+
+  const existing = (await repos.logs.listForTask(taskId, date, date))[0] ?? null;
+  if (!existing || existing.movedToDate === null) {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'This occurrence is not currently snoozed.' });
+  }
+  const target = existing.movedToDate;
+
+  // W-2: ONE row, D's own — clear the pointer, preserving chip/step/dose data.
+  const nowIso = now();
+  const writeResult = await repos.logs.upsert({ ...existing, movedToDate: null, updatedAt: nowIso });
+  if (!writeResult.ok) return err(writeResult.error);
+
+  // W-3: reconcile BOTH dates; `day:logged` carries D (the occurrence's restored date).
+  const dReconcile = await reconcileOccurrence(taskId, date);
+  await reconcileOccurrence(taskId, target);
+  emit({ type: 'day:logged', taskId, date });
+  return ok({ occurrence: dReconcile.occurrence });
+}
+
+export function useUndoSnooze() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: undoSnooze,
     onSuccess: (_r, vars) => invalidateCommon(qc, vars.taskId),
   });
 }
@@ -770,7 +760,8 @@ export const __testing__ = {
   archiveCycleWindow,
   getOrInitCycleState,
   reconcileOccurrence,
-  moveOccurrence,
+  snoozeOccurrence,
+  undoSnooze,
   logState,
   toggleStep,
   logDose,

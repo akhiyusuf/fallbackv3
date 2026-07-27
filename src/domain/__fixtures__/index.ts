@@ -35,6 +35,7 @@ function baseTask(overrides: Partial<Task> & { id: Id; type: Task['type'] }): Ta
     importance: null,
     necessity: null,
     todoDoneAt: null,
+    snoozable: true, // CR-4 default
     createdAt: CREATED,
     updatedAt: CREATED,
     deletedAt: null,
