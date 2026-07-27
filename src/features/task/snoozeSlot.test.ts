@@ -19,31 +19,60 @@ function occ(outcome: Occurrence['outcome']): Occurrence {
 
 describe('resolveSnoozeSlot', () => {
   it('renders Snooze disabled when today has no occurrence at all', () => {
-    const r = resolveSnoozeSlot({ todayOccurrence: undefined, yesterdayOccurrence: undefined, isDueYesterday: false, taskSnoozable: true, yesterday: YDAY });
+    const r = resolveSnoozeSlot({
+      todayOccurrence: undefined,
+      yesterdayOccurrence: undefined,
+      isDueYesterday: false,
+      isDueToday: false,
+      taskSnoozable: true,
+      yesterday: YDAY,
+    });
     expect(r).toEqual({ kind: 'snooze', enabled: false, disabledReason: expect.any(String) });
   });
 
   it('renders Snooze disabled when today resolves not-due', () => {
-    const r = resolveSnoozeSlot({ todayOccurrence: occ('not-due'), yesterdayOccurrence: undefined, isDueYesterday: false, taskSnoozable: true, yesterday: YDAY });
+    const r = resolveSnoozeSlot({
+      todayOccurrence: occ('not-due'),
+      yesterdayOccurrence: undefined,
+      isDueYesterday: false,
+      isDueToday: false,
+      taskSnoozable: true,
+      yesterday: YDAY,
+    });
     expect(r.kind).toBe('snooze');
     expect((r as { enabled: boolean }).enabled).toBe(false);
   });
 
   it('renders Snooze enabled for a normal pending occurrence on a snoozable task', () => {
-    const r = resolveSnoozeSlot({ todayOccurrence: occ('pending'), yesterdayOccurrence: undefined, isDueYesterday: false, taskSnoozable: true, yesterday: YDAY });
+    const r = resolveSnoozeSlot({
+      todayOccurrence: occ('pending'),
+      yesterdayOccurrence: undefined,
+      isDueYesterday: false,
+      isDueToday: true,
+      taskSnoozable: true,
+      yesterday: YDAY,
+    });
     expect(r).toEqual({ kind: 'snooze', enabled: true });
   });
 
   it('renders Snooze disabled (not hidden), with a reason, when the task is not snoozable', () => {
-    const r = resolveSnoozeSlot({ todayOccurrence: occ('ideal'), yesterdayOccurrence: undefined, isDueYesterday: false, taskSnoozable: false, yesterday: YDAY });
+    const r = resolveSnoozeSlot({
+      todayOccurrence: occ('ideal'),
+      yesterdayOccurrence: undefined,
+      isDueYesterday: false,
+      isDueToday: true,
+      taskSnoozable: false,
+      yesterday: YDAY,
+    });
     expect(r).toEqual({ kind: 'snooze', enabled: false, disabledReason: expect.any(String) });
   });
 
-  it('renders Undo snooze when yesterday was naturally due and reads not-due (vacated by a snooze)', () => {
+  it('renders Undo snooze when yesterday was naturally due and reads not-due (vacated by a snooze), and today is NOT naturally due (the visitor is what today displays)', () => {
     const r = resolveSnoozeSlot({
-      todayOccurrence: occ('ideal'),
+      todayOccurrence: occ('pending'),
       yesterdayOccurrence: occ('not-due'),
       isDueYesterday: true,
+      isDueToday: false,
       taskSnoozable: true,
       yesterday: YDAY,
     });
@@ -55,6 +84,7 @@ describe('resolveSnoozeSlot', () => {
       todayOccurrence: occ('fallback'),
       yesterdayOccurrence: occ('not-due'),
       isDueYesterday: true,
+      isDueToday: false,
       taskSnoozable: false,
       yesterday: YDAY,
     });
@@ -66,6 +96,7 @@ describe('resolveSnoozeSlot', () => {
       todayOccurrence: occ('ideal'),
       yesterdayOccurrence: undefined,
       isDueYesterday: false,
+      isDueToday: true,
       taskSnoozable: true,
       yesterday: YDAY,
     });
@@ -77,9 +108,22 @@ describe('resolveSnoozeSlot', () => {
       todayOccurrence: occ('ideal'),
       yesterdayOccurrence: occ('ideal'),
       isDueYesterday: true,
+      isDueToday: true,
       taskSnoozable: true,
       yesterday: YDAY,
     });
     expect(r.kind).toBe('snooze');
+  });
+
+  it('renders Snooze (not Undo) when today is naturally due even though yesterday was vacated by a snooze into today — the common day-after-a-daily-snooze case (REVIEW-M4.md item 1)', () => {
+    const r = resolveSnoozeSlot({
+      todayOccurrence: occ('pending'),
+      yesterdayOccurrence: occ('not-due'),
+      isDueYesterday: true,
+      isDueToday: true,
+      taskSnoozable: true,
+      yesterday: YDAY,
+    });
+    expect(r).toEqual({ kind: 'snooze', enabled: true });
   });
 });

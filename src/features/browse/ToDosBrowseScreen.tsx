@@ -23,7 +23,7 @@ import { SPACE, useTheme } from '@/theme';
 import { Card, Checkbox, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
 import type { Id, TaskWithSteps } from '@/types';
 
-import { S13_COPY } from './copy';
+import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
 import { importanceLabel } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
@@ -74,7 +74,7 @@ export default function ToDosBrowseScreen() {
             <Skeleton height={56} />
           </View>
         ) : tasksQuery.isError ? (
-          <InlineRetryBanner message="Couldn’t load this list. Your data is safe on this device." retryLabel="Retry" onRetry={() => tasksQuery.refetch()} />
+          <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
         ) : isEmpty ? (
           <EmptyState
             icon={StickyNote}

@@ -12,7 +12,7 @@ import { CalendarSearch } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ROUTES, useOriginAwareBack } from '@/navigation';
-import { useConsistency, useConsistencyDisclosure, useTasks } from '@/queries';
+import { useConsistency, useTasks } from '@/queries';
 import type { ConsistencyScope, ConsistencyWindow, Id } from '@/types';
 import { SPACE, useTheme } from '@/theme';
 import { Button, Card, ConsistencyBreakdownBar, EmptyState, InlineRetryBanner, Select, Skeleton, Tabs } from '@/ui';
@@ -58,8 +58,10 @@ export default function S25ConsistencyDashboard() {
     window,
     taskId: scope === 'per-task' ? (selectedTaskId ?? undefined) : undefined,
   });
-  const disclosureQuery = useConsistencyDisclosure();
-
+  // Review pass 1, blocking item 4: the aggregate disclosure renders a PINNED illustrative
+  // fixture (ALLSCREENS 1557-1568 / 2034-2040), never the user's live history — M2's
+  // `useConsistencyDisclosure()` hook is therefore not consumed here at all. Flagging this as
+  // possibly-dead surface for M2 rather than silently wiring it up against spec.
   const isLoading = consistencyQuery.isLoading || (scope === 'per-task' && tasksQuery.isLoading);
   const result = consistencyQuery.data;
 

@@ -59,13 +59,14 @@ describe('S12 — Courses Browse', () => {
     expect(screen.getByText('2 days left')).toBeTruthy();
   });
 
-  it('Past tab: shows "Completed <date>" instead of days-left, no live dose badge requirement', async () => {
+  it('Past tab: shows "Completed <date>" instead of days-left, and hides the live dose badge', async () => {
     const pastCourse = course({ id: 'c2', name: 'Old course', startDate: addDays(today(), -20), endDate: addDays(today(), -5) });
     mockUseTasks.mockReturnValue({ data: [pastCourse], isLoading: false, isError: false, refetch: jest.fn() });
     const user = userEvent.setup();
     await render(<CoursesBrowseScreen />);
     await user.press(screen.getByLabelText('Past'));
     expect(screen.getByText(/Completed/)).toBeTruthy();
+    expect(screen.queryByText('2×/day')).toBeNull();
   });
 
   it('tapping a course card navigates to S20 with origin=courses', async () => {

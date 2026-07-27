@@ -12,7 +12,7 @@ import { SPACE, useTheme } from '@/theme';
 import { Badge, Card, EmptyState, InlineRetryBanner, ProgressRing, Skeleton, Tabs, Tag } from '@/ui';
 import type { LocalDate, TaskWithSteps } from '@/types';
 
-import { S12_COPY } from './copy';
+import { BROWSE_SHARED_COPY, S12_COPY } from './copy';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
 import { resolveTaskIcon } from './resolveIcon';
@@ -58,7 +58,7 @@ export default function CoursesBrowseScreen() {
             <Skeleton height={96} />
           </View>
         ) : tasksQuery.isError ? (
-          <InlineRetryBanner message="Couldn’t load this list. Your data is safe on this device." retryLabel="Retry" onRetry={() => tasksQuery.refetch()} />
+          <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
         ) : noCoursesAtAll ? (
           <EmptyState
             icon={ListChecks}
@@ -109,7 +109,7 @@ function CourseRow({ task: tk, today: todayDate, isPast, onPress }: { task: Task
         <Text style={[styles.meta, { color: t.color.textMuted }]}>{`Day ${elapsedDays} of ${totalDays}`}</Text>
       </View>
       <View style={styles.tagRow}>
-        {tk.dosesPerDay > 1 ? <Badge label={`${tk.dosesPerDay}×/day`} /> : null}
+        {!isPast && tk.dosesPerDay > 1 ? <Badge label={`${tk.dosesPerDay}×/day`} /> : null}
         {isPast ? (
           <Badge label={`${S12_COPY.completedPrefix} ${format(parseLocalDate(end), 'MMM d')}`} />
         ) : tk.endDate ? (

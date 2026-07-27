@@ -96,6 +96,6 @@ describe('S13 — To-dos & Notes Browse', () => {
   it('error: renders InlineRetryBanner', async () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() });
     await render(<ToDosBrowseScreen />);
-    expect(screen.getByText('Couldn’t load this list. Your data is safe on this device.')).toBeTruthy();
+    expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
   });
 });

@@ -28,8 +28,8 @@ export const S09_COPY = {
 
   offTodayMeta: 'Off today',
 
-  reentryHeadline: 'No workout yesterday — that’s okay.',
-  reentrySubcopy: 'Rest is part of the rhythm. One off day doesn’t undo anything.',
+  reentryHeadline: "No workout yesterday — that's okay.",
+  reentrySubcopy: "Rest is part of the rhythm. One off day doesn't undo anything.",
   reentryCta: 'Even 10 pushups counts →',
   reentryStatPrefix: 'Your consistency is intact — ',
   reentryStatSuffix: ' you showed up — ideal or fallback.',

@@ -54,7 +54,7 @@ export default function S28LevelUpCelebration() {
           <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
             {S28_COPY.tenureHeadline(label)}
           </Text>
-          <Text style={[styles.body, { color: t.color.textMuted }]}>{S28_COPY.tenureBody}</Text>
+          <Text style={[styles.body, { color: t.color.textMuted }]}>{tenureBodyFor(badgeKey)}</Text>
           <Button label={S28_COPY.dismissButton} onPress={handleDismiss} accessibilityLabel={S28_COPY.dismissButton} fullWidth />
         </View>
       </View>
@@ -75,7 +75,7 @@ export default function S28LevelUpCelebration() {
           {S28_COPY.levelUpHeadline(level.level)}
         </Text>
         <Text style={[styles.subhead, { color: t.color.text }]}>{S28_COPY.levelUpSubhead(level.title)}</Text>
-        <Text style={[styles.body, { color: t.color.textMuted }]}>{S28_COPY.levelUpBody}</Text>
+        <Text style={[styles.body, { color: t.color.textMuted }]}>{S28_COPY.levelUpBody(level.level)}</Text>
         <Text style={[styles.forward, { color: t.color.textMuted }]}>{S28_COPY.forwardLine}</Text>
         <Button label={S28_COPY.dismissButton} onPress={handleDismiss} accessibilityLabel={S28_COPY.dismissButton} fullWidth />
       </View>

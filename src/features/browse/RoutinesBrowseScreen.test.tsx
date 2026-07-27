@@ -55,7 +55,7 @@ describe('S10 — Routines Browse', () => {
   it('error: renders InlineRetryBanner', async () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() });
     await render(<RoutinesBrowseScreen />);
-    expect(screen.getByText('Couldn’t load this list. Your data is safe on this device.')).toBeTruthy();
+    expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
   });
 
   it('populated: a daily routine always appears in the Due section with a Due badge; an as-needed routine renders as AsNeededCard in Other routines with no due badge/cadence/heatmap', async () => {

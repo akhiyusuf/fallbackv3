@@ -102,6 +102,7 @@ export default function S20ManageTaskSheet() {
   const todayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === today);
   const yesterdayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === yesterday);
   const isDueYesterday = task ? isDue(task, yesterday) : false;
+  const isDueToday = task ? isDue(task, today) : false;
 
   function goCelebrate(outcome: 'ideal' | 'fallback', xpAwarded: number, levelUp: boolean, badgesUnlocked: readonly string[]) {
     const badgeParam = !levelUp && badgesUnlocked.length > 0 ? `&badgeKey=${badgesUnlocked[0]}` : '';
@@ -174,7 +175,7 @@ export default function S20ManageTaskSheet() {
   }
 
   const snoozeSlot = task
-    ? resolveSnoozeSlot({ todayOccurrence, yesterdayOccurrence, isDueYesterday, taskSnoozable: task.snoozable, yesterday })
+    ? resolveSnoozeSlot({ todayOccurrence, yesterdayOccurrence, isDueYesterday, isDueToday, taskSnoozable: task.snoozable, yesterday })
     : { kind: 'snooze' as const, enabled: false, disabledReason: 'Loading…' };
 
   async function onSnoozeSlotPress() {

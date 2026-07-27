@@ -49,7 +49,7 @@ describe('S14 — Filter & Search', () => {
     const refetch = jest.fn();
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
     await render(<SearchScreen />);
-    expect(screen.getByText('Couldn’t load this list. Your data is safe on this device.')).toBeTruthy();
+    expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
     expect(screen.queryByText('No matches.')).toBeNull();
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Retry'));

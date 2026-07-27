@@ -227,7 +227,7 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
     await render(<TodayScreen reentryOverride reentryTaskIdOverride="t1" />);
-    expect(screen.getByText('No workout yesterday — that’s okay.')).toBeTruthy();
+    expect(screen.getByText("No workout yesterday — that's okay.")).toBeTruthy();
     expect(screen.getByText('Your consistency is intact — 84% · 26 of the last 30 days you showed up — ideal or fallback.')).toBeTruthy();
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Even 10 pushups counts →'));
