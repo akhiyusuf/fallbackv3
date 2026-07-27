@@ -527,3 +527,43 @@ S4's reversal sweep stays move-only — do not extend it.
   T-1 breaks no caller.
 - F2's gap is closed by B2; it is downstream of B1 exactly as the reviewer said,
   and could not have been written first.
+
+---
+
+# Erratum E1 — C7's end-state text (architect, 2026-07-27)
+
+**Not a new ruling.** This records a factual correction to Ruling 1's C7 row, found by the
+reviewer on the pass-5 verification of Supplement B and confirmed against the implemented,
+reviewed and PASSED behaviour. No contract changes: nothing in the R-rules, W-rules,
+T-rules, Supplement A's clauses, or any other case row is affected.
+
+**Appended rather than edited in place**, because Supplement A and Supplement B each assert
+that the parts before them stand *byte-for-byte unmodified*; editing Ruling 1's table would
+falsify both. This is the same append-only mechanism by which Supplement A superseded C8's
+data clause and added C4b.
+
+Amendment index: E1 SUPERSEDES the end-state cell of Ruling 1's case row **C7**. Nothing
+else in any part of this file changes.
+
+**Why it went stale.** C7 was written before Supplement B. Implementing T-2 necessarily
+changed C7's behaviour: a tap on a visiting occurrence now writes to the visitor's own row
+instead of fabricating a fresh row at the tapped date, so on undo the completion travels
+home with its occurrence. The superseded text described the pre-T-2 behaviour, in which undo
+destroyed the user's completion and its award outright — that was the bug F1 exists to fix,
+not the target state.
+
+**C7's end state, superseded:**
+
+> A restored per C1; B resolves not-due and its award is retracted by reconcile;
+> `ownLog(B)`'s chip data remains as dormant residue (D-rule)
+
+**C7's end state, corrected — this is the binding text:**
+
+| # | Sequence | Required end state |
+|---|---|---|
+| C7 | A→B, complete at B, then B→A | the tap writes to A's OWN row (the visitor), pointer preserved — no row is fabricated at B (T-2 clause-(c)); the award keys on B while the occurrence shows there (T-3). On undo the completion travels home WITH the occurrence: A due `ideal` with its chip data; B not-due; exactly one award, re-affirmed at A — not lost, not duplicated |
+
+Ground truth: `src/queries/moveSemantics.test.ts`, describe block *"C7 — move, complete at
+the target, then undo: the completion travels WITH the moved occurrence"*. `docs/SCHEMA.md`
+§4.2 carries the corrected row inline, since it is a merged mirror rather than an
+append-only record.
