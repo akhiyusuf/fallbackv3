@@ -87,7 +87,7 @@ export default function ToDosBrowseScreen() {
           <View style={styles.list}>
             {shown.map((tk) =>
               lens === 'todos' ? (
-                <Card key={tk.id}>
+                <Card key={tk.id} onPress={() => openTask(tk.id)} accessibilityLabel={tk.name}>
                   <View style={styles.todoRow}>
                     <Checkbox
                       checked={!!tk.todoDoneAt}
@@ -97,12 +97,11 @@ export default function ToDosBrowseScreen() {
                       testID={`todo-checkbox-${tk.id}`}
                     />
                   </View>
-                  <View style={styles.tagRow}>
-                    {tk.importance ? <Tag label={importanceLabel(tk.importance)} /> : null}
-                    <Text onPress={() => openTask(tk.id)} accessibilityRole="button" accessibilityLabel={`Open ${tk.name}`} style={[styles.openLink, { color: t.color.textDim }]}>
-                      Details
-                    </Text>
-                  </View>
+                  {tk.importance ? (
+                    <View style={styles.tagRow}>
+                      <Tag label={importanceLabel(tk.importance)} />
+                    </View>
+                  ) : null}
                 </Card>
               ) : (
                 <Card key={tk.id} onPress={() => openTask(tk.id)} accessibilityLabel={`${tk.name}, ${tk.note}`}>
@@ -134,5 +133,4 @@ const styles = StyleSheet.create({
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
   name: { fontSize: 16, fontWeight: '600' },
   preview: { fontSize: 14, lineHeight: 20 },
-  openLink: { fontSize: 13, fontWeight: '600', paddingVertical: SPACE.s1 },
 });

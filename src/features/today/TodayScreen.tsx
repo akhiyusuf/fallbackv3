@@ -82,6 +82,9 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
         levelUp: result.value.levelUp ? '1' : '0',
         from: 'today',
       });
+      if (!result.value.levelUp && result.value.badgesUnlocked.length > 0) {
+        q.set('badgeKey', result.value.badgesUnlocked[0] as string);
+      }
       router.push(`/task/${row.task.id}/celebrate?${q.toString()}` as Href);
     }
   }
@@ -262,13 +265,11 @@ function TaskRow({
   const isOff = row.occurrence.outcome === 'off';
 
   return (
-    <Card accessibilityLabel={`${row.task.name}, ${metaLine(row)}`}>
+    <Card onPress={onOpen} accessibilityLabel={`${row.task.name}, ${metaLine(row)}`}>
       <View style={styles.taskRow}>
         <Icon size={22} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
         <View style={styles.taskTextCol}>
-          <Text onPress={onOpen} style={[styles.taskName, { color: t.color.text }]}>
-            {row.task.name}
-          </Text>
+          <Text style={[styles.taskName, { color: t.color.text }]}>{row.task.name}</Text>
           <Text style={[styles.taskMeta, { color: t.color.textMuted }]}>{metaLine(row)}</Text>
         </View>
         <StateChip

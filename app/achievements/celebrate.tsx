@@ -26,7 +26,7 @@ import { Button, MilestoneBadge } from '@/ui';
 
 import { BADGE_ICONS, LEVEL_UP_ICON } from '@/features/progress/badgeIcons';
 import { Confetti } from '@/features/progress/Confetti';
-import { S28_COPY } from '@/features/progress/copy';
+import { S28_COPY, tenureBodyFor } from '@/features/progress/copy';
 
 export default function S28LevelUpCelebration() {
   const t = useTheme();

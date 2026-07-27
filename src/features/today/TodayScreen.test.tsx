@@ -156,6 +156,24 @@ describe('S09 — Today', () => {
     push.mockRestore();
   });
 
+  it('chip tap: a milestone badge unlock carries badgeKey through to S24 (so it can chain to S28)', async () => {
+    const { today } = jest.requireActual('@/lib/date');
+    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
+    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
+    mockLogStateMutateAsync.mockResolvedValue({
+      ok: true,
+      value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: ['tenure-30'] },
+    });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<TodayScreen />);
+    await user.press(screen.getByLabelText('Movement state, To do'));
+    await user.press(screen.getByLabelText('Done'));
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today(), chip: 'done' }));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/task/t1/celebrate?variant=ideal&xp=10&levelUp=0&from=today&badgeKey=tenure-30'));
+    push.mockRestore();
+  });
+
   it('chip tap: a Skip commits with no celebration', async () => {
     const { today } = jest.requireActual('@/lib/date');
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
@@ -221,6 +239,18 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen justAddedOverride />);
     expect(screen.getByText(/your first habit is set 🌱/)).toBeTruthy();
+  });
+
+  it('tapping anywhere on the card row (not the chip) navigates to S20 with origin=today', async () => {
+    const { today } = jest.requireActual('@/lib/date');
+    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
+    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<TodayScreen />);
+    await user.press(screen.getByLabelText('Movement, Routine · daily'));
+    expect(push).toHaveBeenCalledWith('/task/t1?from=today');
+    push.mockRestore();
   });
 
   it('search icon navigates to S14 tagged with origin=today', async () => {

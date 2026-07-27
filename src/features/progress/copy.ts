@@ -31,6 +31,18 @@ export const S25_COPY = {
   aggregateSubcopy: (numerator: number, denominator: number) =>
     `≈${formatOneDecimal(numerator)} of ${denominator} counted days (weighted by that day's tasks)`,
   aggregateUnitCaption: 'Ideal/Fallback are rounded credit sums; Off is a day count; Missed is the rounded remainder.',
+  /** ALLSCREENS 2008-2012: appended when the counted-day window truncates because the task's
+   *  whole history so far is shorter than the fixed 7/30-day preset. */
+  truncatedWindowNote: (windowDays: number) => `— this task's whole history so far is shorter than ${windowDays} days`,
+  /** ALLSCREENS 1557-1568 / 2034-2040: the aggregate disclosure is a STANDALONE illustrative
+   *  fixture — a 3-day toy example from PRD §3.5/§6 — never the user's own live history. Pinned
+   *  verbatim, including the total line. */
+  disclosureFixtureRows: [
+    'Wed — 2 of 2 tasks shown up → counts as 1.0',
+    'Thu — 1 of 3 tasks shown up (2 missed) → counts as 0.33',
+    'Fri — every due task was off → not counted',
+  ] as const,
+  disclosureFixtureTotal: 'Total: 1.33 ÷ 2 counted days = 67%',
 } as const;
 
 /** Shared helper: whole numbers render bare, fractional ones to one decimal place. */
@@ -112,12 +124,35 @@ export const TENURE_OFFSETS: Record<string, { readonly relative: string; readonl
 export const S28_COPY = {
   levelUpHeadline: (level: number) => `You're now Level ${level}.`,
   levelUpSubhead: (title: string) => `New title: ${title}.`,
-  levelUpBody: "And you just crossed 100 tasks done — that's real consistency, not luck.",
-  forwardLine: '3 fresh badges now within reach.',
+  /**
+   * ALLSCREENS' exact body copy is pinned only to its own worked example ("And you just crossed
+   * 100 tasks done…" — Level 8 / 100-done demo). This screen's route contract (celebrate.tsx's
+   * header) only ever hands us post-crossing lifetime XP, never a completed-occurrence count, so
+   * that fact is never witnessable here — rendering it for every level-up would be false for
+   * nearly all of them (review pass 1, blocking item 5). Every level-up therefore gets this
+   * tone-matched, non-pinned body instead (judgment call, same category as `OTHER_LOCKED_HINT`).
+   */
+  levelUpBody: (level: number) => `Level ${level} — that's real consistency showing up, not luck.`,
+  /** Not pinned by the design pass (the spec's "3 fresh badges" is that same worked example's
+   *  count) — this module has no reachable-badges count to report, so this is generic,
+   *  tone-matched forward copy (judgment call). */
+  forwardLine: 'More badges are within reach.',
   tenureHeadline: (label: string) => `You've reached ${label}.`,
-  tenureBody: "A full year with Fallback — however those days went. That's not a performance score, that's just time.",
+  /** Pinned verbatim ONLY for the 1-year tier — the design's own worked example (ALLSCREENS S28
+   *  Copy). Rendering this sentence for any other tier is incoherent (a 1-week badge followed by
+   *  "A full year with Fallback" — review pass 1, blocking item 5). */
+  tenureBodyPinned: "A full year with Fallback — however those days went. That's not a performance score, that's just time.",
+  /** Not pinned by the design pass — tone-matched copy for every tenure tier other than 1-year,
+   *  deliberately generic (never restates a specific duration the headline didn't earn) —
+   *  judgment call, same category as `OTHER_LOCKED_HINT`. */
+  tenureBodyGeneric: "That's calendar time with Fallback — however those days went. Not a performance score, just time.",
   dismissButton: 'Nice!',
 } as const;
+
+/** Only the 1-year tenure tier gets the spec's pinned body copy (review pass 1, blocking item 5). */
+export function tenureBodyFor(badgeKey: string | undefined): string {
+  return badgeKey === 'tenure-1-year' ? S28_COPY.tenureBodyPinned : S28_COPY.tenureBodyGeneric;
+}
 
 export const S29_COPY = {
   title: 'Cycle records',

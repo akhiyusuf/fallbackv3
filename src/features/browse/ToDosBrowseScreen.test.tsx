@@ -72,12 +72,12 @@ describe('S13 — To-dos & Notes Browse', () => {
     );
   });
 
-  it('tapping "Details" on a to-do row navigates to S20 with origin=todos', async () => {
+  it('tapping the card row (not the checkbox) navigates to S20 with origin=todos', async () => {
     mockUseTasks.mockReturnValue({ data: [todo()], isLoading: false, isError: false, refetch: jest.fn() });
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<ToDosBrowseScreen />);
-    await user.press(screen.getByLabelText('Open Renew passport'));
+    await user.press(screen.getByRole('button', { name: 'Renew passport' }));
     expect(push).toHaveBeenCalledWith('/task/td1?from=todos');
     push.mockRestore();
   });

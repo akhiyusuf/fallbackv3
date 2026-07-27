@@ -45,6 +45,17 @@ describe('S14 — Filter & Search', () => {
     expect(screen.getByText('Nothing to search yet.')).toBeTruthy();
   });
 
+  it('error: a read failure renders InlineRetryBanner, not the no-results empty state', async () => {
+    const refetch = jest.fn();
+    mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    await render(<SearchScreen />);
+    expect(screen.getByText('Couldn’t load this list. Your data is safe on this device.')).toBeTruthy();
+    expect(screen.queryByText('No matches.')).toBeNull();
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Retry'));
+    expect(refetch).toHaveBeenCalled();
+  });
+
   it('default (no query, no filters): shows the full unfiltered result set including an as-needed routine, tagged distinctly', async () => {
     const asNeeded = task({ id: 't2', name: 'Emergency plan', isAsNeeded: true, cadence: null, importance: null, necessity: null });
     mockUseTasks.mockReturnValue({ data: [task(), asNeeded], isLoading: false, isError: false });

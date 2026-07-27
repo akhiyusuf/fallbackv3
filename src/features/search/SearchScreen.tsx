@@ -7,9 +7,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useOriginAwareBack, withOrigin, type ScreenOrigin } from '@/navigation';
 import { useTasks } from '@/queries';
 import { SPACE, useTheme } from '@/theme';
-import { Button, Card, EmptyState, IconButton, Input, Skeleton, Tag } from '@/ui';
+import { Button, Card, EmptyState, IconButton, InlineRetryBanner, Input, Skeleton, Tag } from '@/ui';
 import type { Importance, Necessity, TaskType, TaskWithSteps } from '@/types';
 
+import { BROWSE_SHARED_COPY } from '@/features/browse/copy';
 import { importanceLabel, necessityLabel, taskTypeLabel } from '@/features/browse/format';
 import { resolveTaskIcon } from '@/features/browse/resolveIcon';
 import { FilterChip } from './FilterChip';
@@ -127,6 +128,8 @@ export default function SearchScreen() {
             <Skeleton height={64} />
             <Skeleton height={64} />
           </View>
+        ) : tasksQuery.isError ? (
+          <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
         ) : nothingToSearchYet ? (
           <EmptyState icon={SearchIcon} headline={S14_COPY.nothingToSearchHeadline} subcopy={S14_COPY.nothingToSearchSubcopy} />
         ) : results.length === 0 ? (
