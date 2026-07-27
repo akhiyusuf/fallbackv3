@@ -351,6 +351,8 @@ describe('P8 — residue immutability, pointer-writer exclusivity, write visibil
         // eslint-disable-next-line no-await-in-loop
         await checkP7(task);
         // eslint-disable-next-line no-await-in-loop
+        await checkDenominatorConservation(task);
+        // eslint-disable-next-line no-await-in-loop
         await checkP2AndP3(task);
         checkP4();
         checkP5();
@@ -429,6 +431,8 @@ describe('P1-P8 — section (b): cross-operation pairs on same/adjacent dates', 
 
           // eslint-disable-next-line no-await-in-loop
           await checkP7(task);
+          // eslint-disable-next-line no-await-in-loop
+          await checkDenominatorConservation(task);
           // eslint-disable-next-line no-await-in-loop
           await checkP2AndP3(task);
           checkP4();
