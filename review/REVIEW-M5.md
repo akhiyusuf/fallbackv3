@@ -216,3 +216,113 @@ All 8 blocking items fixed. `npx jest app/progress app/achievements app/records`
 
 No pushback — all 8 items accepted as scoped. Did not touch anything under "Non-blocking notes" per the rework
 brief.
+
+# Review — M5 (pass 2)
+VERDICT: PASS
+
+All 8 pass-1 blocking items independently re-verified against current HEAD — none survive. The builder's
+self-report is accurate, with one bookkeeping caveat: the fix commit `0f3ae77` alone does not contain
+`src/features/progress/copy.ts`, `app/achievements/celebrate.tsx`, or the new
+`src/features/progress/testSupport/routerHarness.tsx`; those landed earlier inside the shared WIP snapshots
+`98777ac`/`6cd3db2` (both explicitly M5-inclusive). Verified via `git diff 6971af3..HEAD` over M5 paths that the
+complete fix set is committed and the working tree is clean.
+
+## Blocking items
+
+None.
+
+## Item-by-item verification
+
+1. **Aggregate breakdown-bar total — fixed, arithmetic re-derived independently.** `app/progress/index.tsx:140-149`:
+   aggregate scope now passes `ideal + fallback + missed + off`; per-task keeps `denominator + off` (unchanged, still
+   correct — categories are whole days there). Against the design's pinned aggregate|7 legend (re-read at ALLSCREENS
+   2020-2023: Ideal 6 · Fallback 1 · Off 0 · Missed 1, denominator 7): total = 8, filled = (6+1+0)/8 = 87.5% < 100%,
+   with the missed share genuinely unfilled — the old bug ((6+1+0)/7 = 100%) is gone. The new test
+   (`app/progress/index.test.tsx:104-115`) feeds exactly that fixture and its `filledPercent` helper (lines 26-35)
+   sums the REAL rendered segment widths off the tree — I read `src/ui/ConsistencyBreakdownBar.tsx:38-40` to confirm
+   the track's children are exactly the three filled segments (missed renders no width), so the helper measures what
+   ships, not the prop. The per-task twin (lines 95-102) guards the unchanged branch the same way. Not box-checking.
+2. **Brand-new-user empty state — fixed, ordering verified in source.** `app/progress/index.tsx:108-114`: the
+   `scope === 'per-task' && trackableTasks.length === 0` branch sits textually and evaluatively BEFORE
+   `consistencyQuery.isError` in the same ternary chain (loading is checked first, so the tasks list has settled).
+   The test (`index.test.tsx:78-84`) sets `useTasks → []` AND `isError = true` simultaneously — the doomed-query
+   condition the pass-1 item specified — and asserts "No data yet" renders while the error copy does not. Genuine.
+3. **In-progress trend bucket — fixed.** `app/progress/trend.tsx:60-64` (`bucketHasElapsed`) compares each bucket's
+   natural calendar end (`endOfWeek`/`endOfMonth`/`<year>-12-31`) against `@/lib/date`'s `today()`; the filter at
+   line 75 runs before `graphPoints` AND before the `points.length === 0` empty-state check. Week-start parity
+   verified: both this file and `src/queries/reads.ts` import the same `@/lib/date` `endOfWeek` (`weekStartsOn: 1`),
+   so completeness detection cannot disagree with the hook's bucketing. The test (`trend.test.tsx:51-61`) freezes
+   `today()` to 2026-07-16 via a `@/lib/date` partial mock (NOT expo-router — rule respected), feeds a full June
+   bucket plus a clamped July 1-15 bucket at 90%, and asserts "Jul 2026" appears in neither the plotted labels nor
+   the table, while Jun/May do. The pass-1 fixture that encoded the bug as intended behaviour is gone.
+4. **Pinned disclosure fixture — fixed, byte-verbatim.** Re-read ALLSCREENS 2034-2040 myself and compared
+   character-for-character against `src/features/progress/copy.ts:40-45`: all three rows ("Wed — 2 of 2 tasks shown
+   up → counts as 1.0" / "Thu — 1 of 3 tasks shown up (2 missed) → counts as 0.33" / "Fri — every due task was off
+   → not counted") and the total ("Total: 1.33 ÷ 2 counted days = 67%") match exactly, including the em-dashes and
+   "→". `useConsistencyDisclosure` is no longer imported anywhere in `app/progress/index.tsx` (grep-verified); the
+   disclosure (lines 158-179) renders only the pinned constants. The test (`index.test.tsx:117-130`) asserts all
+   four strings and additionally regex-scans the ENTIRE rendered tree for any `\d{4}-\d{2}-\d{2}` — a live-history
+   ISO date cannot leak anywhere on the screen, stronger than the acceptance asked.
+5. **S28 variant-aware copy — fixed, and the "always-generic level-up body" reading is legitimate, not a dodge.**
+   Pass 1 explicitly licensed it: "you may keep the pinned level-up body only if you can actually witness the
+   100-done fact, otherwise don't claim it." The route contract (celebrate.tsx header, cross-checked in pass 1
+   against M4's caller) carries only `xp` — no completed-occurrence count exists to witness, so generic-for-all is
+   the honest branch of the license. Critically, the true case the review demanded IS preserved:
+   `tenureBodyFor` (`copy.ts:153-155`) returns the pinned "A full year with Fallback…" string — byte-verbatim
+   against ALLSCREENS 2777-2779, re-checked — exactly and only for `tenure-1-year`, and `celebrate.tsx:57` renders
+   through it. The generic tenure body deliberately names no duration, so no tier can render a false claim; the
+   generic level-up body states only the level the headline already established. Tests
+   (`celebrate.test.tsx:43-53`): `tenure-1-week` → "A full year" absent; level-2 → "100 tasks done" absent. Both
+   pass through real route params (see item 6), so `tenureBodyFor` is exercised end-to-end.
+6. **expo-router mocks — gone, replaced with the real router.** `grep -rn "jest.mock('expo-router'"` across the
+   repo: zero hits in any M5 path (remaining hits are other modules' files, out of this review's scope).
+   `src/features/progress/testSupport/routerHarness.tsx` mirrors M4's sanctioned pattern: real screens for S28/S30,
+   marker screens for external destinations. The tests meaningfully exercise param-passing, not just mounting:
+   `xp=3900` in the URL must flow through the REAL `useLocalSearchParams` into the REAL `levelFor` to produce
+   "Level 8 / Dependable" (celebrate.test.tsx:28-35), `badgeKey` drives the tenure variant's label and body, and
+   dismissal/back are asserted BY NAVIGATION (`MARKER_ACHIEVEMENTS`, `MARKER_RECORDS` found on screen after the
+   press) — real `router.replace` through the real navigator.
+7. **Both copy variants present and spec-verbatim.** (a) `app/achievements/index.tsx:119` formats `'EEE, MMM d'`
+   iff `cycleCadence === 'weekly'`; test (`index.test.tsx:63-71`) uses the spec's own cycle window (Jul 13-19,
+   2026) and asserts the exact pinned string "Resets on Sun, Jul 19" (ALLSCREENS 2391-2392 re-checked; Jul 19 2026
+   is indeed a Sunday, consistent with the weekStartsOn-1 convention). (b) `truncatedWindowDays`
+   (`app/progress/index.tsx:41-45`) appends `copy.ts:36`'s clause — verbatim against ALLSCREENS 2008-2012 including
+   the leading "—", joined with a space onto the subcopy exactly as the spec's continuation reads; test
+   (`index.test.tsx:69-76`) presses the real "30 days" tab and asserts the full combined string.
+8. **Tenure-parity drift guard — real, and it exercises clamping.** `app/achievements/index.test.tsx:130-157`:
+   `it.each` over every `TENURE_OFFSETS` key, anchor `2026-01-31` (month-end, as required). For `tenure-1-month`
+   this forces the interesting case: `tenureUnlockDate` = addMonths(Jan 31, 1) = Feb 28 (clamped), and the test then
+   proves M2's `reconcileAchievements` — called through its public surface only, no production change — unlocks the
+   key exactly on that date and NOT on Feb 27. The day-before boundary assertion is what makes this behavioral
+   rather than tautological: if either table's offset or either `addMonths` clamp ever drifts, one of the two
+   assertions breaks. Promotion CR to dedupe the tables remains flagged for the architect, per pass-1's own framing.
+
+## Non-blocking notes (new; pass-1 notes 1-8 carry forward unchanged)
+
+9. S30's "never fully filled" test (`app/records/[cycleId].test.tsx:49-54`) still asserts only label existence —
+   the pass-1 parenthetical about it was not part of item 1's acceptance and S30's production `total` was already
+   correct, but S25's `filledPercent` helper is right there to reuse when the file is next open.
+10. No positive-case test asserts the pinned tenure body ("A full year with Fallback…") actually renders for
+    `badgeKey=tenure-1-year` — the absence cases are covered; one `findByText` would close the loop.
+11. `trend.tsx:63` treats `naturalEnd === today` as elapsed, so on the literal last day of a week/month the
+    still-live bucket plots while today's occurrences can still resolve. Edge-of-edge; the spec's "in-progress
+    bucket" language arguably includes it. Worth a one-line `isBefore` think-through next visit.
+12. `[cycleId].test.tsx` mocks `useCycleRecord` without asserting it was called with `'r1'`, so the cycleId
+    param's flow into the hook is untested (the param IS exercised for rendering via the real router). Cheap add.
+
+## Verified
+
+- **Tests run myself:** `npx jest app/progress app/achievements app/records` → 6 suites / 59 passed, 0 failed —
+  matches the builder's report exactly (up from 39 at pass 1; the 20 new tests are the items' coverage).
+- **Fix commits read in full:** `git show 0f3ae77` (8 files, all M5-owned) and the M5 portions of `98777ac`/
+  `6cd3db2` (copy.ts, celebrate.tsx, routerHarness.tsx); `79f407d` touches only the review file. Working tree clean.
+- **Scope discipline:** `git diff --stat 6971af3..HEAD -- <M5 paths>` → 11 files, every one inside M5's ownership;
+  `git log 6971af3..HEAD -- src/domain src/queries src/ui src/types src/lib` → empty. Frozen layers untouched.
+- **Spec lines re-read at source** (not trusted from pass 1 or the builder): ALLSCREENS 2013-2023 (aggregate|7
+  legend), 2034-2040 + 1557-1568 (disclosure fixture + "never doubles as a live dataset"), 2008-2012 (truncation
+  clause), 2164-2168 (only-completed-buckets), 2391-2392 (weekly reset), 2755-2782 (S28 copy incl. the pinned
+  1-year tenure body).
+- **Arithmetic re-derived by hand:** aggregate|7 old total 7 → 100% filled (bug), new total 8 → 87.5%; per-task
+  87% fixture → 30/34 ≈ 88.2%; Jan 31 + 1 month → Feb 28 clamp; Jul 19 2026 = Sunday.
+- **Mock hygiene:** repo-wide grep for `jest.mock('expo-router'` → zero M5 hits; trend.test.tsx's new mock is a
+  `@/lib/date` partial (today() only, `requireActual` for the rest) — outside the banned category.
