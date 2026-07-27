@@ -103,8 +103,9 @@ export default function S20ManageTaskSheet() {
   const yesterdayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === yesterday);
   const isDueYesterday = task ? isDue(task, yesterday) : false;
 
-  function goCelebrate(outcome: 'ideal' | 'fallback', xpAwarded: number, levelUp: boolean) {
-    router.push(`/task/${taskId}/celebrate?variant=${outcome}&xp=${xpAwarded}&levelUp=${levelUp ? '1' : '0'}&from=manage` as never);
+  function goCelebrate(outcome: 'ideal' | 'fallback', xpAwarded: number, levelUp: boolean, badgesUnlocked: readonly string[]) {
+    const badgeParam = !levelUp && badgesUnlocked.length > 0 ? `&badgeKey=${badgesUnlocked[0]}` : '';
+    router.push(`/task/${taskId}/celebrate?variant=${outcome}&xp=${xpAwarded}&levelUp=${levelUp ? '1' : '0'}${badgeParam}&from=manage` as never);
   }
 
   async function onChipChange(chip: ChipState) {
@@ -114,7 +115,7 @@ export default function S20ManageTaskSheet() {
       return;
     }
     if (result.value.celebrate === 'ideal' || result.value.celebrate === 'fallback') {
-      goCelebrate(result.value.celebrate, result.value.xpAwarded, !!result.value.levelUp);
+      goCelebrate(result.value.celebrate, result.value.xpAwarded, !!result.value.levelUp, result.value.badgesUnlocked);
     }
   }
 
@@ -127,7 +128,7 @@ export default function S20ManageTaskSheet() {
     }
     const outcome = result.value.occurrence?.outcome;
     if ((outcome === 'ideal' || outcome === 'fallback') && outcome !== prevOutcome) {
-      goCelebrate(outcome, result.value.xpAwarded, !!result.value.levelUp);
+      goCelebrate(outcome, result.value.xpAwarded, !!result.value.levelUp, result.value.badgesUnlocked);
     }
   }
 

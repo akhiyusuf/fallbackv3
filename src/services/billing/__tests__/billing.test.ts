@@ -1,4 +1,4 @@
-const iapMocks = {
+const mockIapModule = {
   initConnection: jest.fn(async () => true),
   fetchProducts: jest.fn(async () => [
     { id: 'fallback.ai.monthly', displayPrice: '$4.99' },
@@ -11,13 +11,22 @@ const iapMocks = {
   requestPurchase: jest.fn(async () => undefined),
 };
 
-jest.mock('expo-iap', () => iapMocks);
+// `{ virtual: true }`: `expo-iap`'s `main` entry ships raw ESM (`import`/`export`) rather
+// than CJS despite its `package.json` `main` field, and it isn't in `jest.config.js`'s
+// transform whitelist (unlike `lucide-react-native`/`standard-navigation`, which the
+// architect's fix already names — see MODULES.md's "House testing pattern"). Without
+// `virtual: true`, Jest still attempts to resolve/probe the real module to shape the
+// mock and silently yields `undefined` instead of throwing, so every call through the
+// (correctly-registered) mock factory fails with "Cannot read properties of undefined".
+// `virtual: true` tells Jest never to touch the real module at all. This is a local,
+// test-only workaround — no `src/**` production import changes.
+jest.mock('expo-iap', () => mockIapModule, { virtual: true });
 
-const authenticateAsync = jest.fn();
+const mockAuthenticateAsync = jest.fn();
 jest.mock('expo-local-authentication', () => ({
   hasHardwareAsync: jest.fn(async () => true),
   isEnrolledAsync: jest.fn(async () => true),
-  authenticateAsync: (...args: unknown[]) => authenticateAsync(...args),
+  authenticateAsync: (...args: unknown[]) => mockAuthenticateAsync(...args),
 }));
 
 import { useEntitlementStore } from '@/app-shell';
@@ -40,7 +49,7 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   it('init() opens the store connection', async () => {
     const result = await billing.init();
     expect(result.ok).toBe(true);
-    expect(iapMocks.initConnection).toHaveBeenCalled();
+    expect(mockIapModule.initConnection).toHaveBeenCalled();
   });
 
   it('getProducts() maps the two SKUs to {sku, plan, localizedPrice}', async () => {
@@ -54,27 +63,27 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   });
 
   it('purchase() requires biometric confirmation BEFORE requestPurchase is called', async () => {
-    authenticateAsync.mockResolvedValue({ success: true });
+    mockAuthenticateAsync.mockResolvedValue({ success: true });
     await billing.purchase('monthly');
-    expect(authenticateAsync).toHaveBeenCalled();
-    expect(iapMocks.requestPurchase).toHaveBeenCalled();
-    const biometricOrder = authenticateAsync.mock.invocationCallOrder[0] ?? -1;
-    const purchaseOrder = iapMocks.requestPurchase.mock.invocationCallOrder[0] ?? -2;
+    expect(mockAuthenticateAsync).toHaveBeenCalled();
+    expect(mockIapModule.requestPurchase).toHaveBeenCalled();
+    const biometricOrder = mockAuthenticateAsync.mock.invocationCallOrder[0] ?? -1;
+    const purchaseOrder = mockIapModule.requestPurchase.mock.invocationCallOrder[0] ?? -2;
     expect(biometricOrder).toBeLessThan(purchaseOrder);
   });
 
   it('a biometric cancel is calm and non-punitive: CANCELLED error, requestPurchase never called, nothing charged', async () => {
-    authenticateAsync.mockResolvedValue({ success: false, error: 'user_cancel' });
+    mockAuthenticateAsync.mockResolvedValue({ success: false, error: 'user_cancel' });
     const result = await billing.purchase('monthly');
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe('CANCELLED');
-    expect(iapMocks.requestPurchase).not.toHaveBeenCalled();
+    expect(mockIapModule.requestPurchase).not.toHaveBeenCalled();
   });
 
   it('a store purchase error resolves calmly (no throw) and reports nothing charged', async () => {
-    authenticateAsync.mockResolvedValue({ success: true });
-    iapMocks.requestPurchase.mockRejectedValueOnce(new Error('store down'));
+    mockAuthenticateAsync.mockResolvedValue({ success: true });
+    mockIapModule.requestPurchase.mockRejectedValueOnce(new Error('store down'));
     const result = await billing.purchase('monthly');
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -82,7 +91,7 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   });
 
   it('restore() needs no login — it only re-reads store purchase records', async () => {
-    iapMocks.getAvailablePurchases.mockResolvedValueOnce([{ productId: 'fallback.ai.annual', purchaseToken: 'tok-1' }] as never);
+    mockIapModule.getAvailablePurchases.mockResolvedValueOnce([{ productId: 'fallback.ai.annual', purchaseToken: 'tok-1' }] as never);
     const result = await billing.restore();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -91,7 +100,7 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
   });
 
   it('restore() with nothing active returns false without error (calm toast, not a failure)', async () => {
-    iapMocks.getAvailablePurchases.mockResolvedValueOnce([]);
+    mockIapModule.getAvailablePurchases.mockResolvedValueOnce([]);
     const result = await billing.restore();
     expect(result.ok).toBe(true);
     if (!result.ok) return;

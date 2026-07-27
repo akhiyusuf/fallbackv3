@@ -74,6 +74,10 @@ export default function S23AsNeededRoutineDetail() {
     const result = await logUse.mutateAsync({ taskId, date: todayFn(), marker });
     setChooserOpen(false);
     if (result.ok) {
+      // `useLogAsNeededUse`'s own invalidation only covers `QUERY_KEYS.task` — this screen's
+      // history read is the local `useAsNeededHistory` stop-gap (see that file's header), not
+      // yet wired into the shared invalidation map, so it refetches itself here.
+      await historyQuery.refetch();
       showToast('Logged to history');
     } else {
       showToast("Couldn't save that — try again.", 'warning');

@@ -114,6 +114,7 @@ export default function S43ThemeAndAccent() {
         </Card>
 
         <Card
+          testID="theme-preview"
           accessibilityLabel="Live preview, a non-interactive illustrative example"
           accessibilityRole="summary"
         >
@@ -146,7 +147,7 @@ function PreviewChip({ caption, value }: { caption: string; value: 'done' | 'fal
   const t = useTheme();
   return (
     <View style={styles.previewChipCol}>
-      <StateChip value={value} onChange={() => {}} disabled variant="compact" accessibilityLabel={caption} />
+      <StateChip value={value} onChange={() => {}} disabled variant="compact" accessibilityLabel={caption} testID={`preview-chip-${value}`} />
       <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{caption}</Text>
     </View>
   );

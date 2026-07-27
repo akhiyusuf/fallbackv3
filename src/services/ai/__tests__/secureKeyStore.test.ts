@@ -2,15 +2,15 @@
  * Proves the hard security boundary from docs/MODULES.md M6: the BYO key lives ONLY in
  * `expo-secure-store` — never SQLite, never a backup file, never a log line.
  */
-const store = new Map<string, string>();
+const mockSecureStoreState = new Map<string, string>();
 
 jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(async (key: string) => store.get(key) ?? null),
+  getItemAsync: jest.fn(async (key: string) => mockSecureStoreState.get(key) ?? null),
   setItemAsync: jest.fn(async (key: string, value: string) => {
-    store.set(key, value);
+    mockSecureStoreState.set(key, value);
   }),
   deleteItemAsync: jest.fn(async (key: string) => {
-    store.delete(key);
+    mockSecureStoreState.delete(key);
   }),
 }));
 
@@ -21,7 +21,7 @@ const SECRET_KEY = 'sk-super-secret-value-should-never-leak-anywhere-else';
 
 describe('secureKeyStore — BYO key SecureStore-only boundary', () => {
   beforeEach(() => {
-    store.clear();
+    mockSecureStoreState.clear();
     jest.clearAllMocks();
   });
 
@@ -83,7 +83,8 @@ describe('secureKeyStore — never reachable from SQLite (docs/db backup boundar
     // SecureStore key NAMES, not SQLite columns, so there is no table for them to appear in.
     // This test asserts the module-boundary half of that guarantee: nothing in this file
     // exports a value shaped for SQL / JSON-envelope serialization.
-    const moduleExports = await import('../secureKeyStore');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const moduleExports = require('../secureKeyStore') as typeof import('../secureKeyStore');
     expect(Object.keys(moduleExports).sort()).toEqual(
       ['clearByoConfig', 'describeByoConfig', 'getByoConfig', 'hasByoConfig', 'setByoConfig'].sort(),
     );

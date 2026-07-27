@@ -8,17 +8,17 @@
  */
 import '../../../db/__tests__/testHarness';
 
-const secureStoreState = new Map<string, string>();
+const mockSecureStoreState = new Map<string, string>();
 const REAL_SECRET = 'sk-do-not-leak-1234567890abcdef';
 
 jest.mock('expo-file-system/legacy', () => require('../../../db/testSupport/fileSystemTestDouble'));
 jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(async (key: string) => secureStoreState.get(key) ?? null),
+  getItemAsync: jest.fn(async (key: string) => mockSecureStoreState.get(key) ?? null),
   setItemAsync: jest.fn(async (key: string, value: string) => {
-    secureStoreState.set(key, value);
+    mockSecureStoreState.set(key, value);
   }),
   deleteItemAsync: jest.fn(async (key: string) => {
-    secureStoreState.delete(key);
+    mockSecureStoreState.delete(key);
   }),
 }));
 
@@ -67,7 +67,7 @@ function buildTask(): Task {
 }
 
 describe('BYO key boundary — never appears in a backup file (SecureStore vs. SQLite)', () => {
-  beforeEach(() => secureStoreState.clear());
+  beforeEach(() => mockSecureStoreState.clear());
 
   it('a real secret in SecureStore is absent from a real backup envelope, even with app data present', async () => {
     // Seed the BYO key into (mocked) SecureStore — never through @/db.

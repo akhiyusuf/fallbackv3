@@ -33,7 +33,7 @@ import type { Id } from '@/types';
 export default function S24CompletionCelebration() {
   const t = useTheme();
   const router = useRouter();
-  const { id, variant, xp, levelUp, badgeKey, from } = useLocalSearchParams<{
+  const { id, variant, xp, levelUp, badgeKey } = useLocalSearchParams<{
     id: string;
     variant?: string;
     xp?: string;

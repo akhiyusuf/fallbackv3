@@ -79,15 +79,16 @@ export const billing: BillingProvider = {
       await initConnection();
       purchaseUpdatedListener((event) => {
         void (async () => {
-        const purchase = event as unknown as MinimalPurchase;
-        const receipt = receiptOf(purchase);
-        if (receipt) latestReceipt = receipt;
-        try {
-          await finishTransaction({ purchase: purchase as never, isConsumable: false });
-        } catch {
-          // A failed finalize doesn't lose the purchase — the store replays it on next
-          // launch (expo-iap's own documented iOS behaviour); nothing to surface here.
-        }
+          const purchase = event as unknown as MinimalPurchase;
+          const receipt = receiptOf(purchase);
+          if (receipt) latestReceipt = receipt;
+          try {
+            await finishTransaction({ purchase: purchase as never, isConsumable: false });
+          } catch {
+            // A failed finalize doesn't lose the purchase — the store replays it on next
+            // launch (expo-iap's own documented iOS behaviour); nothing to surface here.
+          }
+        })();
       });
       purchaseErrorListener(() => {
         // Surfaced to the caller via `purchase()`'s own await/race below, not here — this
