@@ -11,7 +11,8 @@ jest.mock('@/lib/date', () => {
 });
 
 import React from 'react';
-import { renderRouter, screen, userEvent } from 'expo-router/testing-library';
+import { renderRouter, screen } from 'expo-router/testing-library';
+import { userEvent } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';

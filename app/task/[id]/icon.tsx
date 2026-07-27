@@ -76,7 +76,7 @@ export default function S21IconAndColorPicker() {
 
       <View style={styles.previewRow}>
         <View style={[styles.previewCircle, { backgroundColor: ACCENTS[currentColor].base }]}>
-          <PreviewIcon size={28} color="#fff" />
+          <PreviewIcon size={28} color={t.color.textOnAccent} />
         </View>
         <Text style={[styles.previewName, { color: t.color.text }]}>{task.name}</Text>
       </View>
@@ -131,7 +131,7 @@ export default function S21IconAndColorPicker() {
               accessibilityLabel={c.label}
               style={[styles.swatch, { backgroundColor: ACCENTS[c.key].base }]}
             >
-              {selected ? <Check size={18} color="#fff" /> : null}
+              {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
             </Pressable>
           );
         })}

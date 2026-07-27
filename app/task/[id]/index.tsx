@@ -256,7 +256,7 @@ export default function S20ManageTaskSheet() {
           testID="s20-icon-avatar"
           style={[styles.avatar, { backgroundColor: ACCENTS[task.color].base }]}
         >
-          <Icon size={22} color="#fff" />
+          <Icon size={22} color={t.color.textOnAccent} />
         </Pressable>
         <View style={styles.nameCol}>
           <Input label="Task name" value={nameDraft ?? task.name} onChangeText={setNameDraft} accessibilityLabel="Task name" testID="s20-name-input" />
