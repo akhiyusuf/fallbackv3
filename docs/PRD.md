@@ -29,11 +29,11 @@ STATUS: APPROVED
 > This is a scoped change **inside** the approved Gate 1 — `STATUS: APPROVED` is
 > unchanged and Gate 1 is not reopened. No other feature section is affected. §3.7
 > carries a **Design precedence** block naming exactly where it supersedes the
-> Gate-2 design and where the design still controls, and a **one-live-outcome-per-date**
-> rule governing what a snooze target displays. One genuine gap this amendment
-> surfaced — how a user reaches **Undo snooze** for an occurrence that displays
-> nowhere — is **open in §7**, not papered over. See §3.7 and **Decisions appendix
-> item 21**.
+> Gate-2 design and where the design still controls, and a
+> **one-live-outcome-per-task-per-date** rule governing what a snooze target
+> displays. One genuine gap this amendment surfaced — how a user reaches **Undo
+> snooze** for an occurrence that displays nowhere — is **open in §7**, not papered
+> over. See §3.7 and **Decisions appendix item 21**.
 
 ---
 
@@ -460,25 +460,32 @@ collapsed shorthand spanning both tiles, which this amendment now separates.
   counts is governed by the precedence rule immediately below**, not by the move
   itself. The single non-snoozable case is **not-due** — there is no occurrence to
   move, so the slot renders disabled (rendering 2 above).
-- **ONE LIVE OUTCOME PER DATE — the target date's own state wins (PINNED; this is the
-  already-implemented, already-tested rule, mirrored from `docs/SCHEMA.md` §4.2's
-  three-clause read resolution).** A date never displays or counts **more than one**
-  outcome, ever. When an occurrence arrives at D + 1, exactly one of three cases holds:
+- **ONE LIVE OUTCOME PER TASK PER DATE — the target date's own state wins (PINNED; this
+  is the already-implemented, already-tested rule, mirrored from `docs/SCHEMA.md`
+  §4.2's three-clause read resolution).** For a **given task**, a date never displays
+  or counts more than one of **that task's** outcomes, ever. (Different tasks resolve
+  independently — a date with several due or visiting tasks shows one outcome **per
+  task**, as Today always has.) When an occurrence arrives at D + 1, exactly one of
+  three cases holds:
   1. **D + 1 already carries its own real logged state** → **that** is what displays
      and counts. The arriving occurrence's data **does not overwrite it, does not merge
      into it, and contributes nothing to F5 or XP**. The arriving data goes **dormant**
      — retained, not destroyed — and returns with the occurrence on undo.
   2. **D + 1 is naturally due, its own occurrence is still present, and it has never
      been logged** → D + 1 shows **its own blank state** (auto chip; pending today,
-     missed once the day has ended) — **deliberately NOT the visitor's data.** Showing
-     a completed state on a day the user never touched would **manufacture XP for that
-     day**; the visitor's data stays dormant instead.
+     missed once the day has ended — or **off** if D + 1 is off-marked, per F4) —
+     **deliberately NOT the visitor's data.** Showing a completed state on a day the
+     user never touched would **manufacture XP for that day**; the visitor's data stays
+     dormant instead.
   3. **Otherwise** — D + 1 is **not** naturally due, **or** D + 1's own occurrence has
      itself been snoozed away — the visitor is the only occurrence present, so **the
      arriving occurrence's data is what displays and counts** at D + 1.
-  **Consequence qa-tester must assert:** `numerator = denominator − missed` (§3.5)
-  holds across any snooze, because exactly one occurrence is ever counted per date —
-  never two, never zero-plus-a-double.
+  **Consequences qa-tester must assert:** the load-bearing assertions are §6's
+  precedence fixtures — no XP materialises at a case-2 target, the % is unchanged by a
+  dormant visitor, and the visitor counts at a case-3 target. The §3.5 identity
+  `numerator = denominator − missed` must also hold across any snooze, **as a sanity
+  check only** — it is true by definition and does not by itself distinguish the
+  precedence rule from its absence.
 - **An already-snoozed occurrence cannot be snoozed again.** Its slot renders "Undo
   snooze" only. Consequently **no occurrence is ever more than one day from its own
   date, and chains (A→B→C) are unreachable by construction** — qa-tester must assert
@@ -1187,10 +1194,11 @@ v1.
   tasks may still each snooze onto the same date, and an occurrence may still end up on a date
   its own task has vacated via a **sequence of independent one-hop snoozes on different
   occurrences** — both remain in scope. See §3.7 and Decisions item 21.
-- **Merging, summing, or co-displaying two occurrences on one date (F7).** A date shows and
-  counts **exactly one** outcome — §3.7's one-live-outcome-per-date precedence rule. Do not
-  build a combined view, a "2 occurrences here" affordance, or any arithmetic that lets a
-  visiting occurrence contribute to a date that already resolves its own state.
+- **Merging, summing, or co-displaying two occurrences of the same task on one date (F7).** A
+  date shows and counts **exactly one outcome per task** — §3.7's
+  one-live-outcome-per-task-per-date precedence rule. Do not build a combined view, a
+  "2 occurrences **of this task** here" affordance, or any arithmetic that lets a visiting
+  occurrence contribute to a date that already resolves its own state.
 - **Consistency tracking / a %-shown-up figure for as-needed routines (R24 / F27).** The
   as-needed variant is **deliberately untracked**; computing, showing, or "gamifying" a
   consistency % for it is a non-goal. Its manual logging is **reference-only** history with
@@ -1276,16 +1284,19 @@ Groq via the thin backend — disclosed to the user (F9/paywall copy).
   editable after creation. Ship the demo fixture with **at least one non-snoozable task** (e.g. a
   fixed-time "School run" routine) alongside snoozable ones, so qa-tester can assert the snooze
   slot renders **disabled** on the former and enabled on the latter, and that toggling the setting
-  flips that rendering immediately. Also ship **one already-snoozed occurrence** so the
-  "Undo snooze" rendering, the impossibility of a second snooze, and undo-restores-the-original-day
-  are all reproducible on-screen.
-- **Snooze precedence fixtures (F7 §3.7, one-live-outcome-per-date):** three fixtures, one per
-  case — (1) a snooze landing on a date that **already carries its own logged state** (target's
+  flips that rendering immediately. Also ship **one already-snoozed occurrence**, **pinned so its
+  target resolves precedence case 3** (the visitor displays — e.g. a weekday-cadence task snoozed
+  onto a not-naturally-due day; this may simply be the same fixture as precedence fixture (3)), so
+  the "Undo snooze" rendering, the impossibility of a second snooze, and
+  undo-restores-the-original-day are all reproducible on-screen.
+- **Snooze precedence fixtures (F7 §3.7, one-live-outcome-per-task-per-date):** three fixtures, one
+  per case — (1) a snooze landing on a date that **already carries its own logged state** (target's
   state displays and counts; the visitor contributes nothing to F5 or XP); (2) a snooze landing on
   a **naturally-due, never-logged** date (the target's own blank state displays — assert **no XP
   materialises** at the target and the % is unchanged by the visitor); (3) a snooze landing on a
-  **not-naturally-due** date (the visitor displays and counts there). Every fixture must satisfy
-  `numerator = denominator − missed`, proving exactly one outcome per date.
+  **not-naturally-due** date (the visitor displays and counts there). Every fixture must also
+  satisfy `numerator = denominator − missed` (§3.5 sanity check); the case-specific assertions
+  above are what prove the precedence rule.
 - **Per-sub-step, per-parent-occurrence toggle state (R22 / F23 / F24):** a **persisted** on/off
   toggle per sub-step, a **subset of the parent's own occurrence set** (for the P0 daily/weekday
   cadence this is its selected weekdays). Stored on the task's ideal/fallback step records; the
@@ -1641,8 +1652,8 @@ Decisions item 18).
       discouraged. §3.7 also pins what the first draft left unstated: snooze acts **only** on the
       occurrence the sheet is displaying (never from the heatmap drill-down); the **closed list
       of snoozable occurrence states** is pending / ideal / fallback / missed / off — everything
-      except *not-due*; and a **one-live-outcome-per-date** precedence rule governs what the target
-      date shows (below).
+      except *not-due*; and a **one-live-outcome-per-task-per-date** precedence rule governs what the
+      target date shows (below).
     - **(b) The arbitrary-date "Move to another day" action is removed**, and F7's interaction
       details now **supersede the Gate-2 design in three named places**, enumerated in §3.7's
       **Design precedence** table: `ALLSCREENS_1.md` **lines 1025 / 1072** (three actions → two);
@@ -1671,9 +1682,9 @@ Decisions item 18).
     elected to **narrow the feature rather than keep hardening it**. This is **settled human product
     direction**, not a reviewer's or spec-writer's inference, and is not to be second-guessed or
     re-broadened.
-    **One live outcome per date — DESCRIBED, not invented.** §3.7's precedence rule (target's own
-    logged state wins; else a naturally-due-but-unlogged target shows its own blank state, never the
-    visitor's, so no XP is manufactured for an untouched day; else the visitor displays) is a
+    **One live outcome per task per date — DESCRIBED, not invented.** §3.7's precedence rule (target's
+    own logged state wins; else a naturally-due-but-unlogged target shows its own blank state, never
+    the visitor's, so no XP is manufactured for an untouched day; else the visitor displays) is a
     faithful mirror of the **already-implemented, already-tested** read resolution in
     `docs/SCHEMA.md` §4.2. It is recorded in the PRD because it is **user-visible product behaviour**
     that the amendment's "carries with it" language would otherwise have contradicted — not because
@@ -1681,8 +1692,9 @@ Decisions item 18).
     **Deliberately still true — merges are NOT eliminated (stated as a PRODUCT INVARIANT; the
     case-level mapping is the architect's, not this document's).**
     - Two **different** tasks may each independently snooze one day forward onto the **same date**.
-      Two occurrences sharing a date **stays in scope** (resolved by the precedence rule — one of
-      them displays and counts, never both).
+      Two occurrences sharing a date **stays in scope** — each remains its own task's occurrence,
+      resolves **independently** under its own task's precedence rule, and **both display and count**
+      (independently, per §3.7's cross-task edge case and F5's per-day sum).
     - Any scenario in which an occurrence sits on a date its **own** task has vacated — reachable
       through a **sequence of independent one-hop snoozes on different occurrences** (e.g. on a
       daily task: snooze D+1's occurrence to D+2, then snooze D's occurrence to D+1) — **also stays
@@ -1707,8 +1719,10 @@ Decisions item 18).
     the amendment surfaced that its *reachability* is undefined in the common daily-cadence case —
     a dormant occurrence displays nowhere, and no specified surface offers its undo control. That is
     now an **open §7 item**, checked against S10–S14 and confirmed unanswered by the existing design;
-    it is **not** silently assumed to work. **Visible to the human: if snooze should be one-way, or
-    if the unreachable case is an acceptable tradeoff, that is theirs to decide.**
+    it is **not** silently assumed to work. **Visible to the human: if snooze should be one-way, if a
+    used-once snooze should instead stay spent through an undo (undo returns the occurrence but
+    leaves it un-snoozable), or if the unreachable dormant-undo case is an acceptable tradeoff —
+    those are theirs to decide.**
     **Downstream consequence (NOT fixed by this amendment).** `docs/SCHEMA.md` §4.2's move contract
     is now **broader than this PRD requires**: its arbitrary-target machinery, its chain-collapse
     handling, and its multi-day distance guard all describe capability the PRD no longer asks for.
@@ -1717,5 +1731,5 @@ Decisions item 18).
     not against a case-ID list supplied by this document. What the PRD does pin: the two scenarios
     named in-scope above must still be **correctly handled after the simplification**, so the
     residue / write-carrier machinery that lets an occurrence visit a date its own task has vacated
-    — and the read-resolution precedence that keeps exactly one outcome live per date — must **not**
-    be deleted alongside the chain machinery.
+    — and the read-resolution precedence that keeps exactly one outcome live **per task** per date —
+    must **not** be deleted alongside the chain machinery.
