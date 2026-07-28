@@ -30,7 +30,7 @@ export default function S32AssistantConversation() {
   const t = useTheme();
   const router = useRouter();
   const showToast = useToastStore((s) => s.show);
-  // Architect CR-2: S36's voice/language selection now persists to `settings` (migration 4)
+  // Architect CR-6: S36's voice/language selection now persists to `settings` (migration 4)
   // through the ordinary `@/queries` surface, instead of process-lifetime module state.
   const voiceLanguage = useVoiceLanguagePrefs();
   const entitlement = useEntitlementStore((s) => s.entitlement);
@@ -81,11 +81,13 @@ export default function S32AssistantConversation() {
       ? `Fallback AI · ${entitlement.renewsOn ? `renews ${format(parseLocalDate(entitlement.renewsOn), 'MMM d')}` : 'active'}`
       : 'Fallback AI · Free plan';
 
-  async function handleSaveVoiceLanguage(language: string, voice: string) {
+  async function handleSaveVoiceLanguage(language: string, voice: string): Promise<boolean> {
     // Only claim "Saved" if the write actually landed — same rule as every other mutation
-    // caller (docs/API.md §3: a mutation never reports success on a failed write).
+    // caller (docs/API.md §3: a mutation never reports success on a failed write). The
+    // returned flag also tells `OptionsSheet` whether to keep its optimistic override.
     const saved = await voiceLanguage.save({ language, voice });
     showToast(saved ? S36_COPY.savedToast : 'Could not save that — try again.', saved ? 'success' : 'warning');
+    return saved;
   }
 
   useEffect(() => {
@@ -255,7 +257,7 @@ export default function S32AssistantConversation() {
         }}
         subscriptionSubtitle={subscriptionSubtitle}
         voiceLanguage={voiceLanguage.prefs}
-        onSaveVoiceLanguage={(language, voice) => void handleSaveVoiceLanguage(language, voice)}
+        onSaveVoiceLanguage={handleSaveVoiceLanguage}
       />
     </View>
   );

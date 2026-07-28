@@ -20,7 +20,7 @@ export interface NotificationPrefs {
 }
 
 /**
- * F16 — S36's "Voice & language" selection. Architect CR-2 (wave-2 review): this was
+ * F16 — S36's "Voice & language" selection. Architect CR-6 (wave-2 review): this was
  * in-process-only module state in `src/features/assistant/voiceLanguagePrefs.ts` because no
  * durable home existed for it; it now lives on the `settings` singleton (SCHEMA §1,
  * migration 4) alongside theme/accent/notification prefs, so it survives a restart and rides
@@ -71,7 +71,7 @@ export interface Settings {
   readonly tenureAnchorDate: LocalDate;
   readonly cycleCadence: CycleCadence;
   readonly notifications: NotificationPrefs;
-  /** F16 — S36's voice/language selection (architect CR-2). */
+  /** F16 — S36's voice/language selection (architect CR-6). */
   readonly assistant: AssistantPrefs;
   readonly widgets: readonly WidgetConfig[];
   readonly sync: SyncState;

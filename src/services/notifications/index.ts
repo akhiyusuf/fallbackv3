@@ -207,11 +207,14 @@ let bridgeInitialized = false;
  * immediate, un-scheduled "milestone reached" notification off `badge:unlocked`/`level:up`,
  * since those are one-off reactive alerts, not part of the rolling 7-day horizon.
  *
- * CONTRACT GAP (flagged in the module's final report): nothing currently calls this at app
- * boot for a user who never visits an M7-owned screen in a session (e.g. a returning user
- * going straight from splash to Today). `app/_layout.tsx` is M0-owned and frozen; wiring one
- * `useEffect(() => initNotificationsBridge(), [])` there is the natural fix and needs an
- * architect change request, not an M7 edit.
+ * CONTRACT GAP — RESOLVED by architect CR-5 (docs/MODULES.md, post-wave-2 section). Nothing
+ * used to call this at app boot, so a user who never visited an M7-owned screen in a session
+ * (e.g. a returning user going straight from splash to Today) armed no reminders.
+ * `app/_layout.tsx` is M0-owned and frozen to every other module, so the fix was an architect
+ * change request rather than an M7 edit: `AppShell` now calls this once from a mount effect
+ * (docs/API.md §8 — THE boot-time call site). The per-screen calls below stay: the guard above
+ * makes the second call a no-op returning a no-op disposer, which keeps each M7 screen
+ * independently testable without ever tearing the bridge down.
  */
 export function initNotificationsBridge(): () => void {
   if (bridgeInitialized) return () => {};

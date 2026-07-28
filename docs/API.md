@@ -211,7 +211,9 @@ useUndoSnooze()        // F7 — returns the occurrence to D, restoring chip/ste
 //   Each emits day:logged once — snooze for D+1, undo for D.
 useUpdateSettings()   // incl. `{ assistant: { language, voice } }` — S36's Voice & language
                       // selection (CR-6). `useSettings().data.assistant` is the read side;
-                      // there is NO separate voice/language hook or store.
+                      // there is NO separate QUERY-LAYER hook and no separate storage for it.
+                      // (M6's `useVoiceLanguagePrefs()` is a thin composition of these two —
+                      // docs/MODULES.md CR-6 — not another source of truth.)
 ```
 
 **Every mutation runs this exact sequence.** Deviating from it is how the app drifts.

@@ -22,7 +22,7 @@ import { runMigrations } from './migrate';
  * `eraseAll` must clear ALL of them; nothing else in the app may read/write them (M6-owned
  * concern) — M1 only needs the key NAMES to fulfil F25's "clears SecureStore keys" clause.
  *
- * Architect CR-3 (wave-2 review): this list must mirror `src/services/ai/secureKeyStore.ts`
+ * Architect CR-7 (wave-2 review): this list must mirror `src/services/ai/secureKeyStore.ts`
  * key-for-key. `byo.supportsTranscription` and `byo.model` were added there by M6's S40
  * endpoint-discovery work and were being left behind by erase-all. They are inert without
  * `byo.baseUrl` + `byo.apiKey` (`getByoConfig` returns null), but F25 is "fully erased or

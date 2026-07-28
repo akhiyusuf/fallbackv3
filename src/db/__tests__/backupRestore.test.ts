@@ -114,6 +114,103 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     expect(logs[0]?.chipState).toBe('done');
   });
 
+  // Review pass 1, blocking item 1 (architect CR-6): SCHEMA §9, MODULES.md CR-6 and
+  // migration 004's header all promise that a backup taken BEFORE migration 4 still restores
+  // — the settings row simply lacks `assistant_language` / `assistant_voice`, and SQLite
+  // fills them from the migration's NOT NULL defaults because `applyBackupEnvelope` builds
+  // each INSERT's column list from that row's own keys. Every other restore-success test here
+  // round-trips an envelope produced by `store.backup()` at the CURRENT schema version, so
+  // that promise had zero coverage: normalising restore to a fixed column list, or a
+  // migration 5 that adds a column with no default, would break every pre-existing backup
+  // file with this suite still green. The envelope below is therefore handcrafted and frozen
+  // at the literal v3 column set — deriving it from `backup()` would silently re-acquire
+  // whatever columns a future migration adds and stop being a v3 file.
+  it('a pre-v4 (v3-shaped) backup whose settings row has neither assistant_* column restores cleanly, taking migration 4\'s defaults', async () => {
+    const { repos, store } = await freshDb();
+
+    // Exactly the v3 `settings` columns — no `assistant_language`, no `assistant_voice`.
+    // Non-default `theme` / `accent` / `notif_digest_time` so we can prove the rest of the
+    // row survived rather than the whole singleton falling back to seed defaults.
+    const v3SettingsRow = {
+      id: 1,
+      theme: 'dark',
+      accent: 'plum',
+      onboarding_completed_at: '2025-12-01T09:00:00.000Z',
+      tenure_anchor_date: '2025-11-15',
+      cycle_cadence: 'weekly',
+      notif_master: 1,
+      notif_routine_due: 1,
+      notif_event_starting: 0,
+      notif_course_dose: 1,
+      notif_course_ending_soon: 0,
+      notif_gentle_reentry: 1,
+      notif_milestone_reached: 0,
+      notif_daily_digest: 1,
+      notif_digest_time: '21:30',
+      sync_enabled: 0,
+      sync_last_synced_at: null,
+      sync_last_error: null,
+      last_backup_at: '2025-12-20T10:00:00.000Z',
+      updated_at: '2025-12-20T10:00:00.000Z',
+    };
+
+    const v3Envelope = {
+      format: 'fallback-backup',
+      formatVersion: 1,
+      schemaVersion: 3,
+      createdAt: '2025-12-20T10:00:00.000Z',
+      tables: {
+        settings: [v3SettingsRow],
+        task: [],
+        step: [],
+        day_log: [],
+        off_day_mark: [],
+        as_needed_use: [],
+        xp_award: [],
+        achievement_unlock: [],
+        cycle_record: [],
+        cycle_state: [
+          {
+            id: 1,
+            current_cycle_id: 'cycle-v3',
+            cadence: 'weekly',
+            start_date: '2025-12-15',
+            end_date: '2025-12-21',
+          },
+        ],
+        widget_config: [],
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('../testSupport/fileSystemTestDouble') as typeof import('../testSupport/fileSystemTestDouble');
+    await fs.writeAsStringAsync('file:///pre-v4.fallbackbak', JSON.stringify(v3Envelope));
+
+    const restoreResult = await store.restore('file:///pre-v4.fallbackbak');
+    // Not a crash, not a NOT NULL constraint failure — a clean success.
+    expect(restoreResult.ok).toBe(true);
+
+    const restored = await repos.settings.get();
+    // The whole point: migration 4's defaults, materialised by SQLite for the two columns the
+    // file never carried. NOT null, NOT undefined.
+    expect(restored.assistant).toEqual({ language: 'en-US', voice: 'warm' });
+
+    // ...and the v3 values the file DID carry are intact, so this is a real restore and not a
+    // re-seeded singleton that would trivially satisfy the assertion above.
+    expect(restored.theme).toBe('dark');
+    expect(restored.accent).toBe('plum');
+    expect(restored.notifications.dailyDigestTime).toBe('21:30');
+    expect(restored.tenureAnchorDate).toBe('2025-11-15');
+
+    // A patch on top of a restored pre-v4 row still merges field-wise (no half-populated
+    // `assistant` object left behind by the restore).
+    const patched = await repos.settings.patch({ assistant: { language: 'en-US', voice: 'calm' } });
+    expect(patched.ok).toBe(true);
+    const afterPatch = await repos.settings.get();
+    expect(afterPatch.assistant).toEqual({ language: 'en-US', voice: 'calm' });
+    expect(afterPatch.theme).toBe('dark');
+  });
+
   // Mandatory (SCHEMA §2.3 / §9): orphaned NULL-task xp_award rows survive a full
   // delete -> hard sweep -> backup -> ERASE-ALL (a genuinely fresh store) -> restore round
   // trip, and lifetime XP is unchanged throughout, including a null task_id never being

@@ -73,7 +73,7 @@ function rowToSettings(row: SettingsRow, widgets: readonly WidgetConfig[]): Sett
     dailyDigest: row.notif_daily_digest === 1,
     dailyDigestTime: row.notif_digest_time,
   };
-  // Architect CR-2 — S36's voice/language selection, persisted here rather than in process.
+  // Architect CR-6 — S36's voice/language selection, persisted here rather than in process.
   const assistant: AssistantPrefs = { language: row.assistant_language, voice: row.assistant_voice };
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,

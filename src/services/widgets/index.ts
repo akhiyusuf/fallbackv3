@@ -122,8 +122,10 @@ let bridgeInitialized = false;
 
 /**
  * Same shape as `initNotificationsBridge` — subscribes to the event bus (not called by M2),
- * idempotent, and needs the same architect-owned `app/_layout.tsx` boot hook to run for a
- * session that never touches an M7-owned screen. See that function's CONTRACT GAP note.
+ * idempotent, and boot-wired from the same place: `AppShell` in the M0-owned `app/_layout.tsx`
+ * calls it once on mount, so a session that never touches an M7-owned screen still publishes a
+ * widget snapshot. That was architect CR-5 (docs/MODULES.md, post-wave-2 section; docs/API.md
+ * §8) — see that function's now-resolved CONTRACT GAP note for the full history.
  */
 export function initWidgetsBridge(): () => void {
   if (bridgeInitialized) return () => {};

@@ -336,10 +336,29 @@ differ.
 All three were raised by wave-2 code reviewers as findings a feature-builder could not fix
 inside its own owned paths, and were applied by the architect directly. Numbered CR-5/6/7 to
 continue the post-wave-1 series above; `docs/STATE.md` lists the same three as "1/2/3".
+
+**CR-number disambiguation (read this before grepping).** The applying commit (`9183d2c`)
+originally labelled these in source comments as `architect CR-1 / CR-2 / CR-3 (wave-2
+review)` — a head-on collision with the live post-wave-1 **CR-1** (`cycle_state` accessor),
+**CR-2** (XP award retraction) and **CR-3** (F7 snooze contract) in this file's top matter,
+which are referenced throughout `SCHEMA.md` §4.2/§7 and across `src/queries/mutations.ts`,
+`progressRepository.ts` and `types/ports.ts`. Those in-code labels have been **renumbered to
+`CR-5` / `CR-6` / `CR-7`** to match this section, so a grep for `CR-6` in `src/` and a lookup
+here now agree. Rule going forward: any surviving `CR-1` / `CR-2` / `CR-3` comment in `src/`
+refers to the **post-wave-1** series in the top matter, never to these three.
+
 They are **applied and shipped**, not open — recorded here as the historical record of a
 contract change, not as work.
 
-### CR-5 — boot-time bridge wiring in the app shell (architect-owned `app/_layout.tsx`)
+### CR-5 — boot-time bridge wiring in the app shell (`app/_layout.tsx`, **M0-owned and frozen to every other module**)
+
+**Ownership is unchanged by this CR.** `app/_layout.tsx` remains M0's, and per
+`docs/ARCHITECTURE.md` §4.2 ("no other module may edit it") and §11 ("**M0-owned** … No
+other module may edit them") it stays frozen to every other module — a screen that needs
+modal/sheet presentation still declares it in its own file. The architect edited this one
+file directly as the **cross-module CR mechanism** described in the section intro above
+(a finding no single builder could fix inside its own owned paths), not as a transfer of
+ownership. No builder may take this as licence to edit the shell.
 
 `initNotificationsBridge()` / `initWidgetsBridge()` (M7) subscribe to the event bus and are
 idempotent by construction, and M7's own screens call them on mount — but a session that
@@ -357,7 +376,11 @@ because no column and no mutation existed for it. **Contract change, three layer
 - `SCHEMA.md` §1 / **migration 4** — `settings.assistant_language` (default `'en-US'`) and
   `settings.assistant_voice` (default `'warm'`). Two plain `ADD COLUMN`s with non-NULL
   defaults; no table rebuild, and an older backup file restores cleanly because
-  `applyBackupEnvelope` inserts only the columns the file carries. **No CHECK constraint** —
+  `applyBackupEnvelope` inserts only the columns the file carries, so SQLite fills these two
+  from the migration's defaults. That guarantee is **pinned by a test**, not just asserted:
+  `src/db/__tests__/backupRestore.test.ts` restores a handcrafted v3-shaped envelope whose
+  `settings` row has neither `assistant_*` column and asserts the defaults land (SCHEMA §9's
+  "compatibility claims get a tested older-version fixture" rule). **No CHECK constraint** —
   S36's option lists are M6's to grow without a migration.
 - `Settings.assistant: AssistantPrefs` (`src/types/settings.ts`), read and merged by
   `SettingsRepository.patch` exactly like `notifications` / `sync`.
@@ -367,8 +390,10 @@ because no column and no mutation existed for it. **Contract change, three layer
   stays presentational — the owning screen (S32) passes the persisted value down as a prop —
   so the sheet needs no QueryClient to render or test.
 
-This closes wave-2 contract gap 5's sibling; the `conversationStore.ts` gap it was modelled
-on is **unchanged** and still open.
+This closes `review/REVIEW-M6.md` pass-2 note 5 (the `voiceLanguagePrefs.ts` in-process-state
+finding) itself. Its sibling — the `src/services/ai/conversationStore.ts` gap,
+`review/REVIEW-M6.md` pass-1 note 14 — is **unchanged and still open**; CR-6 does not touch
+it, and its FLAGGED CONTRACT GAP header stands.
 
 ### CR-7 — `eraseAll` clears every BYO SecureStore key
 

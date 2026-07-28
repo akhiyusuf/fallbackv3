@@ -60,7 +60,7 @@ function AppShell() {
   useAppBootstrap();
   useDayRollover();
 
-  // Architect CR-1 (wave-2 review, M7). THE boot-time call site for both event-bus bridges.
+  // Architect CR-5 (wave-2 review, M7). THE boot-time call site for both event-bus bridges.
   // M7's own screens also call these on mount, and both are idempotent by construction
   // (`bridgeInitialized` guard) — but a session that never opens an M7 screen would otherwise
   // arm no reminders and publish no widget snapshot at all. Deliberately no teardown returned:

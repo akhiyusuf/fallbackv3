@@ -2,7 +2,7 @@
  * M6. F16 — S36's Voice & language selection (spec line 3532: "persist immediately ... with
  * a calm Toast ('Saved')").
  *
- * ARCHITECT CR-2 (wave-2 review) — RESOLVED. This module was in-process-only module state,
+ * ARCHITECT CR-6 (wave-2 review) — RESOLVED. This module was in-process-only module state,
  * honestly disclosed as such, because `SCHEMA.md` had no column for the preference and
  * `@/queries`'s mutation surface was frozen without one. The architect has since added
  * `settings.assistant_language` / `settings.assistant_voice` (migration 4, SCHEMA §1), so the

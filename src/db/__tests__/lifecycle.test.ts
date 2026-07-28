@@ -86,7 +86,7 @@ describe('StoreLifecycle', () => {
     expect(after.tenureAnchorDate).toBe(before.tenureAnchorDate);
   });
 
-  it('eraseAll clears EVERY BYO SecureStore key, not just url + key (architect CR-3)', async () => {
+  it('eraseAll clears EVERY BYO SecureStore key, not just url + key (architect CR-7)', async () => {
     const { store } = await freshDb();
     await store.open();
     await store.eraseAll();

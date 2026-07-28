@@ -20,10 +20,12 @@ export interface OptionsSheetProps {
   readonly onAccountAndSync: () => void;
   readonly onHelp: () => void;
   readonly subscriptionSubtitle: string | null;
-  /** Architect CR-2: the PERSISTED selection, read from `settings` by the owning screen and
+  /** Architect CR-6: the PERSISTED selection, read from `settings` by the owning screen and
    *  passed down — this sheet stays presentational (no query hooks, no module state). */
   readonly voiceLanguage?: VoiceLanguagePrefs;
-  readonly onSaveVoiceLanguage?: (language: string, voice: string) => void;
+  /** Resolves `false` when the write FAILED, so the sheet can drop its optimistic override
+   *  and snap back to the persisted value instead of showing an unsaved selection. */
+  readonly onSaveVoiceLanguage?: (language: string, voice: string) => void | Promise<boolean>;
 }
 
 const LANGUAGE_OPTIONS = [{ value: 'en-US', label: 'English (US)' }];
@@ -54,13 +56,23 @@ export function OptionsSheet({
   const language = pending?.language ?? voiceLanguage.language;
   const voice = pending?.voice ?? voiceLanguage.voice;
 
+  // Review pass 1, non-blocking note 1: on a FAILED save the override must be dropped, or the
+  // sheet keeps displaying a value that was never persisted — indefinitely, and across
+  // close/reopen, because `Dialog` is visibility-toggled rather than unmounted. Only the
+  // failure path clears; on success `pending` is simply equal to the value the settings read
+  // brings back, so leaving it costs nothing and avoids a flicker mid-invalidation.
+  function applyChange(next: VoiceLanguagePrefs) {
+    setPending(next);
+    void Promise.resolve(onSaveVoiceLanguage?.(next.language, next.voice)).then((saved) => {
+      if (saved === false) setPending(null);
+    });
+  }
+
   function handleLanguageChange(value: string) {
-    setPending({ language: value, voice });
-    onSaveVoiceLanguage?.(value, voice);
+    applyChange({ language: value, voice });
   }
   function handleVoiceChange(value: string) {
-    setPending({ language, voice: value });
-    onSaveVoiceLanguage?.(language, value);
+    applyChange({ language, voice: value });
   }
 
   return (

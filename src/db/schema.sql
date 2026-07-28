@@ -24,8 +24,8 @@ CREATE TABLE settings (
   notif_milestone_reached INTEGER NOT NULL DEFAULT 0 CHECK (notif_milestone_reached IN (0,1)),
   notif_daily_digest INTEGER NOT NULL DEFAULT 0 CHECK (notif_daily_digest IN (0,1)),
   notif_digest_time TEXT NOT NULL DEFAULT '08:00',
-  assistant_language TEXT NOT NULL DEFAULT 'en-US',   -- migration 4 (architect CR-2), F16/S36
-  assistant_voice TEXT NOT NULL DEFAULT 'warm',       -- migration 4 (architect CR-2), F16/S36
+  assistant_language TEXT NOT NULL DEFAULT 'en-US',   -- migration 4 (architect CR-6), F16/S36
+  assistant_voice TEXT NOT NULL DEFAULT 'warm',       -- migration 4 (architect CR-6), F16/S36
   sync_enabled INTEGER NOT NULL DEFAULT 0 CHECK (sync_enabled IN (0,1)),
   sync_last_synced_at TEXT,
   sync_last_error TEXT,

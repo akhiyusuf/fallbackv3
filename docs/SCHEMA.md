@@ -864,8 +864,15 @@ store reports `STORE_CORRUPT` → S50. Migration 1 creates every table above **a
 `tenure_anchor_date = today()`. Migration 4 (architect CR-6, post-wave-2) adds §1's two
 `assistant_*` columns — two `ADD COLUMN`s with non-NULL defaults, so a pre-v4 backup file
 restores cleanly: `applyBackupEnvelope` inserts only the columns the file actually carries
-and SQLite supplies the rest. F1 requires a tested older-version fixture that opens
-without data loss — that fixture is mandatory in M1's test suite.
+and SQLite supplies the rest (`assistant_language = 'en-US'`, `assistant_voice = 'warm'`) —
+never NULL, never a failed restore. That pre-v4-restore guarantee is **pinned by a fixture
+test**, not merely asserted: `src/db/__tests__/backupRestore.test.ts` restores a handcrafted
+v3-shaped envelope whose `settings` row omits both columns and asserts the defaults land
+with the envelope's other values intact. **Standing rule:** any migration that adds a column
+must either give it a non-NULL default or carry its own pre-migration-version restore
+fixture — otherwise every backup file taken before it silently stops restoring. F1 likewise
+requires a tested older-version fixture that opens without data loss — that fixture is
+mandatory in M1's test suite.
 
 **The older-version fixture MUST contain these F7-rescope legacy shapes**, with the expected
 post-migration ledger pinned per shape (§4.2's decision table). **Assert row-level effects —

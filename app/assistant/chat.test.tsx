@@ -2,7 +2,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
-// Architect CR-2: S36's voice/language selection persists through `useSettings` /
+// Architect CR-6: S36's voice/language selection persists through `useSettings` /
 // `useUpdateSettings` (settings columns added in migration 4), so both belong in this mock.
 const mockUpdateSettings = jest.fn(async () => ({ ok: true, value: undefined }));
 const mockSettings: { current: { assistant: { language: string; voice: string } } } = {
@@ -47,8 +47,16 @@ jest.mock('expo-audio', () => ({
 import S32AssistantConversation from './chat';
 import { S32_COPY, S36_COPY } from '@/features/assistant/copy';
 
+const DEFAULT_MOCK_SETTINGS = { assistant: { language: 'en-US', voice: 'warm' } };
+
 describe('S32 — Assistant Conversation', () => {
   beforeEach(() => jest.clearAllMocks());
+  // Review pass 1, non-blocking note 4: `mockSettings` is mutable cross-test state. Reset it
+  // HERE, not on the last line of a test body — a failing assertion above would skip that
+  // line and silently pollute every test added after it.
+  afterEach(() => {
+    mockSettings.current = DEFAULT_MOCK_SETTINGS;
+  });
 
   it('offline: the footer becomes a calm InlineRetryBanner with "Add a task manually" escape hatch', async () => {
     mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => offlineStream(), capabilities: async () => ({ chat: true, transcription: true }) });
@@ -106,9 +114,9 @@ describe('S32 — Assistant Conversation', () => {
     expect(await screen.findByText(S32_COPY.listening)).toBeTruthy();
   });
 
-  it('CR-2 — S36 renders the PERSISTED voice, and changing it writes through useUpdateSettings', async () => {
+  it('CR-6 — S36 renders the PERSISTED voice, and changing it writes through useUpdateSettings', async () => {
     mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
-    // A value that is NOT the pre-CR-2 in-process default: if the sheet still seeded itself
+    // A value that is NOT the pre-CR-6 in-process default: if the sheet still seeded itself
     // from module state (or from the column default), this assertion fails.
     mockSettings.current = { assistant: { language: 'en-US', voice: 'calm' } };
     await render(<S32AssistantConversation />);
@@ -119,7 +127,5 @@ describe('S32 — Assistant Conversation', () => {
     await userEvent.press(screen.getByLabelText('Voice, Calm'));
     await userEvent.press(await screen.findByText('Direct'));
     expect(mockUpdateSettings).toHaveBeenCalledWith({ assistant: { language: 'en-US', voice: 'direct' } });
-
-    mockSettings.current = { assistant: { language: 'en-US', voice: 'warm' } };
   });
 });
