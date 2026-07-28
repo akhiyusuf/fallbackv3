@@ -567,12 +567,31 @@ snooze) — both series now coexist, disambiguated in `docs/MODULES.md`.
 exported `.fallbackbak` backups should survive "erase all data," and the F20
 cloud-sync capability gap — see the dedicated sections above.)
 
+## qa-tester + visual-qa — complete
+
+`review/TEST_REPORT.md`: PASS from qa-tester, independently re-verified PASS
+by artifact-reviewer (2 passes — pass 1 caught report-accuracy issues, no
+underlying defects). All 8 modules + the architect's CR-5/6/7 batch verified
+end-to-end as an assembled product: F7 snooze rescope holds, no punitive
+streaks, one consistency implementation used uniformly, all three architect
+CRs work from real call sites. 99 suites / 697 tests app-side, 23/23
+server-side, `tsc --noEmit` clean.
+
+visual-qa could not produce screenshots: this is a React Native/Expo app
+with no web-render dependencies declared and no simulator/device available
+in this headless cloud environment; adding `react-dom`/`react-native-web`
+would itself require an architect CR. Disclosed honestly in
+`review/screenshots/README.md`, with explicit steps for the human to boot
+the app themselves and an `INDEX.md` of all 50 screens to check against the
+approved mockups.
+
 ## Next action
 
-All 8 modules (M0–M7) plus the architect's own CR-5/6/7 batch have PASS
-code review. **Dispatch qa-tester** (verifies the assembled product against
-every PRD acceptance criterion) → artifact-reviewer on `TEST_REPORT.md` →
-visual-qa → **Gate 3** — human reviews screenshots + `review/TEST_REPORT.md`,
-plus the accumulated Gate-3 carry items (S49 hand-off targets, B13 receipt
+**Gate 3 — awaiting human review.** Everything automatable is done and
+PASS. The human needs to: (1) boot the app locally per
+`review/screenshots/README.md` and visually check it against the approved
+mockups, (2) review `review/TEST_REPORT.md`, and (3) decide on the
+accumulated carry-forward items (S49 hand-off targets, B13 receipt
 verification, `.fallbackbak` erase behavior, F20 cloud sync, F7 dormant-undo
-reachability).
+reachability). Gate 3 approval, like Gate 2, can only be recorded by the
+human — no agent may write it.
