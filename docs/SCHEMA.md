@@ -30,6 +30,8 @@ Exactly one row, `id = 1`. Created by migration 1 together with the tenure ancho
 | `cycle_cadence` | TEXT CHECK IN ('weekly','monthly') | F31. Default `'monthly'` |
 | `notif_master` … `notif_daily_digest` | INTEGER 0/1 | F14, one column per toggle (see §6) |
 | `notif_digest_time` | TEXT `'HH:mm'` | F14. Default `'08:00'` |
+| `assistant_language` | TEXT NOT NULL | F16/S36. Default `'en-US'`. **Migration 4, architect CR-6** |
+| `assistant_voice` | TEXT NOT NULL | F16/S36. Default `'warm'`. **Migration 4, architect CR-6** |
 | `sync_enabled` | INTEGER 0/1 | F20. Default **0** (opt-in, off by default) |
 | `sync_last_synced_at` | Instant NULL | F20 "Last synced …" |
 | `sync_last_error` | TEXT NULL | F20 calm failure banner |
@@ -37,7 +39,10 @@ Exactly one row, `id = 1`. Created by migration 1 together with the tenure ancho
 | `updated_at` | Instant NOT NULL | |
 
 Validation: `theme`, `accent`, `cycle_cadence` are closed sets; `notif_digest_time`
-matches `^([01]\d|2[0-3]):[0-5]\d$`.
+matches `^([01]\d|2[0-3]):[0-5]\d$`. `assistant_language` / `assistant_voice` are
+deliberately **open** at the storage layer — S36's option lists belong to M6 and must be
+growable without a migration; an unrecognised value degrades to "the picker shows no
+selection", never to a corrupt store.
 
 **Not stored here:** the BYO API key and base URL. Those live **only in
 `expo-secure-store`** (Keychain / Keystore) under `byo.baseUrl` / `byo.apiKey` and never
@@ -856,7 +861,10 @@ Stored locally so S34/S35 can browse and reopen. Erased by F25 with everything e
 **Versioning.** SQLite's `user_version` is the schema version. Migrations are numbered,
 forward-only, and each runs in a single transaction; a failure rolls back fully and the
 store reports `STORE_CORRUPT` → S50. Migration 1 creates every table above **and** writes
-`tenure_anchor_date = today()`. F1 requires a tested older-version fixture that opens
+`tenure_anchor_date = today()`. Migration 4 (architect CR-6, post-wave-2) adds §1's two
+`assistant_*` columns — two `ADD COLUMN`s with non-NULL defaults, so a pre-v4 backup file
+restores cleanly: `applyBackupEnvelope` inserts only the columns the file actually carries
+and SQLite supplies the rest. F1 requires a tested older-version fixture that opens
 without data loss — that fixture is mandatory in M1's test suite.
 
 **The older-version fixture MUST contain these F7-rescope legacy shapes**, with the expected
@@ -913,7 +921,10 @@ state (S47's inline banner), never a partial write.
 zero those rows on restore; do not fail the restore over them.
 
 **Erase-all (F25).** Closes the connection, deletes the database file, deletes every
-SecureStore key, clears widget snapshot files and backup metadata, then recreates an empty
+SecureStore key — **every one**: `src/db/lifecycle.ts`'s key list must mirror
+`src/services/ai/secureKeyStore.ts` key-for-key (`byo.baseUrl`, `byo.apiKey`,
+`byo.supportsTranscription`, `byo.model`), and adding a key in one place without the other
+is a blocking code-review finding (architect CR-7) — clears widget snapshot files and backup metadata, then recreates an empty
 schema — as one guarded sequence. Fully erased or fully intact, never half-wiped. The
 post-erase result **is** the app's global empty state. Relaunch is still empty. Erase on an
 already-empty store is a no-op landing at the empty state, never an error. Purely local:

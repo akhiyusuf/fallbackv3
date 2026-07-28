@@ -7,12 +7,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary, useAppBootstrap, useDayRollover, useThemeStore } from '@/app-shell';
+import { initNotificationsBridge } from '@/services/notifications';
+import { initWidgetsBridge } from '@/services/widgets';
 import { ThemeContext, buildTheme, resolveScheme } from '@/theme';
 import { Toast } from '@/ui/Toast';
 
@@ -57,6 +59,16 @@ function AppShell() {
   );
   useAppBootstrap();
   useDayRollover();
+
+  // Architect CR-1 (wave-2 review, M7). THE boot-time call site for both event-bus bridges.
+  // M7's own screens also call these on mount, and both are idempotent by construction
+  // (`bridgeInitialized` guard) — but a session that never opens an M7 screen would otherwise
+  // arm no reminders and publish no widget snapshot at all. Deliberately no teardown returned:
+  // the bridges are app-lifetime singletons and this shell only unmounts when the app dies.
+  useEffect(() => {
+    initNotificationsBridge();
+    initWidgetsBridge();
+  }, []);
 
   return (
     <ThemeContext.Provider value={theme}>

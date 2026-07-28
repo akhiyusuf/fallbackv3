@@ -18,11 +18,19 @@ import { seedCycleWindow } from './cycleWindowSeed';
 import { runMigrations } from './migrate';
 
 /**
- * The BYO key lives ONLY in SecureStore (SCHEMA §1, API.md §5) under these two keys.
- * `eraseAll` must clear them; nothing else in the app may read/write them (M6-owned
+ * The BYO endpoint config lives ONLY in SecureStore (SCHEMA §1, API.md §5) under these keys.
+ * `eraseAll` must clear ALL of them; nothing else in the app may read/write them (M6-owned
  * concern) — M1 only needs the key NAMES to fulfil F25's "clears SecureStore keys" clause.
+ *
+ * Architect CR-3 (wave-2 review): this list must mirror `src/services/ai/secureKeyStore.ts`
+ * key-for-key. `byo.supportsTranscription` and `byo.model` were added there by M6's S40
+ * endpoint-discovery work and were being left behind by erase-all. They are inert without
+ * `byo.baseUrl` + `byo.apiKey` (`getByoConfig` returns null), but F25 is "fully erased or
+ * fully intact" — a surviving key of any kind is the same defect shape as wave 1's widget
+ * snapshot surviving an erase. Adding a key there without adding it here is a blocking
+ * code-review finding.
  */
-const SECURE_STORE_KEYS = ['byo.baseUrl', 'byo.apiKey'] as const;
+const SECURE_STORE_KEYS = ['byo.baseUrl', 'byo.apiKey', 'byo.supportsTranscription', 'byo.model'] as const;
 
 const BACKUP_DIR = FileSystem.documentDirectory ?? '';
 

@@ -86,14 +86,19 @@ describe('StoreLifecycle', () => {
     expect(after.tenureAnchorDate).toBe(before.tenureAnchorDate);
   });
 
-  it('eraseAll clears the BYO SecureStore keys', async () => {
+  it('eraseAll clears EVERY BYO SecureStore key, not just url + key (architect CR-3)', async () => {
     const { store } = await freshDb();
     await store.open();
     await store.eraseAll();
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const SecureStore = require('expo-secure-store') as { deleteItemAsync: jest.Mock };
     const clearedKeys = SecureStore.deleteItemAsync.mock.calls.map((call: unknown[]) => call[0]);
-    expect(clearedKeys).toEqual(expect.arrayContaining(['byo.baseUrl', 'byo.apiKey']));
+    // The full key set written by `src/services/ai/secureKeyStore.ts` (M6). `supportsTranscription`
+    // and `model` are inert without url+key, but F25 is all-or-nothing — a key surviving an erase
+    // is the same defect shape as wave 1's widget snapshot surviving one.
+    expect(clearedKeys).toEqual(
+      expect.arrayContaining(['byo.baseUrl', 'byo.apiKey', 'byo.supportsTranscription', 'byo.model']),
+    );
   });
 
   it('erase-all on an already-empty store is a no-op that still lands on a ready, empty store', async () => {

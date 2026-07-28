@@ -331,6 +331,55 @@ differ.
 
 ---
 
+## Architect change requests applied after wave-2 code review (2026-07-27)
+
+All three were raised by wave-2 code reviewers as findings a feature-builder could not fix
+inside its own owned paths, and were applied by the architect directly. Numbered CR-5/6/7 to
+continue the post-wave-1 series above; `docs/STATE.md` lists the same three as "1/2/3".
+They are **applied and shipped**, not open — recorded here as the historical record of a
+contract change, not as work.
+
+### CR-5 — boot-time bridge wiring in the app shell (architect-owned `app/_layout.tsx`)
+
+`initNotificationsBridge()` / `initWidgetsBridge()` (M7) subscribe to the event bus and are
+idempotent by construction, and M7's own screens call them on mount — but a session that
+never opens an M7 screen armed no reminders and published no widget snapshot. The shell now
+calls both once from a `useEffect` in `AppShell`. **No teardown is returned**: these are
+app-lifetime singletons, and the shell only unmounts when the process dies. M7's per-screen
+calls are left in place — they cost nothing once the shell has initialised (the second call
+returns a no-op disposer) and keep each screen independently testable.
+
+### CR-6 — voice/language prefs move from process memory to the `settings` singleton
+
+M6's S36 "Voice & language" selection was in-process module state, honestly disclosed,
+because no column and no mutation existed for it. **Contract change, three layers:**
+
+- `SCHEMA.md` §1 / **migration 4** — `settings.assistant_language` (default `'en-US'`) and
+  `settings.assistant_voice` (default `'warm'`). Two plain `ADD COLUMN`s with non-NULL
+  defaults; no table rebuild, and an older backup file restores cleanly because
+  `applyBackupEnvelope` inserts only the columns the file carries. **No CHECK constraint** —
+  S36's option lists are M6's to grow without a migration.
+- `Settings.assistant: AssistantPrefs` (`src/types/settings.ts`), read and merged by
+  `SettingsRepository.patch` exactly like `notifications` / `sync`.
+- `src/features/assistant/voiceLanguagePrefs.ts` is now `useVoiceLanguagePrefs()`, composing
+  `useSettings()` + `useUpdateSettings()`. **No new query-layer hook and no new table**: the
+  existing settings surface already carried theme/accent/notification prefs. `OptionsSheet`
+  stays presentational — the owning screen (S32) passes the persisted value down as a prop —
+  so the sheet needs no QueryClient to render or test.
+
+This closes wave-2 contract gap 5's sibling; the `conversationStore.ts` gap it was modelled
+on is **unchanged** and still open.
+
+### CR-7 — `eraseAll` clears every BYO SecureStore key
+
+`src/db/lifecycle.ts`'s `SECURE_STORE_KEYS` listed `byo.baseUrl` / `byo.apiKey` but not
+`byo.supportsTranscription` / `byo.model`, added later by M6's S40 endpoint discovery. Both
+are inert without url+key, but F25 is all-or-nothing. **Standing rule:** this list must
+mirror `src/services/ai/secureKeyStore.ts` key-for-key; adding a key there without adding it
+here is a blocking code-review finding.
+
+---
+
 ## M0 — Kernel: types, tokens, component kit, shell
 
 **Owns paths**

@@ -42,6 +42,7 @@ function defaultSettings(): Settings {
       dailyDigest: false,
       dailyDigestTime: '08:00',
     },
+    assistant: { language: 'en-US', voice: 'warm' },
     widgets: [],
     sync: { enabled: false, lastSyncedAt: null, lastError: null },
     lastBackupAt: null,

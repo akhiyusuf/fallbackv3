@@ -1,30 +1,39 @@
 /**
  * M6. F16 — S36's Voice & language selection (spec line 3532: "persist immediately ... with
- * a calm Toast ('Saved')"). SCHEMA.md has no column for this preference and `@/queries`'s
- * mutation surface is frozen without one (the same class of gap `conversationStore.ts`
- * documents for conversations) — there is no sanctioned durable-storage path this module is
- * allowed to reach for without either a schema change (M1-owned) or a new dependency
- * (architect-owned), neither of which is this builder's call to make unilaterally.
+ * a calm Toast ('Saved')").
  *
- * Resolution taken here: persist for the lifetime of the app process (module-level state,
- * survives navigation and remounts of S36/S32, lost on force-quit) so the setting genuinely
- * takes effect immediately and the Saved toast is honest — while flagging the durable-storage
- * gap as a follow-up for the architect/M2, exactly as `conversationStore.ts` does for its own
- * frozen-contract gap.
+ * ARCHITECT CR-2 (wave-2 review) — RESOLVED. This module was in-process-only module state,
+ * honestly disclosed as such, because `SCHEMA.md` had no column for the preference and
+ * `@/queries`'s mutation surface was frozen without one. The architect has since added
+ * `settings.assistant_language` / `settings.assistant_voice` (migration 4, SCHEMA §1), so the
+ * setting now persists through the ordinary sanctioned path — `useSettings()` to read,
+ * `useUpdateSettings()` to write — with no `@/db` import and no module-local state anywhere.
+ * A force-quit no longer loses the choice, and it rides along in F19 backups for free.
  */
-export interface VoiceLanguagePrefs {
-  readonly language: string;
-  readonly voice: string;
+import { useSettings, useUpdateSettings } from '@/queries';
+import type { AssistantPrefs } from '@/types';
+
+export type VoiceLanguagePrefs = AssistantPrefs;
+
+/** Mirrors the `settings` column defaults (migration 4) — used only while the read is in flight. */
+export const DEFAULT_VOICE_LANGUAGE_PREFS: VoiceLanguagePrefs = { language: 'en-US', voice: 'warm' };
+
+export interface UseVoiceLanguagePrefs {
+  /** The persisted selection; the defaults above until the settings read resolves. */
+  readonly prefs: VoiceLanguagePrefs;
+  /** Persists both fields. Returns false if the write failed, so the caller can skip its "Saved" toast. */
+  save(next: VoiceLanguagePrefs): Promise<boolean>;
 }
 
-const DEFAULT_PREFS: VoiceLanguagePrefs = { language: 'en-US', voice: 'warm' };
+export function useVoiceLanguagePrefs(): UseVoiceLanguagePrefs {
+  const settings = useSettings();
+  const updateSettings = useUpdateSettings();
 
-let current: VoiceLanguagePrefs = DEFAULT_PREFS;
-
-export function getVoiceLanguagePrefs(): VoiceLanguagePrefs {
-  return current;
-}
-
-export function setVoiceLanguagePrefs(prefs: VoiceLanguagePrefs): void {
-  current = prefs;
+  return {
+    prefs: settings.data?.assistant ?? DEFAULT_VOICE_LANGUAGE_PREFS,
+    async save(next: VoiceLanguagePrefs): Promise<boolean> {
+      const result = await updateSettings.mutateAsync({ assistant: next });
+      return result.ok;
+    },
+  };
 }

@@ -1,10 +1,11 @@
--- M1. Reference DDL for the CURRENT schema (v3) — the cumulative effect of every
+-- M1. Reference DDL for the CURRENT schema (v4) — the cumulative effect of every
 -- migration in src/db/migrations/. Normative prose: docs/SCHEMA.md.
 --
 -- This file is NOT executed by the app or by tests; it exists for human review only.
 -- The migrations themselves (src/db/migrations/001_initial.ts,
 -- src/db/migrations/002_offday_whole_day_unique.ts,
--- src/db/migrations/003_snoozable_and_one_hop_check.ts) are canonical. Keep this file in
+-- src/db/migrations/003_snoozable_and_one_hop_check.ts,
+-- src/db/migrations/004_assistant_voice_language.ts) are canonical. Keep this file in
 -- sync when a migration is added.
 
 CREATE TABLE settings (
@@ -23,6 +24,8 @@ CREATE TABLE settings (
   notif_milestone_reached INTEGER NOT NULL DEFAULT 0 CHECK (notif_milestone_reached IN (0,1)),
   notif_daily_digest INTEGER NOT NULL DEFAULT 0 CHECK (notif_daily_digest IN (0,1)),
   notif_digest_time TEXT NOT NULL DEFAULT '08:00',
+  assistant_language TEXT NOT NULL DEFAULT 'en-US',   -- migration 4 (architect CR-2), F16/S36
+  assistant_voice TEXT NOT NULL DEFAULT 'warm',       -- migration 4 (architect CR-2), F16/S36
   sync_enabled INTEGER NOT NULL DEFAULT 0 CHECK (sync_enabled IN (0,1)),
   sync_last_synced_at TEXT,
   sync_last_error TEXT,

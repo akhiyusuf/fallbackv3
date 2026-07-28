@@ -81,6 +81,9 @@ interface CycleStateRepository {          // the F31 cycle pointer — SCHEMA.md
 interface SettingsRepository {
   get(): Promise<Settings>;
   patch(patch: Partial<Settings>): Promise<Result<Settings>>;
+  // `Settings.assistant` ({ language, voice }) is part of this shape — S36's voice/language
+  // selection, persisted on the settings singleton (SCHEMA.md §1, migration 4, CR-6).
+  // `patch` merges it field-wise, exactly like `notifications` and `sync`.
 }
 
 interface AssistantRepository {
@@ -107,7 +110,7 @@ interface StoreLifecycle {
 | Call | Errors |
 |---|---|
 | `open` | `STORE_CORRUPT` → S01 routes to S50 · `MIGRATION_FAILED` → S50 |
-| `eraseAll` | `WRITE_FAILED` → S48 shows "Something went wrong erasing your data. Nothing was lost — try again." Store is left coherent |
+| `eraseAll` | Clears **every** SecureStore key listed in `secureKeyStore.ts` (CR-7). `WRITE_FAILED` → S48 shows "Something went wrong erasing your data. Nothing was lost — try again." Store is left coherent |
 | `backup` | `WRITE_FAILED` → calm retry, **no partial file left behind** |
 | `restore` | `VALIDATION_FAILED` (unreadable/foreign file) → S47's inline banner, existing data explicitly untouched |
 
@@ -206,7 +209,9 @@ useUndoSnooze()        // F7 — returns the occurrence to D, restoring chip/ste
 //     undo   rejects ONLY if there is no pointer to clear. A not-due source is the NORMAL
 //       case for undo (the source is vacated), and `snoozable` is irrelevant to it.
 //   Each emits day:logged once — snooze for D+1, undo for D.
-useUpdateSettings()
+useUpdateSettings()   // incl. `{ assistant: { language, voice } }` — S36's Voice & language
+                      // selection (CR-6). `useSettings().data.assistant` is the read side;
+                      // there is NO separate voice/language hook or store.
 ```
 
 **Every mutation runs this exact sequence.** Deviating from it is how the app drifts.
@@ -425,6 +430,9 @@ interface WidgetBridge {                   // M7, F21
 }
 ```
 
-Both subscribe to the event bus rather than being called by M2. The app is **fully usable
-if notification permission is declined**. As-needed routines are never due, so they
+Both subscribe to the event bus rather than being called by M2. Each is armed by an
+`init*Bridge()` export that is **idempotent** and called once from `app/_layout.tsx`'s shell
+effect — the single boot-time call site (architect CR-5). M7 screens may also call them on
+mount; a call after the shell's is a no-op. The app is **fully usable if notification
+permission is declined**. As-needed routines are never due, so they
 generate no "routine due" reminders.

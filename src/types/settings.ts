@@ -19,6 +19,21 @@ export interface NotificationPrefs {
   readonly dailyDigestTime: string;
 }
 
+/**
+ * F16 — S36's "Voice & language" selection. Architect CR-2 (wave-2 review): this was
+ * in-process-only module state in `src/features/assistant/voiceLanguagePrefs.ts` because no
+ * durable home existed for it; it now lives on the `settings` singleton (SCHEMA §1,
+ * migration 4) alongside theme/accent/notification prefs, so it survives a restart and rides
+ * along in F19 backups for free.
+ *
+ * Both are free-form ids, NOT closed sets at the storage layer: S36's option lists are M6's
+ * to grow (more voices, more languages) without a migration. Defaults `'en-US'` / `'warm'`.
+ */
+export interface AssistantPrefs {
+  readonly language: string;
+  readonly voice: string;
+}
+
 export type WidgetSize = 'small-today' | 'small-one-task' | 'medium-up-next';
 
 export interface WidgetConfig {
@@ -56,6 +71,8 @@ export interface Settings {
   readonly tenureAnchorDate: LocalDate;
   readonly cycleCadence: CycleCadence;
   readonly notifications: NotificationPrefs;
+  /** F16 — S36's voice/language selection (architect CR-2). */
+  readonly assistant: AssistantPrefs;
   readonly widgets: readonly WidgetConfig[];
   readonly sync: SyncState;
   readonly lastBackupAt: Instant | null;

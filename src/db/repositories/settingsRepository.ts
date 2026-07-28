@@ -6,6 +6,7 @@ import { now } from '@/lib/date';
 import { err, ok } from '@/types';
 import type {
   AccentKey,
+  AssistantPrefs,
   CycleCadence,
   Id,
   Instant,
@@ -37,6 +38,8 @@ interface SettingsRow {
   readonly notif_milestone_reached: number;
   readonly notif_daily_digest: number;
   readonly notif_digest_time: string;
+  readonly assistant_language: string;
+  readonly assistant_voice: string;
   readonly sync_enabled: number;
   readonly sync_last_synced_at: string | null;
   readonly sync_last_error: string | null;
@@ -70,6 +73,8 @@ function rowToSettings(row: SettingsRow, widgets: readonly WidgetConfig[]): Sett
     dailyDigest: row.notif_daily_digest === 1,
     dailyDigestTime: row.notif_digest_time,
   };
+  // Architect CR-2 — S36's voice/language selection, persisted here rather than in process.
+  const assistant: AssistantPrefs = { language: row.assistant_language, voice: row.assistant_voice };
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     theme: row.theme as ThemeMode,
@@ -78,6 +83,7 @@ function rowToSettings(row: SettingsRow, widgets: readonly WidgetConfig[]): Sett
     tenureAnchorDate: row.tenure_anchor_date as LocalDate,
     cycleCadence: row.cycle_cadence as CycleCadence,
     notifications,
+    assistant,
     widgets,
     sync: {
       enabled: row.sync_enabled === 1,
@@ -93,7 +99,8 @@ const SETTINGS_COLUMNS = `
   id, theme, accent, onboarding_completed_at, tenure_anchor_date, cycle_cadence,
   notif_master, notif_routine_due, notif_event_starting, notif_course_dose,
   notif_course_ending_soon, notif_gentle_reentry, notif_milestone_reached, notif_daily_digest,
-  notif_digest_time, sync_enabled, sync_last_synced_at, sync_last_error, last_backup_at, updated_at
+  notif_digest_time, assistant_language, assistant_voice,
+  sync_enabled, sync_last_synced_at, sync_last_error, last_backup_at, updated_at
 `;
 
 const DIGEST_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -133,6 +140,7 @@ export function createSettingsRepository(db: DbClient) {
           ...merged,
           ...patch,
           notifications: { ...merged.notifications, ...patch.notifications },
+          assistant: { ...merged.assistant, ...patch.assistant },
           sync: { ...merged.sync, ...patch.sync },
           updatedAt: now(),
         };
@@ -142,7 +150,8 @@ export function createSettingsRepository(db: DbClient) {
             `UPDATE settings SET theme=?, accent=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
              notif_master=?, notif_routine_due=?, notif_event_starting=?, notif_course_dose=?,
              notif_course_ending_soon=?, notif_gentle_reentry=?, notif_milestone_reached=?, notif_daily_digest=?,
-             notif_digest_time=?, sync_enabled=?, sync_last_synced_at=?, sync_last_error=?, last_backup_at=?, updated_at=?
+             notif_digest_time=?, assistant_language=?, assistant_voice=?,
+             sync_enabled=?, sync_last_synced_at=?, sync_last_error=?, last_backup_at=?, updated_at=?
              WHERE id = 1`,
             [
               next.theme,
@@ -159,6 +168,8 @@ export function createSettingsRepository(db: DbClient) {
               next.notifications.milestoneReached ? 1 : 0,
               next.notifications.dailyDigest ? 1 : 0,
               next.notifications.dailyDigestTime,
+              next.assistant.language,
+              next.assistant.voice,
               next.sync.enabled ? 1 : 0,
               next.sync.lastSyncedAt,
               next.sync.lastError,

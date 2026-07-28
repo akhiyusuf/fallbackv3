@@ -191,6 +191,21 @@ describe('SettingsRepository', () => {
     expect(after.accent).toBe('plum');
     expect(after.notifications.dailyDigestTime).toBe('21:30');
   });
+
+  it('CR-2 — assistant voice/language default per migration 4 and survive a re-open (durable, not in-process)', async () => {
+    const db = await freshDb();
+    expect((await db.repos.settings.get()).assistant).toEqual({ language: 'en-US', voice: 'warm' });
+
+    const patched = await db.repos.settings.patch({ assistant: { language: 'en-US', voice: 'direct' } });
+    expect(patched.ok).toBe(true);
+
+    // Re-open: a new client over the same database file, migrations re-run. The pre-CR-2
+    // module-level state could not have survived this; a SQLite column does.
+    await db.store.open();
+    expect((await db.repos.settings.get()).assistant).toEqual({ language: 'en-US', voice: 'direct' });
+    // And it did not disturb its neighbours on the singleton row.
+    expect((await db.repos.settings.get()).notifications.dailyDigestTime).toBe('08:00');
+  });
 });
 
 describe('ProgressRepository', () => {

@@ -2,12 +2,20 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
+// Architect CR-2: S36's voice/language selection persists through `useSettings` /
+// `useUpdateSettings` (settings columns added in migration 4), so both belong in this mock.
+const mockUpdateSettings = jest.fn(async () => ({ ok: true, value: undefined }));
+const mockSettings: { current: { assistant: { language: string; voice: string } } } = {
+  current: { assistant: { language: 'en-US', voice: 'warm' } },
+};
 jest.mock('@/queries', () => ({
   useTasks: () => ({ data: [] }),
   useCreateTask: () => ({ mutateAsync: jest.fn() }),
   useUpdateTask: () => ({ mutateAsync: jest.fn() }),
   useDeleteTask: () => ({ mutateAsync: jest.fn() }),
   useLogState: () => ({ mutateAsync: jest.fn() }),
+  useSettings: () => ({ data: mockSettings.current }),
+  useUpdateSettings: () => ({ mutateAsync: mockUpdateSettings }),
 }));
 
 async function* offlineStream() {
@@ -37,7 +45,7 @@ jest.mock('expo-audio', () => ({
 }));
 
 import S32AssistantConversation from './chat';
-import { S32_COPY } from '@/features/assistant/copy';
+import { S32_COPY, S36_COPY } from '@/features/assistant/copy';
 
 describe('S32 — Assistant Conversation', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -96,5 +104,22 @@ describe('S32 — Assistant Conversation', () => {
     await render(<S32AssistantConversation />);
     await userEvent.press(screen.getByLabelText('Switch to voice'));
     expect(await screen.findByText(S32_COPY.listening)).toBeTruthy();
+  });
+
+  it('CR-2 — S36 renders the PERSISTED voice, and changing it writes through useUpdateSettings', async () => {
+    mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
+    // A value that is NOT the pre-CR-2 in-process default: if the sheet still seeded itself
+    // from module state (or from the column default), this assertion fails.
+    mockSettings.current = { assistant: { language: 'en-US', voice: 'calm' } };
+    await render(<S32AssistantConversation />);
+    await userEvent.press(screen.getByLabelText('More options'));
+    await userEvent.press(await screen.findByText(S36_COPY.voiceAndLanguage));
+    expect(await screen.findByLabelText('Voice, Calm')).toBeTruthy();
+
+    await userEvent.press(screen.getByLabelText('Voice, Calm'));
+    await userEvent.press(await screen.findByText('Direct'));
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ assistant: { language: 'en-US', voice: 'direct' } });
+
+    mockSettings.current = { assistant: { language: 'en-US', voice: 'warm' } };
   });
 });

@@ -9,7 +9,7 @@ import { CreditCard, History, Languages, MessageSquarePlus, ShieldCheck, HelpCir
 import { SPACE, useTheme } from '@/theme';
 import { Card, Dialog, Select, Skeleton } from '@/ui';
 import { S36_COPY } from './copy';
-import { getVoiceLanguagePrefs } from './voiceLanguagePrefs';
+import { DEFAULT_VOICE_LANGUAGE_PREFS, type VoiceLanguagePrefs } from './voiceLanguagePrefs';
 
 export interface OptionsSheetProps {
   readonly visible: boolean;
@@ -20,6 +20,9 @@ export interface OptionsSheetProps {
   readonly onAccountAndSync: () => void;
   readonly onHelp: () => void;
   readonly subscriptionSubtitle: string | null;
+  /** Architect CR-2: the PERSISTED selection, read from `settings` by the owning screen and
+   *  passed down — this sheet stays presentational (no query hooks, no module state). */
+  readonly voiceLanguage?: VoiceLanguagePrefs;
   readonly onSaveVoiceLanguage?: (language: string, voice: string) => void;
 }
 
@@ -39,19 +42,24 @@ export function OptionsSheet({
   onAccountAndSync,
   onHelp,
   subscriptionSubtitle,
+  voiceLanguage = DEFAULT_VOICE_LANGUAGE_PREFS,
   onSaveVoiceLanguage,
 }: OptionsSheetProps) {
   const t = useTheme();
   const [expanded, setExpanded] = useState(false);
-  const [language, setLanguage] = useState(() => getVoiceLanguagePrefs().language);
-  const [voice, setVoice] = useState(() => getVoiceLanguagePrefs().voice);
+  // The persisted value is the source of truth; a local override only exists between a tap and
+  // the settings read coming back with it. A `useState` initializer alone would freeze the
+  // pre-load default forever, since this sheet mounts before the settings query resolves.
+  const [pending, setPending] = useState<VoiceLanguagePrefs | null>(null);
+  const language = pending?.language ?? voiceLanguage.language;
+  const voice = pending?.voice ?? voiceLanguage.voice;
 
   function handleLanguageChange(value: string) {
-    setLanguage(value);
+    setPending({ language: value, voice });
     onSaveVoiceLanguage?.(value, voice);
   }
   function handleVoiceChange(value: string) {
-    setVoice(value);
+    setPending({ language, voice: value });
     onSaveVoiceLanguage?.(language, value);
   }
 
