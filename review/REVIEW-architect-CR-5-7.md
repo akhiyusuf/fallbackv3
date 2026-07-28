@@ -139,3 +139,77 @@ envelope's other settings values (e.g. a non-default `theme`) intact.
 - **Commands run:** `npx tsc --noEmit` → exit 0, clean. `npx jest` → **99 suites passed,
   695 tests passed** (matches claim). `cd server && npm test` → **23 pass / 0 fail**
   (matches claim).
+
+---
+
+# Review — Architect CRs 5–7 (pass 2)
+VERDICT: PASS
+
+Scope: commit `88b534a` ("Architect CRs 5-7: rework for both pass-1 reviews"), reviewed
+against pass 1's single blocking item (B1) plus the folded-in non-blocking fixes.
+
+## Blocking items
+None. B1 is genuinely resolved — see Verified.
+
+## Non-blocking notes
+1. The new test's final step (`patch({ assistant: { language, voice } })`) passes a
+   COMPLETE `assistant` object, so the intra-`assistant` field-wise merge is not strictly
+   exercised by that step — it proves "patch after restore works and doesn't disturb
+   `theme`", which is what B1's acceptance test asked for. The partial-`assistant`-patch
+   merge itself remains covered by `repositories.test.ts:195-206` from the original commit.
+   No action needed.
+2. On a SUCCESSFUL save, `OptionsSheet.pending` is intentionally never cleared (comment at
+   `OptionsSheet.tsx:59-63` explains the anti-flicker rationale); since the persisted read
+   converges to the same value, the override is inert. Fine as designed.
+3. Pass-1 note 5 (jest "worker failed to exit gracefully" warning) remains — pre-existing,
+   still not introduced by this work.
+
+## Verified
+
+**B1 — the pre-v4 restore contract is now pinned by a real test:**
+- Read the new test in full (`backupRestore.test.ts:127-212`). The envelope is handcrafted
+  at `schemaVersion: 3` with the settings row frozen at the LITERAL v3 column set — I
+  cross-checked it against migration 001's `CREATE TABLE settings` (migrations 002/003 do
+  not touch `settings`): exactly the 20 v3 columns, neither `assistant_*` column, and every
+  value satisfies the v1 CHECK constraints (`dark`, `plum`, `weekly`).
+- **Not a re-seeded singleton by coincidence:** the asserted survivors are all
+  NON-default — seed defaults are `theme='auto'`, `accent='forge-orange'`,
+  `notif_digest_time='08:00'`, `tenure_anchor_date=today()`; the test asserts `'dark'`,
+  `'plum'`, `'21:30'`, `'2025-11-15'`. A fallback to seed would fail all four.
+- **The envelope actually reaches the insert path:** `validateBackupEnvelope`
+  (`backupEnvelope.ts:97`) rejects only `schemaVersion > CURRENT`, so v3 is admitted;
+  `validateBackupColumns` allowlists against live pragma (absent columns are fine, only
+  unknown ones reject); the test goes through the full `store.restore(uri)` file path via
+  the fs test double, same as production.
+- **No JS-level masking:** `settingsRepository.ts:77` maps `row.assistant_language` /
+  `row.assistant_voice` with no `??` coalescing, so a NULL from a default-less column would
+  flow into the `toEqual({ language: 'en-US', voice: 'warm' })` assertion and fail it.
+- **Mutation check executed myself** (not taken on faith): temporarily rewrote migration 4's
+  two columns to nullable-with-no-default (the exact regression class B1 warned about — "a
+  migration 5 that adds a column WITHOUT a default"), ran the suite: the new test FAILS
+  while the other 8 tests in the file stay green — it is the sole guard for this class.
+  Reverted via `git checkout`; tree confirmed clean of my edit afterward.
+- SCHEMA §9 now carries the standing rule (any added column needs a non-NULL default or its
+  own pre-migration restore fixture) and names the pinning test — doc matches reality.
+
+**Folded-in non-blocking fixes:**
+- `OptionsSheet.tsx:59-75` — `applyChange` wraps the callback in `Promise.resolve(...)` and
+  clears `pending` only when it resolves literally `false` (a `void`-returning legacy
+  callback resolves `undefined`, correctly left alone). `chat.tsx:84-90` now returns the
+  saved flag and passes `handleSaveVoiceLanguage` directly. New failure-path test
+  (`OptionsSheet.test.tsx:100-128`) asserts behavior: after a `false` save, the picker
+  snaps back to `Voice, Warm — default` and `Voice, Direct` is absent.
+- `chat.test.tsx` — mutable `mockSettings` reset moved to `afterEach` (pass-1 note 4).
+- Stale CONTRACT GAP comments (pass-1 note 2): `notifications/index.ts:210` and
+  `widgets/index.ts:128` now marked RESOLVED by CR-5; the genuinely still-open gaps
+  (`sync/index.ts:6`, `conversationStore.ts:5`) were correctly left untouched.
+- CR renumbering (pass-1 note 3): grepped `CR-[123]\b` across `src/` — every remaining hit
+  is the pre-existing post-wave-1 series (cycle_state / XP retraction / F7 snooze), none of
+  this batch's labels. `docs/MODULES.md` carries both series (post-wave-1 at lines 183-263,
+  post-wave-2 CR-5/6/7 at 337+) with an explicit disambiguation paragraph (lines 337-347).
+  API §3's "no separate hook" claim narrowed accurately to the query layer.
+
+**Commands run:** `npx jest` → **99 suites / 697 tests passed** (+2, matches claim).
+`cd server && npm test` → **23 pass / 0 fail**. `npx tsc --noEmit` → clean, exit 0.
+Mutation run: `jest backupRestore.test.ts` under the default-stripped migration →
+1 failed (the new test) / 8 passed, then reverted.
