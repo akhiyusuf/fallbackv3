@@ -524,7 +524,15 @@ verdict as its last section, pass-1 history preserved above it.
 | M6 | CHANGES_REQUIRED (13 items) | a paying subscriber lost the assistant after every app restart (receipt never restamped); tool calls dropped/unassemblable on both providers — the module's core feature didn't work. BYO-key isolation and backend statelessness verified clean throughout, never regressed by the fix | PASS (pass 2) |
 | M7 | CHANGES_REQUIRED (7 items) | `initNotificationsBridge`/`initWidgetsBridge` built but never called anywhere; `store:erased` unconsumed (erased habit data survived on the widget/in armed notifications); bare date-keyed `day_log` resolution — the F1 defect class' sixth recurrence | PASS (pass 3 — pass 2's own rework surfaced one new item, a missing `notBefore` anchor causing false "yesterday slipped by" notifications for brand-new users) |
 
-## Three architect CRs raised during wave-2 review, not yet applied
+## Three architect CRs raised during wave-2 review — applied and PASS
+
+All three below are now applied (commit `9183d2c`, reworked once to
+`88b534a` after both its code review and doc/artifact review found
+small traceability gaps — see `review/REVIEW-architect-CR-5-7.md` and
+`review/REVIEW-architect-CR-5-7-docs.md`, both PASS as of pass 2).
+Renumbered CR-5/CR-6/CR-7 in-code to avoid colliding with the
+pre-existing post-wave-1 CR-1/2/3 (cycle_state, XP retraction, F7
+snooze) — both series now coexist, disambiguated in `docs/MODULES.md`.
 
 1. **Boot-time bridge wiring.** M7's init functions are idempotent and now
    called from M7 screens, but the true boot-time call belongs in
@@ -561,8 +569,10 @@ cloud-sync capability gap — see the dedicated sections above.)
 
 ## Next action
 
-**Batch and apply the three architect CRs above**, then dispatch qa-tester
-(verifies the assembled product against every PRD acceptance criterion) →
-artifact-reviewer on `TEST_REPORT.md` → visual-qa → **Gate 3** — human
-reviews screenshots + `review/TEST_REPORT.md`, plus the two Gate-3 carry
-items above.
+All 8 modules (M0–M7) plus the architect's own CR-5/6/7 batch have PASS
+code review. **Dispatch qa-tester** (verifies the assembled product against
+every PRD acceptance criterion) → artifact-reviewer on `TEST_REPORT.md` →
+visual-qa → **Gate 3** — human reviews screenshots + `review/TEST_REPORT.md`,
+plus the accumulated Gate-3 carry items (S49 hand-off targets, B13 receipt
+verification, `.fallbackbak` erase behavior, F20 cloud sync, F7 dormant-undo
+reachability).
