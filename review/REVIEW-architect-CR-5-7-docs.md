@@ -149,3 +149,103 @@ worst one. Plus one ownership misstatement that contradicts ARCHITECTURE.md.
 - **PRD:** F16 (§3.6) does not itself pin voice/language persistence; the requirement
   originates in the approved design (S36 "persists immediately") — the docs cite F16/S36
   as the source, which is the correct provenance under the PROJECT OVERRIDE.
+
+---
+
+# Review — Architect CR-5/6/7 documentation updates (pass 2)
+VERDICT: PASS
+
+Scope: fix commit `88b534a`, reviewed against this file's pass-1 blocking items, plus
+`docs/ARCHITECTURE.md` §4.2/§11, `docs/MODULES.md` top matter, and the actual code the
+docs now cite (`src/db/__tests__/backupRestore.test.ts`, migration 004, the renamed
+comment sites).
+
+## Blocking items
+
+None.
+
+## Pass-1 blocking items — resolution verified
+
+1. **CR-number collision — RESOLVED, by the stronger of the two offered fixes.** The
+   architect renumbered every wave-2 in-code label rather than merely disclosing the
+   alias: `app/_layout.tsx:63` now reads "Architect CR-5"; migration 004 (header +
+   `name` field), `schema.sql:27–28`, `types/settings.ts:23,74`,
+   `settingsRepository.ts:76`, `voiceLanguagePrefs.ts:5`, `OptionsSheet.tsx:23`,
+   `chat.tsx`/`chat.test.tsx`, `repositories.test.ts:195` all read CR-6;
+   `lifecycle.ts:25` and `lifecycle.test.ts:89` read CR-7. Repo-wide grep for
+   `architect CR-1/2/3` finds zero stale labels in code — the only remaining hits are
+   this review file, `REVIEW-architect-CR-5-7.md`, and MODULES.md's new disambiguation
+   paragraph, all of which describe the old labels as history. The pre-existing
+   post-wave-1 series is untouched: MODULES.md headings CR-1 (line 189, cycle_state),
+   CR-2 (line 213, XP retraction), CR-4 (line 227), CR-3 (line 263, F7 snooze) are
+   unmodified, and every surviving `CR-1`/`CR-2` reference in `src/` (`mutations.ts`,
+   `progressRepository.ts`, `cycleStateRepository.ts`, `cycleWindowSeed.ts`,
+   `types/ports.ts`, `types/progress.ts`, `db/index.ts`, `repositories.test.ts:240`,
+   `moveSemantics.test.ts:426`) genuinely refers to the post-wave-1 items. The new
+   MODULES.md disambiguation paragraph (lines 340–349) passes the pass-1 acceptance
+   test and goes further: it names the colliding series on both sides, records the
+   rename, and states the forward rule ("any surviving CR-1/2/3 comment in `src/`
+   refers to the post-wave-1 series in the top matter, never to these three").
+
+2. **`app/_layout.tsx` ownership misstatement — RESOLVED.** The CR-5 heading (line 353)
+   now reads "`app/_layout.tsx`, **M0-owned and frozen to every other module**", and a
+   new lead paragraph states "Ownership is unchanged by this CR", quotes ARCHITECTURE.md
+   §4.2 (line 151, "no other module may edit it") and §11 (line 583, "M0-owned … No
+   other module may edit them") accurately, frames the architect's single edit as the
+   cross-module CR mechanism "not as a transfer of ownership", and closes with "No
+   builder may take this as licence to edit the shell." Pass-1 acceptance test met: no
+   statement in MODULES.md now assigns the file to anyone but M0. The companion stale
+   comment in `src/services/widgets/index.ts` ("architect-owned `app/_layout.tsx`") was
+   also corrected to "M0-owned" in the same commit; a repo-wide grep for
+   "architect-owned" now hits only the genuinely architect-frozen scaffold files.
+
+## Non-blocking notes
+
+- **MODULES.md CR-5 heading wording vs ARCHITECTURE §11's "not frozen".** ARCHITECTURE
+  line 583 says the layouts are "M0-owned, **not frozen**" — there "frozen" is the term
+  of art for the architect-frozen/no-owner list in the preceding paragraph. MODULES.md's
+  "frozen to every other module" uses the word in its plain sense with an explicit
+  qualifier, so meaning is unambiguous; still, a future editor grepping "frozen" will
+  see apparently opposite claims about the same file. Style only.
+- **MODULES.md CR-6 bullet (line ~381)** puts quote marks around "compatibility claims
+  get a tested older-version fixture" and attributes it to SCHEMA §9, but that is a
+  paraphrase — §9's actual sentences are the new standing rule and the F1 fixture
+  requirement. The gloss is faithful; drop the quote marks next touch.
+- Pass-1 non-blocking notes 1 (API §3 repo-wide-sounding claim) and 2 (dangling
+  "contract gap 5's sibling" pointer) were both addressed although not required:
+  API §3 now says "NO separate QUERY-LAYER hook" and names `useVoiceLanguagePrefs()` as
+  a thin composition; MODULES.md now cites `review/REVIEW-M6.md` pass-2 note 5 (closed
+  by CR-6) and pass-1 note 14 (`conversationStore.ts`, still open) — both verified
+  against REVIEW-M6.md (lines 527 and 260 respectively, correct direction this time).
+  Notes 3–5 (eraseAll clause placement, ARCHITECTURE §11 cross-ref, SCHEMA em-dash
+  sentence) remain open as optional next-touch items; none blocks.
+
+## Verified
+
+- **`git show 88b534a`** in full, against the pass-1 review and against
+  `docs/ARCHITECTURE.md` §4.2 (line 151) / §11 (line 583) — both quoted passages exist
+  verbatim at the cited sections.
+- **Grep sweeps:** `architect CR-[123]` (case-insensitive, repo-wide) — no stale code
+  labels; `CR-[123]\b` in `src/` — every hit is a legitimate post-wave-1 reference;
+  `CR-*` in `app/` — only CR-5/CR-6; "architect-owned" repo-wide — only scaffold files
+  and review history.
+- **SCHEMA.md §9 (section starts line 859):** the reworked backup-compat paragraph names
+  `src/db/__tests__/backupRestore.test.ts` and describes the fixture accurately, and the
+  claimed **standing rule** is actually present in the doc, verbatim: "any migration
+  that adds a column must either give it a non-NULL default or carry its own
+  pre-migration-version restore fixture". Not just claimed in the commit message.
+- **`src/db/__tests__/backupRestore.test.ts` (new test, lines 117–212):** exists and
+  matches every doc claim — handcrafted `schemaVersion: 3` envelope with the literal v3
+  `settings` column set (no `assistant_*` keys), asserts restore succeeds, defaults
+  materialise (`en-US`/`warm`), the file's own non-default values survive
+  (theme `dark`, accent `plum`, digest `21:30`, tenure anchor), and a subsequent
+  `patch({ assistant })` merges field-wise. Migration 004's header cross-references the
+  test by file and title ("a pre-v4 (v3-shaped) backup ...") — title matches the `it()`
+  at line 128. MODULES.md CR-6's bullet carries the same cross-reference.
+- **MODULES.md structural integrity:** heading scan confirms the post-wave-1 section
+  (lines 177–332) is byte-identical per the diff; only the post-wave-2 section (line 334
+  ff.) changed.
+
+The three documentation artifacts are now internally consistent, consistent with
+ARCHITECTURE.md's ownership rules, and every compatibility claim they make is pinned by
+a named, existing test. PASS.
