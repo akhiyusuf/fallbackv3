@@ -331,9 +331,11 @@ Every visible text run and icon on 41 screens, in light and dark, was measured
 against the surface it sits on (WCAG 2.1: 4.5:1 for text, 3:1 for large text
 and icons). The script is `docs/design-rebuild/preview-harness/contrast.js`.
 
-Before: 47 failing colour pairs in light, 58 in dark. After: none on content.
-What still reads as "failing" is not content: disabled controls, the empty
-track of a progress ring, and screen-reader-only text.
+Before: roughly 26 failing colour pairs on content in light and 15 in dark
+(counted by hand from the first run, leaving out disabled controls and hidden
+elements). After: none on content. What the script still lists is not content:
+disabled controls, the empty track of a progress ring, hidden duplicate tab
+icons and screen-reader-only text.
 
 | Was failing | Measured | Now |
 |---|---|---|
