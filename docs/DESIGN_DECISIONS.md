@@ -678,11 +678,15 @@ Allow".
   PRD owner must confirm** (which reminders "Allow" turns on).
 - Also fixed: a step left behind in the navigation stack reported a height of
   zero and could push the shared density to "tight"; zero heights are ignored.
-- **Open with the human:** step 5's reminders switch and step 6's Allow / Not
-  now ask the same question twice, and step 6 only appears when the switch is
-  on, so the step dots jump from 5 to 7 when it is off. Proposed: drop the
-  switch from step 5 and always show step 6. Not applied, because the human
-  asked for the content of the steps to stay as it is.
+- **Decided by the human (preview version 10): reminders are asked about
+  once, on step 6.** The "Gentle nudges" switch is removed from step 5, which
+  is now only the colour (body copy: "Pick the colour you'll see every day.").
+  Step 6 is always shown, so the dots never skip. Allow turns reminders on
+  (see above); Not now leaves them off, and turns them off again if the person
+  comes back and changes their mind. Step 6 is pushed rather than replaced,
+  so Back from step 7 returns to it. **This changes approved copy and flow for
+  S06 and S07 in `design-input/` (human-owned): the PRD and the screen spec
+  need the same change before builders work from them.**
 
 ### What the architect needs to know from round 4
 

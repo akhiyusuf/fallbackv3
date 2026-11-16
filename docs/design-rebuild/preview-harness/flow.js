@@ -14,7 +14,6 @@ const S = '/tmp/claude-0/-home-user-fallbackv3/4065cf9b-48bb-5876-bcc5-38bb70a7f
   await page.waitForTimeout(1500); await where('start');
   for (let i = 0; i < 4; i++) { await vis(page.getByText('Next', { exact: true })).click(); await page.waitForTimeout(900); await where('after next ' + (i + 1)); }
   await vis(page.locator('[role="radio"][aria-label^="Lagoon"]')).click(); await page.waitForTimeout(400);
-  await vis(page.locator('[role="switch"]')).click(); await page.waitForTimeout(400);
   await page.screenshot({ path: S + '/v3/flow-5.png' });
   await vis(page.getByText('Next', { exact: true })).click(); await page.waitForTimeout(1200); await where('after personalize'); await settings('settings');
   await page.screenshot({ path: S + '/v3/flow-6.png' });

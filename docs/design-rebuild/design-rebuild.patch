@@ -2596,8 +2596,8 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
  }
 diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
-+++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 19:24:17.020350021 +0000
-@@ -1,99 +1,86 @@
++++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 19:34:15.563419261 +0000
+@@ -1,99 +1,95 @@
 -/** S07 — Notification Permission Primer. route: /onboarding/notifications-primer. Features: F9, F14. */
 +/** S07 — onboarding step 6. Permission primer: "Allow" on top, "Not now" below (D11). */
  import { useEffect, useState } from 'react';
@@ -2634,8 +2634,18 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
    }, []);
  
 -  async function proceed() {
+-    router.replace('/onboarding/first-task' as Href);
 +  function proceed() {
-     router.replace('/onboarding/first-task' as Href);
++    // Pushed, not replaced: this step is always part of the tour now, so Back from the last
++    // step returns here and the dots never skip.
++    router.push('/onboarding/first-task' as Href);
++  }
++
++  /** "Not now" is an answer too: if reminders were on (the person came back and changed their mind), turn them off. */
++  async function handleNotNow() {
++    const prefs = settingsQuery.data?.notifications;
++    if (prefs?.master) await updateSettings.mutateAsync({ notifications: { ...prefs, master: false } });
++    proceed();
    }
  
    async function handleAllow() {
@@ -2704,7 +2714,7 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
 +      footer={
 +        <ButtonPair
 +          primary={{ label: S07_COPY.allow, onPress: () => void handleAllow(), loading: requesting, accessibilityLabel: 'Allow notifications' }}
-+          secondary={{ label: S07_COPY.notNow, onPress: proceed, disabled: requesting }}
++          secondary={{ label: S07_COPY.notNow, onPress: () => void handleNotNow(), disabled: requesting }}
          />
 -        <Button label={S07_COPY.notNow} onPress={handleNotNow} variant="ghost" accessibilityLabel="Not now, button" fullWidth />
 -      </View>
@@ -2947,7 +2957,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +});
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 19:24:10.550510300 +0000
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 19:34:15.563857605 +0000
 @@ -1,99 +1,150 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
@@ -3013,7 +3023,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  4: '/onboarding/types',
 +  5: '/onboarding/consistency',
 +  6: '/onboarding/personalize',
-+  7: '/onboarding/personalize',
++  7: '/onboarding/notifications-primer',
 +};
  
  export interface OnboardingShellProps {
@@ -3200,8 +3210,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  });
 diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboarding/PersonalizeScreen.tsx
 --- a/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 05:43:15.822463487 +0000
-+++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 16:13:33.587478224 +0000
-@@ -1,24 +1,23 @@
++++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 19:34:31.797321559 +0000
+@@ -1,24 +1,21 @@
 -/** S06 — Onboarding: Make it yours. route: /onboarding/personalize. Features: F9, F8, F14. */
 +/** S06 — onboarding step 5. Accent swatches and one reminders row; no dead "Preview" button. */
  import { useEffect, useState } from 'react';
@@ -3214,13 +3224,13 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -import { useToastStore } from '@/app-shell';
 +import { useThemeStore, useToastStore } from '@/app-shell';
  import { useSettings, useUpdateSettings } from '@/queries';
- import { initNotificationsBridge } from '@/services/notifications';
- import { initWidgetsBridge } from '@/services/widgets';
+-import { initNotificationsBridge } from '@/services/notifications';
+-import { initWidgetsBridge } from '@/services/widgets';
 -import { ACCENTS, DEFAULT_ACCENT, SPACE, useTheme } from '@/theme';
 -import { Button } from '@/ui';
 -import { Switch } from '@/ui';
 +import { DEFAULT_ACCENT, FONT_SIZE, RADIUS, SPACE, THEME_LABELS, THEME_ORDER, THEME_SEEDS, useTheme } from '@/theme';
-+import { ListGroup, ListRow, SectionHeading, Switch } from '@/ui';
++import { SectionHeading } from '@/ui';
  import type { AccentKey } from '@/types';
  
  import { S06_COPY } from './copy';
@@ -3233,49 +3243,56 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
  
  export function PersonalizeScreen() {
    const t = useTheme();
-@@ -33,107 +32,71 @@
-   const [remindersOn, setRemindersOn] = useState(false);
+@@ -30,110 +27,57 @@
+   const setAccent = useThemeStore((s) => s.setAccent);
+   useOnboardingStepMarker('/onboarding/personalize');
+ 
+-  const [remindersOn, setRemindersOn] = useState(false);
    const [saving, setSaving] = useState(false);
  
 -  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount —
 -  // S06 is the last pitch-tour screen and reachable on its own after a resumed-after-kill
 -  // launch, so it needs to be able to arm both bridges independently of S41/S42/S46.
    useEffect(() => {
-     initNotificationsBridge();
-     initWidgetsBridge();
-   }, []);
- 
+-    initNotificationsBridge();
+-    initWidgetsBridge();
+-  }, []);
+-
 -  // Hydrating a previously-chosen accent if onboarding was interrupted and resumed — S06's own
 -  // "Loading" state: instant local read, no skeleton needed.
-   useEffect(() => {
-     if (settingsQuery.data) {
-       setAccent(settingsQuery.data.accent);
-       setRemindersOn(settingsQuery.data.notifications.master);
-     }
+-  useEffect(() => {
+-    if (settingsQuery.data) {
+-      setAccent(settingsQuery.data.accent);
+-      setRemindersOn(settingsQuery.data.notifications.master);
+-    }
 -    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [settingsQuery.data?.accent, settingsQuery.data?.notifications.master]);
+-  }, [settingsQuery.data?.accent, settingsQuery.data?.notifications.master]);
++    if (settingsQuery.data) setAccent(settingsQuery.data.accent);
++  }, [settingsQuery.data?.accent]);
  
    async function handleNext() {
      const priorAccent = settingsQuery.data?.accent ?? DEFAULT_ACCENT;
-     const priorMaster = settingsQuery.data?.notifications.master ?? false;
-     const baselinePrefs = settingsQuery.data?.notifications;
+-    const priorMaster = settingsQuery.data?.notifications.master ?? false;
+-    const baselinePrefs = settingsQuery.data?.notifications;
 -
      setSaving(true);
 -    const result = await updateSettings.mutateAsync({
 -      accent,
 -      notifications: baselinePrefs ? { ...baselinePrefs, master: remindersOn } : undefined,
 -    });
-+    const result = await updateSettings.mutateAsync({ accent, notifications: baselinePrefs ? { ...baselinePrefs, master: remindersOn } : undefined });
++    const result = await updateSettings.mutateAsync({ accent });
      setSaving(false);
 -
      if (!result.ok) {
        setAccent(priorAccent);
-       setRemindersOn(priorMaster);
+-      setRemindersOn(priorMaster);
        showToast(S06_COPY.saveFailure, 'warning');
        return;
      }
 -
-     router.push((remindersOn ? '/onboarding/notifications-primer' : '/onboarding/first-task') as Href);
+-    router.push((remindersOn ? '/onboarding/notifications-primer' : '/onboarding/first-task') as Href);
++    // Reminders are asked about once, on the next step. This step is only the colour.
++    router.push('/onboarding/notifications-primer' as Href);
    }
  
    return (
@@ -3335,12 +3352,6 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -        </View>
 -        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.remindersHelper}</Text>
 -      </View>
-+      <ListGroup title={S06_COPY.remindersSectionLabel} footer={S06_COPY.remindersHelper}>
-+        <ListRow
-+          label={S06_COPY.remindersRowLabel}
-+          right={<Switch value={remindersOn} onValueChange={setRemindersOn} accessibilityLabel={`${S06_COPY.remindersRowLabel}, ${remindersOn ? 'on' : 'off'}`} />}
-+        />
-+      </ListGroup>
      </OnboardingShell>
    );
  }
@@ -3453,7 +3464,7 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
  });
 diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-16 16:12:20.619060598 +0000
++++ b/src/features/onboarding/copy.ts	2026-11-16 19:34:15.563110441 +0000
 @@ -17,11 +17,9 @@
  export const S03_COPY = {
    headline: 'A plan A and a plan B for every habit.',
@@ -3492,7 +3503,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 -  body: 'Pick an accent color and decide if you want a gentle nudge now and then.',
 -  accentSectionLabel: 'Accent color',
 -  accentHelper: 'Only recolors buttons and progress — never the ideal, fallback, or off-day colors.',
-+  body: 'Pick an accent colour and decide if you want a gentle nudge now and then.',
++  body: "Pick the colour you'll see every day.",
 +  accentSectionLabel: 'Theme',
 +  accentHelper: 'It recolours the whole app. Ideal green and fallback blue never change. More colours are in Settings.',
    previewLabel: 'Preview',
