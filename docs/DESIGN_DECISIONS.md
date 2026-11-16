@@ -616,6 +616,46 @@ tinted cards (task header, the headline row on Routines, Events and Courses)
   Note: the screen now opens on the first task chip, as before; "All tasks"
   is the first chip rather than a second tab.
 
+### Round 4, third pass (same day, preview version 8)
+
+**Onboarding.** Feedback: the picture at the top must change with every step
+and show what the words under it say; nothing in onboarding may need
+scrolling, on any device; the design of the steps themselves is fine and stays.
+
+- `OnboardingPicture`: one drawing per step, made from the theme's colours.
+  1 a plant with a green and a blue leaf · 2 an "A" card and a "B" card ·
+  3 the four task kinds · 4 a week of days and the bar they add up to ·
+  5 the theme swatches · 6 one quiet notification · 7 an empty task card.
+  It eases in on arrival (not under reduced motion).
+- No scrolling: the coloured top gives up its height first (the picture scales
+  down, then goes), and type and gaps tighten in two steps by the screen's real
+  height (`useOnboardingDensity`: regular ≥ 760, compact ≥ 650, tight below).
+  Measured with `preview-harness/ob.js`: all seven steps fit at 320×568,
+  360×640, 375×667, 390×700, 390×776, 390×844, 412×915 and 430×932.
+  The scroll view stays as a fallback for large accessibility text and the
+  keyboard.
+
+**New feature request — Priorities (built in the preview, NOT specified).**
+The human: importance should be "its own category where each thing in high,
+medium or low has its own hierarchy set by the user"; a person can look at all
+their high priorities and arrange which matters most.
+
+- In the preview: `/priorities`, three levels (High, Medium, Low, with
+  counts), each a numbered list in the person's order, moved with up and down
+  arrows. Reached from a "Priorities" row on Today and from a "No. 2 of 5 in
+  High" row under Importance on a task's screen.
+- Data: `task.priority_rank INTEGER NULL` (migration 007). Lower comes first;
+  unplaced tasks follow, oldest first; changing importance clears the rank;
+  a duplicate starts unplaced. Finished things drop out of the lists (done
+  to-dos, notes, ended courses, past one-off events).
+- This is a product feature, not a restyle. It needs Phase 1 before the
+  architect touches it. Open questions for the human:
+  1. Should the order do anything outside this screen (sort Today, sort the
+     list tabs, decide which reminder comes first)?
+  2. Should tasks with no importance be listed somewhere, to be sorted in?
+  3. Arrows work everywhere and with a screen reader; is drag-to-reorder
+     wanted as well on a phone?
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

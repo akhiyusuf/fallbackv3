@@ -21,7 +21,7 @@ async function insertTask(seed: Seed, createdDaysAgo: number): Promise<string> {
   const { ideal = [], fallback = [], ...rest } = seed;
   const task: Task = {
     id, note: null, isAsNeeded: false, cadence: null, eventDate: null, timeOfDay: null, startDate: null, endDate: null,
-    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false,
+    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false, priorityRank: null,
     createdAt: created, updatedAt: created, deletedAt: null, ...rest,
   } as Task;
   const steps: Step[] = [
@@ -40,11 +40,11 @@ async function seedSample(): Promise<void> {
 
   const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
   const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
-  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
-  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
-  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false }, 5);
+  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', importance: 'low', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
+  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, importance: 'high', necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
+  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false, importance: 'high', necessity: 'recommended' }, 5);
   await insertTask({ type: 'todo', name: 'Renew passport', icon: 'FileText', color: 'indigo', isTracked: false, importance: 'high' }, 6);
-  await insertTask({ type: 'todo', name: 'Send the invoice', icon: 'Briefcase', color: 'forge-orange', isTracked: false }, 2);
+  await insertTask({ type: 'todo', name: 'Send the invoice', icon: 'Briefcase', color: 'forge-orange', isTracked: false, importance: 'med' }, 2);
 
   // Three weeks of history, oldest first. Today is left open so there is something to tap.
   const workoutPattern: (ChipState | 'off' | null)[] = ['done', 'done', 'fallback', 'done', null, 'done', 'fallback', 'done', 'done', 'off', 'fallback', 'done', 'done', 'skip', 'done', 'fallback', 'done', 'done', null, 'done', 'fallback'];

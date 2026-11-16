@@ -151,24 +151,44 @@ diff -ruN a/src/db/migrations/006_settings_accent_ext.ts b/src/db/migrations/006
 +    ALTER TABLE settings ADD COLUMN accent_ext TEXT;
 +  `,
 +};
+diff -ruN a/src/db/migrations/007_task_priority_rank.ts b/src/db/migrations/007_task_priority_rank.ts
+--- a/src/db/migrations/007_task_priority_rank.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/db/migrations/007_task_priority_rank.ts	2026-11-16 18:24:39.569666573 +0000
+@@ -0,0 +1,14 @@
++import type { Migration } from './types';
++
++/**
++ * A person's own order inside each importance level (High, Medium, Low). Lower comes first.
++ * NULL means "not placed yet": such tasks sit after the placed ones, oldest first. Changing a
++ * task's importance clears its rank, so it joins the end of its new level.
++ */
++export const MIGRATION_007_TASK_PRIORITY_RANK: Migration = {
++  version: 7,
++  name: 'task.priority_rank — the user\'s order within an importance level',
++  up: `
++    ALTER TABLE task ADD COLUMN priority_rank INTEGER;
++  `,
++};
 diff -ruN a/src/db/migrations/index.ts b/src/db/migrations/index.ts
 --- a/src/db/migrations/index.ts	2026-11-16 05:43:15.824554748 +0000
-+++ b/src/db/migrations/index.ts	2026-11-16 16:09:46.487547152 +0000
-@@ -7,6 +7,8 @@
++++ b/src/db/migrations/index.ts	2026-11-16 18:24:39.602411834 +0000
+@@ -7,6 +7,9 @@
  import { MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE } from './002_offday_whole_day_unique';
  import { MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK } from './003_snoozable_and_one_hop_check';
  import { MIGRATION_004_ASSISTANT_VOICE_LANGUAGE } from './004_assistant_voice_language';
 +import { MIGRATION_005_TASK_IS_NOTE } from './005_task_is_note';
 +import { MIGRATION_006_SETTINGS_ACCENT_EXT } from './006_settings_accent_ext';
++import { MIGRATION_007_TASK_PRIORITY_RANK } from './007_task_priority_rank';
  import type { Migration } from './types';
  
  export type { Migration } from './types';
-@@ -16,6 +18,8 @@
+@@ -16,6 +19,9 @@
    MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE,
    MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK,
    MIGRATION_004_ASSISTANT_VOICE_LANGUAGE,
 +  MIGRATION_005_TASK_IS_NOTE,
 +  MIGRATION_006_SETTINGS_ACCENT_EXT,
++  MIGRATION_007_TASK_PRIORITY_RANK,
  ];
  
  export const CURRENT_SCHEMA_VERSION: number = MIGRATIONS[MIGRATIONS.length - 1]!.version;
@@ -229,70 +249,78 @@ diff -ruN a/src/db/repositories/settingsRepository.ts b/src/db/repositories/sett
                next.cycleCadence,
 diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepository.ts
 --- a/src/db/repositories/taskRepository.ts	2026-11-16 05:43:15.823700626 +0000
-+++ b/src/db/repositories/taskRepository.ts	2026-11-16 07:02:57.656762562 +0000
-@@ -59,6 +59,7 @@
++++ b/src/db/repositories/taskRepository.ts	2026-11-16 18:24:52.060139071 +0000
+@@ -59,6 +59,8 @@
    readonly updated_at: string;
    readonly deleted_at: string | null;
    readonly snoozable: number;
 +  readonly is_note: number;
++  readonly priority_rank: number | null;
  }
  
  interface StepRow {
-@@ -178,6 +179,7 @@
+@@ -178,6 +180,8 @@
      // CR-4 (PRD §3.7 / SCHEMA §2). Default-on gate, editable post-creation from S20;
      // duplicate() below inherits this via its plain `{ ...sourceTask }` spread.
      snoozable: row.snoozable === 1,
 +    isNote: row.is_note === 1,
++    priorityRank: row.priority_rank ?? null,
    };
  }
  
-@@ -204,7 +206,7 @@
+@@ -204,7 +208,7 @@
    id, type, name, note, icon, color, is_as_needed, cadence_kind, cadence_weekdays,
    cadence_weekday, cadence_day_of_month, cadence_month, cadence_anchor_date, event_date,
    time_of_day, start_date, end_date, doses_per_day, is_tracked, importance, necessity,
 -  todo_done_at, created_at, updated_at, deleted_at, snoozable
-+  todo_done_at, created_at, updated_at, deleted_at, snoozable, is_note
++  todo_done_at, created_at, updated_at, deleted_at, snoozable, is_note, priority_rank
  `;
  
  function taskParams(task: Task): unknown[] {
-@@ -236,6 +238,7 @@
+@@ -236,6 +240,8 @@
      task.updatedAt,
      task.deletedAt,
      task.snoozable ? 1 : 0,
 +    task.isNote ? 1 : 0,
++    task.priorityRank ?? null,
    ];
  }
  
-@@ -283,7 +286,7 @@
+@@ -283,7 +289,7 @@
        try {
          await db.withTransactionAsync(async () => {
            await db.runAsync(
 -            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
++            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
              taskParams(task),
            );
            for (const step of steps) {
-@@ -310,7 +313,7 @@
+@@ -310,7 +316,7 @@
               cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
               cadence_anchor_date=?, event_date=?, time_of_day=?, start_date=?, end_date=?,
               doses_per_day=?, is_tracked=?, importance=?, necessity=?, todo_done_at=?,
 -             created_at=?, updated_at=?, deleted_at=?, snoozable=? WHERE id=?`,
-+             created_at=?, updated_at=?, deleted_at=?, snoozable=?, is_note=? WHERE id=?`,
++             created_at=?, updated_at=?, deleted_at=?, snoozable=?, is_note=?, priority_rank=? WHERE id=?`,
              [...taskParams(merged).slice(1), id],
            );
            if (steps) {
-@@ -358,7 +361,7 @@
+@@ -354,11 +360,11 @@
+         const sourceTask = taskRowToTask(source);
+         const timestamp = now();
+         const newTaskId = newId();
+-        const copy: Task = { ...sourceTask, id: newTaskId, createdAt: timestamp, updatedAt: timestamp, deletedAt: null };
++        const copy: Task = { ...sourceTask, id: newTaskId, createdAt: timestamp, updatedAt: timestamp, deletedAt: null, priorityRank: null };
          const newSteps: Step[] = (stepsByTask.get(id) ?? []).map((s) => ({ ...s, id: newId(), taskId: newTaskId }));
          await db.withTransactionAsync(async () => {
            await db.runAsync(
 -            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
++            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
              taskParams(copy),
            );
            for (const step of newSteps) {
 diff -ruN a/src/db/schema.sql b/src/db/schema.sql
 --- a/src/db/schema.sql	2026-11-16 05:43:15.824818661 +0000
-+++ b/src/db/schema.sql	2026-11-16 16:09:46.488032202 +0000
++++ b/src/db/schema.sql	2026-11-16 18:24:39.602637665 +0000
 @@ -12,6 +12,7 @@
    id INTEGER PRIMARY KEY CHECK (id = 1),
    theme TEXT NOT NULL CHECK (theme IN ('light','dark','auto')) DEFAULT 'auto',
@@ -301,22 +329,24 @@ diff -ruN a/src/db/schema.sql b/src/db/schema.sql
    onboarding_completed_at TEXT,
    tenure_anchor_date TEXT NOT NULL,
    cycle_cadence TEXT NOT NULL CHECK (cycle_cadence IN ('weekly','monthly')) DEFAULT 'monthly',
-@@ -61,6 +62,7 @@
+@@ -61,6 +62,8 @@
    deleted_at TEXT,
    -- migration 3 (CR-4): PRD §3.7 per-task snooze gate, default on.
    snoozable INTEGER NOT NULL DEFAULT 1 CHECK (snoozable IN (0,1)),
 +  is_note INTEGER NOT NULL DEFAULT 0 CHECK (is_note IN (0,1)),
++  priority_rank INTEGER,
    CHECK (is_as_needed = 0 OR type = 'routine')
  );
  CREATE INDEX idx_task_type_deleted ON task(type, deleted_at);
 diff -ruN a/src/domain/__fixtures__/index.ts b/src/domain/__fixtures__/index.ts
 --- a/src/domain/__fixtures__/index.ts	2026-11-16 05:43:15.825293370 +0000
-+++ b/src/domain/__fixtures__/index.ts	2026-11-16 07:02:37.059955616 +0000
-@@ -36,6 +36,7 @@
++++ b/src/domain/__fixtures__/index.ts	2026-11-16 18:24:39.603485476 +0000
+@@ -36,6 +36,8 @@
      necessity: null,
      todoDoneAt: null,
      snoozable: true, // CR-4 default
 +    isNote: false,
++    priorityRank: null,
      createdAt: CREATED,
      updatedAt: CREATED,
      deletedAt: null,
@@ -2340,8 +2370,8 @@ diff -ruN a/src/features/onboarding/ConsistencyScreen.tsx b/src/features/onboard
  });
 diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboarding/FirstTaskScreen.tsx
 --- a/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 05:43:15.822514959 +0000
-+++ b/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 06:06:46.803839734 +0000
-@@ -1,21 +1,20 @@
++++ b/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 18:29:55.020917820 +0000
+@@ -1,24 +1,24 @@
 -/** S08 — Onboarding: First Task. route: /onboarding/first-task. Features: F9, F2. */
 +/** S08 — onboarding step 7: add the first routine. Same top bar as every other step (D6). */
  import { useState } from 'react';
@@ -2361,7 +2391,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
  import type { TaskDraft } from '@/types';
  
  import { S08_COPY } from './copy';
-+import { OnboardingShell } from './OnboardingShell';
++import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
  import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
  
 -const TILE_ICONS: readonly IconComponent[] = [Repeat, Calendar, ListChecks, StickyNote];
@@ -2369,7 +2399,11 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
  export function FirstTaskScreen() {
    const t = useTheme();
    const router = useRouter();
-@@ -30,8 +29,6 @@
++  const tight = useOnboardingDensity() === 'tight';
+   const createTask = useCreateTask();
+   const updateSettings = useUpdateSettings();
+   const showToast = useToastStore((s) => s.show);
+@@ -30,8 +30,6 @@
    const [errors, setErrors] = useState<{ name?: string; ideal?: string; fallback?: string }>({});
    const [saving, setSaving] = useState(false);
  
@@ -2378,7 +2412,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
    async function handleSave() {
      const nextErrors: typeof errors = {};
      if (!name.trim()) nextErrors.name = S08_COPY.nameError;
-@@ -41,8 +38,6 @@
+@@ -41,8 +39,6 @@
      if (Object.keys(nextErrors).length > 0) return;
  
      setSaving(true);
@@ -2387,7 +2421,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
      const draft: TaskDraft = {
        type: 'routine',
        name: name.trim(),
-@@ -56,108 +51,40 @@
+@@ -56,108 +52,41 @@
        idealSteps: [{ text: ideal.trim(), dueWeekdays: null }],
        fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
      };
@@ -2408,6 +2442,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
      router.replace('/today?justAdded=1' as Href);
    }
  
++  // On the smallest phones the helper lines go, so the form still fits; the placeholders carry the examples.
 +  const field = (key: 'name' | 'ideal' | 'fallback', label: string, placeholder: string, helper: string, value: string, set: (v: string) => void) => (
 +    <Input
 +      label={label}
@@ -2417,7 +2452,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
 +        if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
 +      }}
 +      placeholder={placeholder}
-+      helper={errors[key] ? undefined : helper}
++      helper={errors[key] || tight ? undefined : helper}
 +      error={errors[key]}
 +    />
 +  );
@@ -2696,10 +2731,211 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
 +  previewTitle: { fontSize: FONT_SIZE.base, fontWeight: '700' },
 +  previewBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
+diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboarding/OnboardingPicture.tsx
+--- a/src/features/onboarding/OnboardingPicture.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-16 18:27:49.801473355 +0000
+@@ -0,0 +1,197 @@
++/**
++ * OnboardingPicture — the drawing at the top of each onboarding step. Every step has its own,
++ * and each one shows what the words under it say. Drawn from the theme's own colours on a
++ * 220 x 148 canvas and scaled to whatever room the step leaves, so it never forces a scroll.
++ */
++import { useEffect, useRef } from 'react';
++import { Animated, StyleSheet, Text, View } from 'react-native';
++import Svg, { Path, Rect } from 'react-native-svg';
++import { Bell, CalendarRange, Check, CheckCheck, ListTodo, Minus, Plus, Repeat, Timer } from 'lucide-react-native';
++
++import { ACCENTS, THEME_ORDER, THEME_SEEDS, useTheme, type Theme } from '@/theme';
++import { useReduceMotion } from '@/ui';
++
++export const PICTURE_WIDTH = 220;
++export const PICTURE_HEIGHT = 148;
++
++export function OnboardingPicture({ step, scale }: { readonly step: 1 | 2 | 3 | 4 | 5 | 6 | 7; readonly scale: number }) {
++  const t = useTheme();
++  const reduced = useReduceMotion();
++  const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
++  useEffect(() => {
++    if (reduced) return;
++    Animated.spring(enter, { toValue: 1, damping: 11, stiffness: 170, mass: 0.8, useNativeDriver: true }).start();
++  }, [enter, reduced]);
++  const Drawing = DRAWINGS[step];
++  return (
++    <Animated.View
++      accessibilityElementsHidden
++      importantForAccessibility="no-hide-descendants"
++      style={{
++        width: PICTURE_WIDTH,
++        height: PICTURE_HEIGHT,
++        opacity: enter,
++        transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [scale * 0.8, scale] }) }],
++      }}
++    >
++      <Drawing t={t} />
++    </Animated.View>
++  );
++}
++
++type Draw = (props: { readonly t: Theme }) => React.JSX.Element;
++
++function Spark({ t, left, top, size = 12 }: { readonly t: Theme; readonly left: number; readonly top: number; readonly size?: number }) {
++  return <View style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: 3, backgroundColor: t.color.celebrationGold, transform: [{ rotate: '45deg' }] }} />;
++}
++
++function Dot({ color, size, children, style }: { readonly color: string; readonly size: number; readonly children?: React.ReactNode; readonly style?: object }) {
++  return <View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }, style]}>{children}</View>;
++}
++
++/** 1 — Something beats nothing: one plant, a green leaf and a blue leaf. Both make it grow. */
++const Sprout: Draw = ({ t }) => (
++  <View style={s.canvas}>
++    <View style={[s.tile, { width: 108, height: 108, borderRadius: 30, backgroundColor: t.color.bgAlt, transform: [{ rotate: '-4deg' }] }]}>
++      <Svg width={84} height={84} viewBox="0 0 84 84">
++        <Rect x={20} y={66} width={44} height={8} rx={4} fill={t.color.borderStrong} />
++        <Path d="M42 68V34" stroke={t.color.text} strokeWidth={5} strokeLinecap="round" />
++        <Path d="M42 48C24 48 14 36 14 20 32 20 42 32 42 48Z" fill={t.color.ideal} />
++        <Path d="M42 38C58 38 68 28 68 12 52 12 42 22 42 38Z" fill={t.color.fallback} />
++      </Svg>
++    </View>
++    <Spark t={t} left={178} top={22} />
++    <Spark t={t} left={26} top={98} size={8} />
++  </View>
++);
++
++/** 2 — A plan A and a plan B: two cards, one green, one blue. */
++const PlanAB: Draw = ({ t }) => (
++  <View style={[s.canvas, s.row]}>
++    {(
++      [
++        ['A', t.color.ideal, CheckCheck, '-7deg', 6],
++        ['B', t.color.fallback, Check, '6deg', -6],
++      ] as const
++    ).map(([letter, color, Icon, rotate, pull]) => (
++      <View key={letter} style={[s.tile, { width: 84, height: 108, borderRadius: 24, backgroundColor: t.color.bgAlt, gap: 4, marginHorizontal: pull, transform: [{ rotate }] }]}>
++        <Text style={{ fontSize: 40, lineHeight: 46, fontWeight: '800', color: t.color.text }}>{letter}</Text>
++        <Dot color={color} size={30}>
++          <Icon size={17} color={t.color.iconOnSignal} />
++        </Dot>
++      </View>
++    ))}
++    <Spark t={t} left={104} top={8} size={10} />
++  </View>
++);
++
++/** 3 — Four ways to plan: the four kinds of task. */
++const FourKinds: Draw = ({ t }) => {
++  const kinds = [
++    [Repeat, ACCENTS['forge-orange'].base],
++    [Timer, ACCENTS.indigo.base],
++    [CalendarRange, ACCENTS.berry.base],
++    [ListTodo, ACCENTS.plum.base],
++  ] as const;
++  return (
++    <View style={s.canvas}>
++      <View style={[s.tile, { width: 124, height: 124, borderRadius: 32, backgroundColor: t.color.bgAlt, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', gap: 10, padding: 16 }]}>
++        {kinds.map(([Icon, color], i) => (
++          <Dot key={i} color={color} size={41}>
++            <Icon size={21} color={t.color.textOnAccent} />
++          </Dot>
++        ))}
++      </View>
++      <Spark t={t} left={182} top={30} />
++    </View>
++  );
++};
++
++/** 4 — Every day counts: a week of days, ideal or fallback, and the bar they add up to. */
++const WeekCounts: Draw = ({ t }) => {
++  const week = ['ideal', 'ideal', 'fallback', 'ideal', 'off', 'fallback', 'ideal'] as const;
++  return (
++    <View style={s.canvas}>
++      <View style={[s.tile, { width: 196, height: 104, borderRadius: 26, backgroundColor: t.color.bgAlt, paddingHorizontal: 16, gap: 14, alignItems: 'stretch', transform: [{ rotate: '-2deg' }] }]}>
++        <View style={{ flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', backgroundColor: t.color.surface }}>
++          <View style={{ flex: 4, backgroundColor: t.color.ideal }} />
++          <View style={{ flex: 2, backgroundColor: t.color.fallback }} />
++          <View style={{ flex: 1, backgroundColor: t.color.off }} />
++        </View>
++        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
++          {week.map((state, i) => (
++            <Dot key={i} size={20} color={state === 'ideal' ? t.color.ideal : state === 'fallback' ? t.color.fallback : t.color.surface}>
++              {state === 'ideal' ? <CheckCheck size={12} color={t.color.iconOnSignal} /> : state === 'fallback' ? <Check size={12} color={t.color.iconOnSignal} /> : <Minus size={12} color={t.color.textMuted} />}
++            </Dot>
++          ))}
++        </View>
++      </View>
++      <Spark t={t} left={196} top={14} size={10} />
++    </View>
++  );
++};
++
++/** 5 — Make it yours: the themes, fanned out, one chosen. */
++const Swatches: Draw = ({ t }) => (
++  <View style={s.canvas}>
++    <View style={[s.tile, { height: 84, borderRadius: 42, backgroundColor: t.color.bgAlt, flexDirection: 'row', paddingHorizontal: 18 }]}>
++      {THEME_ORDER.map((key, i) => (
++        <Dot key={key} color={THEME_SEEDS[key]} size={i === 0 ? 50 : 42} style={{ marginLeft: i === 0 ? 0 : -10, borderWidth: 3, borderColor: t.color.bgAlt, zIndex: 10 - i }}>
++          {i === 0 ? <Check size={22} color="#ffffff" /> : null}
++        </Dot>
++      ))}
++    </View>
++    <Spark t={t} left={188} top={18} />
++    <Spark t={t} left={18} top={104} size={8} />
++  </View>
++);
++
++/** 6 — Gentle nudges: one quiet notification. */
++const Nudge: Draw = ({ t }) => (
++  <View style={s.canvas}>
++    <View style={[s.tile, { width: 200, height: 76, borderRadius: 24, backgroundColor: t.color.bgAlt, flexDirection: 'row', justifyContent: 'flex-start', paddingHorizontal: 14, gap: 12, transform: [{ rotate: '-3deg' }] }]}>
++      <View style={{ width: 46, height: 46, borderRadius: 15, backgroundColor: t.accent.soft, alignItems: 'center', justifyContent: 'center' }}>
++        <Bell size={24} color={t.accent.text} />
++      </View>
++      <View style={{ flex: 1, gap: 9 }}>
++        <View style={{ width: '82%', height: 10, borderRadius: 5, backgroundColor: t.color.borderStrong }} />
++        <View style={{ width: '56%', height: 10, borderRadius: 5, backgroundColor: t.color.border }} />
++      </View>
++    </View>
++    <Dot color={t.color.celebrationGold} size={22} style={{ position: 'absolute', left: 192, top: 24, borderWidth: 3, borderColor: t.accent.fill }} />
++  </View>
++);
++
++/** 7 — Add your first habit: an empty task card with a plus, and its ideal and fallback. */
++const FirstHabit: Draw = ({ t }) => (
++  <View style={s.canvas}>
++    <View style={[s.tile, { width: 190, height: 112, borderRadius: 26, backgroundColor: t.color.bgAlt, paddingHorizontal: 14, gap: 12, alignItems: 'stretch', transform: [{ rotate: '2deg' }] }]}>
++      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
++        <Dot color={t.accent.soft} size={44}>
++          <Plus size={24} color={t.accent.text} />
++        </Dot>
++        <View style={{ flex: 1, gap: 8 }}>
++          <View style={{ width: '78%', height: 10, borderRadius: 5, backgroundColor: t.color.borderStrong }} />
++          <View style={{ width: '48%', height: 8, borderRadius: 4, backgroundColor: t.color.border }} />
++        </View>
++      </View>
++      <View style={{ flexDirection: 'row', gap: 8 }}>
++        <View style={{ flex: 1, height: 26, borderRadius: 10, backgroundColor: t.color.idealSoft, alignItems: 'center', justifyContent: 'center' }}>
++          <CheckCheck size={15} color={t.color.idealDeep} />
++        </View>
++        <View style={{ flex: 1, height: 26, borderRadius: 10, backgroundColor: t.color.fallbackSoft, alignItems: 'center', justifyContent: 'center' }}>
++          <Check size={15} color={t.color.fallbackDeep} />
++        </View>
++      </View>
++    </View>
++    <Spark t={t} left={10} top={18} size={10} />
++  </View>
++);
++
++const DRAWINGS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, Draw> = { 1: Sprout, 2: PlanAB, 3: FourKinds, 4: WeekCounts, 5: Swatches, 6: Nudge, 7: FirstHabit };
++
++const s = StyleSheet.create({
++  canvas: { width: PICTURE_WIDTH, height: PICTURE_HEIGHT, alignItems: 'center', justifyContent: 'center' },
++  row: { flexDirection: 'row' },
++  tile: { alignItems: 'center', justifyContent: 'center' },
++});
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 16:56:05.162500892 +0000
-@@ -1,99 +1,121 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 18:29:55.020692551 +0000
+@@ -1,99 +1,146 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -2709,12 +2945,13 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 + * the right. The main action is pinned at the bottom (D8).
   */
  import type { ReactNode } from 'react';
- import { useEffect } from 'react';
+-import { useEffect } from 'react';
 -import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 -
 -import { SPACE, useTheme } from '@/theme';
-+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { Check, CheckCheck, ChevronLeft } from 'lucide-react-native';
++import { useEffect, useState, useSyncExternalStore } from 'react';
++import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
++import { ChevronLeft } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { useSafeAreaInsets } from 'react-native-safe-area-context';
 +
@@ -2725,9 +2962,38 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  import type { IconComponent } from '@/ui';
  
  import { ONBOARDING_SHELL_COPY } from './copy';
++import { OnboardingPicture, PICTURE_HEIGHT } from './OnboardingPicture';
 +import { finishOnboardingProgress } from './useOnboardingResume';
 +
 +export const ONBOARDING_TOTAL_STEPS = 7;
++
++/**
++ * How much room the step has. Every onboarding step must fit its screen without scrolling, so
++ * on a shorter screen the type and the gaps tighten ("compact", then "tight") and the picture
++ * gives up its height first. Steps read this to tighten their own content the same way.
++ */
++export type OnboardingDensity = 'regular' | 'compact' | 'tight';
++// Held outside React so a step's own screen (which renders the shell, so sits above it) can read it.
++let currentDensity: OnboardingDensity = 'regular';
++const densityListeners = new Set<() => void>();
++function publishDensity(next: OnboardingDensity) {
++  if (next === currentDensity) return;
++  currentDensity = next;
++  densityListeners.forEach((fn) => fn());
++}
++export function useOnboardingDensity(): OnboardingDensity {
++  return useSyncExternalStore(
++    (fn) => {
++      densityListeners.add(fn);
++      return () => densityListeners.delete(fn);
++    },
++    () => currentDensity,
++    () => currentDensity,
++  );
++}
++function densityFor(height: number): OnboardingDensity {
++  return height >= 760 ? 'regular' : height >= 650 ? 'compact' : 'tight';
++}
 +const PREVIOUS: Record<number, string> = {
 +  2: '/onboarding/hook',
 +  3: '/onboarding/concept',
@@ -2782,6 +3048,14 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  const router = useRouter();
 +  const insets = useSafeAreaInsets();
 +  const updateSettings = useUpdateSettings();
++  // The real height of this screen (in a phone it equals the window; in a frame it does not).
++  const windowHeight = useWindowDimensions().height;
++  const [height, setHeight] = useState(windowHeight);
++  const [pictureRoom, setPictureRoom] = useState(0);
++  const density = densityFor(height);
++  useEffect(() => publishDensity(density), [density]);
++  const pictureMax = Math.round(Math.max(96, Math.min(190, height * 0.21)));
++  const barAndInset = HEADER_HEIGHT + insets.top;
  
    useEffect(() => {
 -    const message = allStepsComplete ? `Step ${TOTAL_STEPS} of ${TOTAL_STEPS}.` : `Step ${step} of ${TOTAL_STEPS}. ${headline}`;
@@ -2803,7 +3077,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  }
  
    return (
-     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
+-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
 -      <View style={styles.header}>
 -        {onSkip ? (
 -          <Button label={ONBOARDING_SHELL_COPY.skip} onPress={onSkip} variant="ghost" accessibilityLabel="Skip onboarding" />
@@ -2816,7 +3090,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -          importantForAccessibility="no-hide-descendants"
 -        >
 -          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
-+      <View style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top }]}>
++    <View style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
++      <View style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: barAndInset + pictureMax, minHeight: barAndInset }]}>
 +      <View style={styles.bar}>
 +        <View style={styles.side}>
 +          {step > 1 ? (
@@ -2843,43 +3118,34 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +            <Text style={[styles.skipLabel, { color: t.color.text }]}>{ONBOARDING_SHELL_COPY.skip}</Text>
 +          </Pressable>
 +        </View>
-+      </View>
-+      {Icon ? (
-+        <View style={styles.picture} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-+          <View style={[styles.chip, styles.chipLeft, { backgroundColor: t.color.ideal, borderColor: t.accent.fill }]}>
-+            <CheckCheck size={18} color={t.color.iconOnSignal} />
-+          </View>
-+          <View style={[styles.pictureTile, { backgroundColor: t.color.bgAlt }]}>
-+            <Icon size={44} color={t.accent.text} />
-+          </View>
-+          <View style={[styles.chip, styles.chipRight, { backgroundColor: t.color.fallback, borderColor: t.accent.fill }]}>
-+            <Check size={18} color={t.color.iconOnSignal} />
-+          </View>
-+          <View style={[styles.spark, { backgroundColor: t.color.celebrationGold }]} />
-+        </View>
-+      ) : null}
        </View>
- 
+-
 -      <View style={styles.content}>
 -        {Icon ? <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" /> : null}
-+      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-         <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
+-        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
++      <View style={styles.pictureRoom} onLayout={(e) => setPictureRoom(e.nativeEvent.layout.height)}>
++        {pictureRoom >= 52 ? <OnboardingPicture step={step} scale={Math.min(1.2, (pictureRoom - 12) / PICTURE_HEIGHT)} /> : null}
++      </View>
++      </View>
++      <ScrollView style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++        <Text accessibilityRole="header" style={[styles.headline, density === 'compact' && styles.headlineCompact, density === 'tight' && styles.headlineTight, { color: t.color.text }]}>
            {headline}
          </Text>
-         <Text style={[styles.body, { color: t.color.textMuted }]}>{body}</Text>
+-        <Text style={[styles.body, { color: t.color.textMuted }]}>{body}</Text>
 -        {children}
 -      </View>
-+        <View style={styles.children}>{children}</View>
++        <Text style={[styles.bodyText, density === 'tight' && styles.bodyTight, { color: t.color.textMuted }]}>{body}</Text>
++        <View style={[styles.children, density !== 'regular' && styles.childrenCompact]}>{children}</View>
 +      </ScrollView>
  
 -      <View style={styles.footer}>
 -        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />
-+      <View style={[styles.footer, { paddingBottom: SPACE.s3 + insets.bottom, borderTopColor: t.color.border, backgroundColor: t.color.bgAlt }]}>
++      <View style={[styles.footer, density !== 'regular' && styles.footerCompact, { paddingBottom: (density === 'regular' ? SPACE.s3 : SPACE.s2 + 4) + insets.bottom, borderTopColor: t.color.border, backgroundColor: t.color.bgAlt }]}>
 +        {footer ?? <Button label={nextLabel} onPress={onNext ?? (() => undefined)} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />}
        </View>
      </View>
    );
-@@ -101,11 +123,25 @@
+@@ -101,11 +148,28 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },
@@ -2891,15 +3157,12 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -  body: { fontSize: 16, lineHeight: 24 },
 -  footer: { padding: SPACE.s3 },
 +  flex: { flex: 1 },
-+  top: { borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  // The top gives up its height before anything below has to scroll.
++  top: { flexGrow: 0, flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  pictureRoom: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
++  body: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
 +  bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s2 + 4 },
 +  round: { width: 40, height: 40, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
-+  picture: { height: 148, alignItems: 'center', justifyContent: 'center' },
-+  pictureTile: { width: 104, height: 104, borderRadius: 30, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-4deg' }] },
-+  chip: { position: 'absolute', width: 40, height: 40, borderRadius: 20, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
-+  chipLeft: { left: '50%', marginLeft: -86, top: 22 },
-+  chipRight: { left: '50%', marginLeft: 46, bottom: 16 },
-+  spark: { position: 'absolute', left: '50%', marginLeft: 72, top: 26, width: 12, height: 12, borderRadius: 3, transform: [{ rotate: '45deg' }] },
 +  side: { width: 72, flexDirection: 'row', alignItems: 'center' },
 +  sideRight: { justifyContent: 'flex-end' },
 +  dots: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
@@ -2908,7 +3171,13 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  skipLabel: { fontSize: FONT_SIZE.sm, fontWeight: '800' },
 +  content: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s4, paddingBottom: SPACE.s5, gap: SPACE.s2 },
 +  headline: { fontSize: FONT_SIZE.xxl, fontWeight: '800', lineHeight: 38 },
-+  body: { fontSize: FONT_SIZE.base, lineHeight: 24 },
++  headlineCompact: { fontSize: 26, lineHeight: 32 },
++  headlineTight: { fontSize: 23, lineHeight: 28 },
++  bodyText: { fontSize: FONT_SIZE.base, lineHeight: 24 },
++  bodyTight: { fontSize: 15, lineHeight: 21 },
++  contentCompact: { paddingTop: SPACE.s3, paddingBottom: SPACE.s3, gap: SPACE.s1 + 2 },
++  childrenCompact: { gap: SPACE.s2 + 4, marginTop: SPACE.s2 },
++  footerCompact: { paddingTop: SPACE.s2 + 4 },
 +  children: { gap: SPACE.s3, marginTop: SPACE.s3 },
 +  footer: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, borderTopWidth: 1, gap: SPACE.s2 },
  });
@@ -3084,8 +3353,8 @@ diff -ruN a/src/features/onboarding/SampleBreakdownBar.tsx b/src/features/onboar
  });
 diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/TypesScreen.tsx
 --- a/src/features/onboarding/TypesScreen.tsx	2026-11-16 05:43:15.822526108 +0000
-+++ b/src/features/onboarding/TypesScreen.tsx	2026-11-16 06:06:46.783617855 +0000
-@@ -1,56 +1,41 @@
++++ b/src/features/onboarding/TypesScreen.tsx	2026-11-16 18:29:39.646713538 +0000
+@@ -1,56 +1,44 @@
 -/** S04 — Onboarding: Four ways to plan. route: /onboarding/types. Features: F9, F11. */
 +/** S04 — onboarding step 3. Four equal tiles in a 2×2 grid, each with the coloured icon circle (D14). */
  import { useRouter, type Href } from 'expo-router';
@@ -3101,8 +3370,9 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 +import { TaskIcon, type IconComponent } from '@/ui';
  
  import { S04_COPY } from './copy';
- import { OnboardingShell } from './OnboardingShell';
+-import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
++import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
 +import { useOnboardingStepMarker } from './useOnboardingResume';
  
 -const TILE_ICONS: readonly IconComponent[] = [Repeat, Calendar, ListChecks, StickyNote];
@@ -3114,7 +3384,7 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
    const router = useRouter();
 -  const updateSettings = useUpdateSettings();
    useOnboardingStepMarker('/onboarding/types');
- 
+-
 -  async function handleSkip() {
 -    void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
 -    await finishOnboardingProgress();
@@ -3124,7 +3394,8 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 -  function handleNext() {
 -    router.push('/onboarding/consistency' as Href);
 -  }
--
++  const density = useOnboardingDensity();
+ 
    return (
 -    <OnboardingShell step={3} icon={Repeat} headline={S04_COPY.headline} body={S04_COPY.body} onNext={handleNext} onSkip={handleSkip}>
 +    <OnboardingShell step={3} icon={Repeat} headline={S04_COPY.headline} body={S04_COPY.body} onNext={() => router.push('/onboarding/consistency' as Href)}>
@@ -3141,7 +3412,7 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 -          );
 -        })}
 +        {S04_COPY.tiles.map((tile, i) => (
-+          <View key={tile.label} style={[styles.tile, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]} accessible accessibilityLabel={`${tile.label}. ${tile.helper}`}>
++          <View key={tile.label} style={[styles.tile, density === 'compact' && styles.tileCompact, density === 'tight' && styles.tileTight, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]} accessible accessibilityLabel={`${tile.label}. ${tile.helper}`}>
 +            <TaskIcon icon={TILE_ICONS[i]!} color={TILE_COLORS[i]} />
 +            <Text style={[styles.tileLabel, { color: t.color.text }]}>{tile.label}</Text>
 +            <Text style={[styles.tileHelper, { color: t.color.textMuted }]}>{tile.helper}</Text>
@@ -3158,6 +3429,8 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 -  tileHelper: { fontSize: 13, lineHeight: 18 },
 +  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 + 4 },
 +  tile: { flexBasis: '47%', flexGrow: 1, minHeight: 148, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s1 + 2 },
++  tileCompact: { minHeight: 128, padding: SPACE.s2 + 4 },
++  tileTight: { minHeight: 0, padding: SPACE.s2 + 2, gap: 2 },
 +  tileLabel: { fontSize: FONT_SIZE.base, fontWeight: '600', marginTop: SPACE.s1 },
 +  tileHelper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
@@ -3226,6 +3499,91 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    save: 'Save routine',
    nameError: 'Add a name to continue',
    idealError: 'Add an ideal version to continue',
+diff -ruN a/src/features/priorities/PriorityPlaceRow.tsx b/src/features/priorities/PriorityPlaceRow.tsx
+--- a/src/features/priorities/PriorityPlaceRow.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/priorities/PriorityPlaceRow.tsx	2026-11-16 18:26:00.483076077 +0000
+@@ -0,0 +1,29 @@
++/** One row on a task's screen: where the task sits in its importance level, and the way to the list. */
++import { useRouter, type Href } from 'expo-router';
++import { ListOrdered } from 'lucide-react-native';
++
++import { ROUTES } from '@/navigation';
++import type { Id, Importance } from '@/types';
++import { ListGroup, ListRow } from '@/ui';
++
++import { PRIORITY_LEVELS, usePriorityGroups } from './order';
++
++export function PriorityPlaceRow({ taskId, importance }: { readonly taskId: Id; readonly importance: Importance }) {
++  const router = useRouter();
++  const { groups } = usePriorityGroups();
++  const list = groups[importance];
++  const index = list.findIndex((tk) => tk.id === taskId);
++  if (index < 0) return null;
++  const level = PRIORITY_LEVELS.find((l) => l.value === importance)?.label ?? '';
++  return (
++    <ListGroup>
++      <ListRow
++        icon={ListOrdered}
++        label={`No. ${index + 1} of ${list.length} in ${level}`}
++        sublabel="See them all and change the order"
++        onPress={() => router.push(`${ROUTES.priorities}?level=${importance}` as Href)}
++        testID="s20-priority-place"
++      />
++    </ListGroup>
++  );
++}
+diff -ruN a/src/features/priorities/order.ts b/src/features/priorities/order.ts
+--- a/src/features/priorities/order.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/priorities/order.ts	2026-11-16 18:26:00.481674663 +0000
+@@ -0,0 +1,48 @@
++/**
++ * Priorities — every live task that has an importance, grouped by level, in the person's own
++ * order. Placed tasks come first (lowest rank first); tasks not placed yet follow, oldest first.
++ */
++import { useMemo } from 'react';
++
++import { today } from '@/lib/date';
++import { useTasks } from '@/queries';
++import type { Importance, LocalDate, TaskWithSteps } from '@/types';
++
++export const PRIORITY_LEVELS: readonly { readonly value: Importance; readonly label: string }[] = [
++  { value: 'high', label: 'High' },
++  { value: 'med', label: 'Medium' },
++  { value: 'low', label: 'Low' },
++];
++
++export type PriorityGroups = Record<Importance, readonly TaskWithSteps[]>;
++
++/** Finished things drop out: a done to-do, a note, a course that has ended, a one-off event that has passed. */
++function isLive(task: TaskWithSteps, date: LocalDate): boolean {
++  if (task.type === 'todo') return !task.isNote && !task.todoDoneAt;
++  if (task.type === 'course') return task.endDate === null || task.endDate >= date;
++  if (task.type === 'event' && task.eventDate !== null) return task.eventDate >= date;
++  return true;
++}
++
++export function groupByImportance(tasks: readonly TaskWithSteps[], date: LocalDate): PriorityGroups {
++  const groups: Record<Importance, TaskWithSteps[]> = { high: [], med: [], low: [] };
++  for (const task of tasks) {
++    if (task.importance && isLive(task, date)) groups[task.importance].push(task);
++  }
++  for (const level of Object.keys(groups) as Importance[]) {
++    groups[level].sort((a, b) => {
++      if (a.priorityRank !== null && b.priorityRank !== null) return a.priorityRank - b.priorityRank;
++      if (a.priorityRank !== null) return -1;
++      if (b.priorityRank !== null) return 1;
++      return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
++    });
++  }
++  return groups;
++}
++
++export function usePriorityGroups() {
++  const tasksQuery = useTasks();
++  const date = today();
++  const groups = useMemo(() => groupByImportance(tasksQuery.data ?? [], date), [tasksQuery.data, date]);
++  return { groups, isLoading: tasksQuery.isLoading, isError: tasksQuery.isError, refetch: tasksQuery.refetch };
++}
 diff -ruN a/src/features/progress/CelebrationHost.tsx b/src/features/progress/CelebrationHost.tsx
 --- a/src/features/progress/CelebrationHost.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/progress/CelebrationHost.tsx	2026-11-16 05:49:42.074881386 +0000
@@ -4553,8 +4911,8 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-16 16:53:14.471400468 +0000
-@@ -1,35 +1,51 @@
++++ b/src/features/today/TodayScreen.tsx	2026-11-16 18:26:00.494583773 +0000
+@@ -1,35 +1,52 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
 - * (re-entry banner landing state).
@@ -4567,7 +4925,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 -import { Bell, ChevronRight, Mic, Plus, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { Bell, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
++import { Bell, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 +import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
  
  import { roundHalfUp } from '@/lib/number';
@@ -4606,6 +4964,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +import { MetaLine, StatusPill, planSummary } from '@/features/task/TaskDetails';
 +import { LOG_SAVE_FAILED, useLogFeedback } from '@/features/task/logFeedback';
  import { reentryStatLine, S09_COPY, statLine } from './copy';
++import { usePriorityGroups } from '@/features/priorities/order';
 +import { StatHero } from './StatHero';
 +import { TodayTaskCard } from './TodayTaskCard';
  import { useTodayRows, type TodayRow } from './useTodayRows';
@@ -4623,7 +4982,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  export interface TodayScreenProps {
    readonly reentryOverride?: boolean;
    readonly justAddedOverride?: boolean;
-@@ -39,54 +55,47 @@
+@@ -39,54 +56,48 @@
  export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
    const t = useTheme();
    const router = useRouter();
@@ -4635,6 +4994,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    const { date, rows, isLoading, isError, hasAnyTaskEver, refetch } = useTodayRows();
    const consistency = useConsistency({ scope: 'aggregate', window: 'last-30' });
 +  const progress = useProgress();
++  const priorities = usePriorityGroups();
    const logState = useLogState();
    const markOffDay = useMarkOffDay();
 -
@@ -4695,7 +5055,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +107,185 @@
+@@ -98,223 +109,191 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -4831,6 +5191,12 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +              label={S09_COPY.achievementsTeaser}
 +              value={progress.data ? `Level ${progress.data.level.level}` : undefined}
 +              onPress={() => router.push(ROUTES.achievements as Href)}
++            />
++            <ListRow
++              icon={ListOrdered}
++              label="Priorities"
++              value={priorities.groups.high.length > 0 ? `${priorities.groups.high.length} high` : undefined}
++              onPress={() => router.push(ROUTES.priorities as Href)}
 +            />
 +            <ListRow
 +              label={S09_COPY.offToggleLabel}
@@ -5200,26 +5566,54 @@ diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
  }
  
  /** Builds the re-entry-state re-worded stat line — see this file's header note. */
+diff -ruN a/src/navigation/index.ts b/src/navigation/index.ts
+--- a/src/navigation/index.ts	2026-11-16 05:43:15.821603477 +0000
++++ b/src/navigation/index.ts	2026-11-16 18:26:00.493786661 +0000
+@@ -49,6 +49,7 @@
+   addTodo: '/add/todo',
+   progress: '/progress',
+   progressTrend: '/progress/trend',
++  priorities: '/priorities',
+   achievements: '/achievements',
+   achievementsCelebrate: '/achievements/celebrate',
+   records: '/records',
 diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
 --- a/src/previewBridge.ts	2026-11-16 05:43:15.821576387 +0000
-+++ b/src/previewBridge.ts	2026-11-16 07:02:37.059755985 +0000
++++ b/src/previewBridge.ts	2026-11-16 18:26:00.494072916 +0000
 @@ -21,7 +21,7 @@
    const { ideal = [], fallback = [], ...rest } = seed;
    const task: Task = {
      id, note: null, isAsNeeded: false, cadence: null, eventDate: null, timeOfDay: null, startDate: null, endDate: null,
 -    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true,
-+    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false,
++    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false, priorityRank: null,
      createdAt: created, updatedAt: created, deletedAt: null, ...rest,
    } as Task;
    const steps: Step[] = [
+@@ -40,11 +40,11 @@
+ 
+   const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
+   const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
+-  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
+-  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
+-  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false }, 5);
++  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', importance: 'low', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
++  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, importance: 'high', necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
++  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false, importance: 'high', necessity: 'recommended' }, 5);
+   await insertTask({ type: 'todo', name: 'Renew passport', icon: 'FileText', color: 'indigo', isTracked: false, importance: 'high' }, 6);
+-  await insertTask({ type: 'todo', name: 'Send the invoice', icon: 'Briefcase', color: 'forge-orange', isTracked: false }, 2);
++  await insertTask({ type: 'todo', name: 'Send the invoice', icon: 'Briefcase', color: 'forge-orange', isTracked: false, importance: 'med' }, 2);
+ 
+   // Three weeks of history, oldest first. Today is left open so there is something to tap.
+   const workoutPattern: (ChipState | 'off' | null)[] = ['done', 'done', 'fallback', 'done', null, 'done', 'fallback', 'done', 'done', 'off', 'fallback', 'done', 'done', 'skip', 'done', 'fallback', 'done', 'done', null, 'done', 'fallback'];
 diff -ruN a/src/queries/mutations.ts b/src/queries/mutations.ts
 --- a/src/queries/mutations.ts	2026-11-16 05:43:15.826146297 +0000
-+++ b/src/queries/mutations.ts	2026-11-16 07:02:37.059366752 +0000
-@@ -352,6 +352,7 @@
++++ b/src/queries/mutations.ts	2026-11-16 18:24:39.603341034 +0000
+@@ -352,6 +352,8 @@
          necessity: draft.necessity ?? null,
          todoDoneAt: null,
          snoozable: draft.snoozable ?? true, // CR-4
 +        isNote: draft.type === 'todo' ? (draft.isNote ?? false) : false,
++        priorityRank: null,
          createdAt: nowIso,
          updatedAt: nowIso,
          deletedAt: null,
@@ -5687,8 +6081,14 @@ diff -ruN a/src/types/settings.ts b/src/types/settings.ts
    readonly master: boolean;
 diff -ruN a/src/types/task.ts b/src/types/task.ts
 --- a/src/types/task.ts	2026-11-16 05:43:15.819152445 +0000
-+++ b/src/types/task.ts	2026-11-16 07:02:37.058664125 +0000
-@@ -90,6 +90,9 @@
++++ b/src/types/task.ts	2026-11-16 18:24:39.602803074 +0000
+@@ -86,10 +86,15 @@
+ 
+   readonly importance: Importance | null;
+   readonly necessity: Necessity | null;
++  /** The person's own order inside its importance level; lower comes first. Null = not placed yet. */
++  readonly priorityRank: number | null;
+ 
    /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
    readonly todoDoneAt: Instant | null;
  
@@ -5698,7 +6098,7 @@ diff -ruN a/src/types/task.ts b/src/types/task.ts
    /**
     * CR-4 (MODULES.md), PRD §3.7. Per-task gate on whether F7 Snooze is offered at all —
     * default `true` at create time (M2's `validateTaskDraft`). Turning it off never retracts
-@@ -126,6 +129,8 @@
+@@ -126,6 +131,8 @@
    readonly necessity?: Necessity | null;
    /** CR-4. Defaults to `true` when omitted (M2's `validateTaskDraft`). */
    readonly snoozable?: boolean;
@@ -11650,6 +12050,166 @@ diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
 +  success: { fontSize: FONT_SIZE.base, fontWeight: '600' },
 +  finePrint: { fontSize: FONT_SIZE.xs, lineHeight: 18, textAlign: 'center' },
  });
+diff -ruN a/app/priorities/index.tsx b/app/priorities/index.tsx
+--- a/app/priorities/index.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/app/priorities/index.tsx	2026-11-16 18:26:00.484351729 +0000
+@@ -0,0 +1,156 @@
++/**
++ * Priorities    route: /priorities
++ * High, Medium and Low each hold a list in the person's own order. The arrows move a task up or
++ * down inside its level; the order is saved as `task.priorityRank`.
++ */
++import { useEffect, useState } from 'react';
++import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
++import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
++import { ArrowDown, ArrowUp, ListOrdered } from 'lucide-react-native';
++
++import { useToastStore } from '@/app-shell';
++import { taskIconProps } from '@/features/browse/resolveIcon';
++import { PRIORITY_LEVELS, usePriorityGroups } from '@/features/priorities/order';
++import { ROUTES, useOriginAwareBack } from '@/navigation';
++import { useUpdateTask } from '@/queries';
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import type { Id, Importance, TaskWithSteps } from '@/types';
++import { cardSurface, EmptyState, InlineRetryBanner, Screen, Skeleton, Tabs, TaskIcon } from '@/ui';
++
++const TYPE_TITLE = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' } as const;
++const NECESSITY_TITLE = { 'must-do': 'Must-do', recommended: 'Recommended', optional: 'Optional' } as const;
++
++function isLevel(v: string | undefined): v is Importance {
++  return v === 'high' || v === 'med' || v === 'low';
++}
++
++export default function PrioritiesScreen() {
++  const t = useTheme();
++  const router = useRouter();
++  const goBack = useOriginAwareBack(ROUTES.today);
++  const params = useLocalSearchParams<{ level?: string }>();
++  const showToast = useToastStore((s) => s.show);
++  const updateTask = useUpdateTask();
++  const { groups, isLoading, isError, refetch } = usePriorityGroups();
++  const [level, setLevel] = useState<Importance>(isLevel(params.level) ? params.level : 'high');
++  /** The order on screen while a move is being saved, so the row moves at once. */
++  const [pending, setPending] = useState<readonly Id[] | null>(null);
++  const [saving, setSaving] = useState(false);
++
++  useEffect(() => setPending(null), [level]);
++
++  const saved = groups[level];
++  const byId = new Map(saved.map((tk) => [tk.id, tk] as const));
++  const list: readonly TaskWithSteps[] = pending ? pending.map((id) => byId.get(id)).filter((tk): tk is TaskWithSteps => !!tk) : saved;
++  const levelLabel = PRIORITY_LEVELS.find((l) => l.value === level)?.label ?? '';
++
++  async function move(index: number, delta: -1 | 1) {
++    const target = index + delta;
++    if (saving || target < 0 || target >= list.length) return;
++    const next = [...list];
++    const [moved] = next.splice(index, 1);
++    if (!moved) return;
++    next.splice(target, 0, moved);
++    setPending(next.map((tk) => tk.id));
++    setSaving(true);
++    let failed = false;
++    // Write every place that changed, so tasks that were never placed get a real rank too.
++    for (let i = 0; i < next.length; i += 1) {
++      const tk = next[i]!;
++      if (tk.priorityRank === i) continue;
++      const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { priorityRank: i } });
++      if (!result.ok) failed = true;
++    }
++    setSaving(false);
++    setPending(null);
++    if (failed) showToast("Couldn't save the new order. Try again.", 'warning');
++    else AccessibilityInfo.announceForAccessibility?.(`${moved.name}, now number ${target + 1} of ${next.length}`);
++  }
++
++  return (
++    <Screen title="Priorities" level="page" onBack={goBack}>
++      <Tabs
++        items={PRIORITY_LEVELS.map((l) => ({ value: l.value, label: groups[l.value].length > 0 ? `${l.label} · ${groups[l.value].length}` : l.label }))}
++        value={level}
++        onChange={(v) => setLevel(v as Importance)}
++        accessibilityLabel="Importance level"
++      />
++
++      {isLoading ? (
++        <>
++          <Skeleton height={76} radius={20} />
++          <Skeleton height={76} radius={20} />
++        </>
++      ) : isError ? (
++        <InlineRetryBanner message="Couldn't load your tasks." onRetry={() => refetch()} />
++      ) : list.length === 0 ? (
++        <EmptyState icon={ListOrdered} headline={`Nothing marked ${levelLabel.toLowerCase()} yet`} subcopy="Set a task's importance on its own screen and it shows up here." />
++      ) : (
++        <>
++          <Text style={[styles.intro, { color: t.color.textMuted }]}>
++            {list.length === 1 ? 'The only one at this level.' : 'In your order: the top one matters most. Use the arrows to move one up or down.'}
++          </Text>
++          <View style={styles.list}>
++            {list.map((tk, index) => (
++              <View key={tk.id} style={[styles.row, cardSurface(t)]}>
++                <Pressable
++                  onPress={() => router.push(`/task/${tk.id}` as Href)}
++                  accessibilityRole="button"
++                  accessibilityLabel={`Number ${index + 1} of ${list.length}: ${tk.name}. Opens the task`}
++                  style={styles.open}
++                >
++                  <Text style={[styles.rank, { color: t.accent.text }]}>{index + 1}</Text>
++                  <TaskIcon {...taskIconProps(tk)} />
++                  <View style={styles.text}>
++                    <Text numberOfLines={2} style={[styles.name, { color: t.color.text }]}>
++                      {tk.name}
++                    </Text>
++                    <Text numberOfLines={1} style={[styles.meta, { color: t.color.textMuted }]}>
++                      {[TYPE_TITLE[tk.type], tk.necessity ? NECESSITY_TITLE[tk.necessity] : null].filter(Boolean).join(' · ')}
++                    </Text>
++                  </View>
++                </Pressable>
++                {list.length > 1 ? (
++                  <View style={styles.arrows}>
++                    <ArrowButton icon={ArrowUp} label={`Move ${tk.name} up`} disabled={index === 0 || saving} onPress={() => void move(index, -1)} />
++                    <ArrowButton icon={ArrowDown} label={`Move ${tk.name} down`} disabled={index === list.length - 1 || saving} onPress={() => void move(index, 1)} />
++                  </View>
++                ) : null}
++              </View>
++            ))}
++          </View>
++        </>
++      )}
++    </Screen>
++  );
++}
++
++function ArrowButton({ icon: Icon, label, disabled, onPress }: { readonly icon: typeof ArrowUp; readonly label: string; readonly disabled: boolean; readonly onPress: () => void }) {
++  const t = useTheme();
++  return (
++    <Pressable
++      onPress={onPress}
++      disabled={disabled}
++      accessibilityRole="button"
++      accessibilityLabel={label}
++      accessibilityState={{ disabled }}
++      hitSlop={{ top: 6, bottom: 6 }}
++      style={({ pressed }) => [styles.arrow, { backgroundColor: pressed ? t.accent.soft : t.color.surface, opacity: disabled ? 0.35 : 1 }]}
++    >
++      <Icon size={18} color={t.color.text} />
++    </Pressable>
++  );
++}
++
++const styles = StyleSheet.create({
++  intro: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
++  list: { gap: SPACE.s2 + 4 },
++  row: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, paddingVertical: SPACE.s2 + 4, paddingLeft: SPACE.s3, paddingRight: SPACE.s2 + 4 },
++  open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
++  rank: { minWidth: 18, textAlign: 'center', fontSize: FONT_SIZE.lg, fontWeight: '800', fontVariant: ['tabular-nums'] },
++  text: { flex: 1, gap: 2 },
++  name: { fontSize: FONT_SIZE.base, lineHeight: 22, fontWeight: '700' },
++  meta: { fontSize: FONT_SIZE.sm },
++  arrows: { flexDirection: 'row', gap: SPACE.s1 + 2 },
++  arrow: { width: 38, height: 44, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
++});
 diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 --- a/app/progress/index.tsx	2026-11-16 05:43:15.826599667 +0000
 +++ b/app/progress/index.tsx	2026-11-16 17:44:00.110573273 +0000
@@ -15330,7 +15890,7 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-16 16:54:29.131847836 +0000
++++ b/app/task/[id]/index.tsx	2026-11-16 18:26:00.494355583 +0000
 @@ -1,38 +1,41 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
@@ -15390,7 +15950,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  import { isDue, perTaskConsistency } from '@/domain';
  import {
    useConsistency,
-@@ -48,38 +51,31 @@
+@@ -48,38 +51,32 @@
    useUpdateTask,
  } from '@/queries';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -15408,6 +15968,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
 +import { PlanTiles, metaParts } from '@/features/task/TaskDetails';
 +import { TaskHero } from '@/features/task/TaskHero';
++import { PriorityPlaceRow } from '@/features/priorities/PriorityPlaceRow';
 +import { formatDateValue } from '@/ui';
 +import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
  
@@ -15445,7 +16006,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  
    const taskQuery = useTask(taskId);
    const today = todayFn();
-@@ -90,12 +86,7 @@
+@@ -90,12 +87,7 @@
    const monthFrom = startOfMonth(monthAnchor);
    const monthTo = endOfMonth(monthAnchor);
    const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
@@ -15458,7 +16019,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
  
    const updateTask = useUpdateTask();
-@@ -107,100 +98,78 @@
+@@ -107,100 +99,78 @@
    const snoozeOccurrence = useSnoozeOccurrence();
    const undoSnooze = useUndoSnooze();
  
@@ -15593,7 +16154,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +179,354 @@
+@@ -210,380 +180,355 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -15910,7 +16471,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +
 +      <View style={styles.block}>
 +        <SectionHeading>Priority</SectionHeading>
-+        <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance })} testID="s20-importance-picker" />
++        <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance, priorityRank: null })} testID="s20-importance-picker" />
++        {task.importance ? <PriorityPlaceRow taskId={taskId} importance={task.importance} /> : null}
 +        <Radio label="Necessity" value={task.necessity} options={NECESSITY_OPTIONS} onChange={(v) => void patch({ necessity: v as Necessity })} testID="s20-necessity-picker" />
        </View>
  

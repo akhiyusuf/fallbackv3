@@ -646,13 +646,19 @@ theme engine, a second data-model change (`settings.accent_ext`, migration
 006) and moves Fallback AI from the Today header into the add sheet.
 
 **Round 4 (whole-app polish): picks received and applied to the preview**
-(Fallback Preview, version 7 after a second pass on card contrast and the
-consistency page), across every screen. Board:
+(Fallback Preview, version 8 after later passes on card contrast, the
+consistency page and onboarding), across every screen. Board:
 https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh. Recorded in
 `docs/DESIGN_DECISIONS.md`, "Round 4 — picks". The patch in
 `docs/design-rebuild/` includes it. The look is still awaiting the human's
 approval; nothing has been routed to pipeline agents. Open: the typeface
 (rounded is a default, not a decision) and dark labels on orange buttons.
+
+**New feature request, built in the preview only: Priorities.** A screen where
+High, Medium and Low each hold a list in the person's own order
+(`task.priority_rank`, migration 007). It is a product feature and must go
+through Phase 1 before the architect or any builder touches it. Three open
+questions are listed in `docs/DESIGN_DECISIONS.md`, "Round 4, third pass".
 
 **New feature request, not built: AI agent access over MCP.** Only a labelled
 design-reference screen exists. It is a product feature and must go through
