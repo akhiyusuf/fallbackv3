@@ -595,3 +595,37 @@ accumulated carry-forward items (S49 hand-off targets, B13 receipt
 verification, `.fallbackbak` erase behavior, F20 cloud sync, F7 dormant-undo
 reachability). Gate 3 approval, like Gate 2, can only be recorded by the
 human — no agent may write it.
+
+---
+
+# Consistency rebuild (opened 2026-11-16, human-directed)
+
+Gate 3 was **not** approved. Instead the human asked for a tough UI/UX audit
+of the built app and a decision board, then returned 21 picks. Recorded
+verbatim, with the meaning of each pick and 24 no-decision bug fixes, in
+`docs/DESIGN_DECISIONS.md`. That file takes precedence over `design-input/**`
+where they conflict (same human, later instruction); `design-input/**` itself
+is still never edited, and ia-architect / design-system / screen-designer are
+still never invoked.
+
+Scope: presentation and interaction patterns only. No PRD feature, data-model
+or consistency-maths change.
+
+## Rebuild pipeline
+
+| Step | Agent | Status |
+|---|---|---|
+| CR-8 work split + contracts (`docs/MODULES.md`, `docs/ARCHITECTURE.md`) | architect ⇄ artifact-reviewer | in progress |
+| M0 kit + tokens + lint test | feature-builder ⇄ code-reviewer | pending |
+| M3, M4, M5, M6, M7 screens (parallel, after M0 PASS) | feature-builder ×5 ⇄ code-reviewer | pending |
+| Regression + acceptance | qa-tester ⇄ artifact-reviewer | pending |
+| Screenshots | visual-qa ⇄ artifact-reviewer | pending |
+| Gate 3 | human | pending |
+
+## Open with the human
+
+- D13 (task card details): structure decided (one quiet line, pills only for
+  status); the human wants it to "look a tad bit better". Refined treatments
+  to be shown for a pick. Built as one shared component meanwhile.
+- All earlier Gate-3 carry items above still stand (S49 addresses, B13 receipt
+  verification, backups vs erase, F20 cloud sync, F7 dormant undo).
