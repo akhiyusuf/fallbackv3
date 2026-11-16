@@ -637,6 +637,14 @@ So the work is not lost with the session, it is saved in
 - `design-rebuild.patch` — every change to `src/` and `app/` (non-test files).
 - `preview-harness/` — what is needed to rebuild the browser preview.
 - `README.md` — how to apply and rebuild.
+- `colour-board/` — source of the round 3 colour and theme board.
+
+**Round 3 (colour and themes) is open with the human.** The Fallback Colour
+Board (https://claude.ai/artifact/LyQoUUtexW8HddWpTRKQkR) carries eight
+decisions; picks are pending. See `docs/DESIGN_DECISIONS.md`, Round 3. A full
+theme model is a design-token and PRD change, so it goes through the architect
+with the rest of the look once approved. Standing instruction from the human:
+when asked for an audit, deliver it as an artifact like the design board.
 
 **Round 2 (same day):** a contrast and hierarchy pass, roomier headers, and a
 fix for to-dos being stored as notes were applied to the preview and are in

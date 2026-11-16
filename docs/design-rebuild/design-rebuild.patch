@@ -3487,7 +3487,7 @@ diff -ruN a/src/features/search/copy.ts b/src/features/search/copy.ts
  
 diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
 --- a/src/features/settings/copy.ts	2026-11-16 05:43:15.822109910 +0000
-+++ b/src/features/settings/copy.ts	2026-11-16 06:01:32.227654359 +0000
++++ b/src/features/settings/copy.ts	2026-11-16 09:18:20.402030400 +0000
 @@ -5,19 +5,19 @@
  
  export const S41_COPY = {
@@ -3513,13 +3513,16 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
  } as const;
  
  export const S42_COPY = {
-@@ -43,25 +43,25 @@
+@@ -43,25 +43,28 @@
      { value: 'auto', label: 'Auto' },
    ],
    accentLabel: 'Accent color',
 -  accentHelper: 'Accent only recolors CTAs & progress — never the signal colors.',
 +  accentHelper: 'The accent recolours buttons and progress. Ideal, fallback and off-day colours never change.',
    previewTaskName: 'Morning workout',
++  previewIdeal: 'Full workout',
++  previewFallback: '10 push-ups',
++  previewNote: 'This is the same card you see on Today. Tap it to try the colours.',
    previewTaskMeta: 'Full workout · 7:00 AM',
    previewCta: 'Log fallback',
    previewStat: '3 of 5 done today',
@@ -3546,7 +3549,7 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
    smartHelper: 'Always shows whichever task is due soonest.',
    save: 'Save',
    footer: 'Widgets refresh automatically and always match your current theme and accent.',
-@@ -84,6 +84,6 @@
+@@ -84,6 +87,6 @@
      { label: 'Terms of service', toast: 'Opening…' },
    ],
    privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
@@ -4086,8 +4089,8 @@ diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
 +}
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-16 06:21:12.646259193 +0000
-@@ -1,35 +1,49 @@
++++ b/src/features/today/TodayScreen.tsx	2026-11-16 09:18:20.398725389 +0000
+@@ -1,35 +1,50 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
 - * (re-entry banner landing state).
@@ -4139,6 +4142,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +import { MetaLine, StatusPill, planSummary } from '@/features/task/TaskDetails';
 +import { LOG_SAVE_FAILED, useLogFeedback } from '@/features/task/logFeedback';
  import { reentryStatLine, S09_COPY, statLine } from './copy';
++import { TodayTaskCard } from './TodayTaskCard';
  import { useTodayRows, type TodayRow } from './useTodayRows';
  
  const STAT_WINDOW_DAYS = 30;
@@ -4154,7 +4158,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  export interface TodayScreenProps {
    readonly reentryOverride?: boolean;
    readonly justAddedOverride?: boolean;
-@@ -39,54 +53,47 @@
+@@ -39,54 +54,47 @@
  export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
    const t = useTheme();
    const router = useRouter();
@@ -4226,7 +4230,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +105,210 @@
+@@ -98,223 +106,191 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -4501,15 +4505,12 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +  onLog: (chip: ChipState) => void;
    onOpen: () => void;
  }) {
-   const t = useTheme();
+-  const t = useTheme();
 -  const Icon = resolveTaskIcon(row.task.icon);
-   const isOff = row.occurrence.outcome === 'off';
+-  const isOff = row.occurrence.outcome === 'off';
 -
 +  const chip = row.occurrence.chipState;
-+  const logged = isLogged(chip);
-+  const showButtons = !isOff && (!logged || reopened);
-+  const ideal = planSummary(row.task.idealSteps);
-+  const fallback = planSummary(row.task.fallbackSteps);
++  const icon = taskIconProps(row.task);
    return (
 -    <Card onPress={onOpen} accessibilityLabel={`${row.task.name}, ${metaLine(row)}`}>
 -      <View style={styles.taskRow}>
@@ -4526,33 +4527,26 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 -          onChange={() => undefined}
 -          onPressCompact={onToggleExpand}
 -        />
-+    <View style={[styles.taskCard, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
-+      <View style={styles.taskHead}>
-+        <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${row.task.name}, ${scheduleParts(row, logged).join(', ')}. Opens the task`} style={styles.taskOpen}>
-+          <TaskIcon {...taskIconProps(row.task)} muted={isOff} />
-+          <View style={styles.taskTextCol}>
-+            <Text numberOfLines={1} style={[styles.taskName, { color: t.color.text }]}>
-+              {row.task.name}
-+            </Text>
-+            <MetaLine parts={scheduleParts(row, logged)} />
-+          </View>
-+        </Pressable>
-+        {isOff ? <StatusPill label={S09_COPY.offTodayMeta} tone="off" /> : logged ? <LogStateChip value={chip} onPress={onToggleReopen} accessibilityLabel={row.task.name} /> : null}
-       </View>
+-      </View>
 -      {expanded ? (
 -        <StateChip value={row.occurrence.chipState} accessibilityLabel={`Set state for ${row.task.name}`} onChange={onSelectChip} />
-+      {showButtons ? (
-+        <LogButtons
-+          value={chip}
-+          onChange={onLog}
-+          accessibilityLabel={row.task.name}
-+          idealHint={ideal}
-+          fallbackHint={fallback}
-+          hideFallback={row.task.fallbackSteps.length === 0 && row.task.idealSteps.length > 0 && false}
-+        />
-       ) : null}
+-      ) : null}
 -    </Card>
-+    </View>
++    <TodayTaskCard
++      name={row.task.name}
++      icon={icon.icon}
++      color={icon.color}
++      meta={scheduleParts(row, isLogged(chip))}
++      chip={chip}
++      reopened={reopened}
++      isOff={row.occurrence.outcome === 'off'}
++      offLabel={S09_COPY.offTodayMeta}
++      idealHint={planSummary(row.task.idealSteps)}
++      fallbackHint={planSummary(row.task.fallbackSteps)}
++      onLog={onLog}
++      onToggleReopen={onToggleReopen}
++      onOpen={onOpen}
++    />
    );
  }
  
@@ -4581,6 +4575,10 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 -  achievementsLabel: { fontSize: 16, fontWeight: '600', flex: 1 },
 -  list: { gap: SPACE.s2 },
 -  taskRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
+-  taskTextCol: { flex: 1, gap: 2 },
+-  taskName: { fontSize: 16, fontWeight: '600' },
+-  taskMeta: { fontSize: 13 },
+-  fabWrap: { position: 'absolute', right: SPACE.s3, bottom: SPACE.s4, borderRadius: 999 },
 +  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3, paddingBottom: FAB_CLEARANCE + SPACE.s4 },
 +  bannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 + 4 },
 +  bannerTextCol: { flex: 1, gap: 2 },
@@ -4589,15 +4587,78 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +  statNumeral: { fontSize: FONT_SIZE.xl, fontWeight: '700', minWidth: 56, fontVariant: ['tabular-nums'] },
 +  count: { fontSize: FONT_SIZE.sm },
 +  list: { gap: SPACE.s2 + 4 },
-+  taskCard: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 + 4 },
-+  taskHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-+  taskOpen: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
-   taskTextCol: { flex: 1, gap: 2 },
--  taskName: { fontSize: 16, fontWeight: '600' },
--  taskMeta: { fontSize: 13 },
--  fabWrap: { position: 'absolute', right: SPACE.s3, bottom: SPACE.s4, borderRadius: 999 },
-+  taskName: { fontSize: FONT_SIZE.base, fontWeight: '600' },
  });
+diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskCard.tsx
+--- a/src/features/today/TodayTaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 09:18:41.014726614 +0000
+@@ -0,0 +1,67 @@
++/**
++ * TodayTaskCard — the one task card used on Today. The theme screen's preview renders this
++ * same component, so what a person sees in the preview is exactly what the app shows.
++ */
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++
++import { StatusPill, MetaLine } from '@/features/task/TaskDetails';
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { isLogged, LogButtons, LogStateChip, TaskIcon, type IconComponent } from '@/ui';
++import type { ChipState } from '@/types';
++
++export interface TodayTaskCardProps {
++  readonly name: string;
++  readonly icon: IconComponent;
++  readonly color?: string | null;
++  readonly meta: readonly string[];
++  readonly chip: ChipState | null;
++  /** Logged, but the buttons are open again to change it. */
++  readonly reopened?: boolean;
++  readonly isOff?: boolean;
++  readonly offLabel?: string;
++  readonly idealHint?: string | null;
++  readonly fallbackHint?: string | null;
++  readonly onLog: (chip: ChipState) => void;
++  readonly onToggleReopen: () => void;
++  readonly onOpen?: () => void;
++}
++
++export function TodayTaskCard({ name, icon, color, meta, chip, reopened = false, isOff = false, offLabel = 'Off today', idealHint, fallbackHint, onLog, onToggleReopen, onOpen }: TodayTaskCardProps) {
++  const t = useTheme();
++  const logged = isLogged(chip);
++  const showButtons = !isOff && (!logged || reopened);
++  const head = (
++    <>
++      <TaskIcon icon={icon} color={color} muted={isOff} />
++      <View style={styles.textCol}>
++        <Text numberOfLines={1} style={[styles.name, { color: t.color.text }]}>
++          {name}
++        </Text>
++        <MetaLine parts={meta} />
++      </View>
++    </>
++  );
++  return (
++    <View style={[styles.card, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
++      <View style={styles.head}>
++        {onOpen ? (
++          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${name}, ${meta.join(', ')}. Opens the task`} style={styles.open}>
++            {head}
++          </Pressable>
++        ) : (
++          <View style={styles.open}>{head}</View>
++        )}
++        {isOff ? <StatusPill label={offLabel} tone="off" /> : logged ? <LogStateChip value={chip} onPress={onToggleReopen} accessibilityLabel={name} /> : null}
++      </View>
++      {showButtons ? <LogButtons value={chip} onChange={onLog} accessibilityLabel={name} idealHint={idealHint ?? undefined} fallbackHint={fallbackHint ?? undefined} /> : null}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  card: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 + 4 },
++  head: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
++  open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
++  textCol: { flex: 1, gap: 2 },
++  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
++});
 diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
 --- a/src/features/today/copy.ts	2026-11-16 05:43:15.822345620 +0000
 +++ b/src/features/today/copy.ts	2026-11-16 05:51:33.432931360 +0000
@@ -12218,14 +12279,15 @@ diff -ruN a/app/settings/sync.tsx b/app/settings/sync.tsx
 -});
 diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 --- a/app/settings/theme.tsx	2026-11-16 05:43:15.826651078 +0000
-+++ b/app/settings/theme.tsx	2026-11-16 06:02:08.557265501 +0000
-@@ -1,21 +1,17 @@
++++ b/app/settings/theme.tsx	2026-11-16 09:18:20.401809277 +0000
+@@ -1,21 +1,20 @@
 -/**
 - * S43 — Theme & Accent    route: /settings/theme
 - * Owner: M7. Features: F8.
 - * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S43)
 - */
 +/** S43 — Theme and accent. Segmented appearance (D9); the preview is built from the real components. */
++import { useState } from 'react';
  import { useRouter, type Href } from 'expo-router';
 -import { Check } from 'lucide-react-native';
 +import { Check, Dumbbell } from 'lucide-react-native';
@@ -12238,7 +12300,9 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -import { ACCENTS, SPACE, useTheme } from '@/theme';
 -import { Button, Card, OffDayToggle, ProgressRing, Skeleton, StateChip } from '@/ui';
 +import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { Button, Card, LogStateChip, ProgressRing, Radio, Screen, SectionHeading, Skeleton, TaskIcon } from '@/ui';
++import { TodayTaskCard } from '@/features/today/TodayTaskCard';
++import { Radio, Screen, SectionHeading, Skeleton } from '@/ui';
++import type { ChipState } from '@/types';
  import type { AccentKey, ThemeMode } from '@/types';
  
  const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
@@ -12246,7 +12310,16 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
  
  export default function S43ThemeAndAccent() {
    const t = useTheme();
-@@ -54,120 +50,75 @@
+@@ -27,6 +26,8 @@
+   const accent = useThemeStore((s) => s.accent);
+   const setMode = useThemeStore((s) => s.setMode);
+   const setAccent = useThemeStore((s) => s.setAccent);
++  const [previewChip, setPreviewChip] = useState<ChipState>('todo');
++  const [previewReopened, setPreviewReopened] = useState(false);
+ 
+   function handleBack() {
+     router.push('/settings' as Href);
+@@ -54,120 +55,71 @@
  
    if (settingsQuery.isLoading) {
      return (
@@ -12312,12 +12385,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -            })}
 -          </View>
 -        </Card>
-+    <Screen title="Theme and accent" onBack={handleBack}>
-+      <View style={styles.block}>
-+        <SectionHeading>{S43_COPY.appearanceLabel}</SectionHeading>
-+        <Radio label="" value={mode} options={S43_COPY.appearanceOptions} onChange={(v) => void handleModeChange(v as ThemeMode)} />
-+      </View>
- 
+-
 -        <Card
 -          testID="theme-preview"
 -          accessibilityLabel="Live preview, a non-interactive illustrative example"
@@ -12325,6 +12393,29 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -        >
 -          <Text style={[styles.previewTaskName, { color: t.color.text }]}>{S43_COPY.previewTaskName}</Text>
 -          <Text style={[styles.previewTaskMeta, { color: t.color.textMuted }]}>{S43_COPY.previewTaskMeta}</Text>
+-
+-          <View style={styles.chipRow} pointerEvents="none">
+-            <PreviewChip caption={S43_COPY.stateChipLabels.done} value="done" />
+-            <PreviewChip caption={S43_COPY.stateChipLabels.fallback} value="fallback" />
+-            <PreviewChip caption={S43_COPY.stateChipLabels.skip} value="skip" />
+-            <View style={styles.previewChipCol}>
+-              <OffDayToggle value onValueChange={() => {}} label="" accessibilityLabel={S43_COPY.stateChipLabels.off} />
+-              <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{S43_COPY.stateChipLabels.off}</Text>
+-            </View>
+-          </View>
+-
+-          <View style={styles.previewCtaRow} pointerEvents="none">
+-            <Button label={S43_COPY.previewCta} onPress={() => {}} accessibilityLabel={S43_COPY.previewCta} />
+-            <ProgressRing percent={60} size={48} label="3/5" accessibilityLabel={S43_COPY.previewStat} />
+-          </View>
++    <Screen title="Theme and accent" onBack={handleBack}>
++      <View style={styles.block}>
++        <SectionHeading>{S43_COPY.appearanceLabel}</SectionHeading>
++        <Radio label="" value={mode} options={S43_COPY.appearanceOptions} onChange={(v) => void handleModeChange(v as ThemeMode)} />
++      </View>
+ 
+-          <Text style={[styles.previewFootnote, { color: t.color.textDim }]}>{S43_COPY.previewCaption}</Text>
+-        </Card>
 +      <View style={styles.block}>
 +        <SectionHeading>Accent colour</SectionHeading>
 +        <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel="Accent colour">
@@ -12345,46 +12436,11 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 +          })}
 +        </View>
 +        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.accentHelper}</Text>
-+      </View>
- 
--          <View style={styles.chipRow} pointerEvents="none">
--            <PreviewChip caption={S43_COPY.stateChipLabels.done} value="done" />
--            <PreviewChip caption={S43_COPY.stateChipLabels.fallback} value="fallback" />
--            <PreviewChip caption={S43_COPY.stateChipLabels.skip} value="skip" />
--            <View style={styles.previewChipCol}>
--              <OffDayToggle value onValueChange={() => {}} label="" accessibilityLabel={S43_COPY.stateChipLabels.off} />
--              <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{S43_COPY.stateChipLabels.off}</Text>
-+      <View style={styles.block}>
-+        <SectionHeading>Preview</SectionHeading>
-+        <Card testID="theme-preview" accessibilityLabel="Preview, an example only" accessibilityRole="summary" style={styles.preview}>
-+          <View style={styles.previewHead}>
-+            <TaskIcon icon={Dumbbell} />
-+            <View style={styles.previewText}>
-+              <Text style={[styles.previewName, { color: t.color.text }]}>{S43_COPY.previewTaskName}</Text>
-+              <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.previewTaskMeta}</Text>
-             </View>
-+            <ProgressRing percent={60} size={44} strokeWidth={6} label="3/5" accessibilityLabel={S43_COPY.previewStat} />
-           </View>
--
--          <View style={styles.previewCtaRow} pointerEvents="none">
--            <Button label={S43_COPY.previewCta} onPress={() => {}} accessibilityLabel={S43_COPY.previewCta} />
--            <ProgressRing percent={60} size={48} label="3/5" accessibilityLabel={S43_COPY.previewStat} />
-+          <View style={styles.chipRow} pointerEvents="none">
-+            <LogStateChip value="done" accessibilityLabel="Example" />
-+            <LogStateChip value="fallback" accessibilityLabel="Example" />
-+            <LogStateChip value="skip" accessibilityLabel="Example" />
-+          </View>
-+          <View pointerEvents="none">
-+            <Button label="Save" onPress={() => undefined} accessibilityLabel="Example button" fullWidth />
-           </View>
--
--          <Text style={[styles.previewFootnote, { color: t.color.textDim }]}>{S43_COPY.previewCaption}</Text>
-         </Card>
        </View>
 -    </View>
 -  );
 -}
--
+ 
 -function PreviewChip({ caption, value }: { caption: string; value: 'done' | 'fallback' | 'skip' }) {
 -  const t = useTheme();
 -  return (
@@ -12392,6 +12448,27 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -      <StateChip value={value} onChange={() => {}} disabled variant="compact" accessibilityLabel={caption} testID={`preview-chip-${value}`} />
 -      <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{caption}</Text>
 -    </View>
++      <View style={styles.block}>
++        <SectionHeading>Preview</SectionHeading>
++        <View testID="theme-preview" accessibilityLabel="Preview, an example only" style={styles.preview}>
++          <TodayTaskCard
++            name={S43_COPY.previewTaskName}
++            icon={Dumbbell}
++            color={ACCENTS[accent].base}
++            meta={['Routine', 'Daily']}
++            chip={previewChip}
++            reopened={previewReopened}
++            idealHint={S43_COPY.previewIdeal}
++            fallbackHint={S43_COPY.previewFallback}
++            onLog={(chip) => {
++              setPreviewChip(chip);
++              setPreviewReopened(false);
++            }}
++            onToggleReopen={() => setPreviewReopened((v) => !v)}
++          />
++          <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.previewNote}</Text>
++        </View>
++      </View>
 +    </Screen>
    );
  }
@@ -12417,11 +12494,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  swatchRow: { flexDirection: 'row', gap: SPACE.s3 },
 +  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
-+  preview: { gap: SPACE.s3 },
-+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
-+  previewText: { flex: 1, gap: 2 },
-+  previewName: { fontSize: FONT_SIZE.base, fontWeight: '600' },
-+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
++  preview: { gap: SPACE.s2 },
  });
 diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
 --- a/app/settings/widgets.tsx	2026-11-16 05:43:15.826699893 +0000

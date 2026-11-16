@@ -389,3 +389,54 @@ wording updated through the architect before it lands in `src/**`.
 - The orange buttons are deeper than the brand orange. The alternative that
   also passes is bright orange with dark text.
 - The theme screen's orange swatch still shows the bright orange.
+
+# Round 3 — colour and themes (2026-11-16, human-directed, awaiting picks)
+
+The human: the app "looks quite dull… I think it has to do with the coloring",
+and asked how to keep an exciting theme while letting users change it. They
+also asked that every audit be delivered as an artifact like the design board.
+
+Delivered as the **Fallback Colour Board**
+(https://claude.ai/artifact/LyQoUUtexW8HddWpTRKQkR). Source:
+`docs/design-rebuild/colour-board/`.
+
+## Measured (preview build, sample data, 390×760)
+
+| | Light | Dark |
+|---|---|---|
+| Today: pixels carrying any colour | 2.7% | 2.6% |
+| Routines | 3.0% | 3.1% |
+| Task | 1.2% | 1.1% |
+| Progress | 1.3% | 1.3% |
+| Settings | 0.1% | 0.1% |
+
+Switching Orange → Indigo changes 1.0% of Today, 2.0% of Routines and 0% of
+Settings. Scripts: `colour-board/cov.js`, `colour-board/diff.js`.
+
+## Proposed model
+
+A theme is one seed colour. Every other shade (solid, text on solid, tint,
+coloured text, page tone) is derived by rule and contrast-checked
+(`colour-board/engine.js`). Ideal green, fallback blue and XP gold never change
+with the theme, and theme hues are kept away from them and from error red.
+
+## Decisions on the board (option A is always the app today)
+
+| # | Decision | Recommended |
+|---|---|---|
+| 01 | Top card on Today | B — solid theme colour |
+| 02 | Page background and borders | B — a hint of the theme |
+| 03 | Done and Fallback buttons | B — soft fill |
+| 04 | A logged task | B — whole card takes the state colour |
+| 05 | The green and the blue | B — brighter |
+| 06 | Tab bar | B — tinted pill behind the active tab |
+| 07 | Text on the theme colour | B — bright shade, best-contrast text |
+| 08 | What people choose | B — named themes with a preview |
+
+Nothing here is applied yet. The human's picks are pending.
+
+## Also fixed in the preview this round
+
+The Settings → Theme preview drew a made-up card (ring, three chips, a Save
+button) that exists nowhere else. It now renders the same `TodayTaskCard`
+component the Today screen uses, so the two cannot drift apart.
