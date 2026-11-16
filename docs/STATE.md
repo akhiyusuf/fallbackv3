@@ -646,7 +646,8 @@ theme engine, a second data-model change (`settings.accent_ext`, migration
 006) and moves Fallback AI from the Today header into the add sheet.
 
 **Round 4 (whole-app polish): picks received and applied to the preview**
-(Fallback Preview, version 6), across every screen. Board:
+(Fallback Preview, version 7 after a second pass on card contrast and the
+consistency page), across every screen. Board:
 https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh. Recorded in
 `docs/DESIGN_DECISIONS.md`, "Round 4 — picks". The patch in
 `docs/design-rebuild/` includes it. The look is still awaiting the human's

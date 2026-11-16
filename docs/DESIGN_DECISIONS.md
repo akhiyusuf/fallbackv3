@@ -597,6 +597,25 @@ appearances — no failures beyond the known disabled controls and
 screen-reader-only text; 680 theme checks (5 named themes, 15 hues, both
 appearances) — 0 failing.
 
+### Round 4, second pass (same day, preview version 7)
+
+Feedback on version 6: the consistency page did not feel polished, and the
+tinted cards (task header, the headline row on Routines, Events and Courses)
+"need contrast".
+
+- **Tinted cards.** New `tintedSurface(t, colour)` in `src/ui/surface.ts`: a
+  stronger wash (20% of the colour in light, 30% in dark) closed by a 2px
+  outline in a deeper tone of the same colour (50% / 62%). Flat, no thicker
+  bottom edge. Used by `TabSummary` and `TaskHero`. Before, the wash was 13%
+  with no outline and all but disappeared against the tinted page.
+- **Consistency page.** The two segmented controls and the dropdown became
+  one row of chips (All tasks, then each task with its own icon) and one
+  window control. The hero reads "Showed up" on one line. Four tiles (ideal,
+  fallback, off, missed) use the same marks as the week strip and double as
+  the legend, so the bar lost its own legend and grew to 18px.
+  Note: the screen now opens on the first task chip, as before; "All tasks"
+  is the first chip rather than a second tab.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

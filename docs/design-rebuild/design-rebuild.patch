@@ -4311,8 +4311,8 @@ diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.ts
 +});
 diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
 --- a/src/features/task/TaskHero.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/TaskHero.tsx	2026-11-16 16:54:29.121028665 +0000
-@@ -0,0 +1,72 @@
++++ b/src/features/task/TaskHero.tsx	2026-11-16 17:43:27.653569862 +0000
+@@ -0,0 +1,73 @@
 +/**
 + * TaskHero — the top of a task's own screen: a block washed in the task's colour, its icon on
 + * a solid tile, its name large, and (for a task on a schedule) the last seven days.
@@ -4320,9 +4320,9 @@ diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +import { Pencil } from 'lucide-react-native';
 +
-+import { FONT_SIZE, mix, RADIUS, SPACE, useTheme } from '@/theme';
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 +import type { Id } from '@/types';
-+import { WeekStrip, type IconComponent } from '@/ui';
++import { tintedSurface, WeekStrip, type IconComponent } from '@/ui';
 +
 +import { useWeekStrip } from './useWeekStrip';
 +
@@ -4340,9 +4340,10 @@ diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
 +
 +export function TaskHero({ taskId, name, icon: Icon, color, meta, showWeek, onIconPress }: TaskHeroProps) {
 +  const t = useTheme();
-+  const wash = mix(t.color.bgAlt, color, t.scheme === 'dark' ? 0.2 : 0.13);
++  const surface = tintedSurface(t, color);
++  const wash = surface.backgroundColor as string;
 +  return (
-+    <View style={[styles.root, { backgroundColor: wash }]}>
++    <View style={[styles.root, surface]}>
 +      <View style={styles.top}>
 +        <Pressable onPress={onIconPress} accessibilityRole="button" accessibilityLabel="Change icon and colour" testID="s20-icon-avatar" style={[styles.tile, { backgroundColor: color }]}>
 +          <Icon size={30} color={t.color.textOnAccent} />
@@ -4376,7 +4377,7 @@ diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
 +}
 +
 +const styles = StyleSheet.create({
-+  root: { borderRadius: RADIUS.xl, padding: SPACE.s3, gap: SPACE.s3 },
++  root: { padding: SPACE.s3 - 2, gap: SPACE.s3 },
 +  top: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3 },
 +  tile: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 +  edit: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
@@ -5920,8 +5921,24 @@ diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
 +const styles = StyleSheet.create({ message: { fontSize: FONT_SIZE.base, lineHeight: 24 } });
 diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.tsx
 --- a/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 05:43:15.819505214 +0000
-+++ b/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 16:47:50.300489373 +0000
-@@ -31,7 +31,7 @@
++++ b/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 17:43:27.653740982 +0000
+@@ -16,12 +16,14 @@
+   readonly total: number;
+   readonly legendLabels?: { ideal: string; fallback: string; off: string; missed: string };
+   readonly unitCaption?: string;
++  /** Hide the legend when the figures are already shown next to the bar. */
++  readonly showLegend?: boolean;
+   readonly accessibilityLabel: string;
+ }
+ 
+ const DEFAULT_LABELS = { ideal: 'Ideal', fallback: 'Fallback', off: 'Off', missed: 'Missed' };
+ 
+-export function ConsistencyBreakdownBar({ breakdown, total, legendLabels = DEFAULT_LABELS, unitCaption, accessibilityLabel }: ConsistencyBreakdownBarProps) {
++export function ConsistencyBreakdownBar({ breakdown, total, legendLabels = DEFAULT_LABELS, unitCaption, showLegend = true, accessibilityLabel }: ConsistencyBreakdownBarProps) {
+   const t = useTheme();
+   const safeTotal = total > 0 ? total : 1;
+   const idealPct = (Math.max(0, breakdown.ideal) / safeTotal) * 100;
+@@ -31,7 +33,7 @@
    return (
      <View>
        <View
@@ -5930,12 +5947,27 @@ diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.
          accessibilityRole="progressbar"
          accessibilityLabel={accessibilityLabel}
        >
-@@ -75,10 +75,10 @@
+@@ -40,12 +42,14 @@
+         <View style={{ width: `${offPct}%`, backgroundColor: t.color.off }} />
+         {/* The remainder — missed — is deliberately left unfilled; it has no colour of its own. */}
+       </View>
++      {showLegend ? (
+       <View style={styles.legend}>
+         <LegendItem swatchColor={t.color.ideal} label={legendLabels.ideal} value={breakdown.ideal} textColor={t.color.textMuted} />
+         <LegendItem swatchColor={t.color.fallback} label={legendLabels.fallback} value={breakdown.fallback} textColor={t.color.textMuted} />
+         <LegendItem swatchColor={t.color.off} label={legendLabels.off} value={breakdown.off} textColor={t.color.textMuted} />
+         <LegendItem swatchColor={undefined} label={legendLabels.missed} value={breakdown.missed} textColor={t.color.textMuted} borderColor={t.color.borderStrong} />
+       </View>
++      ) : null}
+       {unitCaption ? <Text style={[styles.caption, { color: t.color.textDim }]}>{unitCaption}</Text> : null}
+     </View>
+   );
+@@ -75,10 +79,10 @@
  }
  
  const styles = StyleSheet.create({
 -  track: { flexDirection: 'row', height: 16, borderRadius: 999, borderWidth: 1, overflow: 'hidden' },
-+  track: { flexDirection: 'row', height: 14, borderRadius: 999, borderWidth: 0, overflow: 'hidden' },
++  track: { flexDirection: 'row', height: 18, borderRadius: 999, borderWidth: 0, overflow: 'hidden' },
    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2, marginTop: SPACE.s2 },
    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
    swatch: { width: 10, height: 10, borderRadius: 5 },
@@ -7290,9 +7322,12 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
  });
 diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
 --- a/src/ui/StatTile.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/StatTile.tsx	2026-11-16 16:49:01.515113062 +0000
-@@ -0,0 +1,37 @@
-+/** StatTile — one count, drawn: a small tinted icon, a heavy number, a label. */
++++ b/src/ui/StatTile.tsx	2026-11-16 17:43:27.656822200 +0000
+@@ -0,0 +1,41 @@
++/**
++ * StatTile — one count, drawn: the state's own mark (the same dot the week strip uses), a
++ * heavy number, a label. Four of them sit in a row and double as the legend of a bar.
++ */
 +import { StyleSheet, Text, View } from 'react-native';
 +
 +import { FONT_SIZE, SPACE, useTheme } from '@/theme';
@@ -7300,20 +7335,21 @@ diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
 +import { cardSurface } from './surface';
 +
 +export interface StatTileProps {
-+  readonly icon: IconComponent;
 +  readonly value: number | string;
 +  readonly label: string;
-+  /** Tint behind the icon and the icon's colour. */
-+  readonly tint: string;
-+  readonly ink: string;
++  /** Solid colour of the mark. Omit for an empty ring (a state with no colour of its own). */
++  readonly color?: string;
++  readonly icon?: IconComponent;
++  /** Icon colour on the mark. */
++  readonly ink?: string;
 +}
 +
-+export function StatTile({ icon: Icon, value, label, tint, ink }: StatTileProps) {
++export function StatTile({ icon: Icon, value, label, color, ink }: StatTileProps) {
 +  const t = useTheme();
 +  return (
 +    <View style={[styles.root, cardSurface(t)]} accessible accessibilityRole="text" accessibilityLabel={`${label}: ${value}`}>
-+      <View style={[styles.icon, { backgroundColor: tint }]}>
-+        <Icon size={18} color={ink} />
++      <View style={[styles.mark, color ? { backgroundColor: color } : { borderWidth: 2.5, borderColor: t.color.borderStrong }]}>
++        {Icon ? <Icon size={16} color={ink ?? t.color.iconOnSignal} /> : null}
 +      </View>
 +      <Text style={[styles.value, { color: t.color.text }]}>{value}</Text>
 +      <Text numberOfLines={1} style={[styles.label, { color: t.color.textMuted }]}>
@@ -7324,10 +7360,10 @@ diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
 +}
 +
 +const styles = StyleSheet.create({
-+  root: { flex: 1, padding: SPACE.s2 + 4, gap: 2, alignItems: 'flex-start' },
-+  icon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
++  root: { flex: 1, paddingVertical: SPACE.s2 + 4, paddingHorizontal: SPACE.s1, alignItems: 'center' },
++  mark: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s1 + 2 },
 +  value: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
-+  label: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
++  label: { fontSize: 13, fontWeight: '700' },
 +});
 diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
 --- a/src/ui/Stepper.tsx	1970-01-01 00:00:00.000000000 +0000
@@ -7530,8 +7566,8 @@ diff -ruN a/src/ui/Switch.tsx b/src/ui/Switch.tsx
      outputRange: [KNOB_INSET, TRACK_WIDTH - KNOB_SIZE - KNOB_INSET],
 diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
 --- a/src/ui/TabSummary.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/TabSummary.tsx	2026-11-16 16:49:01.513965757 +0000
-@@ -0,0 +1,90 @@
++++ b/src/ui/TabSummary.tsx	2026-11-16 17:43:27.653430206 +0000
+@@ -0,0 +1,91 @@
 +/**
 + * TabSummary — the quiet headline at the top of a list tab: one mark, one fact, one line.
 + * Deliberately not the solid card Today uses, so Today stays the only "main" headline. The
@@ -7543,6 +7579,7 @@ diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
 +
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 +import { ProgressRing } from './ProgressRing';
++import { tintedSurface } from './surface';
 +
 +export type TabSummaryMark =
 +  | { readonly kind: 'ring'; readonly done: number; readonly total: number }
@@ -7597,7 +7634,7 @@ diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
 +      {onPress ? <ChevronRight size={18} color={t.accent.text} /> : null}
 +    </>
 +  );
-+  const style = [styles.root, { backgroundColor: t.accent.soft }];
++  const style = [styles.root, tintedSurface(t, t.accent.fill)];
 +  if (!onPress) {
 +    return (
 +      <View style={style} accessible accessibilityRole="text" accessibilityLabel={[title, detail].filter(Boolean).join('. ')} testID={testID}>
@@ -7613,7 +7650,7 @@ diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
 +}
 +
 +const styles = StyleSheet.create({
-+  root: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, borderRadius: RADIUS.xl, paddingVertical: SPACE.s2 + 4, paddingHorizontal: SPACE.s3 },
++  root: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, paddingVertical: SPACE.s2 + 4, paddingHorizontal: SPACE.s3 - 2 },
 +  text: { flex: 1, gap: 2 },
 +  title: { fontSize: FONT_SIZE.base, fontWeight: '800' },
 +  detail: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
@@ -8421,7 +8458,7 @@ diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
  });
 diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 --- a/src/ui/index.ts	2026-11-16 05:43:15.819514483 +0000
-+++ b/src/ui/index.ts	2026-11-16 16:56:05.161847315 +0000
++++ b/src/ui/index.ts	2026-11-16 17:43:27.653265577 +0000
 @@ -24,6 +24,13 @@
  export { Dialog, type DialogProps } from './Dialog';
  export { Toast } from './Toast';
@@ -8430,7 +8467,7 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { TabSummary, type TabSummaryProps } from './TabSummary';
 +export { StatTile, type StatTileProps } from './StatTile';
 +export { EmptyArt, type EmptyArtKind } from './EmptyArt';
-+export { cardSurface, pressedSurface, settledSurface } from './surface';
++export { cardSurface, pressedSurface, settledSurface, tintedSurface } from './surface';
 +export { useReduceMotion, PopIn, Burst } from './motion';
 +export { VoiceMark, type VoiceMarkProps } from './VoiceMark';
  
@@ -8549,8 +8586,8 @@ diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
 +});
 diff -ruN a/src/ui/surface.ts b/src/ui/surface.ts
 --- a/src/ui/surface.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/surface.ts	2026-11-16 16:49:01.508791786 +0000
-@@ -0,0 +1,29 @@
++++ b/src/ui/surface.ts	2026-11-16 17:43:27.653087775 +0000
+@@ -0,0 +1,44 @@
 +/**
 + * The one card surface. Everything card-like (Card, list groups, task cards) is a chunky
 + * piece: a 2px outline, rounder corners and a thicker bottom edge. A pressable piece is
@@ -8558,7 +8595,7 @@ diff -ruN a/src/ui/surface.ts b/src/ui/surface.ts
 + */
 +import type { ViewStyle } from 'react-native';
 +
-+import { EDGE, RADIUS, type Theme } from '@/theme';
++import { EDGE, mix, RADIUS, type Theme } from '@/theme';
 +
 +export function cardSurface(t: Theme): ViewStyle {
 +  return {
@@ -8576,6 +8613,21 @@ diff -ruN a/src/ui/surface.ts b/src/ui/surface.ts
 + */
 +export function settledSurface(fill: string): ViewStyle {
 +  return { backgroundColor: fill, borderColor: fill, borderWidth: EDGE.outline, borderRadius: RADIUS.xl, marginTop: EDGE.bottom - EDGE.outline };
++}
++
++/**
++ * A piece washed in one colour (the theme colour, or a task's own). The wash is strong enough
++ * to stand off the tinted page, and it is closed by an outline in a deeper tone of the same
++ * colour. Flat: no thicker bottom edge.
++ */
++export function tintedSurface(t: Theme, color: string): ViewStyle {
++  const dark = t.scheme === 'dark';
++  return {
++    backgroundColor: mix(t.color.bgAlt, color, dark ? 0.3 : 0.2),
++    borderColor: mix(t.color.bgAlt, color, dark ? 0.62 : 0.5),
++    borderWidth: EDGE.outline,
++    borderRadius: RADIUS.xl,
++  };
 +}
 +
 +/** Applied while a pressable piece is held: the bottom edge collapses and the piece moves down. */
@@ -11600,8 +11652,8 @@ diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
  });
 diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 --- a/app/progress/index.tsx	2026-11-16 05:43:15.826599667 +0000
-+++ b/app/progress/index.tsx	2026-11-16 16:54:29.132857553 +0000
-@@ -1,23 +1,20 @@
++++ b/app/progress/index.tsx	2026-11-16 17:44:00.110573273 +0000
+@@ -1,29 +1,23 @@
  /**
 - * S25 — Consistency Dashboard    route: /progress
 - * Owner: M5. Features: F5.
@@ -11612,27 +11664,36 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 + * S25 — Consistency dashboard    route: /progress
 + * Renders M2's numbers only; no percentage arithmetic lives here.
   */
++import type React from 'react';
  import { useEffect, useState } from 'react';
  import { useRouter } from 'expo-router';
 -import { CalendarSearch } from 'lucide-react-native';
-+import { CalendarSearch, Check, CheckCheck, Minus } from 'lucide-react-native';
- import { StyleSheet, Text, View } from 'react-native';
+-import { StyleSheet, Text, View } from 'react-native';
++import { CalendarSearch, Check, CheckCheck, Layers, Minus } from 'lucide-react-native';
++import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
  
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { useConsistency, useTasks } from '@/queries';
  import type { ConsistencyScope, ConsistencyWindow, Id } from '@/types';
 -import { SPACE, useTheme } from '@/theme';
 -import { Button, Card, ConsistencyBreakdownBar, EmptyState, InlineRetryBanner, Select, Skeleton, Tabs } from '@/ui';
-+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
-+import { Card, ConsistencyBreakdownBar, Dialog, EmptyState, InlineRetryBanner, ListGroup, ListRow, Screen, Select, Skeleton, StatTile, Tabs } from '@/ui';
-+
-+import { StatHero } from '@/features/today/StatHero';
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { Card, ConsistencyBreakdownBar, Dialog, EmptyState, InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton, StatTile, Tabs, TaskIcon, tintedSurface } from '@/ui';
  
 -import { ProgressHeader } from '@/features/progress/ProgressHeader';
- import { S25_COPY } from '@/features/progress/copy';
+-import { S25_COPY } from '@/features/progress/copy';
++import { StatHero } from '@/features/today/StatHero';
  
- const SCOPE_ITEMS = [
-@@ -31,13 +28,7 @@
+-const SCOPE_ITEMS = [
+-  { value: 'per-task', label: S25_COPY.scopeTabs.perTask },
+-  { value: 'aggregate', label: S25_COPY.scopeTabs.aggregate },
+-];
++import { taskIconProps } from '@/features/browse/resolveIcon';
++import { formatOneDecimal, S25_COPY } from '@/features/progress/copy';
+ 
+ const WINDOW_ITEMS = [
+   { value: 'last-7', label: S25_COPY.windowTabs.last7 },
+@@ -31,13 +25,7 @@
    { value: 'all-time', label: S25_COPY.windowTabs.allTime },
  ];
  
@@ -11647,7 +11708,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
  function truncatedWindowDays(window: ConsistencyWindow, denominator: number): number | null {
    if (window === 'last-7' && denominator < 7) return 7;
    if (window === 'last-30' && denominator < 30) return 30;
-@@ -52,150 +43,112 @@
+@@ -52,150 +40,146 @@
    const [scope, setScope] = useState<ConsistencyScope>('per-task');
    const [window, setWindow] = useState<ConsistencyWindow>('last-30');
    const [selectedTaskId, setSelectedTaskId] = useState<Id | null>(null);
@@ -11697,13 +11758,27 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -            value={selectedTaskId}
 -            options={trackableTasks.map((task) => ({ value: task.id, label: task.name }))}
 -            onChange={(v) => setSelectedTaskId(v as Id)}
--          />
--        ) : null}
 +    <Screen title={S25_COPY.appBarTitle} level="page" onBack={goBack}>
-+      <Tabs items={SCOPE_ITEMS} value={scope} onChange={(v) => setScope(v as ConsistencyScope)} accessibilityLabel="Scope" />
++      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerBleed} contentContainerStyle={styles.picker} accessibilityRole="radiogroup" accessibilityLabel="What to measure">
++        <ScopeChip label={S25_COPY.scopeTabs.aggregate} selected={scope === 'aggregate'} onPress={() => setScope('aggregate')} leading={<Layers size={18} color={t.color.text} />} />
++        {trackableTasks.map((task) => (
++          <ScopeChip
++            key={task.id}
++            label={task.name}
++            selected={scope === 'per-task' && selectedTaskId === task.id}
++            onPress={() => {
++              setScope('per-task');
++              setSelectedTaskId(task.id);
++            }}
++            leading={<TaskIcon {...taskIconProps(task)} size={24} />}
+           />
+-        ) : null}
++        ))}
++      </ScrollView>
  
 -        <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Window" />
--
++      <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Time window" />
+ 
 -        {isLoading ? (
 -          <View style={styles.skeletonBlock}>
 -            <Skeleton height={48} />
@@ -11738,12 +11813,6 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -            </Text>
 -            <Text style={[styles.offNote, { color: t.color.textDim }]}>
 -              {scope === 'per-task' ? S25_COPY.offNotePerTask(result.breakdown.off) : S25_COPY.offNoteAggregate(result.breakdown.off)}
-+      {scope === 'per-task' && trackableTasks.length > 0 ? (
-+        <Select label={S25_COPY.taskSelectLabel} value={selectedTaskId} options={trackableTasks.map((task) => ({ value: task.id, label: task.name }))} onChange={(v) => setSelectedTaskId(v as Id)} />
-+      ) : null}
-+
-+      <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Time window" />
-+
 +      {isLoading ? (
 +        <View style={styles.skeletonBlock}>
 +          <Skeleton height={148} radius={20} />
@@ -11760,7 +11829,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 +        <>
 +        <StatHero
 +          percent={result.percent}
-+          label={`Days you ${S25_COPY.numeralLabel}`}
++          label="Showed up"
 +          detail={
 +            scope === 'per-task'
 +              ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator)
@@ -11770,9 +11839,10 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 +          accessibilityLabel={`${result.percent} percent ${S25_COPY.numeralLabel}`}
 +        />
 +        <View style={styles.tiles}>
-+          <StatTile icon={CheckCheck} value={result.breakdown.ideal} label="Ideal" tint={t.color.idealSoft} ink={t.color.idealDeep} />
-+          <StatTile icon={Check} value={result.breakdown.fallback} label="Fallback" tint={t.color.fallbackSoft} ink={t.color.fallbackDeep} />
-+          <StatTile icon={Minus} value={result.breakdown.off} label="Off" tint={t.color.offSoft} ink={t.color.offDeep} />
++          <StatTile icon={CheckCheck} color={t.color.ideal} value={formatOneDecimal(result.breakdown.ideal)} label="Ideal" />
++          <StatTile icon={Check} color={t.color.fallback} value={formatOneDecimal(result.breakdown.fallback)} label="Fallback" />
++          <StatTile icon={Minus} color={t.color.surface} ink={t.color.textMuted} value={formatOneDecimal(result.breakdown.off)} label="Off" />
++          <StatTile value={formatOneDecimal(result.breakdown.missed)} label="Missed" />
 +        </View>
 +        <Card style={styles.card}>
 +          <ConsistencyBreakdownBar
@@ -11783,6 +11853,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 +                : result.denominator + result.breakdown.off
 +            }
 +            unitCaption={scope === 'aggregate' ? S25_COPY.aggregateUnitCaption : undefined}
++            showLegend={false}
 +            accessibilityLabel={`Consistency breakdown: ${result.percent} percent, ideal ${result.breakdown.ideal}, fallback ${result.breakdown.fallback}, off ${result.breakdown.off}, missed ${result.breakdown.missed}`}
 +          />
 +          <Text style={[styles.note, { color: t.color.textMuted }]}>
@@ -11811,7 +11882,14 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 +            <Text key={row} style={[styles.subcopy, { color: t.color.text }]}>
 +              {row}
              </Text>
--
++          ))}
++        </View>
++        <Text style={[styles.total, { color: t.color.text }]}>{S25_COPY.disclosureFixtureTotal}</Text>
++      </Dialog>
++    </Screen>
++  );
++}
+ 
 -            <ConsistencyBreakdownBar
 -              breakdown={result.breakdown}
 -              total={
@@ -11858,11 +11936,21 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -        <Button label={S25_COPY.historyLink} onPress={handleHistory} variant="ghost" accessibilityLabel={S25_COPY.historyLink} />
 -      </View>
 -    </View>
-+          ))}
-+        </View>
-+        <Text style={[styles.total, { color: t.color.text }]}>{S25_COPY.disclosureFixtureTotal}</Text>
-+      </Dialog>
-+    </Screen>
++function ScopeChip({ label, selected, onPress, leading }: { readonly label: string; readonly selected: boolean; readonly onPress: () => void; readonly leading: React.ReactNode }) {
++  const t = useTheme();
++  return (
++    <Pressable
++      onPress={onPress}
++      accessibilityRole="radio"
++      accessibilityState={{ selected }}
++      accessibilityLabel={label}
++      style={[styles.chip, selected ? { ...tintedSurface(t, t.accent.fill), borderRadius: RADIUS.pill, borderColor: t.accent.text } : { backgroundColor: t.color.bgAlt, borderWidth: 2, borderColor: t.color.border }]}
++    >
++      {leading}
++      <Text numberOfLines={1} style={[styles.chipLabel, { color: t.color.text, fontWeight: selected ? '800' : '600' }]}>
++        {label}
++      </Text>
++    </Pressable>
    );
  }
  
@@ -11874,7 +11962,11 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -  offNote: { fontSize: 13 },
 -  explainer: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
 +  card: { gap: SPACE.s2 + 4 },
-+  tiles: { flexDirection: 'row', gap: SPACE.s2 + 2 },
++  tiles: { flexDirection: 'row', gap: SPACE.s2 },
++  pickerBleed: { marginHorizontal: -SPACE.s3, flexGrow: 0 },
++  picker: { paddingHorizontal: SPACE.s3, gap: SPACE.s2 },
++  chip: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, minHeight: 44, paddingLeft: SPACE.s2, paddingRight: SPACE.s3, borderRadius: RADIUS.pill },
++  chipLabel: { fontSize: FONT_SIZE.sm, maxWidth: 180 },
 +  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24 },
 +  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
    skeletonBlock: { gap: SPACE.s2 },
