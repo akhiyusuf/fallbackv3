@@ -1,0 +1,11 @@
+const P = 'fallback-preview:file:'; const mem = new Map();
+export const documentDirectory = 'preview://documents/';
+export const cacheDirectory = 'preview://cache/';
+export const EncodingType = { UTF8: 'utf8', Base64: 'base64' };
+export const writeAsStringAsync = async (uri, s) => { mem.set(uri, s); try { localStorage.setItem(P + uri, s); } catch {} };
+export const readAsStringAsync = async (uri) => { if (mem.has(uri)) return mem.get(uri); let v = null; try { v = localStorage.getItem(P + uri); } catch {} if (v === null) throw new Error('File not found: ' + uri); return v; };
+export const moveAsync = async ({ from, to }) => { const v = await readAsStringAsync(from); await writeAsStringAsync(to, v); await deleteAsync(from); };
+export const deleteAsync = async (uri) => { mem.delete(uri); try { localStorage.removeItem(P + uri); } catch {} };
+export const getInfoAsync = async (uri) => { let ex = mem.has(uri); try { ex = ex || localStorage.getItem(P + uri) !== null; } catch {} return { exists: ex, uri, isDirectory: false }; };
+export const makeDirectoryAsync = async () => {};
+export const readDirectoryAsync = async () => [];

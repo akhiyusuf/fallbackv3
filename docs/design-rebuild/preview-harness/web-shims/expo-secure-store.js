@@ -1,0 +1,10 @@
+const P = 'fallback-preview:secure:'; const mem = new Map();
+const get = (k) => { try { const v = localStorage.getItem(P + k); return v === null ? (mem.get(k) ?? null) : v; } catch { return mem.get(k) ?? null; } };
+const set = (k, v) => { mem.set(k, v); try { localStorage.setItem(P + k, v); } catch {} };
+const del = (k) => { mem.delete(k); try { localStorage.removeItem(P + k); } catch {} };
+export const getItemAsync = async (k) => get(k);
+export const setItemAsync = async (k, v) => set(k, v);
+export const deleteItemAsync = async (k) => del(k);
+export const getItem = get; export const setItem = set;
+export const isAvailableAsync = async () => true;
+export const WHEN_UNLOCKED = 1, AFTER_FIRST_UNLOCK = 2, WHEN_UNLOCKED_THIS_DEVICE_ONLY = 3;

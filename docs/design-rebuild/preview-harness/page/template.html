@@ -1,0 +1,149 @@
+<title>Fallback Preview</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: the phone is the page. A quiet side column holds the preview controls; on a phone it folds into a top strip. */
+:root {
+  --ground: #f3efeb; --panel-fg: #2b2622; --muted: #6f655d; --line: #ddd5cd; --chip: #ffffff; --chip-fg: #2b2622;
+  --accent: #d9500f; --accent-fg: #ffffff; --bezel: #1d1a18; --screen: #ffffff; --shadow: rgba(60, 40, 20, .22);
+  --display: "Space Grotesk", "Inter", system-ui, sans-serif; --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ground: #171411; --panel-fg: #f1ebe5; --muted: #a2978d; --line: #37302a; --chip: #241f1b; --chip-fg: #f1ebe5;
+  --accent: #f2601a; --accent-fg: #1a0d05; --bezel: #050404; --screen: #111111; --shadow: rgba(0, 0, 0, .6); color-scheme: dark } }
+:root[data-theme="dark"] {
+  --ground: #171411; --panel-fg: #f1ebe5; --muted: #a2978d; --line: #37302a; --chip: #241f1b; --chip-fg: #f1ebe5;
+  --accent: #f2601a; --accent-fg: #1a0d05; --bezel: #050404; --screen: #111111; --shadow: rgba(0, 0, 0, .6); color-scheme: dark }
+
+html { height: 100%; box-sizing: border-box; background: var(--ground); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+/* body IS the phone screen: the transform makes in-app dialogs (position: fixed) stay inside it. */
+body { height: 100%; width: 100%; margin: 0; position: relative; transform: translateZ(0); display: flex; flex-direction: column; background: var(--screen); color: var(--panel-fg); font-family: var(--body); overflow: visible; }
+#root { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+
+#bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--ground); border-bottom: 1px solid var(--line); font-size: 13px; }
+#bar strong { font-family: var(--display); font-weight: 600; letter-spacing: .01em; }
+#panel { position: absolute; inset: 0; z-index: 100000; background: var(--ground); overflow-y: auto; padding-block: 20px 28px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+#panel h1 { font-family: var(--display); font-weight: 600; font-size: 26px; line-height: 1.1; margin: 0; text-wrap: balance; }
+#panel h2 { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+#panel p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--muted); max-width: 46ch; }
+#panel .lede { color: var(--panel-fg); }
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; cursor: pointer; }
+.btn { border: 1px solid var(--line); background: var(--chip); color: var(--chip-fg); border-radius: 10px; padding: 9px 14px; font-size: 14px; font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.small { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#status { font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.group { display: flex; flex-direction: column; gap: 6px; }
+.group + .group { margin-top: 8px; }
+.group span { font-size: 12px; color: var(--muted); }
+.jump { display: flex; flex-wrap: wrap; gap: 6px; }
+.jump button { border: 1px solid var(--line); background: transparent; color: var(--panel-fg); border-radius: 999px; padding: 4px 11px; font-size: 13px; }
+.jump button:hover { background: var(--chip); }
+ul.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--muted); max-width: 46ch; }
+#boot { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font-size: 14px; color: var(--muted); background: var(--screen); }
+
+@media (min-width: 760px) {
+  html { justify-content: flex-start; padding-left: 40px; }
+  body { width: 390px; height: min(844px, calc(100% - 56px)); border-radius: 30px; box-shadow: 0 0 0 11px var(--bezel), 0 28px 60px 8px var(--shadow); }
+  #root, #boot { border-radius: 30px; }
+  body > div:not(#root):not(#panel):not(#bar):not(#boot) > div { border-radius: 30px; overflow: hidden; }
+  #bar, #close-panel { display: none; }
+  #panel { display: flex !important; inset: auto; top: 0; bottom: 0; left: calc(100% + 56px); width: min(440px, calc(100vw - 390px - 40px - 56px - 32px)); background: transparent; padding: 4px 4px 4px 0; z-index: auto; gap: 18px; }
+}
+@media (min-width: 1180px) {
+  html { justify-content: center; padding-left: 0; }
+  body { margin-right: 496px; }
+}
+@media (prefers-reduced-motion: no-preference) { .btn, .jump button { transition: background-color .12s ease; } }
+</style>
+
+<div id="bar"><span><strong>Fallback</strong> · browser preview</span><button class="btn small" id="open-panel" type="button">Preview options</button></div>
+<div id="root"></div>
+<div id="boot">Starting Fallback…</div>
+
+<aside id="panel" hidden aria-label="Preview options">
+  <div class="head">
+    <div><h1>Fallback</h1><div class="sub">Browser preview of the real app</div></div>
+    <button class="btn small" id="close-panel" type="button">Back to app</button>
+  </div>
+  <p class="lede">This is the app's own code running in your browser on a real database. Whatever you do here is saved in this browser only.</p>
+
+  <section>
+    <h2>Data</h2>
+    <div class="actions">
+      <button class="btn primary" id="load-sample" type="button" disabled>Load sample data</button>
+      <button class="btn" id="start-over" type="button" disabled>Start over as a new user</button>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <h2>Jump to a screen</h2>
+    <div class="group"><span>First run</span><div class="jump">
+      <button data-go="/onboarding/hook">Onboarding</button><button data-go="/onboarding/concept">Concept</button><button data-go="/onboarding/types">Task types</button><button data-go="/onboarding/consistency">Consistency</button><button data-go="/onboarding/personalize">Personalize</button><button data-go="/onboarding/notifications-primer">Reminders primer</button><button data-go="/onboarding/first-task">First task</button></div></div>
+    <div class="group"><span>Every day</span><div class="jump">
+      <button data-go="/today">Today</button><button data-go="/routines">Routines</button><button data-go="/events">Events</button><button data-go="/courses">Courses</button><button data-go="/todos">To-dos</button><button data-go="/search">Search</button><button data-go="/add">Add a task</button></div></div>
+    <div class="group"><span>Progress</span><div class="jump">
+      <button data-go="/progress">Progress</button><button data-go="/progress/trend">Trend</button><button data-go="/achievements">Achievements</button><button data-go="/records">Records</button></div></div>
+    <div class="group"><span>Assistant</span><div class="jump">
+      <button data-go="/assistant">Assistant</button><button data-go="/assistant/paywall">Paywall</button><button data-go="/assistant/paywall/byo">Own key</button><button data-go="/assistant/history">History</button><button data-go="/settings/subscription">Subscription</button></div></div>
+    <div class="group"><span>Settings</span><div class="jump">
+      <button data-go="/settings">Settings</button><button data-go="/settings/notifications">Notifications</button><button data-go="/settings/theme">Theme</button><button data-go="/settings/widgets">Widgets</button><button data-go="/settings/data">Your data</button><button data-go="/settings/sync">Sync</button><button data-go="/settings/help">Help</button></div></div>
+  </section>
+
+  <section>
+    <h2>Simulated in the browser</h2>
+    <ul class="notes">
+      <li>Reminders are recorded but never delivered. <span id="reminders"></span></li>
+      <li>Purchases go through instantly and charge nothing.</li>
+      <li>The assistant needs its server to reply, so chat shows its offline state.</li>
+      <li>Home-screen widgets and the microphone only exist on a phone.</li>
+    </ul>
+  </section>
+</aside>
+
+<script>
+(function () {
+  // The app keeps its own screen history. The page address never changes, so a reload always lands back here.
+  var H = window.history;
+  ['pushState', 'replaceState'].forEach(function (m) {
+    var orig = H[m].bind(H);
+    H[m] = function (state, title) { try { return orig(state, title); } catch (e) {} };
+  });
+
+  var $ = function (id) { return document.getElementById(id); };
+  var panel = $('panel'), status = $('status');
+  var wide = window.matchMedia('(min-width: 760px)');
+  function syncPanel() { if (wide.matches) panel.hidden = false; else if (!panel.dataset.open) panel.hidden = true; }
+  wide.addEventListener ? wide.addEventListener('change', syncPanel) : wide.addListener(syncPanel);
+  syncPanel();
+  $('open-panel').addEventListener('click', function () { panel.dataset.open = '1'; panel.hidden = false; });
+  function closePanel() { delete panel.dataset.open; if (!wide.matches) panel.hidden = true; }
+  $('close-panel').addEventListener('click', closePanel);
+
+  function api() { return window.__fallbackPreview || {}; }
+  function busy(on) { $('load-sample').disabled = on; $('start-over').disabled = on; }
+  function run(label, done, fn) {
+    busy(true); status.textContent = label;
+    Promise.resolve().then(fn).then(function () { status.textContent = done; closePanel(); }, function (e) { status.textContent = 'That did not work: ' + (e && e.message ? e.message : e); })
+      .then(function () { busy(false); });
+  }
+  $('load-sample').addEventListener('click', function () { run('Loading three weeks of example history…', 'Sample data loaded. These are examples, not your own data.', function () { return api().loadSample(); }); });
+  $('start-over').addEventListener('click', function () { run('Erasing everything…', 'Erased. The app is back at first launch.', function () { return api().startOver(); }); });
+  panel.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-go]') : null;
+    if (!b || !api().go) return;
+    api().go(b.getAttribute('data-go')); closePanel();
+  });
+  function reminders() { var n = (api().scheduled || []).length; $('reminders').textContent = n ? '(' + n + ' recorded right now.)' : ''; }
+  window.addEventListener('fallback-preview:reminders', reminders);
+  function ready() { busy(false); var b = $('boot'); if (b) b.remove(); reminders(); }
+  window.addEventListener('fallback-preview:ready', function () { setTimeout(ready, 300); });
+  window.addEventListener('error', function (e) { var b = $('boot'); if (b) b.textContent = 'The app could not start in this browser: ' + (e.message || 'unknown error'); });
+})();
+</script>
+<script>/*__BUNDLE__*/</script>

@@ -615,12 +615,33 @@ or consistency-maths change.
 
 | Step | Agent | Status |
 |---|---|---|
-| CR-8 work split + contracts (`docs/MODULES.md`, `docs/ARCHITECTURE.md`) | architect ⇄ artifact-reviewer | in progress |
+| Look approval on the browser preview (hand-built, see below) | human | **in progress — pipeline paused here** |
+| CR-8 work split + contracts (`docs/MODULES.md`, `docs/ARCHITECTURE.md`) | architect ⇄ artifact-reviewer | stopped by the human; restarts after look approval |
 | M0 kit + tokens + lint test | feature-builder ⇄ code-reviewer | pending |
 | M3, M4, M5, M6, M7 screens (parallel, after M0 PASS) | feature-builder ×5 ⇄ code-reviewer | pending |
 | Regression + acceptance | qa-tester ⇄ artifact-reviewer | pending |
 | Screenshots | visual-qa ⇄ artifact-reviewer | pending |
 | Gate 3 | human | pending |
+
+## Look approval first — human-directed, 2026-11-16
+
+The human stopped the architect and asked for the look to be approved on the
+browser preview **before** anything goes to the pipeline agents. The 21
+decisions (+ decision 22 as option C by default) were applied by hand to a
+scratch browser copy of the app and published to the "Fallback Preview"
+artifact. `src/**` and `app/**` in this repo are **unchanged**.
+
+So the work is not lost with the session, it is saved in
+`docs/design-rebuild/`:
+
+- `design-rebuild.patch` — every change to `src/` and `app/` (non-test files).
+- `preview-harness/` — what is needed to rebuild the browser preview.
+- `README.md` — how to apply and rebuild.
+
+This is reference input for the rebuild pipeline, not shipped code: once the
+human approves the look, the architect splits it into module work (CR-8) and
+feature-builders land it in `src/**` through the normal review loop, updating
+the tests the patch does not touch.
 
 ## Open with the human
 
