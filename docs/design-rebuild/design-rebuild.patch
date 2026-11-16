@@ -2596,15 +2596,16 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
  }
 diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
-+++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 06:06:46.801865942 +0000
-@@ -1,4 +1,4 @@
++++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 19:24:17.020350021 +0000
+@@ -1,99 +1,86 @@
 -/** S07 — Notification Permission Primer. route: /onboarding/notifications-primer. Features: F9, F14. */
 +/** S07 — onboarding step 6. Permission primer: "Allow" on top, "Not now" below (D11). */
  import { useEffect, useState } from 'react';
  import { useRouter, type Href } from 'expo-router';
  import { Bell } from 'lucide-react-native';
-@@ -6,10 +6,11 @@
+ import { StyleSheet, Text, View } from 'react-native';
  
++import { useSettings, useUpdateSettings } from '@/queries';
  import { initNotificationsBridge, notifications } from '@/services/notifications';
  import { initWidgetsBridge } from '@/services/widgets';
 -import { SPACE, useTheme } from '@/theme';
@@ -2617,8 +2618,11 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
  import { useOnboardingStepMarker } from './useOnboardingResume';
  
  export function NotificationsPrimerScreen() {
-@@ -18,82 +19,56 @@
+   const t = useTheme();
+   const router = useRouter();
    const [requesting, setRequesting] = useState(false);
++  const settingsQuery = useSettings();
++  const updateSettings = useUpdateSettings();
    useOnboardingStepMarker('/onboarding/notifications-primer');
  
 -  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount — arms
@@ -2641,7 +2645,17 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
      const result = await notifications.requestPermission();
 -    // A permission GRANT alone emits no bus event — nothing else re-arms in this session
 -    // without an explicit re-arm here (review pass 1, blocking item 1).
-     if (result.ok && result.value) void notifications.reschedule();
+-    if (result.ok && result.value) void notifications.reschedule();
++    if (result.ok && result.value) {
++      // "Allow" has to mean something: switch on the reminders this screen describes (a nudge
++      // when something is due, one invitation back after an off day). Without this the master
++      // switch was on with every reminder under it off, so nothing was ever sent.
++      const prefs = settingsQuery.data?.notifications;
++      if (prefs) {
++        await updateSettings.mutateAsync({ notifications: { ...prefs, master: true, routineDue: true, eventStarting: true, courseDose: true, gentleReentry: true } });
++      }
++      void notifications.reschedule();
++    }
      setRequesting(false);
 -    await proceed();
 -  }
@@ -2733,19 +2747,20 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
  });
 diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboarding/OnboardingPicture.tsx
 --- a/src/features/onboarding/OnboardingPicture.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-16 18:27:49.801473355 +0000
-@@ -0,0 +1,197 @@
++++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-16 19:24:10.550969772 +0000
+@@ -0,0 +1,196 @@
 +/**
-+ * OnboardingPicture — the drawing at the top of each onboarding step. Every step has its own,
-+ * and each one shows what the words under it say. Drawn from the theme's own colours on a
++ * OnboardingPicture — the drawing at the top of each onboarding step. Every step has its own.
++ * It pictures the idea in the headline; it must never be a small copy of the content below it
++ * (that says the same thing twice). Drawn from the theme's own colours on a
 + * 220 x 148 canvas and scaled to whatever room the step leaves, so it never forces a scroll.
 + */
 +import { useEffect, useRef } from 'react';
 +import { Animated, StyleSheet, Text, View } from 'react-native';
 +import Svg, { Path, Rect } from 'react-native-svg';
-+import { Bell, CalendarRange, Check, CheckCheck, ListTodo, Minus, Plus, Repeat, Timer } from 'lucide-react-native';
++import { Bell, Check, CheckCheck, Minus, Paintbrush, Plus } from 'lucide-react-native';
 +
-+import { ACCENTS, THEME_ORDER, THEME_SEEDS, useTheme, type Theme } from '@/theme';
++import { useTheme, type Theme } from '@/theme';
 +import { useReduceMotion } from '@/ui';
 +
 +export const PICTURE_WIDTH = 220;
@@ -2822,24 +2837,24 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  </View>
 +);
 +
-+/** 3 — Four ways to plan: the four kinds of task. */
-+const FourKinds: Draw = ({ t }) => {
-+  const kinds = [
-+    [Repeat, ACCENTS['forge-orange'].base],
-+    [Timer, ACCENTS.indigo.base],
-+    [CalendarRange, ACCENTS.berry.base],
-+    [ListTodo, ACCENTS.plum.base],
-+  ] as const;
++/** 3 — Four ways to plan: a planner page, days marked in different ways. (The four kinds themselves are the tiles below.) */
++const Planner: Draw = ({ t }) => {
++  const marks = [t.accent.fill, null, t.color.fallback, null, null, t.color.ideal, null, t.color.celebrationGold, null];
 +  return (
 +    <View style={s.canvas}>
-+      <View style={[s.tile, { width: 124, height: 124, borderRadius: 32, backgroundColor: t.color.bgAlt, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'center', gap: 10, padding: 16 }]}>
-+        {kinds.map(([Icon, color], i) => (
-+          <Dot key={i} color={color} size={41}>
-+            <Icon size={21} color={t.color.textOnAccent} />
-+          </Dot>
-+        ))}
++      <View style={[s.tile, { width: 118, height: 122, borderRadius: 26, backgroundColor: t.color.bgAlt, justifyContent: 'flex-start', overflow: 'hidden', transform: [{ rotate: '-3deg' }] }]}>
++        <View style={{ alignSelf: 'stretch', height: 30, backgroundColor: t.color.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 34 }}>
++          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color.bgAlt }} />
++          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color.bgAlt }} />
++        </View>
++        <View style={{ flexDirection: 'row', flexWrap: 'wrap', width: 96, gap: 9, marginTop: 13 }}>
++          {marks.map((color, i) => (
++            <View key={i} style={{ width: 26, height: 18, borderRadius: 7, backgroundColor: color ?? t.color.surface }} />
++          ))}
++        </View>
 +      </View>
-+      <Spark t={t} left={182} top={30} />
++      <Spark t={t} left={184} top={26} />
++      <Spark t={t} left={30} top={102} size={8} />
 +    </View>
 +  );
 +};
@@ -2868,18 +2883,23 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  );
 +};
 +
-+/** 5 — Make it yours: the themes, fanned out, one chosen. */
-+const Swatches: Draw = ({ t }) => (
++/** 5 — Make it yours: your phone, with a brush on it. (The colours to pick are below.) */
++const YourPhone: Draw = ({ t }) => (
 +  <View style={s.canvas}>
-+    <View style={[s.tile, { height: 84, borderRadius: 42, backgroundColor: t.color.bgAlt, flexDirection: 'row', paddingHorizontal: 18 }]}>
-+      {THEME_ORDER.map((key, i) => (
-+        <Dot key={key} color={THEME_SEEDS[key]} size={i === 0 ? 50 : 42} style={{ marginLeft: i === 0 ? 0 : -10, borderWidth: 3, borderColor: t.color.bgAlt, zIndex: 10 - i }}>
-+          {i === 0 ? <Check size={22} color="#ffffff" /> : null}
-+        </Dot>
-+      ))}
++    <View style={{ width: 84, height: 132, borderRadius: 20, backgroundColor: t.color.bgAlt, padding: 9, gap: 8, transform: [{ rotate: '-5deg' }] }}>
++      <View style={{ height: 40, borderRadius: 11, backgroundColor: t.accent.fill }} />
++      <View style={{ height: 9, width: '80%', borderRadius: 5, backgroundColor: t.color.borderStrong }} />
++      <View style={{ height: 9, width: '55%', borderRadius: 5, backgroundColor: t.color.border }} />
++      <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
++        <View style={{ flex: 1, height: 20, borderRadius: 8, backgroundColor: t.color.idealSoft }} />
++        <View style={{ flex: 1, height: 20, borderRadius: 8, backgroundColor: t.color.fallbackSoft }} />
++      </View>
 +    </View>
-+    <Spark t={t} left={188} top={18} />
-+    <Spark t={t} left={18} top={104} size={8} />
++    <Dot color={t.color.bgAlt} size={54} style={{ position: 'absolute', left: 130, top: 70, borderWidth: 4, borderColor: t.accent.fill }}>
++      <Paintbrush size={26} color={t.accent.text} />
++    </Dot>
++    <Spark t={t} left={46} top={24} />
++    <Spark t={t} left={186} top={40} size={8} />
 +  </View>
 +);
 +
@@ -2899,33 +2919,26 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  </View>
 +);
 +
-+/** 7 — Add your first habit: an empty task card with a plus, and its ideal and fallback. */
-+const FirstHabit: Draw = ({ t }) => (
++/** 7 — Add your first habit: the seed going in. Step 1 showed the plant it becomes. (The form is below.) */
++const Seedling: Draw = ({ t }) => (
 +  <View style={s.canvas}>
-+    <View style={[s.tile, { width: 190, height: 112, borderRadius: 26, backgroundColor: t.color.bgAlt, paddingHorizontal: 14, gap: 12, alignItems: 'stretch', transform: [{ rotate: '2deg' }] }]}>
-+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-+        <Dot color={t.accent.soft} size={44}>
-+          <Plus size={24} color={t.accent.text} />
-+        </Dot>
-+        <View style={{ flex: 1, gap: 8 }}>
-+          <View style={{ width: '78%', height: 10, borderRadius: 5, backgroundColor: t.color.borderStrong }} />
-+          <View style={{ width: '48%', height: 8, borderRadius: 4, backgroundColor: t.color.border }} />
-+        </View>
-+      </View>
-+      <View style={{ flexDirection: 'row', gap: 8 }}>
-+        <View style={{ flex: 1, height: 26, borderRadius: 10, backgroundColor: t.color.idealSoft, alignItems: 'center', justifyContent: 'center' }}>
-+          <CheckCheck size={15} color={t.color.idealDeep} />
-+        </View>
-+        <View style={{ flex: 1, height: 26, borderRadius: 10, backgroundColor: t.color.fallbackSoft, alignItems: 'center', justifyContent: 'center' }}>
-+          <Check size={15} color={t.color.fallbackDeep} />
-+        </View>
-+      </View>
++    <View style={[s.tile, { width: 108, height: 108, borderRadius: 30, backgroundColor: t.color.bgAlt, transform: [{ rotate: '3deg' }] }]}>
++      <Svg width={84} height={84} viewBox="0 0 84 84">
++        <Path d="M20 50H64L59 74Q58 78 54 78H30Q26 78 25 74Z" fill={t.color.borderStrong} />
++        <Rect x={16} y={44} width={52} height={10} rx={5} fill={t.color.text} />
++        <Path d="M42 44V30" stroke={t.color.text} strokeWidth={4.5} strokeLinecap="round" />
++        <Path d="M42 34C33 34 28 28 28 20 37 20 42 26 42 34Z" fill={t.color.ideal} />
++        <Path d="M42 30C50 30 55 25 55 17 47 17 42 22 42 30Z" fill={t.color.fallback} />
++      </Svg>
 +    </View>
-+    <Spark t={t} left={10} top={18} size={10} />
++    <Dot color={t.color.bgAlt} size={44} style={{ position: 'absolute', left: 142, top: 22, borderWidth: 4, borderColor: t.accent.fill }}>
++      <Plus size={24} color={t.accent.text} />
++    </Dot>
++    <Spark t={t} left={30} top={30} size={10} />
 +  </View>
 +);
 +
-+const DRAWINGS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, Draw> = { 1: Sprout, 2: PlanAB, 3: FourKinds, 4: WeekCounts, 5: Swatches, 6: Nudge, 7: FirstHabit };
++const DRAWINGS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, Draw> = { 1: Sprout, 2: PlanAB, 3: Planner, 4: WeekCounts, 5: YourPhone, 6: Nudge, 7: Seedling };
 +
 +const s = StyleSheet.create({
 +  canvas: { width: PICTURE_WIDTH, height: PICTURE_HEIGHT, alignItems: 'center', justifyContent: 'center' },
@@ -2934,8 +2947,8 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +});
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 18:29:55.020692551 +0000
-@@ -1,99 +1,146 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 19:24:10.550510300 +0000
+@@ -1,99 +1,150 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -3090,7 +3103,11 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -          importantForAccessibility="no-hide-descendants"
 -        >
 -          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
-+    <View style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
++    <View style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => {
++      // A step left behind in the stack is hidden and reports 0: never let that set the density.
++      const h = e.nativeEvent.layout.height;
++      if (h > 0) setHeight(h);
++    }}>
 +      <View style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: barAndInset + pictureMax, minHeight: barAndInset }]}>
 +      <View style={styles.bar}>
 +        <View style={styles.side}>
@@ -3145,7 +3162,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
        </View>
      </View>
    );
-@@ -101,11 +148,28 @@
+@@ -101,11 +152,28 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },

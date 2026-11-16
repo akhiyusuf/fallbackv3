@@ -656,6 +656,34 @@ their high priorities and arrange which matters most.
   3. Arrows work everywhere and with a screen reader; is drag-to-reorder
      wanted as well on a phone?
 
+### Round 4, fourth pass (same day, preview version 9)
+
+Feedback: an onboarding step must not say the same thing twice (a picture of
+the set-up, then the set-up itself). Steps 2, 4 and 6 read fine. And the
+choice made on step 5 "doesn't register in the app after a user has clicked
+Allow".
+
+- **Rule for the pictures:** a step's picture shows the idea in its headline.
+  It is never a small copy of the content under it. Steps 3, 5 and 7 broke
+  that and were redrawn: 3 a planner page (was the four task kinds, which are
+  the tiles below) · 5 a phone with a brush on it (was the theme swatches,
+  which are the picker below) · 7 a seedling in a pot with a plus (was a task
+  card, which is the form below; it also answers step 1's grown plant).
+- **Bug found and fixed in the preview — reminders did not register.**
+  Turning on "Gentle nudges" on step 5 and tapping Allow on step 6 left
+  `notifications.master` on with every reminder under it off, so Settings said
+  "No notifications set" and nothing would ever be sent. Allow now also
+  switches on the reminders that screen describes: routine due, event
+  starting, course dose, gentle re-entry. **This is a behaviour change the
+  PRD owner must confirm** (which reminders "Allow" turns on).
+- Also fixed: a step left behind in the navigation stack reported a height of
+  zero and could push the shared density to "tight"; zero heights are ignored.
+- **Open with the human:** step 5's reminders switch and step 6's Allow / Not
+  now ask the same question twice, and step 6 only appears when the switch is
+  on, so the step dots jump from 5 to 7 when it is off. Proposed: drop the
+  switch from step 5 and always show step 6. Not applied, because the human
+  asked for the content of the steps to stay as it is.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
