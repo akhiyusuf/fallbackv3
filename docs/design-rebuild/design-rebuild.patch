@@ -132,25 +132,101 @@ diff -ruN a/src/db/migrations/005_task_is_note.ts b/src/db/migrations/005_task_i
 +    UPDATE task SET is_note = 1 WHERE type = 'todo' AND note IS NOT NULL AND trim(note) <> '';
 +  `,
 +};
+diff -ruN a/src/db/migrations/006_settings_accent_ext.ts b/src/db/migrations/006_settings_accent_ext.ts
+--- a/src/db/migrations/006_settings_accent_ext.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/db/migrations/006_settings_accent_ext.ts	2026-11-16 16:09:46.476468386 +0000
+@@ -0,0 +1,15 @@
++import type { Migration } from './types';
++
++/**
++ * Themes beyond the original four (a fifth named theme, and a person's own colour as
++ * `hue-<n>`). `settings.accent` carries a CHECK for the original four, and SQLite cannot relax
++ * a CHECK without rebuilding the table, so the wider value lives beside it: when `accent_ext`
++ * is set it wins, and `accent` keeps the last original theme as the fallback.
++ */
++export const MIGRATION_006_SETTINGS_ACCENT_EXT: Migration = {
++  version: 6,
++  name: 'settings.accent_ext — more themes and a custom colour',
++  up: `
++    ALTER TABLE settings ADD COLUMN accent_ext TEXT;
++  `,
++};
 diff -ruN a/src/db/migrations/index.ts b/src/db/migrations/index.ts
 --- a/src/db/migrations/index.ts	2026-11-16 05:43:15.824554748 +0000
-+++ b/src/db/migrations/index.ts	2026-11-16 07:02:37.058149325 +0000
-@@ -7,6 +7,7 @@
++++ b/src/db/migrations/index.ts	2026-11-16 16:09:46.487547152 +0000
+@@ -7,6 +7,8 @@
  import { MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE } from './002_offday_whole_day_unique';
  import { MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK } from './003_snoozable_and_one_hop_check';
  import { MIGRATION_004_ASSISTANT_VOICE_LANGUAGE } from './004_assistant_voice_language';
 +import { MIGRATION_005_TASK_IS_NOTE } from './005_task_is_note';
++import { MIGRATION_006_SETTINGS_ACCENT_EXT } from './006_settings_accent_ext';
  import type { Migration } from './types';
  
  export type { Migration } from './types';
-@@ -16,6 +17,7 @@
+@@ -16,6 +18,8 @@
    MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE,
    MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK,
    MIGRATION_004_ASSISTANT_VOICE_LANGUAGE,
 +  MIGRATION_005_TASK_IS_NOTE,
++  MIGRATION_006_SETTINGS_ACCENT_EXT,
  ];
  
  export const CURRENT_SCHEMA_VERSION: number = MIGRATIONS[MIGRATIONS.length - 1]!.version;
+diff -ruN a/src/db/repositories/settingsRepository.ts b/src/db/repositories/settingsRepository.ts
+--- a/src/db/repositories/settingsRepository.ts	2026-11-16 05:43:15.823895091 +0000
++++ b/src/db/repositories/settingsRepository.ts	2026-11-16 16:09:46.487840132 +0000
+@@ -22,10 +22,14 @@
+ 
+ import type { DbClient } from '../client';
+ 
++/** The values `settings.accent` may hold (its CHECK). Anything else is stored in `accent_ext`. */
++const ORIGINAL_ACCENTS: ReadonlySet<string> = new Set(['forge-orange', 'indigo', 'berry', 'plum']);
++
+ interface SettingsRow {
+   readonly id: number;
+   readonly theme: string;
+   readonly accent: string;
++  readonly accent_ext: string | null;
+   readonly onboarding_completed_at: string | null;
+   readonly tenure_anchor_date: string;
+   readonly cycle_cadence: string;
+@@ -78,7 +82,7 @@
+   return {
+     schemaVersion: CURRENT_SCHEMA_VERSION,
+     theme: row.theme as ThemeMode,
+-    accent: row.accent as AccentKey,
++    accent: (row.accent_ext ?? row.accent) as AccentKey,
+     onboardingCompletedAt: row.onboarding_completed_at as Instant | null,
+     tenureAnchorDate: row.tenure_anchor_date as LocalDate,
+     cycleCadence: row.cycle_cadence as CycleCadence,
+@@ -96,7 +100,7 @@
+ }
+ 
+ const SETTINGS_COLUMNS = `
+-  id, theme, accent, onboarding_completed_at, tenure_anchor_date, cycle_cadence,
++  id, theme, accent, accent_ext, onboarding_completed_at, tenure_anchor_date, cycle_cadence,
+   notif_master, notif_routine_due, notif_event_starting, notif_course_dose,
+   notif_course_ending_soon, notif_gentle_reentry, notif_milestone_reached, notif_daily_digest,
+   notif_digest_time, assistant_language, assistant_voice,
+@@ -147,7 +151,7 @@
+ 
+         await db.withTransactionAsync(async () => {
+           await db.runAsync(
+-            `UPDATE settings SET theme=?, accent=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
++            `UPDATE settings SET theme=?, accent=?, accent_ext=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
+              notif_master=?, notif_routine_due=?, notif_event_starting=?, notif_course_dose=?,
+              notif_course_ending_soon=?, notif_gentle_reentry=?, notif_milestone_reached=?, notif_daily_digest=?,
+              notif_digest_time=?, assistant_language=?, assistant_voice=?,
+@@ -155,7 +159,8 @@
+              WHERE id = 1`,
+             [
+               next.theme,
+-              next.accent,
++              ORIGINAL_ACCENTS.has(next.accent) ? next.accent : ORIGINAL_ACCENTS.has(merged.accent) ? merged.accent : 'forge-orange',
++              ORIGINAL_ACCENTS.has(next.accent) ? null : next.accent,
+               next.onboardingCompletedAt,
+               next.tenureAnchorDate,
+               next.cycleCadence,
 diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepository.ts
 --- a/src/db/repositories/taskRepository.ts	2026-11-16 05:43:15.823700626 +0000
 +++ b/src/db/repositories/taskRepository.ts	2026-11-16 07:02:57.656762562 +0000
@@ -216,8 +292,16 @@ diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepo
            for (const step of newSteps) {
 diff -ruN a/src/db/schema.sql b/src/db/schema.sql
 --- a/src/db/schema.sql	2026-11-16 05:43:15.824818661 +0000
-+++ b/src/db/schema.sql	2026-11-16 07:02:37.058389916 +0000
-@@ -61,6 +61,7 @@
++++ b/src/db/schema.sql	2026-11-16 16:09:46.488032202 +0000
+@@ -12,6 +12,7 @@
+   id INTEGER PRIMARY KEY CHECK (id = 1),
+   theme TEXT NOT NULL CHECK (theme IN ('light','dark','auto')) DEFAULT 'auto',
+   accent TEXT NOT NULL CHECK (accent IN ('forge-orange','indigo','berry','plum')) DEFAULT 'forge-orange',
++  accent_ext TEXT,
+   onboarding_completed_at TEXT,
+   tenure_anchor_date TEXT NOT NULL,
+   cycle_cadence TEXT NOT NULL CHECK (cycle_cadence IN ('weekly','monthly')) DEFAULT 'monthly',
+@@ -61,6 +62,7 @@
    deleted_at TEXT,
    -- migration 3 (CR-4): PRD §3.7 per-task snooze gate, default on.
    snoozable INTEGER NOT NULL DEFAULT 1 CHECK (snoozable IN (0,1)),
@@ -236,6 +320,70 @@ diff -ruN a/src/domain/__fixtures__/index.ts b/src/domain/__fixtures__/index.ts
      createdAt: CREATED,
      updatedAt: CREATED,
      deletedAt: null,
+diff -ruN a/src/features/agents/store.ts b/src/features/agents/store.ts
+--- a/src/features/agents/store.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/agents/store.ts	2026-11-16 16:14:34.244453274 +0000
+@@ -0,0 +1,60 @@
++/**
++ * AI agent access — DESIGN REFERENCE ONLY.
++ *
++ * This holds the state for the permission screen so the look can be reviewed. Nothing here
++ * talks to an agent: there is no MCP server yet. The real feature (how an agent reaches the
++ * app, how a request is verified, where the audit log is stored) has to be specified in the
++ * PRD and designed by the architect before any of it is built. State is in memory on purpose,
++ * so no schema is implied.
++ */
++import { create } from 'zustand';
++
++export type AgentPermission = 'allow' | 'ask' | 'off';
++export type AgentScope = 'read' | 'log' | 'write' | 'delete' | 'notes';
++
++export interface AgentScopeSpec {
++  readonly key: AgentScope;
++  readonly label: string;
++  /** Deleting can never be pre-approved; reading is never a per-request question. */
++  readonly choices: readonly AgentPermission[];
++  readonly initial: AgentPermission;
++}
++
++export const AGENT_SCOPES: readonly AgentScopeSpec[] = [
++  { key: 'read', label: 'See tasks, logs and progress', choices: ['allow', 'off'], initial: 'allow' },
++  { key: 'log', label: 'Log done, fallback or skip', choices: ['ask', 'allow', 'off'], initial: 'ask' },
++  { key: 'write', label: 'Add and edit tasks', choices: ['ask', 'allow', 'off'], initial: 'ask' },
++  { key: 'delete', label: 'Delete tasks', choices: ['ask', 'off'], initial: 'ask' },
++  { key: 'notes', label: 'Read notes and to-do details', choices: ['allow', 'off'], initial: 'off' },
++];
++
++export const AGENT_PERMISSION_LABEL: Record<AgentPermission, string> = { ask: 'Ask me every time', allow: 'Allow', off: "Don't allow" };
++
++export interface ConnectedAgent {
++  readonly id: string;
++  readonly name: string;
++}
++
++export interface AgentAccessState {
++  readonly enabled: boolean;
++  readonly permissions: Record<AgentScope, AgentPermission>;
++  readonly agents: readonly ConnectedAgent[];
++  setEnabled(enabled: boolean): void;
++  setPermission(scope: AgentScope, value: AgentPermission): void;
++  connectExample(): void;
++  disconnect(id: string): void;
++  disconnectAll(): void;
++}
++
++const INITIAL = Object.fromEntries(AGENT_SCOPES.map((s) => [s.key, s.initial])) as Record<AgentScope, AgentPermission>;
++
++export const useAgentAccessStore = create<AgentAccessState>((set) => ({
++  enabled: false,
++  permissions: INITIAL,
++  agents: [],
++  setEnabled: (enabled) => set((s) => ({ enabled, agents: enabled ? s.agents : [] })),
++  setPermission: (scope, value) => set((s) => ({ permissions: { ...s.permissions, [scope]: value } })),
++  connectExample: () => set((s) => (s.agents.length ? s : { agents: [{ id: 'example', name: 'Claude' }] })),
++  disconnect: (id) => set((s) => ({ agents: s.agents.filter((a) => a.id !== id) })),
++  disconnectAll: () => set({ agents: [] }),
++}));
 diff -ruN a/src/features/assistant/AssistantHeader.tsx b/src/features/assistant/AssistantHeader.tsx
 --- a/src/features/assistant/AssistantHeader.tsx	2026-11-16 05:43:15.822222897 +0000
 +++ b/src/features/assistant/AssistantHeader.tsx	1970-01-01 00:00:00.000000000 +0000
@@ -575,7 +723,7 @@ diff -ruN a/src/features/assistant/OptionsSheet.tsx b/src/features/assistant/Opt
 -});
 diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCard.tsx
 --- a/src/features/assistant/PlanCard.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/assistant/PlanCard.tsx	2026-11-16 07:18:56.333577723 +0000
++++ b/src/features/assistant/PlanCard.tsx	2026-11-16 16:12:20.617286575 +0000
 @@ -0,0 +1,57 @@
 +/** PlanCard — a selectable plan. The ONE plan-choice style, on the paywall and in Settings (D9). */
 +import { StyleSheet, Text, View } from 'react-native';
@@ -606,7 +754,7 @@ diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCar
 +    >
 +      <View style={styles.row}>
 +        <View style={[styles.radio, { borderColor: selected ? t.accent.fill : t.color.borderStrong, backgroundColor: selected ? t.accent.fill : 'transparent' }]}>
-+          {selected ? <Check size={14} color={t.color.textOnAccent} /> : null}
++          {selected ? <Check size={14} color={t.accent.on} /> : null}
 +        </View>
 +        <View style={styles.text}>
 +          <View style={styles.titleRow}>
@@ -1389,7 +1537,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  });
 diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 --- a/src/features/browse/Fab.tsx	2026-11-16 05:43:15.822072570 +0000
-+++ b/src/features/browse/Fab.tsx	2026-11-16 07:18:56.332721709 +0000
++++ b/src/features/browse/Fab.tsx	2026-11-16 16:12:20.617177272 +0000
 @@ -1,24 +1,27 @@
 -/**
 - * M3. Shared floating add affordance for S09–S13. FAB-occlusion fix (cross-batch review
@@ -1419,7 +1567,7 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 +    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.wrap, { backgroundColor: t.accent.fillEdge }]}>
 +      {({ pressed }) => (
 +        <View style={[styles.face, { backgroundColor: t.accent.fill, marginBottom: pressed ? 0 : 4 }]}>
-+          <Plus size={26} color={t.color.textOnAccent} />
++          <Plus size={26} color={t.accent.onLarge} />
 +        </View>
 +      )}
 +    </Pressable>
@@ -2693,8 +2841,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  });
 diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboarding/PersonalizeScreen.tsx
 --- a/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 05:43:15.822463487 +0000
-+++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 06:06:46.796997086 +0000
-@@ -1,17 +1,15 @@
++++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 16:13:33.587478224 +0000
+@@ -1,24 +1,23 @@
 -/** S06 — Onboarding: Make it yours. route: /onboarding/personalize. Features: F9, F8, F14. */
 +/** S06 — onboarding step 5. Accent swatches and one reminders row; no dead "Preview" button. */
  import { useEffect, useState } from 'react';
@@ -2712,16 +2860,17 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -import { ACCENTS, DEFAULT_ACCENT, SPACE, useTheme } from '@/theme';
 -import { Button } from '@/ui';
 -import { Switch } from '@/ui';
-+import { ACCENTS, DEFAULT_ACCENT, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { DEFAULT_ACCENT, FONT_SIZE, RADIUS, SPACE, THEME_LABELS, THEME_ORDER, THEME_SEEDS, useTheme } from '@/theme';
 +import { ListGroup, ListRow, SectionHeading, Switch } from '@/ui';
  import type { AccentKey } from '@/types';
  
  import { S06_COPY } from './copy';
-@@ -19,6 +17,7 @@
+ import { OnboardingShell } from './OnboardingShell';
  import { useOnboardingStepMarker } from './useOnboardingResume';
  
- const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
-+const ACCENT_LABEL: Record<AccentKey, string> = { 'forge-orange': 'Orange', indigo: 'Indigo', berry: 'Berry', plum: 'Plum' };
+-const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
++const ACCENT_ORDER: readonly AccentKey[] = THEME_ORDER;
++const ACCENT_LABEL: Record<string, string> = THEME_LABELS;
  
  export function PersonalizeScreen() {
    const t = useTheme();
@@ -2797,7 +2946,7 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -                accessibilityLabel={`${swatch.label}${selected ? ', selected' : ''}`}
 -                style={[styles.swatch, { backgroundColor: swatch.base }]}
 +                accessibilityLabel={`${ACCENT_LABEL[key]}${selected ? ', selected' : ''}`}
-+                style={[styles.swatch, { backgroundColor: ACCENTS[key].base }]}
++                style={[styles.swatch, { backgroundColor: THEME_SEEDS[key as keyof typeof THEME_SEEDS] }]}
                >
 -                {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
 +                {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}
@@ -2941,7 +3090,7 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
  });
 diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-16 06:06:46.796024217 +0000
++++ b/src/features/onboarding/copy.ts	2026-11-16 16:12:20.619060598 +0000
 @@ -17,11 +17,9 @@
  export const S03_COPY = {
    headline: 'A plan A and a plan B for every habit.',
@@ -2981,8 +3130,8 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 -  accentSectionLabel: 'Accent color',
 -  accentHelper: 'Only recolors buttons and progress — never the ideal, fallback, or off-day colors.',
 +  body: 'Pick an accent colour and decide if you want a gentle nudge now and then.',
-+  accentSectionLabel: 'Accent colour',
-+  accentHelper: 'It recolours buttons and progress. Ideal, fallback and off-day colours never change.',
++  accentSectionLabel: 'Theme',
++  accentHelper: 'It recolours the whole app. Ideal green and fallback blue never change. More colours are in Settings.',
    previewLabel: 'Preview',
    remindersSectionLabel: 'Reminders',
    remindersRowLabel: 'Gentle nudges for due habits',
@@ -3294,8 +3443,8 @@ diff -ruN a/src/features/progress/index.ts b/src/features/progress/index.ts
  export * from './copy';
 diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.tsx
 --- a/src/features/search/FilterChip.tsx	2026-11-16 05:43:15.821944328 +0000
-+++ b/src/features/search/FilterChip.tsx	2026-11-16 07:14:18.909164933 +0000
-@@ -13,7 +13,7 @@
++++ b/src/features/search/FilterChip.tsx	2026-11-16 16:12:20.617066491 +0000
+@@ -13,15 +13,15 @@
        accessibilityLabel={label}
        style={[
          styles.chip,
@@ -3303,8 +3452,10 @@ diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.
 +        { backgroundColor: selected ? t.accent.fill : t.color.bgAlt, borderColor: selected ? t.accent.fill : t.color.borderStrong },
        ]}
      >
-       <Text style={[styles.label, { color: selected ? t.color.textOnAccent : t.color.text }]}>{label}</Text>
-@@ -22,6 +22,6 @@
+-      <Text style={[styles.label, { color: selected ? t.color.textOnAccent : t.color.text }]}>{label}</Text>
++      <Text style={[styles.label, { color: selected ? t.accent.on : t.color.text }]}>{label}</Text>
+     </Pressable>
+   );
  }
  
  const styles = StyleSheet.create({
@@ -3487,7 +3638,7 @@ diff -ruN a/src/features/search/copy.ts b/src/features/search/copy.ts
  
 diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
 --- a/src/features/settings/copy.ts	2026-11-16 05:43:15.822109910 +0000
-+++ b/src/features/settings/copy.ts	2026-11-16 09:18:20.402030400 +0000
++++ b/src/features/settings/copy.ts	2026-11-16 16:12:20.618886498 +0000
 @@ -5,19 +5,19 @@
  
  export const S41_COPY = {
@@ -3503,22 +3654,25 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
 -    { label: 'Progress & Achievements', rows: ['Badges', 'Records'] },
 +    { label: 'Progress and achievements', rows: ['Badges', 'Records'] },
      { label: 'Preferences', rows: ['Notifications', 'Theme & accent', 'Widgets'] },
-     { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history'] },
+-    { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history'] },
 -    { label: 'Account & Data', rows: ['Account & sync', 'Data'] },
++    { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history', 'AI agent access'] },
 +    { label: 'Account and data', rows: ['Account & sync', 'Data'] },
      { label: 'Support', rows: ['Help & about'] },
    ],
 -  rowSubcopy: { Records: 'Weekly & monthly recaps' } as Record<string, string>,
-+  rowSubcopy: { Records: 'Weekly and monthly recaps' } as Record<string, string>,
++  rowSubcopy: { Records: 'Weekly and monthly recaps', 'AI agent access': 'Let an AI app you use help, with your permission' } as Record<string, string>,
  } as const;
  
  export const S42_COPY = {
-@@ -43,25 +43,28 @@
+@@ -43,25 +43,30 @@
      { value: 'auto', label: 'Auto' },
    ],
    accentLabel: 'Accent color',
 -  accentHelper: 'Accent only recolors CTAs & progress — never the signal colors.',
-+  accentHelper: 'The accent recolours buttons and progress. Ideal, fallback and off-day colours never change.',
++  accentHelper: 'A theme recolours the whole app. Ideal green and fallback blue never change.',
++  moreColoursLabel: 'More colours',
++  moreColoursHelper: "Greens, sky blues, golds and reds aren't offered. Those colours already mean ideal, fallback, XP and errors.",
    previewTaskName: 'Morning workout',
 +  previewIdeal: 'Full workout',
 +  previewFallback: '10 push-ups',
@@ -3549,7 +3703,7 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
    smartHelper: 'Always shows whichever task is due soonest.',
    save: 'Save',
    footer: 'Widgets refresh automatically and always match your current theme and accent.',
-@@ -84,6 +87,6 @@
+@@ -84,6 +89,6 @@
      { label: 'Terms of service', toast: 'Opening…' },
    ],
    privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
@@ -3560,19 +3714,23 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
  } as const;
 diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.tsx
 --- a/src/features/task/AddMenuHost.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/AddMenuHost.tsx	2026-11-16 05:56:01.130071269 +0000
-@@ -0,0 +1,44 @@
++++ b/src/features/task/AddMenuHost.tsx	2026-11-16 16:13:33.576476508 +0000
+@@ -0,0 +1,82 @@
 +/**
 + * AddMenuHost — S15 "What do you want to add?" as a bottom sheet over the
-+ * dimmed current screen (D3). Each type is a coloured icon circle (D14) in one
-+ * grouped list (D7). Mounted once in app/_layout.tsx.
++ * dimmed current screen (D3). Fallback AI leads the sheet: speaking or typing
++ * is the fastest way to add something, and this is the one place it lives
++ * (it is no longer a bare microphone in the Today header). Below it, each type
++ * is a coloured icon circle (D14) in one grouped list (D7).
++ * Mounted once in app/_layout.tsx.
 + */
-+import { CalendarRange, ListTodo, Repeat, Timer } from 'lucide-react-native';
++import { AudioLines, CalendarRange, ListTodo, Repeat, Sparkles, Timer } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
 +import { useAddMenuStore } from '@/app-shell/stores/addMenu';
 +import { ROUTES } from '@/navigation';
-+import { ACCENTS } from '@/theme';
++import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 +import { Dialog, ListGroup, ListRow, TaskIcon } from '@/ui';
 +
 +const ROWS = [
@@ -3582,13 +3740,38 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 +  { key: 'todo', title: 'To-do or note', descriptor: 'A loose task, no schedule', icon: ListTodo, color: ACCENTS.plum.base, href: ROUTES.addTodo },
 +] as const;
 +
++const AI_TITLE = 'Tell Fallback AI';
++const AI_BODY = 'Say it or type it. It sets it up for you.';
++
 +export function AddMenuHost() {
++  const t = useTheme();
 +  const router = useRouter();
 +  const open = useAddMenuStore((s) => s.open);
 +  const hide = useAddMenuStore((s) => s.hide);
 +  return (
 +    <Dialog visible={open} onClose={hide} title="What do you want to add?" accessibilityLabel="What do you want to add?" showClose>
-+      <ListGroup>
++      <Pressable
++        onPress={() => {
++          hide();
++          router.push(ROUTES.assistant as Href);
++        }}
++        accessibilityRole="button"
++        accessibilityLabel={`${AI_TITLE}. ${AI_BODY}`}
++        testID="add-pick-assistant"
++        style={({ pressed }) => [styles.ai, { backgroundColor: t.accent.soft, borderColor: pressed ? t.accent.text : t.accent.soft }]}
++      >
++        <View style={[styles.aiIcon, { backgroundColor: t.accent.fill }]}>
++          <AudioLines size={24} color={t.accent.onLarge} />
++        </View>
++        <View style={styles.aiText}>
++          <View style={styles.aiTitleRow}>
++            <Text style={[styles.aiTitle, { color: t.color.text }]}>{AI_TITLE}</Text>
++            <Sparkles size={16} color={t.accent.text} />
++          </View>
++          <Text style={[styles.aiBody, { color: t.color.text }]}>{AI_BODY}</Text>
++        </View>
++      </Pressable>
++      <ListGroup title="Or add it yourself">
 +        {ROWS.map((row) => (
 +          <ListRow
 +            key={row.key}
@@ -3606,6 +3789,15 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 +    </Dialog>
 +  );
 +}
++
++const styles = StyleSheet.create({
++  ai: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3, padding: SPACE.s3, borderRadius: RADIUS.lg, borderWidth: 1.5, minHeight: 76 },
++  aiIcon: { width: 48, height: 48, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
++  aiText: { flex: 1, gap: 2 },
++  aiTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
++  aiTitle: { fontSize: FONT_SIZE.md, fontWeight: '700' },
++  aiBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
++});
 diff -ruN a/src/features/task/DeleteTaskSheet.tsx b/src/features/task/DeleteTaskSheet.tsx
 --- a/src/features/task/DeleteTaskSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/DeleteTaskSheet.tsx	2026-11-16 05:58:33.277346803 +0000
@@ -4087,10 +4279,64 @@ diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
 +    [showToast, pushCelebration],
 +  );
 +}
+diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
+--- a/src/features/today/StatHero.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/today/StatHero.tsx	2026-11-16 16:12:43.271360566 +0000
+@@ -0,0 +1,50 @@
++/**
++ * StatHero — the one block of solid theme colour on a screen: the number that matters.
++ * Text on the bright colour is large and bold (white reads at 3:1 or better there); the small
++ * line sits on a deeper band of the same colour where white reads at 4.5:1.
++ */
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import { ChevronRight } from 'lucide-react-native';
++
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { ProgressRing, Skeleton } from '@/ui';
++
++export interface StatHeroProps {
++  readonly percent: number | null;
++  readonly loading?: boolean;
++  readonly label: string;
++  readonly detail: string;
++  readonly onPress?: () => void;
++  readonly accessibilityLabel: string;
++}
++
++export function StatHero({ percent, loading = false, label, detail, onPress, accessibilityLabel }: StatHeroProps) {
++  const t = useTheme();
++  if (loading) return <Skeleton height={112} radius={RADIUS.lg} />;
++  return (
++    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.card, { backgroundColor: t.accent.fill }]}>
++      <View style={styles.top}>
++        <Text style={[styles.numeral, { color: t.accent.onLarge }]}>{percent === null ? '–' : `${percent}%`}</Text>
++        <Text numberOfLines={1} style={[styles.label, { color: t.accent.onLarge }]}>
++          {label}
++        </Text>
++        <ProgressRing percent={percent ?? 0} size={44} strokeWidth={6} color={t.accent.onLarge} trackColor={t.accent.onLarge} trackOpacity={0.3} accessibilityLabel={accessibilityLabel} />
++      </View>
++      <View style={[styles.band, { backgroundColor: t.accent.band }]}>
++        <Text numberOfLines={1} style={[styles.detail, { color: t.accent.onBand }]}>
++          {detail}
++        </Text>
++        {onPress ? <ChevronRight size={18} color={t.accent.onBand} /> : null}
++      </View>
++    </Pressable>
++  );
++}
++
++const styles = StyleSheet.create({
++  card: { borderRadius: RADIUS.lg, overflow: 'hidden' },
++  top: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 + 4 },
++  numeral: { fontSize: FONT_SIZE.xxxl, lineHeight: 44, fontWeight: '800', fontVariant: ['tabular-nums'] },
++  label: { flex: 1, fontSize: FONT_SIZE.lg, fontWeight: '700' },
++  band: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2, paddingHorizontal: SPACE.s3, paddingVertical: SPACE.s2 + 2 },
++  detail: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: '600' },
++});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-16 09:18:20.398725389 +0000
-@@ -1,35 +1,50 @@
++++ b/src/features/today/TodayScreen.tsx	2026-11-16 16:12:20.619949020 +0000
+@@ -1,35 +1,51 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
 - * (re-entry banner landing state).
@@ -4103,7 +4349,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 -import { Bell, ChevronRight, Mic, Plus, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { Bell, Mic, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
++import { Bell, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 +import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
  
  import { roundHalfUp } from '@/lib/number';
@@ -4142,6 +4388,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +import { MetaLine, StatusPill, planSummary } from '@/features/task/TaskDetails';
 +import { LOG_SAVE_FAILED, useLogFeedback } from '@/features/task/logFeedback';
  import { reentryStatLine, S09_COPY, statLine } from './copy';
++import { StatHero } from './StatHero';
 +import { TodayTaskCard } from './TodayTaskCard';
  import { useTodayRows, type TodayRow } from './useTodayRows';
  
@@ -4158,7 +4405,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  export interface TodayScreenProps {
    readonly reentryOverride?: boolean;
    readonly justAddedOverride?: boolean;
-@@ -39,54 +54,47 @@
+@@ -39,54 +55,47 @@
  export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
    const t = useTheme();
    const router = useRouter();
@@ -4230,7 +4477,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +106,191 @@
+@@ -98,223 +107,185 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -4265,7 +4512,6 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +        subtitle={formatHeaderDate(date)}
 +        right={
 +          <>
-+            <IconButton icon={Mic} accessibilityLabel={S09_COPY.assistantLabel} onPress={() => router.push(ROUTES.assistant as Href)} />
 +            <IconButton icon={SearchIcon} accessibilityLabel={S09_COPY.searchLabel} onPress={() => router.push(withOrigin(ROUTES.search, 'today') as Href)} />
 +            <IconButton icon={SettingsIcon} accessibilityLabel={S09_COPY.settingsLabel} onPress={() => router.push(ROUTES.settings as Href)} />
 +          </>
@@ -4351,22 +4597,17 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 -          </View>
 -        </Card>
 +        {isBlankSlate ? null : (
++          <StatHero
++            percent={percent}
++            loading={consistency.isLoading}
++            label={S09_COPY.statLabel}
++            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
++            onPress={() => router.push(ROUTES.progress as Href)}
++            accessibilityLabel={`${S09_COPY.statLabel}: ${percent === null ? S09_COPY.noDataStat : `${percent} percent`}. ${S09_COPY.statHelper}`}
++          />
++        )}
++        {isBlankSlate ? null : (
 +          <ListGroup>
-+            <ListRow
-+              leading={
-+                consistency.isLoading ? (
-+                  <Skeleton width={56} height={28} />
-+                ) : (
-+                  <Text style={[styles.statNumeral, { color: t.color.text }]}>{percent === null ? '–' : `${percent}%`}</Text>
-+                )
-+              }
-+              label={S09_COPY.statLabel}
-+              sublabel={
-+                percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)
-+              }
-+              onPress={() => router.push(ROUTES.progress as Href)}
-+              accessibilityLabel={`${S09_COPY.statLabel}: ${percent === null ? S09_COPY.noDataStat : `${percent} percent`}. ${S09_COPY.statHelper}`}
-+            />
 +            <ListRow
 +              icon={Trophy}
 +              label={S09_COPY.achievementsTeaser}
@@ -4590,17 +4831,22 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  });
 diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskCard.tsx
 --- a/src/features/today/TodayTaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 09:18:41.014726614 +0000
-@@ -0,0 +1,67 @@
++++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 16:12:43.281008862 +0000
+@@ -0,0 +1,86 @@
 +/**
 + * TodayTaskCard — the one task card used on Today. The theme screen's preview renders this
 + * same component, so what a person sees in the preview is exactly what the app shows.
++ *
++ * Once logged, the whole card takes the state colour (green ideal, blue fallback), so the list
++ * fills with colour as the day goes on.
 + */
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
 +import { StatusPill, MetaLine } from '@/features/task/TaskDetails';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { isLogged, LogButtons, LogStateChip, TaskIcon, type IconComponent } from '@/ui';
++import { ChevronDown } from 'lucide-react-native';
++
++import { isLogged, LogButtons, logStateVisual, TaskIcon, type IconComponent } from '@/ui';
 +import type { ChipState } from '@/types';
 +
 +export interface TodayTaskCardProps {
@@ -4624,6 +4870,8 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +  const t = useTheme();
 +  const logged = isLogged(chip);
 +  const showButtons = !isOff && (!logged || reopened);
++  const v = logged && !isOff ? logStateVisual(t, chip) : null;
++  const StateIcon = v?.icon;
 +  const head = (
 +    <>
 +      <TaskIcon icon={icon} color={color} muted={isOff} />
@@ -4631,12 +4879,12 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +        <Text numberOfLines={1} style={[styles.name, { color: t.color.text }]}>
 +          {name}
 +        </Text>
-+        <MetaLine parts={meta} />
++        {v ? <Text style={[styles.status, { color: v.deep }]}>{v.doneLabel}</Text> : <MetaLine parts={meta} />}
 +      </View>
 +    </>
 +  );
 +  return (
-+    <View style={[styles.card, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
++    <View style={[styles.card, v ? { backgroundColor: v.soft, borderColor: v.soft } : { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
 +      <View style={styles.head}>
 +        {onOpen ? (
 +          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${name}, ${meta.join(', ')}. Opens the task`} style={styles.open}>
@@ -4645,7 +4893,16 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +        ) : (
 +          <View style={styles.open}>{head}</View>
 +        )}
-+        {isOff ? <StatusPill label={offLabel} tone="off" /> : logged ? <LogStateChip value={chip} onPress={onToggleReopen} accessibilityLabel={name} /> : null}
++        {isOff ? (
++          <StatusPill label={offLabel} tone="off" />
++        ) : v && StateIcon ? (
++          <Pressable onPress={onToggleReopen} accessibilityRole="button" accessibilityLabel={`${name}, ${v.doneLabel}. Change`} accessibilityState={{ expanded: reopened }} hitSlop={8} style={styles.change}>
++            <View style={[styles.tick, { backgroundColor: v.line }]}>
++              <StateIcon size={18} color={t.color.iconOnSignal} />
++            </View>
++            <ChevronDown size={16} color={v.deep} />
++          </Pressable>
++        ) : null}
 +      </View>
 +      {showButtons ? <LogButtons value={chip} onChange={onLog} accessibilityLabel={name} idealHint={idealHint ?? undefined} fallbackHint={fallbackHint ?? undefined} /> : null}
 +    </View>
@@ -4658,6 +4915,9 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +  open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
 +  textCol: { flex: 1, gap: 2 },
 +  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
++  status: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  change: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1, minHeight: 44 },
++  tick: { width: 32, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
 +});
 diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
 --- a/src/features/today/copy.ts	2026-11-16 05:43:15.822345620 +0000
@@ -4736,42 +4996,271 @@ diff -ruN a/src/queries/mutations.ts b/src/queries/mutations.ts
          createdAt: nowIso,
          updatedAt: nowIso,
          deletedAt: null,
+diff -ruN a/src/services/widgets/index.ts b/src/services/widgets/index.ts
+--- a/src/services/widgets/index.ts	2026-11-16 05:43:15.821127102 +0000
++++ b/src/services/widgets/index.ts	2026-11-16 16:13:33.587749465 +0000
+@@ -25,7 +25,7 @@
+ import { repos } from '@/db';
+ import { on } from '@/lib/events';
+ import { addDays, now, today } from '@/lib/date';
+-import { ACCENTS, PALETTES, resolveScheme } from '@/theme';
++import { PALETTES, resolveScheme, themeSeed } from '@/theme';
+ import { err, ok } from '@/types';
+ import type { Result, WidgetBridge } from '@/types';
+ 
+@@ -83,7 +83,7 @@
+       date: todayDate,
+       scheme,
+       accent: settings.accent,
+-      accentHex: ACCENTS[settings.accent].base,
++      accentHex: themeSeed(settings.accent),
+       palette: PALETTES[scheme],
+       widgetConfigs: settings.widgets,
+       generatedAt: now(),
+diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
+--- a/src/theme/engine.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/theme/engine.ts	2026-11-16 16:20:47.824087370 +0000
+@@ -0,0 +1,168 @@
++/**
++ * Theme engine. One seed colour in, a whole contrast-checked theme out.
++ *
++ * A theme is never a hand-picked table of shades: every shade is derived from the seed by the
++ * rules below, so a named theme and a person's own colour go through the same checks and no
++ * theme can produce text that is hard to read. Works in OKLCH so that "darker" and "lighter"
++ * keep the hue.
++ */
++import { INK, PALETTES, WHITE, type ColorScheme, type Palette } from './tokens';
++
++type Rgb = readonly [number, number, number];
++
++function hexToRgb(hex: string): Rgb {
++  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
++}
++function rgbToHex(rgb: Rgb): string {
++  return `#${rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')}`;
++}
++function toLinear(c: number): number {
++  const v = c / 255;
++  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
++}
++function toGamma(c: number): number {
++  return 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
++}
++function luminance(hex: string): number {
++  const [r, g, b] = hexToRgb(hex);
++  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
++}
++
++/** WCAG contrast ratio between two colours. */
++export function contrast(a: string, b: string): number {
++  const x = luminance(a);
++  const y = luminance(b);
++  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
++}
++
++/** `share` of `b` mixed into `a`. */
++export function mix(a: string, b: string, share: number): string {
++  const x = hexToRgb(a);
++  const y = hexToRgb(b);
++  return rgbToHex([x[0] + (y[0] - x[0]) * share, x[1] + (y[1] - x[1]) * share, x[2] + (y[2] - x[2]) * share]);
++}
++
++/** Lightness, chroma, hue (degrees). */
++export function toLch(hex: string): readonly [number, number, number] {
++  const [r8, g8, b8] = hexToRgb(hex);
++  const r = toLinear(r8);
++  const g = toLinear(g8);
++  const b = toLinear(b8);
++  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
++  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
++  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
++  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
++  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
++  const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
++  return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360];
++}
++
++/** Nearest displayable colour: chroma is reduced until the colour fits the screen. */
++export function fromLch(L: number, C: number, H: number): string {
++  const hr = (H * Math.PI) / 180;
++  for (let c = C; c >= 0; c -= 0.004) {
++    const a = c * Math.cos(hr);
++    const b = c * Math.sin(hr);
++    const l = Math.pow(L + 0.3963377774 * a + 0.2158037573 * b, 3);
++    const m = Math.pow(L - 0.1055613458 * a - 0.0638541728 * b, 3);
++    const s = Math.pow(L - 0.0894841775 * a - 1.291485548 * b, 3);
++    const rgb: Rgb = [
++      4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
++      -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
++      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
++    ];
++    if (rgb.every((v) => v >= -0.001 && v <= 1.001)) {
++      return rgbToHex([toGamma(Math.max(0, Math.min(1, rgb[0]))), toGamma(Math.max(0, Math.min(1, rgb[1]))), toGamma(Math.max(0, Math.min(1, rgb[2])))]);
++    }
++  }
++  return L > 0.5 ? WHITE : INK;
++}
++
++export interface DerivedAccent {
++  /** The seed itself: marks that carry no text (rings, dots, progress). */
++  readonly base: string;
++  /** Solid behind text: buttons, selected chips, the add button, the top card. Kept bright. */
++  readonly fill: string;
++  readonly fillEdge: string;
++  readonly hover: string;
++  /** Small text and icons on `fill`: whichever of ink or white reads at 4.5:1 or better. */
++  readonly on: string;
++  /** Large text and icons on `fill` (3:1 is enough): white whenever it passes. */
++  readonly onLarge: string;
++  /** A deeper band of the same colour where small white text reads at 4.5:1. */
++  readonly band: string;
++  readonly onBand: string;
++  /** Theme-coloured text and icons on the page, a card or the tint. */
++  readonly text: string;
++  readonly deep: string;
++  /** The tint: selected rows, pills, the active tab. */
++  readonly soft: string;
++}
++
++export interface DerivedTheme {
++  readonly accent: DerivedAccent;
++  readonly color: Palette;
++}
++
++const cache = new Map<string, DerivedTheme>();
++
++export function deriveTheme(seed: string, scheme: ColorScheme): DerivedTheme {
++  const key = `${seed}|${scheme}`;
++  const hit = cache.get(key);
++  if (hit) return hit;
++
++  const [L, C, H] = toLch(seed);
++  const dark = scheme === 'dark';
++  const walk = (test: (c: string) => boolean, dir: 1 | -1, l0: number = L, c0: number = C): string => {
++    let l = l0;
++    let c = fromLch(l, c0, H);
++    for (let n = 0; n < 90 && !test(c); n += 1) {
++      l += dir * 0.01;
++      c = fromLch(l, c0, H);
++    }
++    return c;
++  };
++
++  // The page takes a hint of the theme; cards stay the lightest surface.
++  const n = PALETTES[scheme];
++  const color: { -readonly [K in keyof Palette]: Palette[K] } = dark
++    ? { ...n, bg: mix(n.bg, seed, 0.07), bgAlt: mix(n.bgAlt, seed, 0.08), surface: mix(n.surface, seed, 0.11), border: mix(n.border, seed, 0.13) }
++    : { ...n, bg: mix(n.bg, seed, 0.05), surface: mix(n.surface, seed, 0.08), border: mix(n.border, seed, 0.09) };
++
++  // Secondary text keeps 4.5:1 on the tinted page and cards.
++  // Field and control outlines keep 3:1.
++  const readable = (c: string, min: number): string => {
++    let out = c;
++    for (let i = 0; i < 20 && Math.min(contrast(out, color.bg), contrast(out, color.bgAlt)) < min; i += 1) out = mix(out, n.text, 0.08);
++    return out;
++  };
++  color.textMuted = readable(n.textMuted, 4.6);
++  color.textDim = readable(n.textDim, 4.6);
++  color.borderStrong = readable(n.borderStrong, 3.05);
++
++  const bestOn = contrast(INK, seed) >= contrast(WHITE, seed) ? INK : WHITE;
++  // Bright fill: the seed, nudged only if neither ink nor white reads on it, and until white reads at 3:1.
++  let fill = contrast(bestOn, seed) >= 4.5 ? seed : walk((c) => contrast(bestOn, c) >= 4.5, bestOn === WHITE ? -1 : 1);
++  if (contrast(WHITE, fill) < 3 && bestOn === INK) fill = walk((c) => contrast(WHITE, c) >= 3 && contrast(INK, c) >= 4.5, -1, toLch(fill)[0]);
++  const on = contrast(INK, fill) >= contrast(WHITE, fill) ? INK : WHITE;
++  const onLarge = contrast(WHITE, fill) >= 3 ? WHITE : on;
++  const [fl] = toLch(fill);
++  const band = walk((c) => contrast(WHITE, c) >= 4.6, -1, fl - 0.04);
++  const soft = dark ? mix(color.bgAlt, seed, 0.26) : mix(WHITE, seed, 0.13);
++  const deep = walk((c) => contrast(c, PALETTES.light.bg) >= 4.6 && contrast(c, mix(WHITE, seed, 0.13)) >= 4.5, -1);
++  const text = dark
++    ? walk((c) => contrast(c, color.bgAlt) >= 5.2 && contrast(c, soft) >= 4.5, 1, Math.max(L, 0.7), Math.min(C, 0.17))
++    : walk((c) => contrast(c, color.bg) >= 4.6 && contrast(c, soft) >= 4.5, -1);
++
++  const out: DerivedTheme = {
++    accent: { base: seed, fill, fillEdge: fromLch(fl - 0.12, C, H), hover: fromLch(fl - 0.05, C, H), on, onLarge, band, onBand: WHITE, text, deep, soft },
++    color,
++  };
++  cache.set(key, out);
++  return out;
++}
++
++/** The seed a person's own colour produces: they choose the hue, the app fixes brightness and strength. */
++export function seedForHue(hue: number): string {
++  return fromLch(0.63, 0.2, hue);
++}
 diff -ruN a/src/theme/index.ts b/src/theme/index.ts
 --- a/src/theme/index.ts	2026-11-16 05:43:15.822578154 +0000
-+++ b/src/theme/index.ts	2026-11-16 07:14:18.908393277 +0000
-@@ -15,6 +15,11 @@
-     readonly hover: string;
-     readonly deep: string;
-     readonly soft: string;
-+    /** Behind white text. */
-+    readonly fill: string;
-+    readonly fillEdge: string;
-+    /** Accent-coloured text and icons on the current scheme's surfaces. */
-+    readonly text: string;
-   };
++++ b/src/theme/index.ts	2026-11-16 16:09:32.196271873 +0000
+@@ -4,28 +4,39 @@
+ 
+ import type { AccentKey, ThemeMode } from '@/types';
+ 
+-import { ACCENTS, DEFAULT_ACCENT, PALETTES, type ColorScheme, type Palette } from './tokens';
++import { deriveTheme, seedForHue, type DerivedAccent } from './engine';
++import { DEFAULT_ACCENT, THEME_LABELS, THEME_SEEDS, type ColorScheme, type Palette } from './tokens';
+ 
+ export * from './tokens';
++export { contrast, seedForHue } from './engine';
+ 
+ export interface Theme {
+   readonly scheme: ColorScheme;
+-  readonly accent: {
+-    readonly base: string;
+-    readonly hover: string;
+-    readonly deep: string;
+-    readonly soft: string;
+-  };
++  readonly accent: DerivedAccent;
    readonly color: Palette;
  }
-@@ -23,7 +28,15 @@
-   const a = ACCENTS[accentKey];
-   return {
-     scheme,
+ 
++/** The hue of a person's own colour, or null for a named theme. */
++export function customHue(key: AccentKey): number | null {
++  if (!key.startsWith('hue-')) return null;
++  const n = Number(key.slice(4));
++  return Number.isFinite(n) ? ((Math.round(n) % 360) + 360) % 360 : null;
++}
++
++/** The seed colour behind a theme key. */
++export function themeSeed(key: AccentKey): string {
++  const hue = customHue(key);
++  if (hue !== null) return seedForHue(hue);
++  return (THEME_SEEDS as Record<string, string>)[key] ?? THEME_SEEDS[DEFAULT_ACCENT];
++}
++
++export function themeLabel(key: AccentKey): string {
++  return customHue(key) !== null ? 'Your colour' : ((THEME_LABELS as Record<string, string>)[key] ?? THEME_LABELS[DEFAULT_ACCENT]);
++}
++
+ export function buildTheme(scheme: ColorScheme, accentKey: AccentKey = DEFAULT_ACCENT): Theme {
+-  const a = ACCENTS[accentKey];
+-  return {
+-    scheme,
 -    accent: { base: a.base, hover: a.hover, deep: a.deep, soft: scheme === 'dark' ? a.softDark : a.softLight },
-+    accent: {
-+      base: a.base,
-+      hover: a.hover,
-+      deep: a.deep,
-+      soft: scheme === 'dark' ? a.softDark : a.softLight,
-+      fill: a.fill,
-+      fillEdge: a.fillEdge,
-+      text: scheme === 'dark' ? a.textDark : a.deep,
-+    },
-     color: PALETTES[scheme],
-   };
+-    color: PALETTES[scheme],
+-  };
++  const d = deriveTheme(themeSeed(accentKey), scheme);
++  return { scheme, accent: d.accent, color: d.color };
  }
+ 
+ export const ThemeContext = createContext<Theme>(buildTheme('light'));
 diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 --- a/src/theme/tokens.ts	2026-11-16 05:43:15.822695778 +0000
-+++ b/src/theme/tokens.ts	2026-11-16 07:14:18.908037529 +0000
-@@ -14,10 +14,13 @@
++++ b/src/theme/tokens.ts	2026-11-16 16:16:16.973688601 +0000
+@@ -6,20 +6,46 @@
+  *   the dark-mode override block inside design-input/Fallback Handoff (standalone).html
+  *
+  * RULE 1: no raw colour literal may appear anywhere outside this file.
+- * RULE 2: the accent recolours CTAs, progress, the active tab and the add button — and nothing else.
+- *         Signal colours (ideal / fallback / off / gold) are ACCENT-IMMUNE by construction: they are
+- *         not derived from `accent` in either palette below.
++ * RULE 2: a theme is one seed colour. `engine.ts` derives the solid, its text colour, the tint, the
++ *         coloured text and the page tone from it, and checks every pair for contrast.
++ *         Signal colours (ideal / fallback / off / gold) are THEME-IMMUNE by construction: they are
++ *         never derived from the seed, and theme hues are kept away from them (see THEME_HUES).
+  */
+ 
  export type ColorScheme = 'light' | 'dark';
  
  export const ACCENTS = {
@@ -4788,8 +5277,32 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +  plum: { base: '#9333EA', hover: '#7E22CE', deep: '#6B21A8', fill: '#9333EA', fillEdge: '#6B21A8', textDark: '#CBA1FF', softLight: '#F1E4FB', softDark: '#301A44', label: 'Plum' },
  } as const;
  
++/** Near-black and white: the only two colours text on a solid is ever drawn in. */
++export const INK = '#26241f';
++export const WHITE = '#ffffff';
++
++/** Named themes: one seed colour each. Everything else is derived (see engine.ts). */
++export const THEME_SEEDS = {
++  'forge-orange': '#F2601A',
++  indigo: '#4F46E5',
++  berry: '#D6336C',
++  plum: '#9333EA',
++  lagoon: '#0D9488',
++} as const;
++export const THEME_LABELS = { 'forge-orange': 'Forge', indigo: 'Indigo', berry: 'Berry', plum: 'Plum', lagoon: 'Lagoon' } as const;
++export const THEME_ORDER = ['forge-orange', 'indigo', 'berry', 'plum', 'lagoon'] as const;
++
++/**
++ * The only hues (OKLCH degrees) a person may choose for their own colour. Three families:
++ * warm oranges, teals, and indigo through pink. Greens, sky blues, golds and reds are left out
++ * because those hues mean ideal, fallback, XP and error. Brightness and strength are fixed.
++ */
++export const THEME_HUES = [52, 62, 180, 192, 204, 216, 276, 288, 300, 312, 324, 336, 348, 0, 10] as const;
++
  export type AccentToken = keyof typeof ACCENTS;
-@@ -32,39 +35,42 @@
+ export const DEFAULT_ACCENT: AccentToken = 'forge-orange';
+ 
+@@ -32,39 +58,42 @@
    off: string; offDeep: string; offSoft: string;
    celebrationGold: string; goldDeep: string; goldSoft: string;
    danger: string; dangerSoft: string; dangerDeep: string;
@@ -4812,20 +5325,25 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 -  textDim: '#a09c92',
 -  border: '#e9e7e2',
 -  borderStrong: '#d6d3cc',
+-
+-  ideal: '#8FBC6B',
+-  idealDeep: '#5F8A3E',
+-  idealSoft: '#EFF5E7',
+-  fallback: '#7FB2D4',
+-  fallbackDeep: '#4E82A8',
+-  fallbackSoft: '#EAF2F8',
 +  text: '#33312b',
 +  textMuted: '#5f5b52',
 +  textDim: '#716d64',
 +  border: '#e2dfd8',
 +  borderStrong: '#8f8a80',
- 
-   ideal: '#8FBC6B',
--  idealDeep: '#5F8A3E',
-+  idealDeep: '#46702A',
-   idealSoft: '#EFF5E7',
-   fallback: '#7FB2D4',
--  fallbackDeep: '#4E82A8',
-+  fallbackDeep: '#34678F',
-   fallbackSoft: '#EAF2F8',
++
++  ideal: '#22A94E',
++  idealDeep: '#17743A',
++  idealSoft: '#DFF5E5',
++  fallback: '#2B93EE',
++  fallbackDeep: '#1560AB',
++  fallbackSoft: '#DDEEFD',
    off: '#A8A294',
 -  offDeep: '#7B766C',
 +  offDeep: '#676258',
@@ -4849,7 +5367,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    textOnAccent: '#ffffff',
  };
  
-@@ -74,10 +80,10 @@
+@@ -74,17 +103,17 @@
    surface: '#33302a',
    canvas: '#141312',
    text: '#efece6',
@@ -4861,9 +5379,22 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 -  borderStrong: '#4d4941',
 +  borderStrong: '#7a7469',
  
-   ideal: '#7CA95F',
-   idealDeep: '#A8C98D',
-@@ -92,12 +98,13 @@
+-  ideal: '#7CA95F',
+-  idealDeep: '#A8C98D',
+-  idealSoft: '#2C3323',
+-  fallback: '#6C9DBE',
+-  fallbackDeep: '#9FC2D9',
+-  fallbackSoft: '#22303B',
++  ideal: '#2DBE5E',
++  idealDeep: '#6BDD90',
++  idealSoft: '#173623',
++  fallback: '#3D9DF2',
++  fallbackDeep: '#82C3FF',
++  fallbackSoft: '#152D46',
+   off: '#8A857A',
+   offDeep: '#A9A396',
+   offSoft: '#302E29',
+@@ -92,12 +121,13 @@
    goldDeep: '#DDBE79',
    goldSoft: '#332B1C',
  
@@ -4881,7 +5412,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    textOnAccent: '#ffffff',
  };
  
-@@ -129,4 +136,8 @@
+@@ -129,4 +159,8 @@
   * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
   * one). The only sanctioned raw colour literal outside this file is this constant's use.
   */
@@ -4891,6 +5422,20 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +export const HEADER_HEIGHT = 56;
 +/** Hairline used for dividers inside grouped lists (D7). */
 +export const HAIRLINE = 1;
+diff -ruN a/src/types/settings.ts b/src/types/settings.ts
+--- a/src/types/settings.ts	2026-11-16 05:43:15.819101856 +0000
++++ b/src/types/settings.ts	2026-11-16 16:09:32.196453185 +0000
+@@ -4,7 +4,9 @@
+ import type { Id, Instant, LocalDate } from './primitives';
+ 
+ export type ThemeMode = 'light' | 'dark' | 'auto';
+-export type AccentKey = 'forge-orange' | 'indigo' | 'berry' | 'plum';
++/** A named theme, or a person's own colour as `hue-<0..359>` (only hues in THEME_HUES are offered). */
++export type NamedTheme = 'forge-orange' | 'indigo' | 'berry' | 'plum' | 'lagoon';
++export type AccentKey = NamedTheme | `hue-${number}`;
+ 
+ export interface NotificationPrefs {
+   readonly master: boolean;
 diff -ruN a/src/types/task.ts b/src/types/task.ts
 --- a/src/types/task.ts	2026-11-16 05:43:15.819152445 +0000
 +++ b/src/types/task.ts	2026-11-16 07:02:37.058664125 +0000
@@ -4956,7 +5501,7 @@ diff -ruN a/src/ui/BottomTabs.tsx b/src/ui/BottomTabs.tsx
  });
 diff -ruN a/src/ui/Button.tsx b/src/ui/Button.tsx
 --- a/src/ui/Button.tsx	2026-11-16 05:43:15.819677365 +0000
-+++ b/src/ui/Button.tsx	2026-11-16 07:14:18.908678150 +0000
++++ b/src/ui/Button.tsx	2026-11-16 16:12:20.616545725 +0000
 @@ -42,9 +42,9 @@
  
    const tactile = variant === 'primary' || variant === 'secondary' || variant === 'danger';
@@ -4966,7 +5511,7 @@ diff -ruN a/src/ui/Button.tsx b/src/ui/Button.tsx
 -  const textColor = variant === 'primary' || variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.base;
 +    variant === 'primary' ? t.accent.fill : variant === 'danger' ? t.color.danger : variant === 'secondary' ? t.color.bgAlt : 'transparent';
 +  const shadowColor = variant === 'primary' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : t.color.borderStrong;
-+  const textColor = variant === 'primary' || variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.text;
++  const textColor = variant === 'primary' ? t.accent.on : variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.text;
  
    return (
      <Pressable
@@ -5038,8 +5583,8 @@ diff -ruN a/src/ui/Card.tsx b/src/ui/Card.tsx
  });
 diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
 --- a/src/ui/Checkbox.tsx	2026-11-16 05:43:15.819466535 +0000
-+++ b/src/ui/Checkbox.tsx	2026-11-16 07:22:01.726558257 +0000
-@@ -31,7 +31,7 @@
++++ b/src/ui/Checkbox.tsx	2026-11-16 16:12:20.616352518 +0000
+@@ -31,10 +31,10 @@
        <View
          style={[
            styles.box,
@@ -5047,7 +5592,11 @@ diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
 +          { borderColor: checked ? t.accent.fill : t.color.borderStrong, backgroundColor: checked ? t.accent.fill : 'transparent' },
          ]}
        >
-         {checked ? <Check size={14} color={t.color.textOnAccent} /> : null}
+-        {checked ? <Check size={14} color={t.color.textOnAccent} /> : null}
++        {checked ? <Check size={14} color={t.accent.on} /> : null}
+       </View>
+       <View style={styles.textCol}>
+         <Text style={[styles.label, { color: t.color.text, textDecorationLine: strikethrough && checked ? 'line-through' : 'none' }]}>
 diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
 --- a/src/ui/ConfirmSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ConfirmSheet.tsx	2026-11-16 05:48:00.591529205 +0000
@@ -5394,7 +5943,7 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
  });
 diff -ruN a/src/ui/IconButton.tsx b/src/ui/IconButton.tsx
 --- a/src/ui/IconButton.tsx	2026-11-16 05:43:15.819765814 +0000
-+++ b/src/ui/IconButton.tsx	2026-11-16 07:18:56.333424789 +0000
++++ b/src/ui/IconButton.tsx	2026-11-16 16:12:20.616795856 +0000
 @@ -16,9 +16,9 @@
  
  export function IconButton({ icon: Icon, onPress, accessibilityLabel, variant = 'ghost', disabled = false, size = 22, testID }: IconButtonProps) {
@@ -5404,7 +5953,7 @@ diff -ruN a/src/ui/IconButton.tsx b/src/ui/IconButton.tsx
 -  const iconColor = variant === 'ghost' ? t.color.textMuted : t.color.iconOnSignal;
 +  const bg = variant === 'accent' ? t.accent.fill : variant === 'danger' ? t.color.danger : 'transparent';
 +  const shadow = variant === 'accent' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : undefined;
-+  const iconColor = variant === 'ghost' ? t.color.textMuted : t.color.textOnAccent;
++  const iconColor = variant === 'ghost' ? t.color.textMuted : variant === 'accent' ? t.accent.onLarge : t.color.textOnAccent;
  
    return (
      <Pressable
@@ -5634,13 +6183,14 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +});
 diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 --- a/src/ui/LogControl.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/LogControl.tsx	2026-11-16 05:58:33.273466270 +0000
-@@ -0,0 +1,236 @@
++++ b/src/ui/LogControl.tsx	2026-11-16 16:12:20.617956499 +0000
+@@ -0,0 +1,242 @@
 +/**
 + * LogControl — how a day gets logged, everywhere (D1).
 + *
-+ * Not logged: two side-by-side outlined buttons, Done (ideal green, double
++ * Not logged: two side-by-side soft-filled buttons, Done (ideal green, double
 + * check) and Fallback (fallback blue, single check), plus a quiet "Skip today".
++ * Both carry the same weight: both count.
 + * Logged: a state chip; tapping it reopens the same choices.
 + * "To do" is the resting state, never a button.
 + */
@@ -5652,12 +6202,17 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +import type { ChipState } from '@/types';
 +import type { IconComponent } from './icon';
 +
-+interface StateVisual {
++export interface StateVisual {
 +  readonly icon: IconComponent;
 +  readonly line: string;
 +  readonly deep: string;
 +  readonly soft: string;
 +  readonly doneLabel: string;
++}
++
++/** Colours, icon and label for a logged state. Shared with the Today card. */
++export function logStateVisual(t: Theme, state: 'done' | 'fallback' | 'skip'): StateVisual {
++  return visualFor(t, state);
 +}
 +
 +function visualFor(t: Theme, state: 'done' | 'fallback' | 'skip'): StateVisual {
@@ -5735,7 +6290,7 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +        accessibilityLabel={`${accessibilityLabel}: ${label}`}
 +        style={({ pressed }) => [
 +          styles.button,
-+          { borderColor: v.line, backgroundColor: selected || pressed ? v.soft : 'transparent' },
++          { borderColor: selected || pressed ? v.line : v.soft, backgroundColor: selected ? t.color.bgAlt : v.soft },
 +          disabled && styles.disabled,
 +        ]}
 +      >
@@ -5744,7 +6299,7 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +          <Text style={[styles.buttonLabel, { color: v.deep }]}>{label}</Text>
 +        </View>
 +        {hint ? (
-+          <Text numberOfLines={1} style={[styles.buttonHint, { color: t.color.textMuted }]}>
++          <Text numberOfLines={1} style={[styles.buttonHint, { color: v.deep }]}>
 +            {hint}
 +          </Text>
 +        ) : null}
@@ -5951,6 +6506,41 @@ diff -ruN a/src/ui/MilestoneBadge.tsx b/src/ui/MilestoneBadge.tsx
    pill: { width: 54, height: 54, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
    label: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
  });
+diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
+--- a/src/ui/ProgressRing.tsx	2026-11-16 05:43:15.819476749 +0000
++++ b/src/ui/ProgressRing.tsx	2026-11-16 16:12:20.617758906 +0000
+@@ -10,10 +10,15 @@
+   readonly size?: number;
+   readonly strokeWidth?: number;
+   readonly label?: string;
++  /** Arc colour. Defaults to the theme colour. */
++  readonly color?: string;
++  /** Track colour and opacity. Defaults to the neutral surface. */
++  readonly trackColor?: string;
++  readonly trackOpacity?: number;
+   readonly accessibilityLabel: string;
+ }
+ 
+-export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, accessibilityLabel }: ProgressRingProps) {
++export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, color, trackColor, trackOpacity = 1, accessibilityLabel }: ProgressRingProps) {
+   const t = useTheme();
+   const clamped = Math.max(0, Math.min(100, percent));
+   const radius = (size - strokeWidth) / 2;
+@@ -28,12 +33,12 @@
+       accessibilityValue={{ min: 0, max: 100, now: clamped }}
+     >
+       <Svg width={size} height={size}>
+-        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={t.color.surface} strokeWidth={strokeWidth} fill="none" />
++        <Circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor ?? t.color.surface} strokeOpacity={trackOpacity} strokeWidth={strokeWidth} fill="none" />
+         <Circle
+           cx={size / 2}
+           cy={size / 2}
+           r={radius}
+-          stroke={t.accent.base}
++          stroke={color ?? t.accent.base}
+           strokeWidth={strokeWidth}
+           fill="none"
+           strokeDasharray={`${circumference} ${circumference}`}
 diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
 --- a/src/ui/Radio.tsx	2026-11-16 05:43:15.819596120 +0000
 +++ b/src/ui/Radio.tsx	2026-11-16 05:48:00.601577588 +0000
@@ -7020,7 +7610,7 @@ diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
  });
 diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
 --- a/src/ui/WeekdayPicker.tsx	2026-11-16 05:43:15.819795475 +0000
-+++ b/src/ui/WeekdayPicker.tsx	2026-11-16 07:14:18.909301950 +0000
++++ b/src/ui/WeekdayPicker.tsx	2026-11-16 16:12:20.616951465 +0000
 @@ -1,12 +1,11 @@
  /**
 - * M0 kit — Fallback-custom `WeekdayPicker`. Mon..Sun multi-select toggle chips. When
@@ -7091,11 +7681,14 @@ diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
                    opacity: isDisabled ? 0.4 : 1,
                  },
                ]}
-@@ -57,6 +63,7 @@
+@@ -55,8 +61,9 @@
+               {isDisabled ? (
+                 <Lock size={12} color={t.color.textDim} />
                ) : (
-                 <Text style={[styles.chipLabel, { color: isSelected ? t.color.textOnAccent : t.color.text }]}>{LABELS[day][0]}</Text>
+-                <Text style={[styles.chipLabel, { color: isSelected ? t.color.textOnAccent : t.color.text }]}>{LABELS[day][0]}</Text>
++                <Text style={[styles.chipLabel, { color: isSelected ? t.accent.on : t.color.text }]}>{LABELS[day][0]}</Text>
                )}
-+              {markedDay === day ? <View style={[styles.mark, { backgroundColor: isSelected ? t.color.textOnAccent : t.accent.base }]} /> : null}
++              {markedDay === day ? <View style={[styles.mark, { backgroundColor: isSelected ? t.accent.on : t.accent.base }]} /> : null}
              </Pressable>
            );
          })}
@@ -7147,7 +7740,7 @@ diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
  });
 diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 --- a/src/ui/index.ts	2026-11-16 05:43:15.819514483 +0000
-+++ b/src/ui/index.ts	2026-11-16 05:50:15.605032709 +0000
++++ b/src/ui/index.ts	2026-11-16 16:12:20.618170332 +0000
 @@ -32,7 +32,7 @@
  export { ConsistencyBreakdownBar, type ConsistencyBreakdownBarProps } from './ConsistencyBreakdownBar';
  export { ConsistencyRing, type ConsistencyRingProps } from './ConsistencyRing';
@@ -7164,7 +7757,7 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { ScreenHeader, type ScreenHeaderProps } from './ScreenHeader';
 +export { Screen, ActionBar, type ScreenProps } from './Screen';
 +export { ButtonPair, type ButtonPairProps } from './ButtonPair';
-+export { LogControl, LogButtons, LogStateChip, isLogged, type LogControlProps } from './LogControl';
++export { LogControl, LogButtons, LogStateChip, isLogged, logStateVisual, type LogControlProps, type StateVisual } from './LogControl';
 +export { ConfirmSheet, type ConfirmSheetProps } from './ConfirmSheet';
 +export { MenuSheet, type MenuSheetProps, type MenuSheetItem } from './MenuSheet';
 +export { ListGroup, ListRow, SectionHeading, type ListGroupProps, type ListRowProps } from './ListGroup';
@@ -7173,8 +7766,41 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { Stepper, type StepperProps } from './Stepper';
 diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
 --- a/app/(tabs)/_layout.tsx	2026-11-16 05:43:15.827117772 +0000
-+++ b/app/(tabs)/_layout.tsx	2026-11-16 07:14:18.909444723 +0000
-@@ -20,9 +20,10 @@
++++ b/app/(tabs)/_layout.tsx	2026-11-16 16:16:16.973440611 +0000
+@@ -3,33 +3,47 @@
+  * M3 owns the five tab screens; this layout file stays M0's.
+  */
+ import { Tabs } from 'expo-router';
+-import type { ColorValue } from 'react-native';
++import { StyleSheet, View, type ColorValue } from 'react-native';
+ 
+ import { PRIMARY_NAV_ITEMS } from '@/ui/BottomTabs';
+ import { useTheme } from '@/theme';
+ 
+-function iconFor(key: string) {
++/** The active tab sits on a pill of the theme tint, so the theme shows on every screen. */
++function iconFor(key: string, pill: string) {
+   const item = PRIMARY_NAV_ITEMS.find((i) => i.key === key)!;
+   const Icon = item.icon;
+-  return ({ color, size }: { color: ColorValue; size: number }) => <Icon color={color as string} size={size} />;
++  return ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
++    <View style={styles.iconBox}>
++      {focused ? <View style={[styles.pill, { backgroundColor: pill }]} /> : null}
++      <View>
++        <Icon color={color as string} size={size} />
++      </View>
++    </View>
++  );
+ }
+ 
++const styles = StyleSheet.create({
++  iconBox: { alignItems: 'center', justifyContent: 'center' },
++  pill: { position: 'absolute', width: 56, height: 30, borderRadius: 999 },
++});
++
+ export default function TabsLayout() {
+   const t = useTheme();
+   return (
      <Tabs
        screenOptions={{
          headerShown: false,
@@ -7187,7 +7813,19 @@ diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
 +        tabBarLabelStyle: { fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 1 },
        }}
      >
-       <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: iconFor('today') }} />
+-      <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: iconFor('today') }} />
+-      <Tabs.Screen name="routines" options={{ title: 'Routines', tabBarIcon: iconFor('routines') }} />
+-      <Tabs.Screen name="events" options={{ title: 'Events', tabBarIcon: iconFor('events') }} />
+-      <Tabs.Screen name="courses" options={{ title: 'Courses', tabBarIcon: iconFor('courses') }} />
+-      <Tabs.Screen name="todos" options={{ title: 'To-dos', tabBarIcon: iconFor('todos') }} />
++      <Tabs.Screen name="today" options={{ title: 'Today', tabBarIcon: iconFor('today', t.accent.soft) }} />
++      <Tabs.Screen name="routines" options={{ title: 'Routines', tabBarIcon: iconFor('routines', t.accent.soft) }} />
++      <Tabs.Screen name="events" options={{ title: 'Events', tabBarIcon: iconFor('events', t.accent.soft) }} />
++      <Tabs.Screen name="courses" options={{ title: 'Courses', tabBarIcon: iconFor('courses', t.accent.soft) }} />
++      <Tabs.Screen name="todos" options={{ title: 'To-dos', tabBarIcon: iconFor('todos', t.accent.soft) }} />
+     </Tabs>
+   );
+ }
 diff -ruN a/app/_layout.tsx b/app/_layout.tsx
 --- a/app/_layout.tsx	2026-11-16 05:43:15.826878294 +0000
 +++ b/app/_layout.tsx	2026-11-16 05:56:01.147753076 +0000
@@ -9128,7 +9766,7 @@ diff -ruN a/app/assistant/history/index.tsx b/app/assistant/history/index.tsx
 -});
 diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 --- a/app/assistant/index.tsx	2026-11-16 05:43:15.826867228 +0000
-+++ b/app/assistant/index.tsx	2026-11-16 07:18:56.333760261 +0000
++++ b/app/assistant/index.tsx	2026-11-16 16:12:20.617507923 +0000
 @@ -1,18 +1,13 @@
 -/**
 - * S31 — Assistant Home    route: /assistant
@@ -9310,7 +9948,7 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 +              testID="s31-mic"
 +              style={({ pressed }) => [styles.mic, { backgroundColor: pressed ? t.accent.fillEdge : t.accent.fill }]}
 +            >
-+              <Mic size={32} color={t.color.textOnAccent} />
++              <Mic size={32} color={t.accent.onLarge} />
 +            </Pressable>
 +            <Text style={[styles.caption, { color: t.color.textMuted }]}>{S31_COPY.micCaption}</Text>
 +          </View>
@@ -9928,7 +10566,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
  });
 diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
 --- a/app/assistant/paywall/plan.tsx	2026-11-16 05:43:15.826820147 +0000
-+++ b/app/assistant/paywall/plan.tsx	2026-11-16 06:13:51.204687779 +0000
++++ b/app/assistant/paywall/plan.tsx	2026-11-16 16:12:20.617394138 +0000
 @@ -1,18 +1,14 @@
 -/**
 - * S39 — Choose Plan & Confirm    route: /assistant/paywall/plan
@@ -10054,7 +10692,7 @@ diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
 +            label={verifying ? S39_COPY.verifying : confirmLabel}
 +            onPress={handleConfirm}
 +            loading={verifying}
-+            icon={verifying ? undefined : <BiometricIcon size={18} color={t.color.textOnAccent} />}
++            icon={verifying ? undefined : <BiometricIcon size={18} color={t.accent.on} />}
 +            accessibilityLabel={confirmLabel}
 +            fullWidth
 +            testID="s39-confirm"
@@ -11014,6 +11652,195 @@ diff -ruN a/app/recovery.tsx b/app/recovery.tsx
 +  headline: { fontSize: FONT_SIZE.xl, fontWeight: '700', textAlign: 'center' },
 +  body: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
  });
+diff -ruN a/app/settings/agents.tsx b/app/settings/agents.tsx
+--- a/app/settings/agents.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/app/settings/agents.tsx	2026-11-16 16:14:34.245998370 +0000
+@@ -0,0 +1,185 @@
++/**
++ * AI agent access — DESIGN REFERENCE ONLY (see `@/features/agents/store`).
++ *
++ * Shows how a person would let an AI app they already use (through MCP) read and change
++ * Fallback, and how the app keeps control: off by default, a permission per kind of action,
++ * "ask me every time" as the default for anything that changes data, an approval sheet for each
++ * request, and a list of things an agent can never do.
++ */
++import { useState } from 'react';
++import { useRouter, type Href } from 'expo-router';
++import { Bot, Footprints, Info, Plus } from 'lucide-react-native';
++import { StyleSheet, Text, View } from 'react-native';
++
++import { useToastStore } from '@/app-shell';
++import { AGENT_PERMISSION_LABEL, AGENT_SCOPES, useAgentAccessStore, type AgentPermission } from '@/features/agents/store';
++import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { Button, ButtonPair, Card, Dialog, ListGroup, ListRow, Screen, SectionHeading, Select, Switch, TaskIcon } from '@/ui';
++
++const NEVER = ['Erase all your data', 'Change these permissions', 'Buy, change or cancel a subscription', 'See your account, sign-in or API key'];
++
++export default function AgentAccess() {
++  const t = useTheme();
++  const router = useRouter();
++  const showToast = useToastStore((s) => s.show);
++  const { enabled, permissions, agents, setEnabled, setPermission, connectExample, disconnect, disconnectAll } = useAgentAccessStore();
++  const [pairing, setPairing] = useState(false);
++  const [request, setRequest] = useState(false);
++
++  return (
++    <Screen title="AI agent access" onBack={() => router.push('/settings' as Href)}>
++      <Card accessibilityLabel="Design preview. Agents cannot connect yet.">
++        <View style={styles.noteRow}>
++          <Info size={20} color={t.color.textMuted} />
++          <Text style={[styles.note, { color: t.color.textMuted }]}>Design preview. Agents cannot connect yet. This screen shows how the permissions would work.</Text>
++        </View>
++      </Card>
++
++      <Text style={[styles.intro, { color: t.color.text }]}>
++        Let an AI app you already use, such as Claude or ChatGPT, look at your habits and help with them. Nothing is shared until you turn this on, and an agent can only do what you allow here.
++      </Text>
++
++      <ListGroup>
++        <ListRow
++          label="Let AI agents connect"
++          sublabel={enabled ? 'On. You approve what they do below.' : 'Off. No agent can see or change anything.'}
++          right={<Switch value={enabled} onValueChange={setEnabled} accessibilityLabel="Let AI agents connect" />}
++        />
++      </ListGroup>
++
++      {enabled ? (
++        <>
++          <ListGroup title="Connected" footer="An agent connects with a one-time code from this screen. You can disconnect it at any time.">
++            {agents.length === 0 ? <ListRow label="No agent connected" /> : null}
++            {agents.map((a) => (
++              <ListRow
++                key={a.id}
++                icon={Bot}
++                label={a.name}
++                sublabel="Connected just now"
++                right={<Button label="Disconnect" variant="ghost" onPress={() => disconnect(a.id)} accessibilityLabel={`Disconnect ${a.name}`} />}
++              />
++            ))}
++            <ListRow icon={Plus} label="Connect an agent" onPress={() => setPairing(true)} />
++          </ListGroup>
++
++          <View style={styles.block}>
++            <SectionHeading>What an agent may do</SectionHeading>
++            {AGENT_SCOPES.map((scope) => (
++              <Select
++                key={scope.key}
++                label={scope.label}
++                value={permissions[scope.key]}
++                options={scope.choices.map((c) => ({ value: c, label: AGENT_PERMISSION_LABEL[c] }))}
++                onChange={(v) => setPermission(scope.key, v as AgentPermission)}
++              />
++            ))}
++            <Text style={[styles.helper, { color: t.color.textMuted }]}>
++              "Ask me every time" shows you each change before it happens. Nothing is changed until you allow it. Deleting can never be allowed in advance.
++            </Text>
++          </View>
++
++          <ListGroup title="Requests" footer="When an agent wants to change something, the app asks you like this.">
++            <ListRow label="See an example request" onPress={() => setRequest(true)} />
++          </ListGroup>
++
++          <View style={styles.block}>
++            <SectionHeading>An agent can never</SectionHeading>
++            <Card>
++              <View style={styles.neverList}>
++                {NEVER.map((line) => (
++                  <Text key={line} style={[styles.never, { color: t.color.text }]}>
++                    {`•  ${line}`}
++                  </Text>
++                ))}
++              </View>
++            </Card>
++          </View>
++
++          <ListGroup title="Activity" footer="Everything an agent does is listed here, with who did it and when, and each change can be undone.">
++            <ListRow label="Nothing yet" />
++          </ListGroup>
++
++          {agents.length > 0 ? (
++            <ListGroup>
++              <ListRow
++                label="Disconnect every agent"
++                danger
++                chevron={false}
++                onPress={() => {
++                  disconnectAll();
++                  showToast('All agents disconnected', 'success');
++                }}
++              />
++            </ListGroup>
++          ) : null}
++        </>
++      ) : null}
++
++      <Dialog visible={pairing} onClose={() => setPairing(false)} title="Connect an agent" accessibilityLabel="Connect an agent">
++        <Text style={[styles.intro, { color: t.color.text }]}>In your AI app, add Fallback as a connector, then enter this code when it asks.</Text>
++        <View style={[styles.code, { backgroundColor: t.color.surface }]}>
++          <Text style={[styles.codeText, { color: t.color.text }]} accessibilityLabel="Code: 4 K 7, 9 2 Q">
++            4K7 92Q
++          </Text>
++        </View>
++        <Text style={[styles.helper, { color: t.color.textMuted }]}>The code works once and expires in 10 minutes.</Text>
++        <Button label="Done" onPress={() => setPairing(false)} fullWidth />
++        <Button
++          label="Preview: show a connected agent"
++          variant="ghost"
++          onPress={() => {
++            connectExample();
++            setPairing(false);
++          }}
++          fullWidth
++        />
++      </Dialog>
++
++      <Dialog visible={request} onClose={() => setRequest(false)} title="Claude wants to add a routine" accessibilityLabel="Claude wants to add a routine">
++        <Card>
++          <View style={styles.reqHead}>
++            <TaskIcon icon={Footprints} color={ACCENTS.indigo.base} />
++            <View style={styles.reqText}>
++              <Text style={[styles.reqName, { color: t.color.text }]}>Evening walk</Text>
++              <Text style={[styles.helper, { color: t.color.textMuted }]}>Routine · Daily</Text>
++            </View>
++          </View>
++          <Text style={[styles.reqLine, { color: t.color.text }]}>
++            <Text style={{ color: t.color.idealDeep, fontWeight: '700' }}>Ideal </Text>20-minute walk
++          </Text>
++          <Text style={[styles.reqLine, { color: t.color.text }]}>
++            <Text style={{ color: t.color.fallbackDeep, fontWeight: '700' }}>Fallback </Text>Walk to the corner and back
++          </Text>
++        </Card>
++        <Text style={[styles.helper, { color: t.color.textMuted }]}>Nothing is added unless you allow it. You can undo it afterwards.</Text>
++        <ButtonPair primary={{ label: 'Allow once', onPress: () => setRequest(false) }} secondary={{ label: "Don't allow", onPress: () => setRequest(false) }} />
++        <Button
++          label="Always allow adding tasks"
++          variant="ghost"
++          onPress={() => {
++            setPermission('write', 'allow');
++            setRequest(false);
++          }}
++          fullWidth
++        />
++      </Dialog>
++    </Screen>
++  );
++}
++
++const styles = StyleSheet.create({
++  block: { gap: SPACE.s2 + 4 },
++  noteRow: { flexDirection: 'row', gap: SPACE.s2 + 4, alignItems: 'flex-start' },
++  note: { flex: 1, fontSize: FONT_SIZE.sm, lineHeight: 20 },
++  intro: { fontSize: FONT_SIZE.base, lineHeight: 24 },
++  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
++  neverList: { gap: SPACE.s2 },
++  never: { fontSize: FONT_SIZE.base, lineHeight: 22 },
++  code: { borderRadius: RADIUS.md, paddingVertical: SPACE.s3, alignItems: 'center' },
++  codeText: { fontSize: FONT_SIZE.xxl, fontWeight: '700', letterSpacing: 4, fontVariant: ['tabular-nums'] },
++  reqHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
++  reqText: { flex: 1, gap: 2 },
++  reqName: { fontSize: FONT_SIZE.base, fontWeight: '600' },
++  reqLine: { fontSize: FONT_SIZE.base, lineHeight: 22 },
++});
 diff -ruN a/app/settings/data/erase.tsx b/app/settings/data/erase.tsx
 --- a/app/settings/data/erase.tsx	2026-11-16 05:43:15.826674084 +0000
 +++ b/app/settings/data/erase.tsx	2026-11-16 06:03:24.106382265 +0000
@@ -11440,8 +12267,8 @@ diff -ruN a/app/settings/help.tsx b/app/settings/help.tsx
  });
 diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 --- a/app/settings/index.tsx	2026-11-16 05:43:15.826722413 +0000
-+++ b/app/settings/index.tsx	2026-11-16 06:01:32.232575155 +0000
-@@ -1,34 +1,16 @@
++++ b/app/settings/index.tsx	2026-11-16 16:12:20.619560064 +0000
+@@ -1,34 +1,17 @@
 -/**
 - * S41 — Settings Home    route: /settings
 - * Owner: M7. Features: F8, F13, F14, F17, F19, F20, F21, F25.
@@ -11465,7 +12292,8 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 -  type LucideIcon,
 -} from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { Award, Bell, CalendarDays, Cloud, HardDrive, HelpCircle, History, Palette, Sparkles, SquareStack, type LucideIcon } from 'lucide-react-native';
++import { Award, Bell, CalendarDays, Cloud, HardDrive, HelpCircle, History, Palette, Sparkles, SquareStack, type LucideIcon, Bot } from 'lucide-react-native';
++import { useAgentAccessStore } from '@/features/agents/store';
 +import { StyleSheet, Text, View } from 'react-native';
  
  import { useEntitlementStore } from '@/app-shell';
@@ -11481,7 +12309,14 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
  
  const ROW_ICON: Record<string, LucideIcon> = {
    Badges: Award,
-@@ -44,7 +26,7 @@
+@@ -38,24 +21,33 @@
+   Widgets: SquareStack,
+   'Fallback AI subscription': Sparkles,
+   'Conversation history': History,
++  'AI agent access': Bot,
+   'Account & sync': Cloud,
+   Data: HardDrive,
+   'Help & about': HelpCircle,
  };
  
  const ROW_ROUTE: Record<string, Href> = {
@@ -11490,12 +12325,17 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
    Records: '/records' as Href,
    Notifications: '/settings/notifications' as Href,
    'Theme & accent': '/settings/theme' as Href,
-@@ -56,6 +38,13 @@
+   Widgets: '/settings/widgets' as Href,
+   'Fallback AI subscription': '/settings/subscription' as Href,
+   'Conversation history': '/assistant/history' as Href,
++  'AI agent access': '/settings/agents' as Href,
+   'Account & sync': '/settings/sync' as Href,
+   Data: '/settings/data' as Href,
    'Help & about': '/settings/help' as Href,
  };
  
 +const ROW_LABEL: Record<string, string> = {
-+  'Theme & accent': 'Theme and accent',
++  'Theme & accent': 'Theme',
 +  'Fallback AI subscription': 'Subscription',
 +  'Account & sync': 'Account and sync',
 +  'Help & about': 'Help and about',
@@ -11504,7 +12344,14 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
  export default function S41SettingsHome() {
    const t = useTheme();
    const router = useRouter();
-@@ -69,109 +58,60 @@
+@@ -63,115 +55,67 @@
+   const progressQuery = useProgress();
+   const statQuery = useConsistency({ scope: 'aggregate', window: 'last-30' });
+   const entitlement = useEntitlementStore((s) => s.entitlement);
++  const agentsOn = useAgentAccessStore((s) => s.enabled);
+ 
+   const loading = settingsQuery.isLoading || progressQuery.isLoading;
+   const level = progressQuery.data?.level;
    const notificationsOn = settingsQuery.data?.notifications.master ?? false;
    const subscriptionActive = entitlement.status === 'active' || entitlement.status === 'trial';
  
@@ -11603,7 +12450,7 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 -                    : 'Free'
 -                  : null;
 +            const value =
-+              row === 'Notifications' ? (notificationsOn ? 'On' : 'Off') : row === 'Fallback AI subscription' ? (subscriptionActive ? 'Active' : 'Free plan') : undefined;
++              row === 'Notifications' ? (notificationsOn ? 'On' : 'Off') : row === 'Fallback AI subscription' ? (subscriptionActive ? 'Active' : 'Free plan') : row === 'AI agent access' ? (agentsOn ? 'On' : 'Off') : undefined;
              return (
 -              <Card key={row} onPress={() => router.push(ROW_ROUTE[row]!)} accessibilityLabel={`${row}, opens ${row}`} style={styles.row}>
 -                <Icon size={20} color={t.color.textMuted} />
@@ -12279,14 +13126,16 @@ diff -ruN a/app/settings/sync.tsx b/app/settings/sync.tsx
 -});
 diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 --- a/app/settings/theme.tsx	2026-11-16 05:43:15.826651078 +0000
-+++ b/app/settings/theme.tsx	2026-11-16 09:18:20.401809277 +0000
-@@ -1,21 +1,20 @@
--/**
++++ b/app/settings/theme.tsx	2026-11-16 16:13:33.576455280 +0000
+@@ -1,23 +1,59 @@
+ /**
 - * S43 — Theme & Accent    route: /settings/theme
 - * Owner: M7. Features: F8.
 - * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S43)
-- */
-+/** S43 — Theme and accent. Segmented appearance (D9); the preview is built from the real components. */
++ * S43 — Theme. Appearance (D9), named themes with a small preview of each, and a strict set of
++ * extra colours. Every theme, named or not, is derived from one seed colour by `@/theme/engine`,
++ * so all of them pass the same contrast checks. The preview is the real Today card.
+  */
 +import { useState } from 'react';
  import { useRouter, type Href } from 'expo-router';
 -import { Check } from 'lucide-react-native';
@@ -12296,21 +13145,59 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
  import { useThemeStore, useToastStore } from '@/app-shell';
  import { S43_COPY } from '@/features/settings/copy';
 -import { SettingsHeader } from '@/features/settings/SettingsHeader';
++import { TodayTaskCard } from '@/features/today/TodayTaskCard';
  import { useSettings, useUpdateSettings } from '@/queries';
 -import { ACCENTS, SPACE, useTheme } from '@/theme';
 -import { Button, Card, OffDayToggle, ProgressRing, Skeleton, StateChip } from '@/ui';
-+import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { TodayTaskCard } from '@/features/today/TodayTaskCard';
+-import type { AccentKey, ThemeMode } from '@/types';
++import { buildTheme, FONT_SIZE, RADIUS, seedForHue, SPACE, THEME_HUES, THEME_LABELS, THEME_ORDER, themeSeed, useTheme } from '@/theme';
 +import { Radio, Screen, SectionHeading, Skeleton } from '@/ui';
-+import type { ChipState } from '@/types';
- import type { AccentKey, ThemeMode } from '@/types';
++import type { AccentKey, ChipState, ThemeMode } from '@/types';
++
++function hueName(hue: number): string {
++  if (hue >= 40 && hue < 100) return 'Amber';
++  if (hue >= 170 && hue < 230) return 'Teal';
++  if (hue >= 270 && hue < 306) return 'Violet';
++  if (hue >= 306 && hue < 342) return 'Magenta';
++  return 'Rose';
++}
  
- const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
-+const ACCENT_LABEL: Record<AccentKey, string> = { 'forge-orange': 'Orange', indigo: 'Indigo', berry: 'Berry', plum: 'Plum' };
+-const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
++function ThemeCard({ themeKey, label, selected, onPress }: { themeKey: AccentKey; label: string; selected: boolean; onPress: () => void }) {
++  const t = useTheme();
++  const d = buildTheme(t.scheme, themeKey);
++  return (
++    <Pressable
++      onPress={onPress}
++      accessibilityRole="radio"
++      accessibilityState={{ checked: selected }}
++      accessibilityLabel={`${label}${selected ? ', selected' : ''}`}
++      style={[styles.themeCard, { backgroundColor: t.color.bgAlt, borderColor: selected ? t.accent.text : t.color.border, borderWidth: selected ? 2 : 1, margin: selected ? 0 : 1 }]}
++    >
++      <View style={[styles.themeTop, { backgroundColor: d.accent.fill }]}>
++        <View style={[styles.themeRing, { borderColor: d.accent.onLarge }]} />
++        <View style={[styles.themeBar, { backgroundColor: d.accent.onLarge }]} />
++      </View>
++      <View style={[styles.themeMid, { backgroundColor: d.color.bg }]}>
++        <View style={[styles.themePill, { backgroundColor: d.color.idealSoft }]} />
++        <View style={[styles.themePill, { backgroundColor: d.color.fallbackSoft }]} />
++      </View>
++      <View style={styles.themeName}>
++        <Text numberOfLines={1} style={[styles.themeLabel, { color: t.color.text }]}>
++          {label}
++        </Text>
++        {selected ? <Check size={16} color={t.accent.text} /> : null}
++      </View>
++    </Pressable>
++  );
++}
  
- export default function S43ThemeAndAccent() {
+-export default function S43ThemeAndAccent() {
++export default function S43Theme() {
    const t = useTheme();
-@@ -27,6 +26,8 @@
+   const router = useRouter();
+   const settingsQuery = useSettings();
+@@ -27,6 +63,8 @@
    const accent = useThemeStore((s) => s.accent);
    const setMode = useThemeStore((s) => s.setMode);
    const setAccent = useThemeStore((s) => s.setAccent);
@@ -12319,7 +13206,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
  
    function handleBack() {
      router.push('/settings' as Href);
-@@ -54,120 +55,71 @@
+@@ -54,120 +92,91 @@
  
    if (settingsQuery.isLoading) {
      return (
@@ -12330,7 +13217,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -          <Skeleton height={80} />
 -        </View>
 -      </View>
-+      <Screen title="Theme and accent" onBack={handleBack}>
++      <Screen title="Theme" onBack={handleBack}>
 +        <Skeleton height={80} radius={16} />
 +        <Skeleton height={80} radius={16} />
 +      </Screen>
@@ -12408,7 +13295,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -            <Button label={S43_COPY.previewCta} onPress={() => {}} accessibilityLabel={S43_COPY.previewCta} />
 -            <ProgressRing percent={60} size={48} label="3/5" accessibilityLabel={S43_COPY.previewStat} />
 -          </View>
-+    <Screen title="Theme and accent" onBack={handleBack}>
++    <Screen title="Theme" onBack={handleBack}>
 +      <View style={styles.block}>
 +        <SectionHeading>{S43_COPY.appearanceLabel}</SectionHeading>
 +        <Radio label="" value={mode} options={S43_COPY.appearanceOptions} onChange={(v) => void handleModeChange(v as ThemeMode)} />
@@ -12417,23 +13304,11 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -          <Text style={[styles.previewFootnote, { color: t.color.textDim }]}>{S43_COPY.previewCaption}</Text>
 -        </Card>
 +      <View style={styles.block}>
-+        <SectionHeading>Accent colour</SectionHeading>
-+        <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel="Accent colour">
-+          {ACCENT_ORDER.map((key) => {
-+            const selected = accent === key;
-+            return (
-+              <Pressable
-+                key={key}
-+                onPress={() => void handleAccentChange(key)}
-+                accessibilityRole="radio"
-+                accessibilityState={{ checked: selected }}
-+                accessibilityLabel={`${ACCENT_LABEL[key]}${selected ? ', selected' : ''}`}
-+                style={[styles.swatch, { backgroundColor: ACCENTS[key].base }]}
-+              >
-+                {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}
-+              </Pressable>
-+            );
-+          })}
++        <SectionHeading>Theme</SectionHeading>
++        <View style={styles.themeGrid} accessibilityRole="radiogroup" accessibilityLabel="Theme">
++          {THEME_ORDER.map((key) => (
++            <ThemeCard key={key} themeKey={key} label={THEME_LABELS[key]} selected={accent === key} onPress={() => void handleAccentChange(key)} />
++          ))}
 +        </View>
 +        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.accentHelper}</Text>
        </View>
@@ -12449,12 +13324,35 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -      <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{caption}</Text>
 -    </View>
 +      <View style={styles.block}>
++        <SectionHeading>{S43_COPY.moreColoursLabel}</SectionHeading>
++        <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel={S43_COPY.moreColoursLabel}>
++          {THEME_HUES.map((hue, i) => {
++            const key: AccentKey = `hue-${hue}`;
++            const selected = accent === key;
++            return (
++              <Pressable
++                key={key}
++                onPress={() => void handleAccentChange(key)}
++                accessibilityRole="radio"
++                accessibilityState={{ checked: selected }}
++                accessibilityLabel={`${hueName(hue)}, colour ${i + 1} of ${THEME_HUES.length}${selected ? ', selected' : ''}`}
++                style={[styles.swatch, { backgroundColor: seedForHue(hue), borderColor: selected ? t.color.text : t.color.bg }]}
++              >
++                {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}
++              </Pressable>
++            );
++          })}
++        </View>
++        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.moreColoursHelper}</Text>
++      </View>
++
++      <View style={styles.block}>
 +        <SectionHeading>Preview</SectionHeading>
 +        <View testID="theme-preview" accessibilityLabel="Preview, an example only" style={styles.preview}>
 +          <TodayTaskCard
 +            name={S43_COPY.previewTaskName}
 +            icon={Dumbbell}
-+            color={ACCENTS[accent].base}
++            color={themeSeed(accent)}
 +            meta={['Routine', 'Daily']}
 +            chip={previewChip}
 +            reopened={previewReopened}
@@ -12492,8 +13390,17 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 -  previewFootnote: { fontSize: 12, lineHeight: 18, marginTop: SPACE.s2 },
 +  block: { gap: SPACE.s2 + 4 },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
-+  swatchRow: { flexDirection: 'row', gap: SPACE.s3 },
-+  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
++  themeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
++  themeCard: { flexBasis: '30%', flexGrow: 1, maxWidth: '32%', borderRadius: RADIUS.md, overflow: 'hidden' },
++  themeTop: { height: 34, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, paddingHorizontal: SPACE.s2 },
++  themeRing: { width: 16, height: 16, borderRadius: RADIUS.pill, borderWidth: 3 },
++  themeBar: { flex: 1, height: 5, borderRadius: 3 },
++  themeMid: { flexDirection: 'row', gap: SPACE.s1, padding: SPACE.s1 + 2 },
++  themePill: { flex: 1, height: 12, borderRadius: 6 },
++  themeName: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s1, paddingHorizontal: SPACE.s2, minHeight: 36 },
++  themeLabel: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: '600' },
++  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
++  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
 +  preview: { gap: SPACE.s2 },
  });
 diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx

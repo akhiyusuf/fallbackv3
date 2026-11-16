@@ -639,12 +639,20 @@ So the work is not lost with the session, it is saved in
 - `README.md` — how to apply and rebuild.
 - `colour-board/` — source of the round 3 colour and theme board.
 
-**Round 3 (colour and themes) is open with the human.** The Fallback Colour
-Board (https://claude.ai/artifact/LyQoUUtexW8HddWpTRKQkR) carries eight
-decisions; picks are pending. See `docs/DESIGN_DECISIONS.md`, Round 3. A full
-theme model is a design-token and PRD change, so it goes through the architect
-with the rest of the look once approved. Standing instruction from the human:
-when asked for an audit, deliver it as an artifact like the design board.
+**Round 3 (colour and themes): picks received and applied to the preview**
+(Fallback Preview, version 5). Recorded in `docs/DESIGN_DECISIONS.md`,
+"Round 3 — picks". The look is still awaiting the human's approval. It adds a
+theme engine, a second data-model change (`settings.accent_ext`, migration
+006) and moves Fallback AI from the Today header into the add sheet.
+
+**New feature request, not built: AI agent access over MCP.** Only a labelled
+design-reference screen exists. It is a product feature and must go through
+Phase 1 (interviewer → product-planner → spec-writer → Gate 1) before the
+architect or any builder touches it. Three questions for the human are listed
+in `docs/DESIGN_DECISIONS.md`.
+
+Standing instruction from the human: when asked for an audit, deliver it as an
+artifact like the design board.
 
 **Round 2 (same day):** a contrast and hierarchy pass, roomier headers, and a
 fix for to-dos being stored as notes were applied to the preview and are in

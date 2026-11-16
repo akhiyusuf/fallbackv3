@@ -433,10 +433,89 @@ with the theme, and theme hues are kept away from them and from error red.
 | 07 | Text on the theme colour | B — bright shade, best-contrast text |
 | 08 | What people choose | B — named themes with a preview |
 
-Nothing here is applied yet. The human's picks are pending.
+Picks received and applied to the preview: see "Round 3 — picks" below.
 
 ## Also fixed in the preview this round
 
 The Settings → Theme preview drew a made-up card (ring, three chips, a Save
 button) that exists nowhere else. It now renders the same `TodayTaskCard`
 component the Today screen uses, so the two cannot drift apart.
+
+# Round 3 — picks (2026-11-16, human)
+
+| # | Decision | Pick |
+|---|---|---|
+| 01 | Top card on Today | B — solid theme colour. Note: "I'm not really feeling the contrast with the black against the orange though" |
+| 02 | Page background and borders | B — a hint of the theme |
+| 03 | Done and Fallback buttons | B — soft fill |
+| 04 | A logged task | B — whole card takes the colour |
+| 05 | The green and the blue | B — brighter |
+| 06 | Tab bar | B — tinted pill |
+| 07 | Text on the theme colour | B — bright shade, best-contrast text |
+| 08 | What people choose | C — themes plus your own colour (differs from the recommendation) |
+
+With it, verbatim: "we should be a bit more strict on the colours users are able
+to choose though, I also feel the microphone should be inside of the plus
+screen, it doesn't really scream AI voice, also enable ai mcp usage (this'll
+allow an ai agent go in and help the user, with strict permissons coming from
+the app for the user to approve of of course)".
+
+## How each was applied (preview only)
+
+- **Theme engine** (`src/theme/engine.ts`). A theme is one seed colour; the
+  solid, its text colour, a deeper band, the tint, coloured text and the page
+  tone are derived and contrast-checked. 680 pair checks across 5 named themes
+  and 15 extra colours, light and dark: 0 failing
+  (`docs/design-rebuild/colour-board/allthemes.ts`).
+- **01 + the note.** `StatHero`: the top card is the bright theme colour with
+  **white** text. White on the bright orange is 3.25:1, which is enough for
+  large bold text only, so the number (40px) and the label (20px bold) sit on
+  the bright colour and the small line sits on a deeper band where white is
+  4.6:1. No dark text on the card.
+- **07.** Buttons, selected chips and selected days keep the bright colour
+  with whichever of near-black or white reads at 4.5:1 (near-black on Forge,
+  white on Indigo, Berry, Plum). Icons and large text use white where 3:1
+  holds (the add button). *Open:* if dark labels on orange buttons also feel
+  wrong, the choices are the deeper orange with white, or larger button
+  labels.
+- **02.** Page, surfaces and borders take 5% of the seed in light and 7–13% in
+  dark; secondary text and outlines are re-checked on the tinted page.
+- **03 / 04 / 05.** Soft-filled Done and Fallback; a logged card takes the
+  state colour with a filled tick and a "change" chevron; ideal is `#22A94E`,
+  fallback `#2B93EE` (dark: `#2DBE5E`, `#3D9DF2`).
+- **06.** The active tab sits on a pill of the theme tint.
+- **08, made stricter.** Five named themes (Forge, Indigo, Berry, Plum, and a
+  new Lagoon) shown as preview cards, plus "More colours": 15 fixed swatches,
+  not a free slider. The person chooses a hue only; brightness and strength
+  are fixed. Greens, sky blues, golds and reds are not offered because those
+  hues mean ideal, fallback, XP and error.
+- **Microphone.** Removed from the Today header. Fallback AI now leads the add
+  sheet as "Tell Fallback AI — Say it or type it. It sets it up for you."
+
+## Data-model changes this round (need the architect)
+
+- `settings.accent_ext` (migration 006): themes beyond the original four and
+  custom colours (`hue-<n>`). `settings.accent` keeps its CHECK; `accent_ext`
+  wins when set. The architect may prefer a table rebuild.
+- `AccentKey` widens to `NamedTheme | hue-<n>`.
+
+## New feature request — AI agent access over MCP (NOT built)
+
+The human asked to "enable ai mcp usage". This is a new product feature, not a
+look change, so it is **not** implemented. What exists is a design reference:
+`app/settings/agents.tsx` + `src/features/agents/store.ts` (in-memory, no
+server, labelled "Design preview" on screen). It shows: off by default; a
+permission per kind of action (see / log / add and edit / delete / read
+notes); "Ask me every time" as the default for anything that changes data;
+delete can never be pre-approved; an approval sheet per request; a list of
+things an agent can never do; an activity log; disconnect.
+
+It must go through Phase 1 (requirements → features → PRD → Gate 1) before any
+of it is built. Open questions for the human:
+
+1. **How does an agent reach the app?** A phone app cannot be an MCP server
+   that outside agents call. It needs either a hosted relay tied to an account
+   (which depends on the still-open cloud sync decision, F20), or it only works
+   with an agent running on the same device.
+2. Is this free, or part of the Fallback AI subscription?
+3. Approvals when the app is closed: by notification, or do requests wait?
