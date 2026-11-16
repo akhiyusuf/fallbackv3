@@ -519,3 +519,46 @@ of it is built. Open questions for the human:
    with an agent running on the same device.
 2. Is this free, or part of the Fallback AI subscription?
 3. Approvals when the app is closed: by notification, or do requests wait?
+
+# Round 4 — whole-app polish (2026-11-16, human-directed, awaiting picks)
+
+The human: "Why do I feel as though it is only the today screen you worked
+on? … the entire app needs polish. We are consistent in design, but like it
+doesn't feel polished enough … polish this app to feel like one of those
+polished productivity apps. Think Duolingo, but don't change the color that we
+have."
+
+They were right. Round 3's structural changes reached Today, Theme and the add
+sheet; every other screen only inherited tokens. Measured on preview v5
+(light, sample data, 390×760; `polish-board/cap.js`):
+
+| Screen | Colour | Screen | Colour |
+|---|---|---|---|
+| Today | 15.1% | Progress | 1.3% |
+| Routines | 3.1% | Achievements | 1.5% |
+| Events | 1.4% | Records | 0.4% |
+| Courses | 1.6% | Trend | 0.3% |
+| To-dos | 1.0% | Settings | 0.1% |
+| Task | 1.0% | Notifications | 0% |
+
+Delivered as the **Fallback Polish Board**
+(https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh); source in
+`docs/design-rebuild/polish-board/` (it reuses `colour-board/engine.js` and the
+colour board's base styles). Colours are unchanged in every option.
+
+| # | Decision | Affects | Recommended |
+|---|---|---|---|
+| 01 | Typeface | every screen | B — rounded (Nunito) |
+| 02 | Card and button depth | every screen | B — chunky, with an edge |
+| 03 | A headline on every tab | Routines, Events, Courses, To-dos | B — headline card |
+| 04 | Routine and course cards | Routines, Courses, Search | B — the week at a glance |
+| 05 | Top of a task screen | every task | B — block in the task's colour |
+| 06 | Progress screen | consistency, trend | B — ring, stat tiles, thick bar |
+| 07 | Levels and badges | Achievements, Settings | B — medallions, thick XP bar |
+| 08 | Settings and list rows | Settings, Notifications, options | B — icons on a theme-tint tile |
+| 09 | Empty screens | Events, To-dos, Records, … | B — illustration and a button |
+| 10 | Onboarding | seven first-run steps | B — coloured top with a picture |
+| 11 | How the app reacts | logging, buttons, progress | B — responsive |
+| 12 | The voice screen | Fallback AI | B — listening orb |
+
+Nothing is applied yet. Picks pending.

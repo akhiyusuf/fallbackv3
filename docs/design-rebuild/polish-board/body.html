@@ -1,0 +1,68 @@
+<div class="wrap intro">
+  <span class="mono">Fallback · whole-app polish audit · round 4</span>
+  <h1>The rest of the app, brought up to Today</h1>
+  <p class="lede">You were right. Last round's real changes landed on Today, the Theme screen and the add sheet. Every other screen only inherited the new colours. Measured on the current preview: Today is 15% colour, and no other screen is above 3%.</p>
+  <div class="nums">
+    <div><b>15.1%</b><span>of Today carries colour now.</span></div>
+    <div><b>3.1%</b><span>Routines, the next best screen.</span></div>
+    <div><b>1.0 to 1.6%</b><span>Events, Courses, To-dos, Task, Progress, Achievements.</span></div>
+    <div><b>0 to 0.4%</b><span>Settings, Notifications, Records, Trend.</span></div>
+  </div>
+  <div class="strip" tabindex="0" role="group" aria-label="Screenshots of the app today" id="strip"></div>
+  <div class="two">
+    <section class="panel">
+      <h3>What is missing outside Today</h3>
+      <ol>
+        <li><b>No screen but Today has a headline.</b> Routines, Events, Courses and To-dos open straight into a list. Nothing tells you how you are doing there.</li>
+        <li><b>Nothing looks touchable except buttons.</b> Cards are flat with a hairline border, so a card you can open looks the same as a panel you can't.</li>
+        <li><b>Look-alikes that do nothing.</b> The green and blue plan tiles on Routines and Courses look like Today's Done and Fallback buttons, but they are only labels.</li>
+        <li><b>Progress is written, not drawn.</b> Levels, XP and history are mostly sentences and thin bars. Locked badges are identical grey circles.</li>
+        <li><b>Empty screens are empty.</b> Events with nothing today, Notifications and Records leave most of the screen blank.</li>
+        <li><b>The type has no character and nothing moves.</b> One plain typeface at similar weights everywhere, and logging gives no physical feedback.</li>
+      </ol>
+    </section>
+    <section class="panel">
+      <h3>What "polished" means here</h3>
+      <p>The apps you are thinking of share five habits. None of them needs a new colour: your themes, the green, the blue and the gold stay exactly as approved.</p>
+      <ol>
+        <li><b>Things look pressable.</b> Chunky shapes with a visible edge.</li>
+        <li><b>Every screen has one headline.</b> A number or a state, in the theme colour.</li>
+        <li><b>Type with character.</b> A rounded face and heavy numbers.</li>
+        <li><b>Progress is drawn.</b> Rings, thick bars, week dots, medallions.</li>
+        <li><b>The app reacts.</b> Buttons press down, ticks pop, bars fill.</li>
+      </ol>
+      <p>Each decision below applies one of these to a different part of the app. The phone lets you flip between seven screens to see them together.</p>
+    </section>
+  </div>
+</div>
+
+<div class="bar" id="bar"><div class="bar-in">
+  <div class="sw" id="sw" role="group" aria-label="Theme"></div>
+  <span class="name" id="tname"></span>
+  <div class="seg" role="group" aria-label="App appearance"><button type="button" data-scheme="light">Light</button><button type="button" data-scheme="dark">Dark</button></div>
+  <div class="prog"><span><span id="cnt">0</span> of <span id="tot">12</span> chosen</span><span class="track"><span id="fill"></span></span></div>
+  <button class="btn solid" id="copy" type="button">Copy my choices</button>
+</div></div>
+
+<div class="wrap main">
+  <aside class="stage" id="stage">
+    <div class="seg" role="group" aria-label="Which version to show"><button type="button" data-view="now">App today</button><button type="button" data-view="new">With the picks</button></div>
+    <div class="scr" id="scr" role="group" aria-label="Screen"></div>
+    <div class="phbox" id="phbox"><div class="ph" id="ph"></div></div>
+    <p class="cap" id="cap"></p>
+  </aside>
+  <div class="col">
+    <div id="decs" class="col"></div>
+    <section class="dec">
+      <div class="dec-h"><h3>Fixes that need no pick</h3></div>
+      <p>These come with the polish pass whatever you choose above.</p>
+      <ul id="fixes" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px"></ul>
+    </section>
+    <section class="dec finish">
+      <div class="dec-h"><h3>Send me your choices</h3></div>
+      <p>Your picks save as you go. When you are done, tell me in the chat, or copy the summary below and paste it.</p>
+      <div class="rowb"><button class="btn solid" id="copy2" type="button">Copy my choices</button><button class="btn" id="useRec" type="button">Use your picks for the rest</button><span class="save" id="save"></span></div>
+      <textarea id="summary" readonly aria-label="Summary of your choices"></textarea>
+    </section>
+  </div>
+</div>

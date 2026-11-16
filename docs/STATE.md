@@ -645,6 +645,10 @@ So the work is not lost with the session, it is saved in
 theme engine, a second data-model change (`settings.accent_ext`, migration
 006) and moves Fallback AI from the Today header into the add sheet.
 
+**Round 4 (whole-app polish) is open with the human.** The Fallback Polish
+Board (https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh) carries twelve
+decisions; picks are pending. See `docs/DESIGN_DECISIONS.md`, Round 4.
+
 **New feature request, not built: AI agent access over MCP.** Only a labelled
 design-reference screen exists. It is a product feature and must go through
 Phase 1 (interviewer → product-planner → spec-writer → Gate 1) before the
