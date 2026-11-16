@@ -20,6 +20,9 @@ html { height: 100%; box-sizing: border-box; background: var(--ground); display:
 body { height: 100%; width: 100%; margin: 0; position: relative; transform: translateZ(0); display: flex; flex-direction: column; background: var(--screen); color: var(--panel-fg); font-family: var(--body); overflow: visible; }
 #root { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 
+/* Stand-ins for the phone's own status bar and home indicator, so the app's header gets the room it has on a device. */
+#statusbar { flex: 0 0 10px; background: var(--app-bg, var(--screen)); color: var(--app-fg, var(--panel-fg)); }
+#statusbar span, #homebar { display: none; }
 #bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--ground); border-bottom: 1px solid var(--line); font-size: 13px; }
 #bar strong { font-family: var(--display); font-weight: 600; letter-spacing: .01em; }
 #panel { position: absolute; inset: 0; z-index: 100000; background: var(--ground); overflow-y: auto; padding-block: 20px 28px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
@@ -49,7 +52,15 @@ ul.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 @media (min-width: 760px) {
   html { justify-content: flex-start; padding-left: 40px; }
   body { width: 390px; height: min(844px, calc(100% - 56px)); border-radius: 30px; box-shadow: 0 0 0 11px var(--bezel), 0 28px 60px 8px var(--shadow); }
-  #root, #boot { border-radius: 30px; }
+  #root { border-radius: 0; }
+  #boot { border-radius: 30px; }
+  #statusbar { flex: 0 0 46px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 30px 8px; box-sizing: border-box; border-radius: 30px 30px 0 0; font: 600 15px/1 var(--body); letter-spacing: .01em; }
+  #statusbar span { display: inline-flex; align-items: center; gap: 6px; }
+  .sb-signal { width: 17px; height: 11px; background: linear-gradient(to right, currentColor 0 3px, transparent 3px 4.6px, currentColor 4.6px 7.6px, transparent 7.6px 9.2px, currentColor 9.2px 12.2px, transparent 12.2px 13.8px, currentColor 13.8px 17px); -webkit-mask: linear-gradient(to top right, #000 50%, transparent 50%); mask: linear-gradient(to top right, #000 50%, transparent 50%); }
+  .sb-batt { width: 24px; height: 11px; border: 1.5px solid currentColor; border-radius: 3.5px; box-sizing: border-box; background: linear-gradient(currentColor, currentColor) 1.5px 50% / 14px 5px no-repeat; opacity: .9; }
+  #homebar { display: flex; flex: 0 0 22px; align-items: center; justify-content: center; background: var(--app-bg, var(--screen)); border-radius: 0 0 30px 30px; }
+  #homebar i { width: 124px; height: 5px; border-radius: 3px; background: var(--app-fg, var(--panel-fg)); opacity: .55; }
+
   body > div:not(#root):not(#panel):not(#bar):not(#boot) > div { border-radius: 30px; overflow: hidden; }
   #bar, #close-panel { display: none; }
   #panel { display: flex !important; inset: auto; top: 0; bottom: 0; left: calc(100% + 56px); width: min(440px, calc(100vw - 390px - 40px - 56px - 32px)); background: transparent; padding: 4px 4px 4px 0; z-index: auto; gap: 18px; }
@@ -62,7 +73,9 @@ ul.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
 </style>
 
 <div id="bar"><span><strong>Fallback</strong> · browser preview</span><button class="btn small" id="open-panel" type="button">Preview options</button></div>
+<div id="statusbar" aria-hidden="true"><span>9:41</span><span class="sb-right"><i class="sb-signal"></i><i class="sb-batt"></i></span></div>
 <div id="root"></div>
+<div id="homebar" aria-hidden="true"><i></i></div>
 <div id="boot">Starting Fallback…</div>
 
 <aside id="panel" hidden aria-label="Preview options">
@@ -106,6 +119,20 @@ ul.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column;
   </section>
 </aside>
 
+<script>
+(function () {
+  // Keep the stand-in status bar the same colour as the app screen under it (the app has its own light/dark setting).
+  function lum(c) { var m = c.match(/[\d.]+/g); if (!m) return 1; var f = function (v) { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(+m[0]) + .7152 * f(+m[1]) + .0722 * f(+m[2]); }
+  function sync() {
+    var el = document.querySelector('#root > div'), bg = null, guard = 0;
+    while (el && guard++ < 12) { var c = getComputedStyle(el).backgroundColor; if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') { bg = c; break; } el = el.firstElementChild; }
+    if (!bg) return;
+    document.body.style.setProperty('--app-bg', bg);
+    document.body.style.setProperty('--app-fg', lum(bg) > .4 ? '#1f1c19' : '#f4efe9');
+  }
+  setInterval(sync, 400);
+})();
+</script>
 <script>
 (function () {
   // The app keeps its own screen history. The page address never changes, so a reload always lands back here.

@@ -638,6 +638,12 @@ So the work is not lost with the session, it is saved in
 - `preview-harness/` — what is needed to rebuild the browser preview.
 - `README.md` — how to apply and rebuild.
 
+**Round 2 (same day):** a contrast and hierarchy pass, roomier headers, and a
+fix for to-dos being stored as notes were applied to the preview and are in
+the same patch. Recorded in `docs/DESIGN_DECISIONS.md` under "Round 2". The
+to-do fix adds a column (`task.is_note`, migration 005), so it is no longer
+presentation-only: the architect must update `docs/SCHEMA.md` for it.
+
 This is reference input for the rebuild pipeline, not shipped code: once the
 human approves the look, the architect splits it into module work (CR-8) and
 feature-builders land it in `src/**` through the normal review loop, updating

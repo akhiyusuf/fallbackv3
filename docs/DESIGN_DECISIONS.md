@@ -315,3 +315,75 @@ screen S01–S50 and every shared component.
     tokens (D17, D20).
 24. A test is added that fails when screen code uses a size, weight or radius
     that is not a token, so this cannot drift again.
+
+---
+
+# Round 2 — contrast and hierarchy (2026-11-16, human-directed)
+
+After seeing the rebuilt preview the human asked for a contrast and hierarchy
+pass, reported that the Today date and settings button sat too close to the
+edge, and reported a bug: to-dos were being stored as notes. Applied by hand to
+the browser preview (see `docs/design-rebuild/`); awaiting look approval.
+
+## What the audit measured
+
+Every visible text run and icon on 41 screens, in light and dark, was measured
+against the surface it sits on (WCAG 2.1: 4.5:1 for text, 3:1 for large text
+and icons). The script is `docs/design-rebuild/preview-harness/contrast.js`.
+
+Before: 47 failing colour pairs in light, 58 in dark. After: none on content.
+What still reads as "failing" is not content: disabled controls, the empty
+track of a progress ring, and screen-reader-only text.
+
+| Was failing | Measured | Now |
+|---|---|---|
+| White label on the orange button (`#F2601A`) | 3.25 | Buttons and selected controls use a deeper orange `#C8490C` (4.76). The bright orange stays for marks with no text: task icon circles, progress, onboarding dots. |
+| "Done" / "Fallback" labels and "Ideal done" chips (green `#5F8A3E`, blue `#4E82A8`) | 3.6–4.0 | Text-grade green `#46702A` and blue `#34678F` (5.2–6.0). The fills in bars and dots are unchanged. |
+| Faint grey `#A09C92` used for real text: placeholders, calendar numbers, tab labels | 2.6–2.7 | `#716D64` (4.7–5.2). Inactive tab labels use the muted text colour. |
+| Gold XP text `#A8853B` | 3.0–3.4 | `#7D5F14` (5.3–6.0). The gold bar fill is unchanged. |
+| White ticks on green and blue calendar cells | 2.2–2.3 | Dark ink ticks (6.8–7.1). |
+| Active tab label, orange on white | 3.25 | Accent text colour `#B4400A` (5.7). |
+| Dark mode: accent badge text, "Due" pill, red delete icon, faint grey | 1.9–4.4 | Light tints of each accent for text on dark, `#FF7A7A` for danger text, `#A09A90` for faint grey (all 4.7 or better). |
+| Field and control outlines `#D6D3CC` | 1.5 | `#8F8A80` (3.1–3.4) so inputs, circles and checkboxes are visible by their outline. |
+
+## Hierarchy changes
+
+- **Cards now stand off the page.** The page is a warm paper tone `#F6F4F0` and
+  cards, fields, the tab bar and the pinned action bar are white. Before, cards
+  were a shade darker than a white page and separated only by a hairline. Dark
+  mode already worked this way (cards lighter than the page).
+- **One orange for controls.** Buttons, the add button, switches, checkboxes
+  and selected chips all use the deeper orange, so nothing on a screen competes
+  with the main button.
+- **Card details line.** The first item is slightly stronger; cards leave out
+  the defaults (medium importance, recommended) so only what stands out shows.
+- **Header room.** A tab header with a date line has space below it before the
+  first card, and header icons sit further from the right edge.
+
+## New accent tokens
+
+`accent.fill` (behind white text), `accent.fillEdge` (its pressed edge) and
+`accent.text` (accent-coloured text and icons for the current scheme) join
+`base`, `hover`, `deep`, `soft`. Berry's fill is `#CE2C65`; indigo and plum
+already passed and use their base colour.
+
+## Bug fixed — to-dos stored as notes
+
+A to-do and a note are the same task type. The app told them apart by whether
+the item had any detail text, so a to-do with a detail was filed under Notes.
+The kind is now an explicit choice:
+
+- New column `task.is_note` (migration 005). Existing items keep the list they
+  were already shown in.
+- The add form has a "To-do / Note" switch at the top.
+- A to-do's "···" menu has "Change to a note" (and the reverse) to move one
+  that was filed wrongly.
+
+**This is a data-model change.** It needs `docs/SCHEMA.md` and the PRD's To-do
+wording updated through the architect before it lands in `src/**`.
+
+## Open with the human
+
+- The orange buttons are deeper than the brand orange. The alternative that
+  also passes is bright orange with dark text.
+- The theme screen's orange swatch still shows the bright orange.

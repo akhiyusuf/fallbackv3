@@ -21,7 +21,7 @@ async function insertTask(seed: Seed, createdDaysAgo: number): Promise<string> {
   const { ideal = [], fallback = [], ...rest } = seed;
   const task: Task = {
     id, note: null, isAsNeeded: false, cadence: null, eventDate: null, timeOfDay: null, startDate: null, endDate: null,
-    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true,
+    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false,
     createdAt: created, updatedAt: created, deletedAt: null, ...rest,
   } as Task;
   const steps: Step[] = [

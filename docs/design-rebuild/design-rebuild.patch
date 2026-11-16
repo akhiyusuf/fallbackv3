@@ -113,6 +113,129 @@ diff -ruN a/src/app-shell/stores/toast.ts b/src/app-shell/stores/toast.ts
 +    return () => set((s) => ({ actionBars: Math.max(0, s.actionBars - 1) }));
 +  },
  }));
+diff -ruN a/src/db/migrations/005_task_is_note.ts b/src/db/migrations/005_task_is_note.ts
+--- a/src/db/migrations/005_task_is_note.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/db/migrations/005_task_is_note.ts	2026-11-16 07:02:37.036187792 +0000
+@@ -0,0 +1,15 @@
++import type { Migration } from './types';
++
++/**
++ * A To-do and a Note are both `type = 'todo'`. Until now the To-dos screen told them apart by
++ * whether the row had note text, so a to-do with an optional detail was filed as a Note. This
++ * makes the kind an explicit fact. Existing rows keep the list they were already shown in.
++ */
++export const MIGRATION_005_TASK_IS_NOTE: Migration = {
++  version: 5,
++  name: 'task.is_note — explicit To-do vs Note',
++  up: `
++    ALTER TABLE task ADD COLUMN is_note INTEGER NOT NULL DEFAULT 0 CHECK (is_note IN (0,1));
++    UPDATE task SET is_note = 1 WHERE type = 'todo' AND note IS NOT NULL AND trim(note) <> '';
++  `,
++};
+diff -ruN a/src/db/migrations/index.ts b/src/db/migrations/index.ts
+--- a/src/db/migrations/index.ts	2026-11-16 05:43:15.824554748 +0000
++++ b/src/db/migrations/index.ts	2026-11-16 07:02:37.058149325 +0000
+@@ -7,6 +7,7 @@
+ import { MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE } from './002_offday_whole_day_unique';
+ import { MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK } from './003_snoozable_and_one_hop_check';
+ import { MIGRATION_004_ASSISTANT_VOICE_LANGUAGE } from './004_assistant_voice_language';
++import { MIGRATION_005_TASK_IS_NOTE } from './005_task_is_note';
+ import type { Migration } from './types';
+ 
+ export type { Migration } from './types';
+@@ -16,6 +17,7 @@
+   MIGRATION_002_OFFDAY_WHOLE_DAY_UNIQUE,
+   MIGRATION_003_SNOOZABLE_AND_ONE_HOP_CHECK,
+   MIGRATION_004_ASSISTANT_VOICE_LANGUAGE,
++  MIGRATION_005_TASK_IS_NOTE,
+ ];
+ 
+ export const CURRENT_SCHEMA_VERSION: number = MIGRATIONS[MIGRATIONS.length - 1]!.version;
+diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepository.ts
+--- a/src/db/repositories/taskRepository.ts	2026-11-16 05:43:15.823700626 +0000
++++ b/src/db/repositories/taskRepository.ts	2026-11-16 07:02:57.656762562 +0000
+@@ -59,6 +59,7 @@
+   readonly updated_at: string;
+   readonly deleted_at: string | null;
+   readonly snoozable: number;
++  readonly is_note: number;
+ }
+ 
+ interface StepRow {
+@@ -178,6 +179,7 @@
+     // CR-4 (PRD §3.7 / SCHEMA §2). Default-on gate, editable post-creation from S20;
+     // duplicate() below inherits this via its plain `{ ...sourceTask }` spread.
+     snoozable: row.snoozable === 1,
++    isNote: row.is_note === 1,
+   };
+ }
+ 
+@@ -204,7 +206,7 @@
+   id, type, name, note, icon, color, is_as_needed, cadence_kind, cadence_weekdays,
+   cadence_weekday, cadence_day_of_month, cadence_month, cadence_anchor_date, event_date,
+   time_of_day, start_date, end_date, doses_per_day, is_tracked, importance, necessity,
+-  todo_done_at, created_at, updated_at, deleted_at, snoozable
++  todo_done_at, created_at, updated_at, deleted_at, snoozable, is_note
+ `;
+ 
+ function taskParams(task: Task): unknown[] {
+@@ -236,6 +238,7 @@
+     task.updatedAt,
+     task.deletedAt,
+     task.snoozable ? 1 : 0,
++    task.isNote ? 1 : 0,
+   ];
+ }
+ 
+@@ -283,7 +286,7 @@
+       try {
+         await db.withTransactionAsync(async () => {
+           await db.runAsync(
+-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
++            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             taskParams(task),
+           );
+           for (const step of steps) {
+@@ -310,7 +313,7 @@
+              cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
+              cadence_anchor_date=?, event_date=?, time_of_day=?, start_date=?, end_date=?,
+              doses_per_day=?, is_tracked=?, importance=?, necessity=?, todo_done_at=?,
+-             created_at=?, updated_at=?, deleted_at=?, snoozable=? WHERE id=?`,
++             created_at=?, updated_at=?, deleted_at=?, snoozable=?, is_note=? WHERE id=?`,
+             [...taskParams(merged).slice(1), id],
+           );
+           if (steps) {
+@@ -358,7 +361,7 @@
+         const newSteps: Step[] = (stepsByTask.get(id) ?? []).map((s) => ({ ...s, id: newId(), taskId: newTaskId }));
+         await db.withTransactionAsync(async () => {
+           await db.runAsync(
+-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
++            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+             taskParams(copy),
+           );
+           for (const step of newSteps) {
+diff -ruN a/src/db/schema.sql b/src/db/schema.sql
+--- a/src/db/schema.sql	2026-11-16 05:43:15.824818661 +0000
++++ b/src/db/schema.sql	2026-11-16 07:02:37.058389916 +0000
+@@ -61,6 +61,7 @@
+   deleted_at TEXT,
+   -- migration 3 (CR-4): PRD §3.7 per-task snooze gate, default on.
+   snoozable INTEGER NOT NULL DEFAULT 1 CHECK (snoozable IN (0,1)),
++  is_note INTEGER NOT NULL DEFAULT 0 CHECK (is_note IN (0,1)),
+   CHECK (is_as_needed = 0 OR type = 'routine')
+ );
+ CREATE INDEX idx_task_type_deleted ON task(type, deleted_at);
+diff -ruN a/src/domain/__fixtures__/index.ts b/src/domain/__fixtures__/index.ts
+--- a/src/domain/__fixtures__/index.ts	2026-11-16 05:43:15.825293370 +0000
++++ b/src/domain/__fixtures__/index.ts	2026-11-16 07:02:37.059955616 +0000
+@@ -36,6 +36,7 @@
+     necessity: null,
+     todoDoneAt: null,
+     snoozable: true, // CR-4 default
++    isNote: false,
+     createdAt: CREATED,
+     updatedAt: CREATED,
+     deletedAt: null,
 diff -ruN a/src/features/assistant/AssistantHeader.tsx b/src/features/assistant/AssistantHeader.tsx
 --- a/src/features/assistant/AssistantHeader.tsx	2026-11-16 05:43:15.822222897 +0000
 +++ b/src/features/assistant/AssistantHeader.tsx	1970-01-01 00:00:00.000000000 +0000
@@ -452,7 +575,7 @@ diff -ruN a/src/features/assistant/OptionsSheet.tsx b/src/features/assistant/Opt
 -});
 diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCard.tsx
 --- a/src/features/assistant/PlanCard.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/assistant/PlanCard.tsx	2026-11-16 06:03:24.112882293 +0000
++++ b/src/features/assistant/PlanCard.tsx	2026-11-16 07:18:56.333577723 +0000
 @@ -0,0 +1,57 @@
 +/** PlanCard — a selectable plan. The ONE plan-choice style, on the paywall and in Settings (D9). */
 +import { StyleSheet, Text, View } from 'react-native';
@@ -479,10 +602,10 @@ diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCar
 +      onPress={disabled ? undefined : onPress}
 +      accessibilityRole="button"
 +      accessibilityLabel={`${title}${badge ? `, ${badge}` : ''}, ${price} ${billed}${selected ? ', selected' : ', not selected'}`}
-+      style={[styles.card, { borderColor: selected ? t.accent.base : t.color.border, borderWidth: selected ? 2 : 1, padding: selected ? SPACE.s3 - 1 : SPACE.s3 }]}
++      style={[styles.card, { borderColor: selected ? t.accent.fill : t.color.border, borderWidth: selected ? 2 : 1, padding: selected ? SPACE.s3 - 1 : SPACE.s3 }]}
 +    >
 +      <View style={styles.row}>
-+        <View style={[styles.radio, { borderColor: selected ? t.accent.base : t.color.borderStrong, backgroundColor: selected ? t.accent.base : 'transparent' }]}>
++        <View style={[styles.radio, { borderColor: selected ? t.accent.fill : t.color.borderStrong, backgroundColor: selected ? t.accent.fill : 'transparent' }]}>
 +          {selected ? <Check size={14} color={t.color.textOnAccent} /> : null}
 +        </View>
 +        <View style={styles.text}>
@@ -593,7 +716,7 @@ diff -ruN a/src/features/assistant/TaskCreatedCard.tsx b/src/features/assistant/
  });
 diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant/TranscriptBubble.tsx
 --- a/src/features/assistant/TranscriptBubble.tsx	2026-11-16 05:43:15.822213600 +0000
-+++ b/src/features/assistant/TranscriptBubble.tsx	2026-11-16 06:15:24.629276454 +0000
++++ b/src/features/assistant/TranscriptBubble.tsx	2026-11-16 07:14:18.914236249 +0000
 @@ -1,8 +1,8 @@
 -/** M6. A single user/assistant text bubble in S32/S35's transcript. */
 +/** One chat bubble. The user's sits right in the accent tint; the assistant's sits left. */
@@ -612,7 +735,7 @@ diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant
 -        <View style={[styles.avatar, { backgroundColor: t.color.surface }]} accessibilityElementsHidden importantForAccessibility="no">
 -          <Sparkles size={14} color={t.accent.base} />
 +        <View style={[styles.avatar, { backgroundColor: t.accent.soft }]} accessibilityElementsHidden importantForAccessibility="no">
-+          <Sparkles size={14} color={t.scheme === 'dark' ? t.accent.base : t.accent.deep} />
++          <Sparkles size={14} color={t.accent.text} />
          </View>
        )}
        <View
@@ -1266,7 +1389,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  });
 diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 --- a/src/features/browse/Fab.tsx	2026-11-16 05:43:15.822072570 +0000
-+++ b/src/features/browse/Fab.tsx	2026-11-16 05:50:15.595595291 +0000
++++ b/src/features/browse/Fab.tsx	2026-11-16 07:18:56.332721709 +0000
 @@ -1,24 +1,27 @@
 -/**
 - * M3. Shared floating add affordance for S09–S13. FAB-occlusion fix (cross-batch review
@@ -1293,9 +1416,9 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 -    <View style={styles.wrap}>
 -      <IconButton icon={Plus} variant="accent" accessibilityLabel={accessibilityLabel} onPress={onPress} />
 -    </View>
-+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.wrap, { backgroundColor: t.accent.deep }]}>
++    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.wrap, { backgroundColor: t.accent.fillEdge }]}>
 +      {({ pressed }) => (
-+        <View style={[styles.face, { backgroundColor: t.accent.base, marginBottom: pressed ? 0 : 4 }]}>
++        <View style={[styles.face, { backgroundColor: t.accent.fill, marginBottom: pressed ? 0 : 4 }]}>
 +          <Plus size={26} color={t.color.textOnAccent} />
 +        </View>
 +      )}
@@ -1540,7 +1663,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  });
 diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDosBrowseScreen.tsx
 --- a/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 05:43:15.822041156 +0000
-+++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 06:19:20.191609679 +0000
++++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 07:03:34.093909140 +0000
 @@ -1,26 +1,15 @@
 -/**
 - * S13 — To-dos & Notes Browse. F11.
@@ -1557,9 +1680,10 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 - */
 +/** M3 — S13 To-dos. Segmented To-dos/Notes (D9); rows in one grouped list (D7). */
  import { useState } from 'react';
- import { useRouter, type Href } from 'expo-router';
+-import { useRouter, type Href } from 'expo-router';
 -import { StickyNote } from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
++import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 +import { Check, StickyNote } from 'lucide-react-native';
 +import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
  
@@ -1574,14 +1698,23 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  import type { Id, TaskWithSteps } from '@/types';
  
  import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
-@@ -37,13 +26,14 @@
+@@ -31,19 +20,21 @@
+ type Lens = 'todos' | 'notes';
+ 
+ function isNote(tk: TaskWithSteps): boolean {
+-  return !!tk.note && tk.note.trim().length > 0;
++  return tk.isNote;
+ }
+ 
  export default function ToDosBrowseScreen() {
    const t = useTheme();
    const router = useRouter();
 +  const openAddMenu = useAddMenuStore((st) => st.show);
    const tasksQuery = useTasks({ type: 'todo' });
    const updateTask = useUpdateTask();
-   const [lens, setLens] = useState<Lens>('todos');
+-  const [lens, setLens] = useState<Lens>('todos');
++  const params = useLocalSearchParams<{ lens?: string }>();
++  const [lens, setLens] = useState<Lens>(params.lens === 'notes' ? 'notes' : 'todos');
  
    const all = tasksQuery.data ?? [];
    const shown = lens === 'todos' ? all.filter((tk) => !isNote(tk)) : all.filter(isNote);
@@ -1590,7 +1723,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'todos') as Href);
-@@ -56,81 +46,80 @@
+@@ -56,81 +47,81 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S13_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'todos') as Href)} />
@@ -1670,6 +1803,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 +                        </Pressable>
 +                      }
 +                      label={tk.name}
++                      sublabel={(tk.note ?? '').split('\n')[0] || undefined}
 +                      value={tk.importance ? `${importanceLabel(tk.importance)} importance` : undefined}
 +                      onPress={() => openTask(tk.id)}
 +                    />
@@ -1680,7 +1814,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
                        label={tk.name}
 -                      strikethrough
 -                      testID={`todo-checkbox-${tk.id}`}
-+                      sublabel={(tk.note ?? '').split('\n')[0]}
++                      sublabel={(tk.note ?? '').split('\n')[0] || undefined}
 +                      onPress={() => openTask(tk.id)}
                      />
 -                  </View>
@@ -2365,7 +2499,7 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
  });
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 06:06:46.778461176 +0000
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 07:14:30.449138537 +0000
 @@ -1,99 +1,104 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
@@ -2512,7 +2646,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 +        {Icon ? (
 +          <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
-+            <Icon size={28} color={t.scheme === 'dark' ? t.accent.base : t.accent.deep} accessibilityElementsHidden importantForAccessibility="no" />
++            <Icon size={28} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
 +          </View>
 +        ) : null}
          <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
@@ -2526,7 +2660,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  
 -      <View style={styles.footer}>
 -        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />
-+      <View style={[styles.footer, { paddingBottom: SPACE.s3 + insets.bottom, borderTopColor: t.color.border, backgroundColor: t.color.bg }]}>
++      <View style={[styles.footer, { paddingBottom: SPACE.s3 + insets.bottom, borderTopColor: t.color.border, backgroundColor: t.color.bgAlt }]}>
 +        {footer ?? <Button label={nextLabel} onPress={onNext ?? (() => undefined)} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />}
        </View>
      </View>
@@ -3160,13 +3294,13 @@ diff -ruN a/src/features/progress/index.ts b/src/features/progress/index.ts
  export * from './copy';
 diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.tsx
 --- a/src/features/search/FilterChip.tsx	2026-11-16 05:43:15.821944328 +0000
-+++ b/src/features/search/FilterChip.tsx	2026-11-16 05:55:02.730808557 +0000
++++ b/src/features/search/FilterChip.tsx	2026-11-16 07:14:18.909164933 +0000
 @@ -13,7 +13,7 @@
        accessibilityLabel={label}
        style={[
          styles.chip,
 -        { backgroundColor: selected ? t.accent.base : t.color.bg, borderColor: selected ? t.accent.base : t.color.border },
-+        { backgroundColor: selected ? t.accent.base : t.color.bg, borderColor: selected ? t.accent.base : t.color.borderStrong },
++        { backgroundColor: selected ? t.accent.fill : t.color.bgAlt, borderColor: selected ? t.accent.fill : t.color.borderStrong },
        ]}
      >
        <Text style={[styles.label, { color: selected ? t.color.textOnAccent : t.color.text }]}>{label}</Text>
@@ -3180,7 +3314,7 @@ diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.
  });
 diff -ruN a/src/features/search/SearchScreen.tsx b/src/features/search/SearchScreen.tsx
 --- a/src/features/search/SearchScreen.tsx	2026-11-16 05:43:15.821923876 +0000
-+++ b/src/features/search/SearchScreen.tsx	2026-11-16 06:19:20.192320426 +0000
++++ b/src/features/search/SearchScreen.tsx	2026-11-16 07:03:34.094852703 +0000
 @@ -1,18 +1,19 @@
  /** S14 — Filter & Search. F15. */
  import { useMemo, useState, type ReactNode } from 'react';
@@ -3293,7 +3427,7 @@ diff -ruN a/src/features/search/SearchScreen.tsx b/src/features/search/SearchScr
 -    </Card>
 +    <TaskCard
 +      task={tk}
-+      meta={metaParts({ schedule: taskTypeLabel(tk.type), importance: tk.importance, necessity: tk.necessity, compact: true })}
++      meta={metaParts({ schedule: tk.type === 'todo' && tk.isNote ? 'Note' : taskTypeLabel(tk.type), importance: tk.importance, necessity: tk.necessity, compact: true })}
 +      status={tk.isAsNeeded ? <StatusPill label={S14_COPY.asNeededTag} /> : undefined}
 +      showPlan={false}
 +      onPress={onPress}
@@ -3765,7 +3899,7 @@ diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 +});
 diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.tsx
 --- a/src/features/task/TaskDetails.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/TaskDetails.tsx	2026-11-16 06:19:20.186527556 +0000
++++ b/src/features/task/TaskDetails.tsx	2026-11-16 07:14:18.909017787 +0000
 @@ -0,0 +1,110 @@
 +/**
 + * TaskDetails — the ONE way a task's details are shown on a card or screen
@@ -3858,10 +3992,10 @@ diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.ts
 +export function StatusPill({ label, tone = 'neutral' }: { readonly label: string; readonly tone?: StatusTone }) {
 +  const t = useTheme();
 +  const bg = tone === 'due' ? t.accent.soft : tone === 'off' ? t.color.offSoft : tone === 'done' ? t.color.idealSoft : t.color.surface;
-+  const fg = tone === 'due' ? t.accent.deep : tone === 'off' ? t.color.offDeep : tone === 'done' ? t.color.idealDeep : t.color.textMuted;
++  const fg = tone === 'due' ? t.accent.text : tone === 'off' ? t.color.offDeep : tone === 'done' ? t.color.idealDeep : t.color.textMuted;
 +  return (
 +    <View style={[styles.pill, { backgroundColor: bg }]} accessible accessibilityRole="text" accessibilityLabel={label}>
-+      <Text style={[styles.pillLabel, { color: t.scheme === 'dark' && tone === 'due' ? t.accent.base : fg }]}>{label}</Text>
++      <Text style={[styles.pillLabel, { color: fg }]}>{label}</Text>
 +    </View>
 +  );
 +}
@@ -4518,10 +4652,83 @@ diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
  }
  
  /** Builds the re-entry-state re-worded stat line — see this file's header note. */
+diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
+--- a/src/previewBridge.ts	2026-11-16 05:43:15.821576387 +0000
++++ b/src/previewBridge.ts	2026-11-16 07:02:37.059755985 +0000
+@@ -21,7 +21,7 @@
+   const { ideal = [], fallback = [], ...rest } = seed;
+   const task: Task = {
+     id, note: null, isAsNeeded: false, cadence: null, eventDate: null, timeOfDay: null, startDate: null, endDate: null,
+-    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true,
++    dosesPerDay: 1, isTracked: true, importance: null, necessity: null, todoDoneAt: null, snoozable: true, isNote: false,
+     createdAt: created, updatedAt: created, deletedAt: null, ...rest,
+   } as Task;
+   const steps: Step[] = [
+diff -ruN a/src/queries/mutations.ts b/src/queries/mutations.ts
+--- a/src/queries/mutations.ts	2026-11-16 05:43:15.826146297 +0000
++++ b/src/queries/mutations.ts	2026-11-16 07:02:37.059366752 +0000
+@@ -352,6 +352,7 @@
+         necessity: draft.necessity ?? null,
+         todoDoneAt: null,
+         snoozable: draft.snoozable ?? true, // CR-4
++        isNote: draft.type === 'todo' ? (draft.isNote ?? false) : false,
+         createdAt: nowIso,
+         updatedAt: nowIso,
+         deletedAt: null,
+diff -ruN a/src/theme/index.ts b/src/theme/index.ts
+--- a/src/theme/index.ts	2026-11-16 05:43:15.822578154 +0000
++++ b/src/theme/index.ts	2026-11-16 07:14:18.908393277 +0000
+@@ -15,6 +15,11 @@
+     readonly hover: string;
+     readonly deep: string;
+     readonly soft: string;
++    /** Behind white text. */
++    readonly fill: string;
++    readonly fillEdge: string;
++    /** Accent-coloured text and icons on the current scheme's surfaces. */
++    readonly text: string;
+   };
+   readonly color: Palette;
+ }
+@@ -23,7 +28,15 @@
+   const a = ACCENTS[accentKey];
+   return {
+     scheme,
+-    accent: { base: a.base, hover: a.hover, deep: a.deep, soft: scheme === 'dark' ? a.softDark : a.softLight },
++    accent: {
++      base: a.base,
++      hover: a.hover,
++      deep: a.deep,
++      soft: scheme === 'dark' ? a.softDark : a.softLight,
++      fill: a.fill,
++      fillEdge: a.fillEdge,
++      text: scheme === 'dark' ? a.textDark : a.deep,
++    },
+     color: PALETTES[scheme],
+   };
+ }
 diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 --- a/src/theme/tokens.ts	2026-11-16 05:43:15.822695778 +0000
-+++ b/src/theme/tokens.ts	2026-11-16 05:44:47.518263078 +0000
-@@ -32,7 +32,7 @@
++++ b/src/theme/tokens.ts	2026-11-16 07:14:18.908037529 +0000
+@@ -14,10 +14,13 @@
+ export type ColorScheme = 'light' | 'dark';
+ 
+ export const ACCENTS = {
+-  'forge-orange': { base: '#F2601A', hover: '#DE5310', deep: '#B4400A', softLight: '#FCEADD', softDark: '#3D2415', label: 'Forge Orange' },
+-  indigo: { base: '#4F46E5', hover: '#4338CA', deep: '#3730A3', softLight: '#E7E6FB', softDark: '#232048', label: 'Indigo' },
+-  berry: { base: '#D6336C', hover: '#C2255C', deep: '#9C1A4E', softLight: '#FBE2EC', softDark: '#3D1626', label: 'Berry' },
+-  plum: { base: '#9333EA', hover: '#7E22CE', deep: '#6B21A8', softLight: '#F1E4FB', softDark: '#301A44', label: 'Plum' },
++  // base  = the vivid brand colour, for marks that carry no text (progress, dots, icon circles, the add button).
++  // fill  = behind white text (buttons, selected chips): at least 4.5:1 with white. fillEdge = its pressed/3D edge.
++  // deep  = accent-coloured text and icons on light surfaces. textDark = the same on dark surfaces.
++  'forge-orange': { base: '#F2601A', hover: '#DE5310', deep: '#B4400A', fill: '#C8490C', fillEdge: '#98380A', textDark: '#FF8A4F', softLight: '#FCEADD', softDark: '#3D2415', label: 'Forge Orange' },
++  indigo: { base: '#4F46E5', hover: '#4338CA', deep: '#3730A3', fill: '#4F46E5', fillEdge: '#3730A3', textDark: '#A9A5FF', softLight: '#E7E6FB', softDark: '#232048', label: 'Indigo' },
++  berry: { base: '#D6336C', hover: '#C2255C', deep: '#9C1A4E', fill: '#CE2C65', fillEdge: '#9C1A4E', textDark: '#FF85AD', softLight: '#FBE2EC', softDark: '#3D1626', label: 'Berry' },
++  plum: { base: '#9333EA', hover: '#7E22CE', deep: '#6B21A8', fill: '#9333EA', fillEdge: '#6B21A8', textDark: '#CBA1FF', softLight: '#F1E4FB', softDark: '#301A44', label: 'Plum' },
+ } as const;
+ 
+ export type AccentToken = keyof typeof ACCENTS;
+@@ -32,39 +35,42 @@
    off: string; offDeep: string; offSoft: string;
    celebrationGold: string; goldDeep: string; goldSoft: string;
    danger: string; dangerSoft: string; dangerDeep: string;
@@ -4529,28 +4736,91 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +  xp: string; xpFill: string; iconOnSignal: string; textOnAccent: string;
  }
  
++// Every text colour below is at least 4.5:1 on bg, bgAlt and its own "soft" tint; borderStrong is at
++// least 3:1 so a field or control is visible by its outline. Cards (bgAlt) sit lighter than the page (bg).
  const LIGHT: Palette = {
-@@ -63,7 +63,8 @@
+-  bg: '#ffffff',
+-  bgAlt: '#fbfaf8',
+-  surface: '#f1efea',
++  bg: '#f6f4f0',
++  bgAlt: '#ffffff',
++  surface: '#ebe8e1',
+   canvas: '#e9e5dd',
+-  text: '#37352f',
+-  textMuted: '#6f6b62',
+-  textDim: '#a09c92',
+-  border: '#e9e7e2',
+-  borderStrong: '#d6d3cc',
++  text: '#33312b',
++  textMuted: '#5f5b52',
++  textDim: '#716d64',
++  border: '#e2dfd8',
++  borderStrong: '#8f8a80',
+ 
+   ideal: '#8FBC6B',
+-  idealDeep: '#5F8A3E',
++  idealDeep: '#46702A',
+   idealSoft: '#EFF5E7',
+   fallback: '#7FB2D4',
+-  fallbackDeep: '#4E82A8',
++  fallbackDeep: '#34678F',
+   fallbackSoft: '#EAF2F8',
+   off: '#A8A294',
+-  offDeep: '#7B766C',
++  offDeep: '#676258',
+   offSoft: '#EEEBE5',
+   celebrationGold: '#DCB863',
+-  goldDeep: '#A8853B',
++  goldDeep: '#7D5F14',
+   goldSoft: '#F7F0E0',
+ 
+-  danger: '#FF4B4B',
++  danger: '#D93636',
    dangerSoft: '#FFECEC',
-   dangerDeep: '#D63030',
+-  dangerDeep: '#D63030',
++  dangerDeep: '#C42727',
  
 -  xp: '#7FB2D4',
-+  xp: '#A8853B',
+-  iconOnSignal: '#ffffff',
++  xp: '#7D5F14',
 +  xpFill: '#DCB863',
-   iconOnSignal: '#ffffff',
++  iconOnSignal: '#26241f',
    textOnAccent: '#ffffff',
  };
-@@ -96,7 +97,8 @@
+ 
+@@ -74,10 +80,10 @@
+   surface: '#33302a',
+   canvas: '#141312',
+   text: '#efece6',
+-  textMuted: '#b0aa9f',
+-  textDim: '#7d7870',
++  textMuted: '#bdb7ac',
++  textDim: '#a09a90',
+   border: '#3b3831',
+-  borderStrong: '#4d4941',
++  borderStrong: '#7a7469',
+ 
+   ideal: '#7CA95F',
+   idealDeep: '#A8C98D',
+@@ -92,12 +98,13 @@
+   goldDeep: '#DDBE79',
+   goldSoft: '#332B1C',
+ 
+-  danger: '#FF4B4B',
++  danger: '#D93636',
    dangerSoft: '#3A2222',
-   dangerDeep: '#8F2F2F',
+-  dangerDeep: '#8F2F2F',
++  dangerDeep: '#FF7A7A',
  
 -  xp: '#6C9DBE',
+-  iconOnSignal: '#ffffff',
 +  xp: '#DDBE79',
 +  xpFill: '#CBA24C',
-   iconOnSignal: '#ffffff',
++  iconOnSignal: '#1c1a17',
    textOnAccent: '#ffffff',
  };
-@@ -129,4 +131,8 @@
+ 
+@@ -129,4 +136,8 @@
   * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
   * one). The only sanctioned raw colour literal outside this file is this constant's use.
   */
@@ -4560,6 +4830,28 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +export const HEADER_HEIGHT = 56;
 +/** Hairline used for dividers inside grouped lists (D7). */
 +export const HAIRLINE = 1;
+diff -ruN a/src/types/task.ts b/src/types/task.ts
+--- a/src/types/task.ts	2026-11-16 05:43:15.819152445 +0000
++++ b/src/types/task.ts	2026-11-16 07:02:37.058664125 +0000
+@@ -90,6 +90,9 @@
+   /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
+   readonly todoDoneAt: Instant | null;
+ 
++  /** `type: 'todo'` only: true for a Note (no checkbox), false for a To-do. Explicit, never inferred from `note` text. */
++  readonly isNote: boolean;
++
+   /**
+    * CR-4 (MODULES.md), PRD §3.7. Per-task gate on whether F7 Snooze is offered at all —
+    * default `true` at create time (M2's `validateTaskDraft`). Turning it off never retracts
+@@ -126,6 +129,8 @@
+   readonly necessity?: Necessity | null;
+   /** CR-4. Defaults to `true` when omitted (M2's `validateTaskDraft`). */
+   readonly snoozable?: boolean;
++  /** `type: 'todo'` only. Defaults to `false` (a To-do). */
++  readonly isNote?: boolean;
+   readonly idealSteps: readonly StepDraft[];
+   readonly fallbackSteps: readonly StepDraft[];
+ }
 diff -ruN a/src/ui/AsNeededCard.tsx b/src/ui/AsNeededCard.tsx
 --- a/src/ui/AsNeededCard.tsx	2026-11-16 05:43:15.819723748 +0000
 +++ b/src/ui/AsNeededCard.tsx	2026-11-16 05:49:00.647596120 +0000
@@ -4570,9 +4862,30 @@ diff -ruN a/src/ui/AsNeededCard.tsx b/src/ui/AsNeededCard.tsx
 -  lastUsed: { fontSize: 13 },
 +  lastUsed: { fontSize: 12 },
  });
+diff -ruN a/src/ui/Badge.tsx b/src/ui/Badge.tsx
+--- a/src/ui/Badge.tsx	2026-11-16 05:43:15.819696337 +0000
++++ b/src/ui/Badge.tsx	2026-11-16 07:14:18.908837751 +0000
+@@ -12,7 +12,7 @@
+ export function Badge({ label, tone = 'neutral', accessibilityLabel }: BadgeProps) {
+   const t = useTheme();
+   const bg = tone === 'accent' ? t.accent.soft : t.color.surface;
+-  const fg = tone === 'accent' ? t.accent.deep : t.color.textMuted;
++  const fg = tone === 'accent' ? t.accent.text : t.color.textMuted;
+   return (
+     <View
+       style={[styles.root, { backgroundColor: bg }]}
 diff -ruN a/src/ui/BottomTabs.tsx b/src/ui/BottomTabs.tsx
 --- a/src/ui/BottomTabs.tsx	2026-11-16 05:43:15.819644291 +0000
-+++ b/src/ui/BottomTabs.tsx	2026-11-16 06:15:44.365616349 +0000
++++ b/src/ui/BottomTabs.tsx	2026-11-16 07:14:18.909568815 +0000
+@@ -49,7 +49,7 @@
+       {items.map((item) => {
+         const active = item.key === activeKey;
+         const Icon = item.icon;
+-        const color = active ? t.accent.base : t.color.textDim;
++        const color = active ? t.accent.text : t.color.textMuted;
+         return (
+           <Pressable
+             key={item.key}
 @@ -71,5 +71,5 @@
  const styles = StyleSheet.create({
    root: { flexDirection: 'row', borderTopWidth: 1, paddingTop: SPACE.s1, paddingBottom: SPACE.s2 },
@@ -4580,6 +4893,22 @@ diff -ruN a/src/ui/BottomTabs.tsx b/src/ui/BottomTabs.tsx
 -  label: { fontSize: 11, fontWeight: '600' },
 +  label: { fontSize: 12, fontWeight: '600' },
  });
+diff -ruN a/src/ui/Button.tsx b/src/ui/Button.tsx
+--- a/src/ui/Button.tsx	2026-11-16 05:43:15.819677365 +0000
++++ b/src/ui/Button.tsx	2026-11-16 07:14:18.908678150 +0000
+@@ -42,9 +42,9 @@
+ 
+   const tactile = variant === 'primary' || variant === 'secondary' || variant === 'danger';
+   const faceColor =
+-    variant === 'primary' ? t.accent.base : variant === 'danger' ? t.color.danger : variant === 'secondary' ? t.color.bgAlt : 'transparent';
+-  const shadowColor = variant === 'primary' ? t.accent.deep : variant === 'danger' ? t.color.dangerDeep : t.color.borderStrong;
+-  const textColor = variant === 'primary' || variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.base;
++    variant === 'primary' ? t.accent.fill : variant === 'danger' ? t.color.danger : variant === 'secondary' ? t.color.bgAlt : 'transparent';
++  const shadowColor = variant === 'primary' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : t.color.borderStrong;
++  const textColor = variant === 'primary' || variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.text;
+ 
+   return (
+     <Pressable
 diff -ruN a/src/ui/ButtonPair.tsx b/src/ui/ButtonPair.tsx
 --- a/src/ui/ButtonPair.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ButtonPair.tsx	2026-11-16 05:46:54.831855491 +0000
@@ -4646,6 +4975,18 @@ diff -ruN a/src/ui/Card.tsx b/src/ui/Card.tsx
 +  root: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 },
    corner: { position: 'absolute', top: SPACE.s1, right: SPACE.s1 },
  });
+diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
+--- a/src/ui/Checkbox.tsx	2026-11-16 05:43:15.819466535 +0000
++++ b/src/ui/Checkbox.tsx	2026-11-16 07:22:01.726558257 +0000
+@@ -31,7 +31,7 @@
+       <View
+         style={[
+           styles.box,
+-          { borderColor: checked ? t.accent.base : t.color.border, backgroundColor: checked ? t.accent.base : 'transparent' },
++          { borderColor: checked ? t.accent.fill : t.color.borderStrong, backgroundColor: checked ? t.accent.fill : 'transparent' },
+         ]}
+       >
+         {checked ? <Check size={14} color={t.color.textOnAccent} /> : null}
 diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
 --- a/src/ui/ConfirmSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ConfirmSheet.tsx	2026-11-16 05:48:00.591529205 +0000
@@ -4704,7 +5045,7 @@ diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.
  });
 diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
 --- a/src/ui/DateField.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/DateField.tsx	2026-11-16 05:49:00.616933709 +0000
++++ b/src/ui/DateField.tsx	2026-11-16 07:14:18.910492049 +0000
 @@ -0,0 +1,134 @@
 +/**
 + * DateField / TimeField — tappable fields that open the phone's own picker
@@ -4771,7 +5112,7 @@ diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
 +    <View style={styles.root}>
 +      <Text style={[styles.label, { color: t.color.text }]}>{label}</Text>
 +      {Platform.OS === 'web' ? (
-+        <View style={[styles.field, { backgroundColor: t.color.bg, borderColor: error ? t.color.danger : t.color.borderStrong }]} testID={testID}>
++        <View style={[styles.field, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]} testID={testID}>
 +          <Icon size={18} color={t.color.textMuted} />
 +          <Text style={[styles.value, { color: shown ? t.color.text : t.color.textDim }]}>{shown || (placeholder ?? (kind === 'date' ? 'Pick a date' : 'Pick a time'))}</Text>
 +          {createElement('input', {
@@ -4791,7 +5132,7 @@ diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
 +          })}
 +        </View>
 +      ) : (
-+        <View style={[styles.field, { backgroundColor: t.color.bg, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
++        <View style={[styles.field, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
 +          <Icon size={18} color={t.color.textMuted} />
 +          <TextInput
 +            value={value}
@@ -4990,9 +5331,25 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 +  action: { marginTop: SPACE.s2 },
 +  line: { fontSize: FONT_SIZE.sm, lineHeight: 20, paddingVertical: SPACE.s1 },
  });
+diff -ruN a/src/ui/IconButton.tsx b/src/ui/IconButton.tsx
+--- a/src/ui/IconButton.tsx	2026-11-16 05:43:15.819765814 +0000
++++ b/src/ui/IconButton.tsx	2026-11-16 07:18:56.333424789 +0000
+@@ -16,9 +16,9 @@
+ 
+ export function IconButton({ icon: Icon, onPress, accessibilityLabel, variant = 'ghost', disabled = false, size = 22, testID }: IconButtonProps) {
+   const t = useTheme();
+-  const bg = variant === 'accent' ? t.accent.base : variant === 'danger' ? t.color.danger : 'transparent';
+-  const shadow = variant === 'accent' ? t.accent.deep : variant === 'danger' ? t.color.dangerDeep : undefined;
+-  const iconColor = variant === 'ghost' ? t.color.textMuted : t.color.iconOnSignal;
++  const bg = variant === 'accent' ? t.accent.fill : variant === 'danger' ? t.color.danger : 'transparent';
++  const shadow = variant === 'accent' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : undefined;
++  const iconColor = variant === 'ghost' ? t.color.textMuted : t.color.textOnAccent;
+ 
+   return (
+     <Pressable
 diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
 --- a/src/ui/Input.tsx	2026-11-16 05:43:15.819457108 +0000
-+++ b/src/ui/Input.tsx	2026-11-16 05:49:00.647858393 +0000
++++ b/src/ui/Input.tsx	2026-11-16 07:14:18.910067307 +0000
 @@ -1,4 +1,5 @@
  /** M0 kit — Verdant `Input`. Labeled text field, radius `sm`, inline error state. */
 +import type { ReactNode } from 'react';
@@ -5044,7 +5401,7 @@ diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
 -        ]}
 -      />
 +      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
-+      <View style={[styles.fieldWrap, { backgroundColor: t.color.bg, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
++      <View style={[styles.fieldWrap, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
 +        <TextInput
 +          value={value}
 +          onChangeText={onChangeText}
@@ -5080,7 +5437,7 @@ diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
  });
 diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 --- a/src/ui/ListGroup.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/ListGroup.tsx	2026-11-16 05:55:02.720999050 +0000
++++ b/src/ui/ListGroup.tsx	2026-11-16 07:14:30.441930874 +0000
 @@ -0,0 +1,132 @@
 +/**
 + * ListGroup / ListRow / SectionHeading — the grouped list (D7, D19).
@@ -5162,7 +5519,7 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +    <>
 +      {leading ?? (Icon ? <Icon size={20} color={danger ? t.color.dangerDeep : t.color.textMuted} /> : null)}
 +      <View style={styles.rowText}>
-+        <Text style={[styles.rowLabel, { color: t.scheme === 'dark' && danger ? t.color.danger : labelColor }]}>{label}</Text>
++        <Text style={[styles.rowLabel, { color: labelColor }]}>{label}</Text>
 +        {sublabel ? (
 +          <Text numberOfLines={2} style={[styles.rowSub, { color: t.color.textMuted }]}>
 +            {sublabel}
@@ -5616,7 +5973,7 @@ diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
  });
 diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 --- a/src/ui/Screen.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/Screen.tsx	2026-11-16 05:46:54.830460718 +0000
++++ b/src/ui/Screen.tsx	2026-11-16 07:14:30.442463808 +0000
 @@ -0,0 +1,65 @@
 +/**
 + * Screen — header + scrolling body + optional pinned action bar (D4, D8).
@@ -5671,7 +6028,7 @@ diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 +  const register = useToastStore((s) => s.registerActionBar);
 +  useEffect(() => register(), [register]);
 +  return (
-+    <View style={[styles.actionBar, { backgroundColor: t.color.bg, borderTopColor: t.color.border, paddingBottom: SPACE.s3 + insets.bottom }]}>
++    <View style={[styles.actionBar, { backgroundColor: t.color.bgAlt, borderTopColor: t.color.border, paddingBottom: SPACE.s3 + insets.bottom }]}>
 +      {children}
 +    </View>
 +  );
@@ -5685,8 +6042,8 @@ diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 +});
 diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 --- a/src/ui/ScreenHeader.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/ScreenHeader.tsx	2026-11-16 05:46:54.828904320 +0000
-@@ -0,0 +1,68 @@
++++ b/src/ui/ScreenHeader.tsx	2026-11-16 07:04:17.692638736 +0000
+@@ -0,0 +1,70 @@
 +/**
 + * ScreenHeader — the ONE header every screen uses (DESIGN_DECISIONS D4).
 + *  - level "tab":  24 bold title, left aligned, optional subtitle line, right icons.
@@ -5720,7 +6077,7 @@ diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 +  const insets = useSafeAreaInsets();
 +  const isTab = level === 'tab';
 +  return (
-+    <View style={[styles.root, { paddingTop: insets.top, backgroundColor: t.color.bg }]} testID={testID}>
++    <View style={[styles.root, isTab && subtitle ? styles.rootRoomy : null, { paddingTop: insets.top, backgroundColor: t.color.bg }]} testID={testID}>
 +      <View style={[styles.bar, isTab ? styles.barTab : styles.barPage]}>
 +        {!isTab && onBack ? (
 +          <IconButton icon={backIcon === 'close' ? X : ChevronLeft} onPress={onBack} accessibilityLabel={backLabel ?? (backIcon === 'close' ? 'Close' : 'Back')} />
@@ -5746,9 +6103,11 @@ diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 +
 +const styles = StyleSheet.create({
 +  root: {},
++  // A tab header with a date line under the title needs air before the first card.
++  rootRoomy: { paddingBottom: SPACE.s2 },
 +  bar: { minHeight: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-+  barTab: { paddingLeft: SPACE.s3, paddingRight: SPACE.s1 },
-+  barPage: { paddingLeft: SPACE.s1, paddingRight: SPACE.s1 },
++  barTab: { paddingLeft: SPACE.s3, paddingRight: SPACE.s2, paddingVertical: SPACE.s1 },
++  barPage: { paddingLeft: SPACE.s1, paddingRight: SPACE.s2 },
 +  titleCol: { flex: 1, justifyContent: 'center' },
 +  titleTab: { fontSize: FONT_SIZE.xl, fontWeight: '700', lineHeight: 30 },
 +  titlePage: { fontSize: FONT_SIZE.lg, fontWeight: '700', lineHeight: 26 },
@@ -5757,7 +6116,7 @@ diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 +});
 diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
 --- a/src/ui/Select.tsx	2026-11-16 05:43:15.819553716 +0000
-+++ b/src/ui/Select.tsx	2026-11-16 05:49:00.648343769 +0000
++++ b/src/ui/Select.tsx	2026-11-16 07:14:18.910213350 +0000
 @@ -1,9 +1,10 @@
  /** M0 kit — Verdant `Select`. A labeled field that opens a single-select option sheet. */
  import { useState } from 'react';
@@ -5783,7 +6142,7 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
          accessibilityLabel={accessibilityLabel ?? `${label}, ${selected?.label ?? placeholder}`}
          testID={testID}
 -        style={[styles.field, { backgroundColor: t.color.bg, borderColor: t.color.border }]}
-+        style={[styles.field, { backgroundColor: t.color.bg, borderColor: t.color.borderStrong }]}
++        style={[styles.field, { backgroundColor: t.color.bgAlt, borderColor: t.color.borderStrong }]}
        >
          <Text style={[styles.value, { color: selected ? t.color.text : t.color.textDim }]}>{selected?.label ?? placeholder}</Text>
          <ChevronDown size={18} color={t.color.textMuted} />
@@ -5833,7 +6192,7 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
 +                style={[styles.option, { borderBottomColor: t.color.border }]}
 +              >
 +                <Text style={[styles.optionLabel, { color: t.color.text, fontWeight: isSelected ? '700' : '400' }]}>{option.label}</Text>
-+                {isSelected ? <Check size={18} color={t.accent.base} /> : null}
++                {isSelected ? <Check size={18} color={t.accent.text} /> : null}
 +              </Pressable>
 +            );
 +          })}
@@ -5876,7 +6235,7 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
  });
 diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
 --- a/src/ui/Stepper.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/Stepper.tsx	2026-11-16 05:49:00.622164961 +0000
++++ b/src/ui/Stepper.tsx	2026-11-16 07:14:18.910624181 +0000
 @@ -0,0 +1,60 @@
 +/** Stepper — a small counted number (doses per day). Minus, value, plus. */
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -5906,7 +6265,7 @@ diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
 +        accessibilityRole="button"
 +        accessibilityLabel={`${a11y} ${label.toLowerCase()}`}
 +        accessibilityState={{ disabled }}
-+        style={[styles.button, { borderColor: t.color.borderStrong, backgroundColor: t.color.bg, opacity: disabled ? 0.4 : 1 }]}
++        style={[styles.button, { borderColor: t.color.borderStrong, backgroundColor: t.color.bgAlt, opacity: disabled ? 0.4 : 1 }]}
 +      >
 +        <Icon size={18} color={t.color.text} />
 +      </Pressable>
@@ -6061,9 +6420,21 @@ diff -ruN a/src/ui/SubStepScheduleGrid.tsx b/src/ui/SubStepScheduleGrid.tsx
 +  step: { gap: SPACE.s1 + 2 },
 +  stepLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
  });
+diff -ruN a/src/ui/Switch.tsx b/src/ui/Switch.tsx
+--- a/src/ui/Switch.tsx	2026-11-16 05:43:15.819544456 +0000
++++ b/src/ui/Switch.tsx	2026-11-16 07:22:01.724159695 +0000
+@@ -34,7 +34,7 @@
+     return () => animation.stop();
+   }, [value, progress]);
+ 
+-  const trackColor = progress.interpolate({ inputRange: [0, 1], outputRange: [t.color.border, t.accent.base] });
++  const trackColor = progress.interpolate({ inputRange: [0, 1], outputRange: [t.color.off, t.accent.fill] });
+   const knobTranslate = progress.interpolate({
+     inputRange: [0, 1],
+     outputRange: [KNOB_INSET, TRACK_WIDTH - KNOB_SIZE - KNOB_INSET],
 diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
 --- a/src/ui/Tabs.tsx	2026-11-16 05:43:15.819659401 +0000
-+++ b/src/ui/Tabs.tsx	2026-11-16 05:48:00.596864747 +0000
++++ b/src/ui/Tabs.tsx	2026-11-16 07:14:18.909685843 +0000
 @@ -1,7 +1,10 @@
 -/** M0 kit — Verdant `Tabs`. Segmented switcher (scope/window switchers, browse Active/Past, etc). */
 +/**
@@ -6113,7 +6484,7 @@ diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
 +            accessibilityState={{ selected, disabled }}
              accessibilityLabel={item.label}
 -            style={[styles.tab, selected && { backgroundColor: t.color.bg }]}
-+            style={[styles.tab, selected && { backgroundColor: t.color.bg, borderColor: t.color.border }]}
++            style={[styles.tab, selected && { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}
            >
 -            <Text style={[styles.label, { color: selected ? t.color.text : t.color.textMuted, fontWeight: selected ? '700' : '500' }]}>
 +            <Text numberOfLines={1} style={[styles.label, { color: selected ? t.color.text : t.color.textMuted, fontWeight: selected ? '700' : '500' }]}>
@@ -6134,7 +6505,7 @@ diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
  });
 diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 --- a/src/ui/TaskIcon.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/TaskIcon.tsx	2026-11-16 05:49:00.620513079 +0000
++++ b/src/ui/TaskIcon.tsx	2026-11-16 07:17:35.673318063 +0000
 @@ -0,0 +1,25 @@
 +/** TaskIcon — a coloured circle with a white icon. The only task icon style (D14). */
 +import { StyleSheet, View } from 'react-native';
@@ -6155,7 +6526,7 @@ diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 +  const t = useTheme();
 +  return (
 +    <View style={[styles.root, { width: size, height: size, backgroundColor: muted ? t.color.off : (color ?? t.accent.base) }]}>
-+      <Icon size={Math.round(size * 0.5)} color={t.color.iconOnSignal} />
++      <Icon size={Math.round(size * 0.5)} color={t.color.textOnAccent} />
 +    </View>
 +  );
 +}
@@ -6163,7 +6534,7 @@ diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 +const styles = StyleSheet.create({ root: { borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' } });
 diff -ruN a/src/ui/Textarea.tsx b/src/ui/Textarea.tsx
 --- a/src/ui/Textarea.tsx	2026-11-16 05:43:15.819686388 +0000
-+++ b/src/ui/Textarea.tsx	2026-11-16 05:57:39.065338847 +0000
++++ b/src/ui/Textarea.tsx	2026-11-16 07:14:18.910336358 +0000
 @@ -10,9 +10,10 @@
    readonly placeholder?: string;
    readonly accessibilityLabel?: string;
@@ -6181,7 +6552,7 @@ diff -ruN a/src/ui/Textarea.tsx b/src/ui/Textarea.tsx
          accessibilityRole="text"
          testID={testID}
 -        style={[styles.field, { backgroundColor: t.color.bg, borderColor: t.color.border, color: t.color.text }]}
-+        style={[styles.field, { backgroundColor: t.color.bg, borderColor: t.color.borderStrong, color: t.color.text }]}
++        style={[styles.field, { backgroundColor: t.color.bgAlt, borderColor: t.color.borderStrong, color: t.color.text }]}
        />
 +      {helper ? <Text style={[styles.helper, { color: t.color.textMuted }]}>{helper}</Text> : null}
      </View>
@@ -6198,7 +6569,7 @@ diff -ruN a/src/ui/Textarea.tsx b/src/ui/Textarea.tsx
  });
 diff -ruN a/src/ui/Toast.tsx b/src/ui/Toast.tsx
 --- a/src/ui/Toast.tsx	2026-11-16 05:43:15.819668266 +0000
-+++ b/src/ui/Toast.tsx	2026-11-16 06:19:26.559676374 +0000
++++ b/src/ui/Toast.tsx	2026-11-16 07:17:35.677906885 +0000
 @@ -1,70 +1,110 @@
  /**
 - * M0 kit — Fallback-custom `Toast`. A single host, mounted once by `app/_layout.tsx`,
@@ -6283,12 +6654,12 @@ diff -ruN a/src/ui/Toast.tsx b/src/ui/Toast.tsx
 +      <Pressable onPress={hide} style={styles.body} accessibilityRole="button" accessibilityLabel="Dismiss">
 +        {Icon ? (
 +          <View style={[styles.iconDot, { backgroundColor: iconBg }]}>
-+            <Icon size={14} color="#ffffff" />
++            <Icon size={14} color={inverse.iconOnSignal} />
 +          </View>
 +        ) : null}
 +        <Text style={[styles.message, { color: inverse.text }]} numberOfLines={2}>
 +          {toast.message}
-+          {toast.detail ? <Text style={[styles.detail, { color: inverse.goldDeep }]}>{`  ${toast.detail}`}</Text> : null}
++          {toast.detail ? <Text style={[styles.detail, { color: inverse.xp }]}>{`  ${toast.detail}`}</Text> : null}
 +        </Text>
 +      </Pressable>
 +      {toast.action ? (
@@ -6588,7 +6959,7 @@ diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
  });
 diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
 --- a/src/ui/WeekdayPicker.tsx	2026-11-16 05:43:15.819795475 +0000
-+++ b/src/ui/WeekdayPicker.tsx	2026-11-16 05:48:00.603735814 +0000
++++ b/src/ui/WeekdayPicker.tsx	2026-11-16 07:14:18.909301950 +0000
 @@ -1,12 +1,11 @@
  /**
 - * M0 kit — Fallback-custom `WeekdayPicker`. Mon..Sun multi-select toggle chips. When
@@ -6652,9 +7023,10 @@ diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
                style={[
                  styles.chip,
                  {
-                   backgroundColor: isSelected ? t.accent.base : t.color.bg,
+-                  backgroundColor: isSelected ? t.accent.base : t.color.bg,
 -                  borderColor: isSelected ? t.accent.base : t.color.border,
-+                  borderColor: isSelected ? t.accent.base : t.color.borderStrong,
++                  backgroundColor: isSelected ? t.accent.fill : t.color.bgAlt,
++                  borderColor: isSelected ? t.accent.fill : t.color.borderStrong,
                    opacity: isDisabled ? 0.4 : 1,
                  },
                ]}
@@ -6740,13 +7112,17 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { Stepper, type StepperProps } from './Stepper';
 diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
 --- a/app/(tabs)/_layout.tsx	2026-11-16 05:43:15.827117772 +0000
-+++ b/app/(tabs)/_layout.tsx	2026-11-16 06:22:50.491876610 +0000
-@@ -22,7 +22,8 @@
++++ b/app/(tabs)/_layout.tsx	2026-11-16 07:14:18.909444723 +0000
+@@ -20,9 +20,10 @@
+     <Tabs
+       screenOptions={{
          headerShown: false,
-         tabBarActiveTintColor: t.accent.base,
-         tabBarInactiveTintColor: t.color.textDim,
+-        tabBarActiveTintColor: t.accent.base,
+-        tabBarInactiveTintColor: t.color.textDim,
 -        tabBarStyle: { backgroundColor: t.color.bg, borderTopColor: t.color.border },
-+        tabBarStyle: { backgroundColor: t.color.bg, borderTopColor: t.color.border, height: 68, paddingTop: 4, paddingBottom: 6 },
++        tabBarActiveTintColor: t.accent.text,
++        tabBarInactiveTintColor: t.color.textMuted,
++        tabBarStyle: { backgroundColor: t.color.bgAlt, borderTopColor: t.color.border, height: 68, paddingTop: 4, paddingBottom: 6 },
 +        tabBarLabelStyle: { fontSize: 12, fontWeight: '600', lineHeight: 16, marginTop: 1 },
        }}
      >
@@ -8060,28 +8436,31 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 +const styles = StyleSheet.create({ error: { fontSize: FONT_SIZE.sm } });
 diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 --- a/app/add/todo.tsx	2026-11-16 05:43:15.826528444 +0000
-+++ b/app/add/todo.tsx	2026-11-16 05:57:23.880557584 +0000
-@@ -1,36 +1,18 @@
++++ b/app/add/todo.tsx	2026-11-16 07:03:34.098895051 +0000
+@@ -1,104 +1,68 @@
 -/**
 - * S19 — Create To-do/Note    route: /add/todo
 - * Owner: M4. Features: F11.
 - * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S19)
 - */
-+/** S19 — New to-do or note. */
++/** S19 — New to-do or note. The kind is an explicit choice, never guessed from the text. */
  import { useState } from 'react';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
- import { useRouter } from 'expo-router';
+-import { useRouter } from 'expo-router';
 -import { ChevronLeft } from 'lucide-react-native';
++import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
  
 -import { SPACE, useTheme } from '@/theme';
 -import { Button, Card, IconButton, Input, Radio, Textarea } from '@/ui';
-+import { Button, Input, Radio, Screen, SectionHeading, Textarea } from '@/ui';
++import { Button, Input, Radio, Screen, SectionHeading, Tabs, Textarea } from '@/ui';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { validateTaskDraft } from '@/domain';
  import { useCreateTask } from '@/queries';
 -import { useToastStore } from '@/app-shell/stores/toast';
  import type { Importance, Necessity, TaskDraft } from '@/types';
--
++import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
++import { useToastStore } from '@/app-shell/stores/toast';
+ 
 -const IMPORTANCE_OPTIONS = [
 -  { value: 'high', label: 'High' },
 -  { value: 'med', label: 'Med' },
@@ -8091,25 +8470,44 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 -  { value: 'must-do', label: 'Must-do' },
 -  { value: 'recommended', label: 'Recommended' },
 -  { value: 'optional', label: 'Optional' },
--];
-+import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
-+import { useToastStore } from '@/app-shell/stores/toast';
++const KIND_ITEMS = [
++  { value: 'todo', label: 'To-do' },
++  { value: 'note', label: 'Note' },
+ ];
  
  export default function S19CreateToDoNote() {
 -  const t = useTheme();
    const router = useRouter();
 -  const goBack = useOriginAwareBack(ROUTES.addPickType);
++  const params = useLocalSearchParams<{ kind?: string }>();
 +  const goBack = useOriginAwareBack(ROUTES.today);
    const createTask = useCreateTask();
    const showToast = useToastStore((s) => s.show);
  
-@@ -51,54 +33,31 @@
++  const [kind, setKind] = useState<'todo' | 'note'>(params.kind === 'note' ? 'note' : 'todo');
+   const [name, setName] = useState('');
+   const [note, setNote] = useState('');
+   const [importance, setImportance] = useState<Importance | null>(null);
+   const [necessity, setNecessity] = useState<Necessity | null>(null);
+   const [nameError, setNameError] = useState<string | undefined>();
+-
+-  function buildDraft(): TaskDraft {
+-    return { type: 'todo', name, note: note || null, importance, necessity, idealSteps: [], fallbackSteps: [] };
+-  }
++  const isNote = kind === 'note';
+ 
+   async function onSave() {
+-    const draft = buildDraft();
++    const draft: TaskDraft = { type: 'todo', name, note: note.trim() ? note : null, isNote, importance, necessity, idealSteps: [], fallbackSteps: [] };
+     const validated = validateTaskDraft(draft);
+-    setNameError(draft.name.trim().length === 0 ? 'Give this a name to save it.' : undefined);
++    setNameError(draft.name.trim().length === 0 ? (isNote ? 'Give this note a title to save it.' : 'Give this a name to save it.') : undefined);
      if (!validated.ok) return;
      const result = await createTask.mutateAsync(draft);
      if (result.ok) {
 -      router.replace(ROUTES.today);
-+      router.replace(ROUTES.todos);
-+      showToast(note ? 'Note saved' : 'To-do saved', 'success');
++      router.replace((isNote ? `${ROUTES.todos}?lens=notes` : ROUTES.todos) as Href);
++      showToast(isNote ? 'Note saved' : 'To-do saved', 'success');
      } else {
 -      showToast("Couldn't save that — try again.", 'warning');
 +      showToast(SAVE_FAILED, 'warning');
@@ -8134,18 +8532,19 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 -        autoFocus
 -        accessibilityLabel="What is it?"
 +    <Screen
-+      title="New to-do or note"
++      title={isNote ? 'New note' : 'New to-do'}
 +      onBack={goBack}
-+      footer={<Button label="Save" onPress={onSave} loading={createTask.isPending} accessibilityLabel="Save" fullWidth />}
++      footer={<Button label={isNote ? 'Save note' : 'Save to-do'} onPress={onSave} loading={createTask.isPending} accessibilityLabel={isNote ? 'Save note' : 'Save to-do'} fullWidth />}
 +    >
-+      <Input label="Name" value={name} onChangeText={setName} placeholder="Renew passport" error={nameError} autoFocus accessibilityLabel="Name" />
++      <Tabs items={KIND_ITEMS} value={kind} onChange={(v) => setKind(v as 'todo' | 'note')} accessibilityLabel="To-do or note" />
++      <Input label={isNote ? 'Title' : 'Name'} value={name} onChangeText={setName} placeholder={isNote ? 'Gift ideas' : 'Renew passport'} error={nameError} autoFocus accessibilityLabel={isNote ? 'Title' : 'Name'} />
 +      <Textarea
-+        label="Note (optional)"
++        label={isNote ? 'Note' : 'Details (optional)'}
 +        value={note}
 +        onChangeText={setNote}
-+        placeholder="Add a detail if it helps"
-+        accessibilityLabel="Note (optional)"
-+        helper="A to-do has no schedule and no ideal or fallback. Adding a note files it under Notes."
++        placeholder={isNote ? 'Write it down' : 'Add a detail if it helps'}
++        accessibilityLabel={isNote ? 'Note' : 'Details (optional)'}
++        helper={isNote ? 'A note is something to keep. It has no checkbox and no schedule.' : 'A to-do is something to tick off. It has no schedule and no ideal or fallback.'}
        />
 -      <Textarea label="Note (optional)" value={note} onChangeText={setNote} placeholder="Add a detail if it helps" accessibilityLabel="Note (optional)" />
 -
@@ -8668,7 +9067,7 @@ diff -ruN a/app/assistant/history/index.tsx b/app/assistant/history/index.tsx
 -});
 diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 --- a/app/assistant/index.tsx	2026-11-16 05:43:15.826867228 +0000
-+++ b/app/assistant/index.tsx	2026-11-16 06:13:51.198528056 +0000
++++ b/app/assistant/index.tsx	2026-11-16 07:18:56.333760261 +0000
 @@ -1,18 +1,13 @@
 -/**
 - * S31 — Assistant Home    route: /assistant
@@ -8848,7 +9247,7 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 +              accessibilityRole="button"
 +              accessibilityLabel="Speak to Fallback AI"
 +              testID="s31-mic"
-+              style={({ pressed }) => [styles.mic, { backgroundColor: pressed ? t.accent.hover : t.accent.base }]}
++              style={({ pressed }) => [styles.mic, { backgroundColor: pressed ? t.accent.fillEdge : t.accent.fill }]}
 +            >
 +              <Mic size={32} color={t.color.textOnAccent} />
 +            </Pressable>
@@ -8903,7 +9302,7 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
  });
 diff -ruN a/app/assistant/mic-primer.tsx b/app/assistant/mic-primer.tsx
 --- a/app/assistant/mic-primer.tsx	2026-11-16 05:43:15.826843762 +0000
-+++ b/app/assistant/mic-primer.tsx	2026-11-16 06:13:51.200834945 +0000
++++ b/app/assistant/mic-primer.tsx	2026-11-16 07:14:18.915302989 +0000
 @@ -1,18 +1,13 @@
 -/**
 - * S37 — Microphone Permission Primer    route: /assistant/mic-primer
@@ -9023,7 +9422,7 @@ diff -ruN a/app/assistant/mic-primer.tsx b/app/assistant/mic-primer.tsx
 +      }
 +    >
 +      <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
-+        <Mic size={32} color={t.scheme === 'dark' ? t.accent.base : t.accent.deep} accessibilityElementsHidden importantForAccessibility="no" />
++        <Mic size={32} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
        </View>
 -    </View>
 +      <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
@@ -9232,7 +9631,7 @@ diff -ruN a/app/assistant/paywall/byo.tsx b/app/assistant/paywall/byo.tsx
  });
 diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 --- a/app/assistant/paywall/index.tsx	2026-11-16 05:43:15.826830951 +0000
-+++ b/app/assistant/paywall/index.tsx	2026-11-16 06:13:51.202838028 +0000
++++ b/app/assistant/paywall/index.tsx	2026-11-16 07:17:35.680542812 +0000
 @@ -1,20 +1,29 @@
 -/**
 - * S38 — Paywall    route: /assistant/paywall
@@ -9262,7 +9661,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 +    <View style={styles.bullets}>
 +      {items.map((b) => (
 +        <View key={b} style={styles.bulletRow}>
-+          <Check size={18} color={t.color.ideal} />
++          <Check size={18} color={t.color.idealDeep} />
 +          <Text style={[styles.bulletText, { color: t.color.text }]}>{b}</Text>
 +        </View>
 +      ))}
@@ -9325,7 +9724,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 +        <>
 +          <View style={styles.hero}>
 +            <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
-+              <Sparkles size={28} color={t.scheme === 'dark' ? t.accent.base : t.accent.deep} accessibilityElementsHidden importantForAccessibility="no" />
++              <Sparkles size={28} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
 +            </View>
              <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
                {S38_COPY.headline}
@@ -12771,7 +13170,7 @@ diff -ruN a/app/task/[id]/delete.tsx b/app/task/[id]/delete.tsx
 -});
 diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
 --- a/app/task/[id]/icon.tsx	2026-11-16 05:43:15.826451105 +0000
-+++ b/app/task/[id]/icon.tsx	2026-11-16 06:00:41.280774934 +0000
++++ b/app/task/[id]/icon.tsx	2026-11-16 07:18:56.333953013 +0000
 @@ -1,22 +1,19 @@
 -/**
 - * S21 — Icon & Color Picker    route: /task/:id/icon
@@ -12928,11 +13327,11 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
 -                    style={[styles.iconCell, { borderColor: selected ? t.accent.base : t.color.border }]}
 +                    style={[
 +                      styles.iconCell,
-+                      { borderColor: selected ? t.accent.base : t.color.border, backgroundColor: selected ? t.accent.soft : t.color.bgAlt, borderWidth: selected ? 2 : 1 },
++                      { borderColor: selected ? t.accent.fill : t.color.border, backgroundColor: selected ? t.accent.soft : t.color.bgAlt, borderWidth: selected ? 2 : 1 },
 +                    ]}
                    >
 -                    <EntryIcon size={22} color={t.color.text} />
-+                    <EntryIcon size={22} color={selected ? t.accent.deep : t.color.text} />
++                    <EntryIcon size={22} color={selected ? t.accent.text : t.color.text} />
                    </Pressable>
                  );
                })}
@@ -12997,7 +13396,7 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-16 05:59:40.468971744 +0000
++++ b/app/task/[id]/index.tsx	2026-11-16 07:03:34.094602043 +0000
 @@ -1,38 +1,41 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
@@ -13020,7 +13419,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
  import { useLocalSearchParams, useRouter } from 'expo-router';
 -import { AlarmClock, Copy, Undo2, X } from 'lucide-react-native';
-+import { AlarmClock, CalendarDays, Copy, MoreHorizontal, Palette, PencilLine, Trash2, Undo2 } from 'lucide-react-native';
++import { AlarmClock, CalendarDays, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
  
 -import { ACCENTS, SPACE, useTheme } from '@/theme';
 +import { FONT_SIZE, SPACE, useTheme } from '@/theme';
@@ -13258,7 +13657,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +177,343 @@
+@@ -210,380 +177,356 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -13319,24 +13718,15 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const Icon = iconByName(task.icon);
-+  const noun = TYPE_NOUN[task.type];
 +  const isTodo = task.type === 'todo';
++  const isNote = isTodo && task.isNote;
++  const noun = isNote ? 'note' : TYPE_NOUN[task.type];
 +  const isTrackedTask = !isTodo && (task.idealSteps.length > 0 || task.fallbackSteps.length > 0);
    const isMultiDose = task.dosesPerDay > 1;
 +  const parentDays: readonly Weekday[] =
 +    task.cadence?.kind === 'daily' ? ALL_DAYS : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
 +  const showScheduleEditor = isTrackedTask && parentDays.length > 1 && task.idealSteps.length > 1;
- 
--  const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', {
--    month: 'long',
--    year: 'numeric',
--  });
--
--  // Item 4 fix: keyed on TASK-LIFETIME emptiness (any log/off-mark ever, via the all-time
--  // per-task consistency read), never the displayed month alone — a task with real history in
--  // OTHER months whose displayed month was simply neglected must show its genuine missed
--  // fills, not a blanked grid. `undefined` while the lifetime read is still loading — never
--  // flash the empty state.
++
 +  async function saveSchedule() {
 +    if (!task) return;
 +    const offending = parentDays.filter((d) => !task.idealSteps.some((s) => (scheduleDraft[s.id] ?? null) === null || scheduleDraft[s.id]!.includes(d)));
@@ -13349,7 +13739,17 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +    if (result.ok) setScheduleOpen(false);
 +    else fail();
 +  }
-+
+ 
+-  const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', {
+-    month: 'long',
+-    year: 'numeric',
+-  });
+-
+-  // Item 4 fix: keyed on TASK-LIFETIME emptiness (any log/off-mark ever, via the all-time
+-  // per-task consistency read), never the displayed month alone — a task with real history in
+-  // OTHER months whose displayed month was simply neglected must show its genuine missed
+-  // fills, not a blanked grid. `undefined` while the lifetime read is still loading — never
+-  // flash the empty state.
 +  const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
    const isEmptyHistory =
 -    lifetimeConsistencyQuery.data !== undefined &&
@@ -13420,6 +13820,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +
 +      {isTodo ? (
 +        <>
++          {isNote ? null : (
 +          <ListGroup>
 +            <ListRow
 +              label="Done"
@@ -13433,9 +13834,10 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +              }
 +            />
 +          </ListGroup>
++          )}
 +          {task.note ? (
 +            <View style={styles.block}>
-+              <SectionHeading>Note</SectionHeading>
++              <SectionHeading>{isNote ? 'Note' : 'Details'}</SectionHeading>
 +              <Card>
 +                <Text style={[styles.note, { color: t.color.text }]}>{task.note}</Text>
 +              </Card>
@@ -13676,6 +14078,16 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +            },
 +          },
 +          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
++          ...(isTodo
++            ? [
++                {
++                  key: 'kind',
++                  icon: isNote ? ListTodo : StickyNote,
++                  label: isNote ? 'Change to a to-do' : 'Change to a note',
++                  onPress: () => void patch({ isNote: !isNote }),
++                },
++              ]
++            : []),
 +          { key: 'duplicate', icon: Copy, label: 'Duplicate', onPress: () => void onDuplicate() },
 +          { key: 'delete', icon: Trash2, label: `Delete ${noun}`, danger: true, onPress: () => setDeleteOpen(true) },
 +        ]}
