@@ -1112,7 +1112,7 @@ diff -ruN a/src/features/browse/BrowseHeader.tsx b/src/features/browse/BrowseHea
 -});
 diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/CoursesBrowseScreen.tsx
 --- a/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 05:43:15.822009504 +0000
-+++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 06:19:26.559156268 +0000
++++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 16:53:14.470983875 +0000
 @@ -1,27 +1,30 @@
 -/** S12 — Courses Browse. F11 (browse), F12 (multi-dose meta). */
 +/** M3 — S12 Courses. Segmented Active/Past (D9), shared task cards. */
@@ -1129,7 +1129,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  import { ROUTES, withOrigin } from '@/navigation';
  import { SPACE, useTheme } from '@/theme';
 -import { Badge, Card, EmptyState, InlineRetryBanner, ProgressRing, Skeleton, Tabs, Tag } from '@/ui';
-+import { EmptyLine, EmptyState, InlineRetryBanner, ProgressRing, Skeleton, Tabs } from '@/ui';
++import { EmptyLine, EmptyState, InlineRetryBanner, ProgressRing, Skeleton, TabSummary, Tabs } from '@/ui';
  import type { LocalDate, TaskWithSteps } from '@/types';
  
 +import { TaskCard } from '@/features/task/TaskCard';
@@ -1148,15 +1148,18 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
    const tasksQuery = useTasks({ type: 'course' });
    const [lens, setLens] = useState<Lens>('active');
    const todayDate = today();
-@@ -32,7 +35,6 @@
+@@ -30,9 +33,9 @@
+   const active = all.filter((c) => c.endDate === null || c.endDate >= todayDate);
+   const past = all.filter((c) => c.endDate !== null && c.endDate < todayDate);
    const shown = lens === 'active' ? active : past;
++  const nextToFinish = [...active].filter((c) => c.endDate !== null).sort((a, b) => ((a.endDate as LocalDate) < (b.endDate as LocalDate) ? -1 : 1))[0];
  
    const noCoursesAtAll = !tasksQuery.isLoading && !tasksQuery.isError && all.length === 0;
 -  const noActiveButPastExist = !tasksQuery.isLoading && !tasksQuery.isError && all.length > 0 && active.length === 0 && lens === 'active';
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'courses') as Href);
-@@ -41,21 +43,11 @@
+@@ -41,21 +44,11 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S12_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'courses') as Href)} />
@@ -1176,12 +1179,12 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
            <View style={styles.list}>
 -            <Skeleton height={96} />
 -            <Skeleton height={96} />
-+            <Skeleton height={112} radius={16} />
-+            <Skeleton height={112} radius={16} />
++            <Skeleton height={112} radius={20} />
++            <Skeleton height={112} radius={20} />
            </View>
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-@@ -67,67 +59,54 @@
+@@ -67,67 +60,62 @@
              actionLabel={S12_COPY.newCourse}
              onAction={() => router.push(ROUTES.addCourse as Href)}
            />
@@ -1201,6 +1204,14 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
 -            ))}
 -          </View>
 +          <>
++            {active.length > 0 ? (
++              <TabSummary
++                mark={{ kind: 'count', value: active.length }}
++                title={active.length === 1 ? 'Course running' : 'Courses running'}
++                detail={nextToFinish ? `${nextToFinish.name} finishes ${format(parseLocalDate(nextToFinish.endDate as LocalDate), 'EEE, MMM d')}` : undefined}
++                testID="courses-summary"
++              />
++            ) : null}
 +            <Tabs
 +              items={[
 +                { value: 'active', label: S12_COPY.active },
@@ -1282,7 +1293,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  });
 diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/EventsBrowseScreen.tsx
 --- a/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 05:43:15.821978885 +0000
-+++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 06:19:20.188594543 +0000
++++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 16:53:14.470856756 +0000
 @@ -1,29 +1,30 @@
 -/**
 - * S11 — Events Browse. F11 (browse), F26 (repeating events).
@@ -1300,7 +1311,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
 -import { SPACE, useTheme } from '@/theme';
 -import { Badge, Card, EmptyState, InlineRetryBanner, Skeleton, Tag } from '@/ui';
 +import { FONT_SIZE, SPACE, useTheme } from '@/theme';
-+import { EmptyLine, EmptyState, InlineRetryBanner, SectionHeading, Skeleton } from '@/ui';
++import { EmptyLine, EmptyState, InlineRetryBanner, SectionHeading, Skeleton, TabSummary } from '@/ui';
  import type { LocalDate, TaskWithSteps } from '@/types';
  
 +import { TaskCard } from '@/features/task/TaskCard';
@@ -1340,15 +1351,18 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
    const [repeatingDueTodayIds, setRepeatingDueTodayIds] = useState<ReadonlySet<string>>(new Set());
    const reportDueToday = useCallback((id: string, dueToday: boolean) => {
      setRepeatingDueTodayIds((prev) => {
-@@ -61,6 +57,7 @@
+@@ -61,6 +57,10 @@
  
    const noEventsAtAll = !tasksQuery.isLoading && !tasksQuery.isError && events.length === 0;
    const noEventsToday = todayEvents.length === 0 && repeatingDueTodayIds.size === 0;
++  const eventsTodayCount = todayEvents.length + repeatingDueTodayIds.size;
++  const firstUpcomingDate = sortedUpcomingGroupDates[0];
++  const nextOneOff = firstUpcomingDate ? upcomingGroups.get(firstUpcomingDate)?.[0] : undefined;
 +  const hasUpcoming = sortedUpcomingGroupDates.length > 0 || repeating.some((e) => !repeatingDueTodayIds.has(e.id));
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'events') as Href);
-@@ -69,11 +66,11 @@
+@@ -69,17 +69,18 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S11_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'events') as Href)} />
@@ -1358,12 +1372,19 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
            <View style={styles.list}>
 -            <Skeleton height={72} />
 -            <Skeleton height={72} />
-+            <Skeleton height={76} radius={16} />
-+            <Skeleton height={76} radius={16} />
++            <Skeleton height={76} radius={20} />
++            <Skeleton height={76} radius={20} />
            </View>
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-@@ -87,36 +84,22 @@
+         ) : noEventsAtAll ? (
+           <EmptyState
+             icon={Calendar}
++            art="calendar"
+             headline={S11_COPY.noEventsAtAllHeadline}
+             subcopy={S11_COPY.noEventsAtAllSubcopy}
+             actionLabel={S11_COPY.newEvent}
+@@ -87,36 +88,26 @@
            />
          ) : (
            <>
@@ -1377,11 +1398,16 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
 -                subcopy={`${S11_COPY.noEventsTodaySubcopyPrefix}${weekdayNameOf(todayDate)}${S11_COPY.noEventsTodaySubcopySuffix}`}
 -              />
 -            ) : null}
-             <View style={styles.list}>
+-            <View style={styles.list}>
++            <TabSummary
++              mark={{ kind: 'date', top: parseLocalDate(todayDate).toLocaleDateString('en-US', { month: 'short' }).toUpperCase(), main: String(parseLocalDate(todayDate).getDate()) }}
++              title={noEventsToday ? `Nothing on this ${weekdayNameOf(todayDate)}` : eventsTodayCount === 1 ? '1 event today' : `${eventsTodayCount} events today`}
++              detail={nextOneOff ? `Next: ${nextOneOff.name}, ${formatRelativeDayLabel(nextOneOff.eventDate as LocalDate, todayDate)}` : undefined}
++              testID="events-summary"
++            />
++            {/* The rows stay mounted when nothing is on today: repeating events report back from here. */}
++            <View style={noEventsToday ? styles.hidden : styles.list}>
 +              <SectionHeading>{S11_COPY.todaySection}</SectionHeading>
-+              {noEventsToday ? (
-+                <EmptyLine>{`${S11_COPY.noEventsTodaySubcopyPrefix}${weekdayNameOf(todayDate)}.`}</EmptyLine>
-+              ) : null}
                {todayEvents.map((e) => (
                  <EventRow key={e.id} task={e} onPress={() => openTask(e.id)} />
                ))}
@@ -1407,7 +1433,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
                {sortedUpcomingGroupDates.map((date) => {
                  const list = upcomingGroups.get(date) as TaskWithSteps[];
                  return (
-@@ -135,50 +118,27 @@
+@@ -135,50 +126,27 @@
            </>
          )}
        </ScrollView>
@@ -1466,7 +1492,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  function RepeatingEventRow({
    task: tk,
    today: todayDate,
-@@ -193,8 +153,6 @@
+@@ -193,8 +161,6 @@
    onDueTodayChange?: (dueToday: boolean) => void;
  }) {
    const occQuery = useTaskOccurrences(tk.id, { from: todayDate, to: addDays(todayDate, UPCOMING_WINDOW_DAYS) });
@@ -1475,7 +1501,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
    const occs = occQuery.data ?? [];
    const dueToday = occs.some((o) => o.date === todayDate && o.outcome !== 'not-due');
    const next = occs.find((o) => o.outcome !== 'not-due' && o.date > todayDate);
-@@ -207,50 +165,19 @@
+@@ -207,50 +173,20 @@
  
    const timeLabel = tk.timeOfDay ? formatTimeOfDay(tk.timeOfDay) : undefined;
    const dateLabel = section === 'upcoming' && next ? formatRelativeDayLabel(next.date, todayDate) : undefined;
@@ -1532,8 +1558,9 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
 -  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
 +  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
 +  list: { gap: SPACE.s2 + 4 },
++  hidden: { display: 'none' },
 +  group: { gap: SPACE.s2 },
-+  groupLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
++  groupLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
  });
 diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 --- a/src/features/browse/Fab.tsx	2026-11-16 05:43:15.822072570 +0000
@@ -1581,8 +1608,8 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
  });
 diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/RoutinesBrowseScreen.tsx
 --- a/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 05:43:15.822061751 +0000
-+++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 06:19:20.191991881 +0000
-@@ -1,34 +1,34 @@
++++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 16:53:14.471211190 +0000
+@@ -1,34 +1,39 @@
 -/**
 - * S10 — Routines Browse. F2 (browse), F6, F27 (as-needed rows, never on Today, → S23).
 - */
@@ -1600,7 +1627,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  import { ROUTES, withOrigin } from '@/navigation';
  import { SPACE, useTheme } from '@/theme';
 -import { AsNeededCard, Badge, Card, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
-+import { EmptyLine, EmptyState, InlineRetryBanner, SectionHeading, Skeleton, WeekdayPicker } from '@/ui';
++import { EmptyLine, EmptyState, InlineRetryBanner, SectionHeading, Skeleton, TabSummary, WeekdayPicker } from '@/ui';
  import type { Id, TaskWithSteps, Weekday } from '@/types';
  
 +import { TaskCard } from '@/features/task/TaskCard';
@@ -1612,6 +1639,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  import { BrowseHeader } from './BrowseHeader';
 -import { resolveTaskIcon } from './resolveIcon';
  import { useAsNeededHistory } from './useAsNeededHistory';
++import { useTodayRows } from '@/features/today/useTodayRows';
  import { WEEKDAY_FULL } from './weekdayLabels';
  
 -const WEEKDAY_TABS = ([1, 2, 3, 4, 5, 6, 7] as const).map((d) => ({ value: String(d), label: WEEKDAY_FULL[d as Weekday].slice(0, 3) }));
@@ -1623,11 +1651,15 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
    const tasksQuery = useTasks({ type: 'routine' });
 -  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(weekdayOf(today()));
 +  const todayWeekday = weekdayOf(today());
++  const todayRows = useTodayRows().rows.filter((r) => r.task.type === 'routine' && r.occurrence.outcome !== 'off');
++  const loggedToday = todayRows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback');
++  const nextUp = todayRows.find((r) => r.occurrence.chipState !== 'done' && r.occurrence.chipState !== 'fallback' && r.occurrence.chipState !== 'skip');
++  const idealToday = loggedToday.filter((r) => r.occurrence.chipState === 'done').length;
 +  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(todayWeekday);
  
    const all = tasksQuery.data ?? [];
    const scheduled = all.filter((tk) => !tk.isAsNeeded);
-@@ -50,19 +50,12 @@
+@@ -50,19 +55,12 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S10_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'routines') as Href)} />
@@ -1645,13 +1677,13 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 -            <Skeleton height={80} />
 -            <Skeleton height={80} />
 -            <Skeleton height={80} />
-+            <Skeleton height={112} radius={16} />
-+            <Skeleton height={112} radius={16} />
-+            <Skeleton height={112} radius={16} />
++            <Skeleton height={112} radius={20} />
++            <Skeleton height={112} radius={20} />
++            <Skeleton height={112} radius={20} />
            </View>
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-@@ -72,105 +65,82 @@
+@@ -72,105 +70,90 @@
              headline={S10_COPY.emptyNoRoutinesHeadline}
              subcopy={S10_COPY.emptyNoRoutinesSubcopy}
              actionLabel={S10_COPY.emptyNoRoutinesAction}
@@ -1668,8 +1700,15 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 -                icon={Repeat}
 -                headline={S10_COPY.emptyNothingDueHeadline}
 -                subcopy={`${S10_COPY.emptyNothingDueSubcopyPrefix}${dayFull}${S10_COPY.emptyNothingDueSubcopySuffix}`}
--              />
++            {todayRows.length > 0 ? (
++              <TabSummary
++                mark={{ kind: 'ring', done: loggedToday.length, total: todayRows.length }}
++                title={nextUp ? `${todayRows.length - loggedToday.length} left today` : 'Done for today'}
++                detail={nextUp ? `Next: ${nextUp.task.name}` : `${idealToday} ideal, ${loggedToday.length - idealToday} fallback`}
++                testID="routines-summary"
+               />
 -            ) : (
++            ) : null}
 +            <WeekdayPicker
 +              mode="single"
 +              selected={[selectedWeekday]}
@@ -1811,7 +1850,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  });
 diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDosBrowseScreen.tsx
 --- a/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 05:43:15.822041156 +0000
-+++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 07:03:34.093909140 +0000
++++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 16:53:14.471104178 +0000
 @@ -1,26 +1,15 @@
 -/**
 - * S13 — To-dos & Notes Browse. F11.
@@ -1842,11 +1881,11 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 -import { SPACE, useTheme } from '@/theme';
 -import { Card, Checkbox, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
 +import { RADIUS, SPACE, useTheme } from '@/theme';
-+import { EmptyLine, EmptyState, InlineRetryBanner, ListGroup, ListRow, Skeleton, Tabs } from '@/ui';
++import { EmptyLine, EmptyState, InlineRetryBanner, ListGroup, ListRow, Skeleton, TabSummary, Tabs } from '@/ui';
  import type { Id, TaskWithSteps } from '@/types';
  
  import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
-@@ -31,19 +20,21 @@
+@@ -31,19 +20,25 @@
  type Lens = 'todos' | 'notes';
  
  function isNote(tk: TaskWithSteps): boolean {
@@ -1867,11 +1906,15 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
    const all = tasksQuery.data ?? [];
    const shown = lens === 'todos' ? all.filter((tk) => !isNote(tk)) : all.filter(isNote);
 -  const isEmpty = !tasksQuery.isLoading && !tasksQuery.isError && shown.length === 0;
++  const todos = all.filter((tk) => !isNote(tk));
++  const todosDone = todos.filter((tk) => !!tk.todoDoneAt).length;
++  const todosOpen = todos.length - todosDone;
++  const highOpen = todos.filter((tk) => !tk.todoDoneAt && tk.importance === 'high').length;
 +  const nothingAtAll = !tasksQuery.isLoading && !tasksQuery.isError && all.length === 0;
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'todos') as Href);
-@@ -56,81 +47,81 @@
+@@ -56,81 +51,89 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S13_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'todos') as Href)} />
@@ -1893,7 +1936,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 -            <Skeleton height={56} />
 -            <Skeleton height={56} />
 -          </View>
-+          <Skeleton height={168} radius={16} />
++          <Skeleton height={168} radius={20} />
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
 -        ) : isEmpty ? (
@@ -1926,6 +1969,14 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 +              onChange={(v) => setLens(v as Lens)}
 +              accessibilityLabel="To-dos or notes"
 +            />
++            {lens === 'todos' && todos.length > 0 ? (
++              <TabSummary
++                mark={{ kind: 'ring', done: todosDone, total: todos.length }}
++                title={todosOpen === 0 ? 'Everything ticked off' : `${todosOpen} left to do`}
++                detail={highOpen > 0 ? `${highOpen} marked high importance` : undefined}
++                testID="todos-summary"
++              />
++            ) : null}
 +            {shown.length === 0 ? (
 +              <EmptyLine>{lens === 'todos' ? 'No to-dos right now.' : `${S13_COPY.emptyNotesHeadline} ${S13_COPY.emptyNotesSubcopy}`}</EmptyLine>
 +            ) : (
@@ -2008,7 +2059,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 -  name: { fontSize: 16, fontWeight: '600' },
 -  preview: { fontSize: 14, lineHeight: 20 },
 +  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
-+  check: { width: 26, height: 26, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
++  check: { width: 28, height: 28, borderRadius: RADIUS.pill, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
  });
 diff -ruN a/src/features/browse/copy.ts b/src/features/browse/copy.ts
 --- a/src/features/browse/copy.ts	2026-11-16 05:43:15.821967660 +0000
@@ -2647,8 +2698,8 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
  });
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 07:14:30.449138537 +0000
-@@ -1,99 +1,104 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 16:56:05.162500892 +0000
+@@ -1,99 +1,121 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -2662,16 +2713,15 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 -
 -import { SPACE, useTheme } from '@/theme';
--import { Button } from '@/ui';
 +import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { ChevronLeft } from 'lucide-react-native';
++import { Check, CheckCheck, ChevronLeft } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { useSafeAreaInsets } from 'react-native-safe-area-context';
 +
 +import { now } from '@/lib/date';
 +import { useUpdateSettings } from '@/queries';
 +import { FONT_SIZE, HEADER_HEIGHT, RADIUS, SPACE, useTheme } from '@/theme';
-+import { Button, IconButton } from '@/ui';
+ import { Button } from '@/ui';
  import type { IconComponent } from '@/ui';
  
  import { ONBOARDING_SHELL_COPY } from './copy';
@@ -2753,7 +2803,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  }
  
    return (
--    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
+     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
 -      <View style={styles.header}>
 -        {onSkip ? (
 -          <Button label={ONBOARDING_SHELL_COPY.skip} onPress={onSkip} variant="ghost" accessibilityLabel="Skip onboarding" />
@@ -2766,9 +2816,15 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -          importantForAccessibility="no-hide-descendants"
 -        >
 -          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
-+    <View style={[styles.root, { backgroundColor: t.color.bg, paddingTop: insets.top }]}>
++      <View style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top }]}>
 +      <View style={styles.bar}>
-+        <View style={styles.side}>{step > 1 ? <IconButton icon={ChevronLeft} onPress={handleBack} accessibilityLabel="Back" /> : null}</View>
++        <View style={styles.side}>
++          {step > 1 ? (
++            <Pressable onPress={handleBack} accessibilityRole="button" accessibilityLabel="Back" hitSlop={6} style={[styles.round, { backgroundColor: t.color.bgAlt }]}>
++              <ChevronLeft size={22} color={t.color.text} />
++            </Pressable>
++          ) : null}
++        </View>
 +        <View style={styles.dots} accessibilityLabel={`Step ${step} of ${ONBOARDING_TOTAL_STEPS}`}>
 +          {Array.from({ length: ONBOARDING_TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
              <View
@@ -2778,25 +2834,35 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -                styles.dot,
 -                { backgroundColor: allStepsComplete || dot === step ? t.accent.base : t.color.border },
 -              ]}
-+              style={[styles.dot, { backgroundColor: dot === step ? t.accent.base : dot < step ? t.color.borderStrong : t.color.border, width: dot === step ? 20 : 8 }]}
++              style={[styles.dot, { backgroundColor: t.accent.onLarge, opacity: dot === step ? 1 : dot < step ? 0.75 : 0.4, width: dot === step ? 20 : 8 }]}
              />
            ))}
          </View>
 +        <View style={[styles.side, styles.sideRight]}>
-+          <Pressable onPress={() => void handleSkip()} accessibilityRole="button" accessibilityLabel="Skip onboarding" hitSlop={8} style={styles.skip}>
-+            <Text style={[styles.skipLabel, { color: t.color.textMuted }]}>{ONBOARDING_SHELL_COPY.skip}</Text>
++          <Pressable onPress={() => void handleSkip()} accessibilityRole="button" accessibilityLabel="Skip onboarding" hitSlop={8} style={[styles.skip, { backgroundColor: t.color.bgAlt }]}>
++            <Text style={[styles.skipLabel, { color: t.color.text }]}>{ONBOARDING_SHELL_COPY.skip}</Text>
 +          </Pressable>
 +        </View>
++      </View>
++      {Icon ? (
++        <View style={styles.picture} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
++          <View style={[styles.chip, styles.chipLeft, { backgroundColor: t.color.ideal, borderColor: t.accent.fill }]}>
++            <CheckCheck size={18} color={t.color.iconOnSignal} />
++          </View>
++          <View style={[styles.pictureTile, { backgroundColor: t.color.bgAlt }]}>
++            <Icon size={44} color={t.accent.text} />
++          </View>
++          <View style={[styles.chip, styles.chipRight, { backgroundColor: t.color.fallback, borderColor: t.accent.fill }]}>
++            <Check size={18} color={t.color.iconOnSignal} />
++          </View>
++          <View style={[styles.spark, { backgroundColor: t.color.celebrationGold }]} />
++        </View>
++      ) : null}
        </View>
  
 -      <View style={styles.content}>
 -        {Icon ? <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" /> : null}
 +      <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-+        {Icon ? (
-+          <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
-+            <Icon size={28} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
-+          </View>
-+        ) : null}
          <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
            {headline}
          </Text>
@@ -2813,7 +2879,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
        </View>
      </View>
    );
-@@ -101,11 +106,18 @@
+@@ -101,11 +123,25 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },
@@ -2825,16 +2891,23 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -  body: { fontSize: 16, lineHeight: 24 },
 -  footer: { padding: SPACE.s3 },
 +  flex: { flex: 1 },
-+  bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s1 },
++  top: { borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s2 + 4 },
++  round: { width: 40, height: 40, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
++  picture: { height: 148, alignItems: 'center', justifyContent: 'center' },
++  pictureTile: { width: 104, height: 104, borderRadius: 30, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-4deg' }] },
++  chip: { position: 'absolute', width: 40, height: 40, borderRadius: 20, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
++  chipLeft: { left: '50%', marginLeft: -86, top: 22 },
++  chipRight: { left: '50%', marginLeft: 46, bottom: 16 },
++  spark: { position: 'absolute', left: '50%', marginLeft: 72, top: 26, width: 12, height: 12, borderRadius: 3, transform: [{ rotate: '45deg' }] },
 +  side: { width: 72, flexDirection: 'row', alignItems: 'center' },
 +  sideRight: { justifyContent: 'flex-end' },
 +  dots: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 },
 +  dot: { height: 8, borderRadius: RADIUS.pill },
-+  skip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: SPACE.s2 + 4 },
-+  skipLabel: { fontSize: FONT_SIZE.base, fontWeight: '600' },
-+  content: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s5, gap: SPACE.s2 },
-+  iconWrap: { width: 56, height: 56, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s2 },
-+  headline: { fontSize: FONT_SIZE.xxl, fontWeight: '700', lineHeight: 38 },
++  skip: { minHeight: 36, borderRadius: RADIUS.pill, justifyContent: 'center', paddingHorizontal: SPACE.s3 },
++  skipLabel: { fontSize: FONT_SIZE.sm, fontWeight: '800' },
++  content: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s4, paddingBottom: SPACE.s5, gap: SPACE.s2 },
++  headline: { fontSize: FONT_SIZE.xxl, fontWeight: '800', lineHeight: 38 },
 +  body: { fontSize: FONT_SIZE.base, lineHeight: 24 },
 +  children: { gap: SPACE.s3, marginTop: SPACE.s3 },
 +  footer: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, borderTopWidth: 1, gap: SPACE.s2 },
@@ -3714,8 +3787,8 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
  } as const;
 diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.tsx
 --- a/src/features/task/AddMenuHost.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/AddMenuHost.tsx	2026-11-16 16:13:33.576476508 +0000
-@@ -0,0 +1,82 @@
++++ b/src/features/task/AddMenuHost.tsx	2026-11-16 16:56:15.514742361 +0000
+@@ -0,0 +1,80 @@
 +/**
 + * AddMenuHost — S15 "What do you want to add?" as a bottom sheet over the
 + * dimmed current screen (D3). Fallback AI leads the sheet: speaking or typing
@@ -3724,14 +3797,14 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 + * is a coloured icon circle (D14) in one grouped list (D7).
 + * Mounted once in app/_layout.tsx.
 + */
-+import { AudioLines, CalendarRange, ListTodo, Repeat, Sparkles, Timer } from 'lucide-react-native';
++import { CalendarRange, ListTodo, Repeat, Sparkles, Timer } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
 +import { useAddMenuStore } from '@/app-shell/stores/addMenu';
 +import { ROUTES } from '@/navigation';
 +import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { Dialog, ListGroup, ListRow, TaskIcon } from '@/ui';
++import { Dialog, ListGroup, ListRow, TaskIcon, VoiceMark } from '@/ui';
 +
 +const ROWS = [
 +  { key: 'routine', title: 'Routine', descriptor: 'Repeats day to day', icon: Repeat, color: ACCENTS['forge-orange'].base, href: ROUTES.addRoutine },
@@ -3760,9 +3833,7 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 +        testID="add-pick-assistant"
 +        style={({ pressed }) => [styles.ai, { backgroundColor: t.accent.soft, borderColor: pressed ? t.accent.text : t.accent.soft }]}
 +      >
-+        <View style={[styles.aiIcon, { backgroundColor: t.accent.fill }]}>
-+          <AudioLines size={24} color={t.accent.onLarge} />
-+        </View>
++        <VoiceMark size={48} />
 +        <View style={styles.aiText}>
 +          <View style={styles.aiTitleRow}>
 +            <Text style={[styles.aiTitle, { color: t.color.text }]}>{AI_TITLE}</Text>
@@ -4024,8 +4095,8 @@ diff -ruN a/src/features/task/StepScheduleSection.tsx b/src/features/task/StepSc
 +});
 diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 --- a/src/features/task/TaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/TaskCard.tsx	2026-11-16 06:17:44.262599089 +0000
-@@ -0,0 +1,66 @@
++++ b/src/features/task/TaskCard.tsx	2026-11-16 16:52:26.036806329 +0000
+@@ -0,0 +1,98 @@
 +/**
 + * TaskCard — one task on any list (Routines, Events, Courses, Search).
 + * Coloured icon circle (D14), name, one quiet meta line and status pills
@@ -4038,9 +4109,11 @@ diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 +import { taskIconProps } from '@/features/browse/resolveIcon';
 +import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 +import type { TaskWithSteps } from '@/types';
-+import { Card, TaskIcon } from '@/ui';
++import type { Id } from '@/types';
++import { Card, TaskIcon, WeekStrip } from '@/ui';
 +
-+import { MetaLine, PlanTiles, planSummary } from './TaskDetails';
++import { MetaLine, planSummary } from './TaskDetails';
++import { useWeekStrip } from './useWeekStrip';
 +
 +export interface TaskCardProps {
 +  readonly task: TaskWithSteps;
@@ -4050,16 +4123,19 @@ diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 +  /** Status pills, right of the name. */
 +  readonly status?: ReactNode;
 +  readonly showPlan?: boolean;
++  /** The last seven days as dots. Defaults to on for routines and courses that run on a schedule. */
++  readonly showWeek?: boolean;
 +  readonly muted?: boolean;
 +  readonly onPress: () => void;
 +  readonly footer?: ReactNode;
 +  readonly accessibilityLabel?: string;
 +}
 +
-+export function TaskCard({ task, meta, metaLeading, status, showPlan = true, muted = false, onPress, footer, accessibilityLabel }: TaskCardProps) {
++export function TaskCard({ task, meta, metaLeading, status, showPlan = true, showWeek, muted = false, onPress, footer, accessibilityLabel }: TaskCardProps) {
 +  const t = useTheme();
 +  const ideal = showPlan ? planSummary(task.idealSteps) : null;
 +  const fallback = showPlan ? planSummary(task.fallbackSteps) : null;
++  const week = showWeek ?? ((task.type === 'routine' || task.type === 'course') && !task.isAsNeeded);
 +  return (
 +    <Card onPress={onPress} accessibilityLabel={accessibilityLabel ?? `${task.name}, ${meta.join(', ')}`} style={styles.card}>
 +      <View style={styles.head}>
@@ -4078,17 +4154,44 @@ diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 +        {status}
 +        <ChevronRight size={18} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
 +      </View>
-+      <PlanTiles ideal={ideal} fallback={fallback} numberOfLines={1} />
++      {week ? <TaskWeek taskId={task.id as Id} /> : null}
++      {ideal || fallback ? (
++        <View style={[styles.plan, { borderTopColor: t.color.border }]}>
++          {ideal ? <PlanLine dot={t.color.ideal} text={ideal} /> : null}
++          {fallback ? <PlanLine dot={t.color.fallback} text={fallback} /> : null}
++        </View>
++      ) : null}
 +      {footer}
 +    </Card>
 +  );
 +}
 +
++function TaskWeek({ taskId }: { readonly taskId: Id }) {
++  return <WeekStrip days={useWeekStrip(taskId)} />;
++}
++
++/** One side of the plan on one line: a dot in the state colour, then the words. */
++function PlanLine({ dot, text }: { readonly dot: string; readonly text: string }) {
++  const t = useTheme();
++  return (
++    <View style={styles.planLine}>
++      <View style={[styles.planDot, { backgroundColor: dot }]} />
++      <Text numberOfLines={1} style={[styles.planText, { color: t.color.textMuted }]}>
++        {text}
++      </Text>
++    </View>
++  );
++}
++
 +const styles = StyleSheet.create({
++  plan: { flexDirection: 'row', gap: SPACE.s3, borderTopWidth: 1, paddingTop: SPACE.s2 + 2 },
++  planLine: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
++  planDot: { width: 8, height: 8, borderRadius: 4 },
++  planText: { flex: 1, fontSize: FONT_SIZE.sm },
 +  card: { gap: SPACE.s2 + 4 },
 +  head: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
 +  textCol: { flex: 1, gap: 2, marginLeft: SPACE.s1 },
-+  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
++  name: { fontSize: FONT_SIZE.base, fontWeight: '700' },
 +  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
 +  metaText: { flex: 1 },
 +});
@@ -4206,6 +4309,82 @@ diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.ts
 +  pill: { borderRadius: RADIUS.pill, paddingVertical: 2, paddingHorizontal: SPACE.s2, alignSelf: 'flex-start' },
 +  pillLabel: { fontSize: FONT_SIZE.xs, fontWeight: '700' },
 +});
+diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
+--- a/src/features/task/TaskHero.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/task/TaskHero.tsx	2026-11-16 16:54:29.121028665 +0000
+@@ -0,0 +1,72 @@
++/**
++ * TaskHero — the top of a task's own screen: a block washed in the task's colour, its icon on
++ * a solid tile, its name large, and (for a task on a schedule) the last seven days.
++ */
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import { Pencil } from 'lucide-react-native';
++
++import { FONT_SIZE, mix, RADIUS, SPACE, useTheme } from '@/theme';
++import type { Id } from '@/types';
++import { WeekStrip, type IconComponent } from '@/ui';
++
++import { useWeekStrip } from './useWeekStrip';
++
++export interface TaskHeroProps {
++  readonly taskId: Id;
++  readonly name: string;
++  readonly icon: IconComponent;
++  /** The task's own colour (hex). */
++  readonly color: string;
++  /** Schedule, time, importance: joined with dots on one or two lines. */
++  readonly meta: readonly string[];
++  readonly showWeek: boolean;
++  readonly onIconPress: () => void;
++}
++
++export function TaskHero({ taskId, name, icon: Icon, color, meta, showWeek, onIconPress }: TaskHeroProps) {
++  const t = useTheme();
++  const wash = mix(t.color.bgAlt, color, t.scheme === 'dark' ? 0.2 : 0.13);
++  return (
++    <View style={[styles.root, { backgroundColor: wash }]}>
++      <View style={styles.top}>
++        <Pressable onPress={onIconPress} accessibilityRole="button" accessibilityLabel="Change icon and colour" testID="s20-icon-avatar" style={[styles.tile, { backgroundColor: color }]}>
++          <Icon size={30} color={t.color.textOnAccent} />
++          <View style={[styles.edit, { backgroundColor: t.color.bgAlt, borderColor: wash }]}>
++            <Pencil size={11} color={t.color.text} />
++          </View>
++        </Pressable>
++        <View style={styles.text}>
++          <Text accessibilityRole="header" numberOfLines={2} style={[styles.name, { color: t.color.text }]}>
++            {name}
++          </Text>
++          {meta.length > 0 ? (
++            <Text numberOfLines={2} style={[styles.meta, { color: t.color.text }]}>
++              {meta.join(' · ')}
++            </Text>
++          ) : null}
++        </View>
++      </View>
++      {showWeek ? <HeroWeek taskId={taskId} /> : null}
++    </View>
++  );
++}
++
++function HeroWeek({ taskId }: { readonly taskId: Id }) {
++  const t = useTheme();
++  return (
++    <View style={[styles.week, { backgroundColor: t.color.bgAlt }]}>
++      <WeekStrip days={useWeekStrip(taskId)} size={30} />
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { borderRadius: RADIUS.xl, padding: SPACE.s3, gap: SPACE.s3 },
++  top: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3 },
++  tile: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
++  edit: { position: 'absolute', right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
++  text: { flex: 1, gap: 4 },
++  name: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800' },
++  meta: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
++  week: { borderRadius: RADIUS.lg, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s2 },
++});
 diff -ruN a/src/features/task/formShared.ts b/src/features/task/formShared.ts
 --- a/src/features/task/formShared.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/formShared.ts	2026-11-16 05:57:23.873103247 +0000
@@ -4279,10 +4458,38 @@ diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
 +    [showToast, pushCelebration],
 +  );
 +}
+diff -ruN a/src/features/task/useWeekStrip.ts b/src/features/task/useWeekStrip.ts
+--- a/src/features/task/useWeekStrip.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/task/useWeekStrip.ts	2026-11-16 16:47:50.309573810 +0000
+@@ -0,0 +1,24 @@
++/** The last seven days of one task, shaped for <WeekStrip>. */
++import { useMemo } from 'react';
++
++import { addDays, eachDay, parseLocalDate, today } from '@/lib/date';
++import { useTaskOccurrences } from '@/queries';
++import type { Id } from '@/types';
++import type { WeekStripDay, WeekDayState } from '@/ui';
++
++const LETTER = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
++
++export function useWeekStrip(taskId: Id): readonly WeekStripDay[] {
++  const to = today();
++  const from = addDays(to, -6);
++  const query = useTaskOccurrences(taskId, { from, to });
++  return useMemo(() => {
++    const byDate = new Map((query.data ?? []).map((o) => [o.date, o.outcome]));
++    return eachDay(from, to).map((date) => {
++      const outcome = byDate.get(date);
++      const state: WeekDayState =
++        outcome === 'ideal' ? 'ideal' : outcome === 'fallback' ? 'fallback' : outcome === 'off' ? 'off' : outcome === 'missed' ? 'missed' : outcome === 'pending' ? 'open' : 'none';
++      return { key: date, label: LETTER[parseLocalDate(date).getDay()] ?? '', state, isToday: date === to };
++    });
++  }, [query.data, from, to]);
++}
 diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 --- a/src/features/today/StatHero.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/today/StatHero.tsx	2026-11-16 16:12:43.271360566 +0000
-@@ -0,0 +1,50 @@
++++ b/src/features/today/StatHero.tsx	2026-11-16 16:54:29.132239416 +0000
+@@ -0,0 +1,60 @@
 +/**
 + * StatHero — the one block of solid theme colour on a screen: the number that matters.
 + * Text on the bright colour is large and bold (white reads at 3:1 or better there); the small
@@ -4299,24 +4506,35 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +  readonly loading?: boolean;
 +  readonly label: string;
 +  readonly detail: string;
++  readonly detailLines?: number;
 +  readonly onPress?: () => void;
 +  readonly accessibilityLabel: string;
 +}
 +
-+export function StatHero({ percent, loading = false, label, detail, onPress, accessibilityLabel }: StatHeroProps) {
++export function StatHero({ percent, loading = false, label, detail, detailLines = 1, onPress, accessibilityLabel }: StatHeroProps) {
 +  const t = useTheme();
-+  if (loading) return <Skeleton height={112} radius={RADIUS.lg} />;
++  if (loading) return <Skeleton height={148} radius={RADIUS.xl} />;
 +  return (
 +    <Pressable onPress={onPress} disabled={!onPress} accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.card, { backgroundColor: t.accent.fill }]}>
 +      <View style={styles.top}>
-+        <Text style={[styles.numeral, { color: t.accent.onLarge }]}>{percent === null ? '–' : `${percent}%`}</Text>
-+        <Text numberOfLines={1} style={[styles.label, { color: t.accent.onLarge }]}>
++        <ProgressRing
++          percent={percent ?? 0}
++          size={76}
++          strokeWidth={8}
++          label={percent === null ? '–' : `${percent}%`}
++          labelColor={t.accent.onLarge}
++          labelSize={20}
++          color={t.accent.onLarge}
++          trackColor={t.accent.onLarge}
++          trackOpacity={0.3}
++          accessibilityLabel={accessibilityLabel}
++        />
++        <Text numberOfLines={2} style={[styles.label, { color: t.accent.onLarge }]}>
 +          {label}
 +        </Text>
-+        <ProgressRing percent={percent ?? 0} size={44} strokeWidth={6} color={t.accent.onLarge} trackColor={t.accent.onLarge} trackOpacity={0.3} accessibilityLabel={accessibilityLabel} />
 +      </View>
 +      <View style={[styles.band, { backgroundColor: t.accent.band }]}>
-+        <Text numberOfLines={1} style={[styles.detail, { color: t.accent.onBand }]}>
++        <Text numberOfLines={detailLines} style={[styles.detail, { color: t.accent.onBand }]}>
 +          {detail}
 +        </Text>
 +        {onPress ? <ChevronRight size={18} color={t.accent.onBand} /> : null}
@@ -4326,16 +4544,15 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +}
 +
 +const styles = StyleSheet.create({
-+  card: { borderRadius: RADIUS.lg, overflow: 'hidden' },
-+  top: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 + 4 },
-+  numeral: { fontSize: FONT_SIZE.xxxl, lineHeight: 44, fontWeight: '800', fontVariant: ['tabular-nums'] },
-+  label: { flex: 1, fontSize: FONT_SIZE.lg, fontWeight: '700' },
++  card: { borderRadius: RADIUS.xl, overflow: 'hidden' },
++  top: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s3 },
++  label: { flex: 1, fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800' },
 +  band: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2, paddingHorizontal: SPACE.s3, paddingVertical: SPACE.s2 + 2 },
-+  detail: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: '600' },
++  detail: { flex: 1, fontSize: FONT_SIZE.sm, lineHeight: 20, fontWeight: '600' },
 +});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-16 16:12:20.619949020 +0000
++++ b/src/features/today/TodayScreen.tsx	2026-11-16 16:53:14.471400468 +0000
 @@ -1,35 +1,51 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
@@ -4627,9 +4844,9 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 -            <Skeleton height={72} />
 -            <Skeleton height={72} />
 -            <Skeleton height={72} />
-+            <Skeleton height={120} radius={16} />
-+            <Skeleton height={120} radius={16} />
-+            <Skeleton height={120} radius={16} />
++            <Skeleton height={120} radius={20} />
++            <Skeleton height={120} radius={20} />
++            <Skeleton height={120} radius={20} />
            </View>
          ) : isError ? (
            <InlineRetryBanner message={S09_COPY.readFailure} retryLabel={S09_COPY.retry} onRetry={refetch} />
@@ -4831,8 +5048,8 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  });
 diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskCard.tsx
 --- a/src/features/today/TodayTaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 16:12:43.281008862 +0000
-@@ -0,0 +1,86 @@
++++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 16:52:26.036441257 +0000
+@@ -0,0 +1,95 @@
 +/**
 + * TodayTaskCard — the one task card used on Today. The theme screen's preview renders this
 + * same component, so what a person sees in the preview is exactly what the app shows.
@@ -4840,13 +5057,14 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 + * Once logged, the whole card takes the state colour (green ideal, blue fallback), so the list
 + * fills with colour as the day goes on.
 + */
++import { useEffect, useRef, useState } from 'react';
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
 +import { StatusPill, MetaLine } from '@/features/task/TaskDetails';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 +import { ChevronDown } from 'lucide-react-native';
 +
-+import { isLogged, LogButtons, logStateVisual, TaskIcon, type IconComponent } from '@/ui';
++import { Burst, cardSurface, isLogged, LogButtons, logStateVisual, PopIn, settledSurface, TaskIcon, type IconComponent } from '@/ui';
 +import type { ChipState } from '@/types';
 +
 +export interface TodayTaskCardProps {
@@ -4872,6 +5090,13 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +  const showButtons = !isOff && (!logged || reopened);
 +  const v = logged && !isOff ? logStateVisual(t, chip) : null;
 +  const StateIcon = v?.icon;
++  // Celebrate only the moment the ideal lands, never on first paint.
++  const [burst, setBurst] = useState(0);
++  const prevChip = useRef(chip);
++  useEffect(() => {
++    if (chip === 'done' && prevChip.current !== 'done') setBurst((n) => n + 1);
++    prevChip.current = chip;
++  }, [chip]);
 +  const head = (
 +    <>
 +      <TaskIcon icon={icon} color={color} muted={isOff} />
@@ -4884,7 +5109,7 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +    </>
 +  );
 +  return (
-+    <View style={[styles.card, v ? { backgroundColor: v.soft, borderColor: v.soft } : { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
++    <PopIn trigger={v ? chip : null} from={0.97} style={[styles.card, v ? settledSurface(v.soft) : cardSurface(t)]}>
 +      <View style={styles.head}>
 +        {onOpen ? (
 +          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`${name}, ${meta.join(', ')}. Opens the task`} style={styles.open}>
@@ -4897,25 +5122,26 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +          <StatusPill label={offLabel} tone="off" />
 +        ) : v && StateIcon ? (
 +          <Pressable onPress={onToggleReopen} accessibilityRole="button" accessibilityLabel={`${name}, ${v.doneLabel}. Change`} accessibilityState={{ expanded: reopened }} hitSlop={8} style={styles.change}>
-+            <View style={[styles.tick, { backgroundColor: v.line }]}>
++            <PopIn trigger={chip} style={[styles.tick, { backgroundColor: v.line }]}>
 +              <StateIcon size={18} color={t.color.iconOnSignal} />
-+            </View>
++              <Burst fire={burst} colors={[t.color.ideal, t.color.celebrationGold, t.accent.fill]} />
++            </PopIn>
 +            <ChevronDown size={16} color={v.deep} />
 +          </Pressable>
 +        ) : null}
 +      </View>
 +      {showButtons ? <LogButtons value={chip} onChange={onLog} accessibilityLabel={name} idealHint={idealHint ?? undefined} fallbackHint={fallbackHint ?? undefined} /> : null}
-+    </View>
++    </PopIn>
 +  );
 +}
 +
 +const styles = StyleSheet.create({
-+  card: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 + 4 },
++  card: { padding: SPACE.s3, gap: SPACE.s2 + 4 },
 +  head: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
 +  open: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
 +  textCol: { flex: 1, gap: 2 },
-+  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
-+  status: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  name: { fontSize: FONT_SIZE.base, fontWeight: '700' },
++  status: { fontSize: FONT_SIZE.sm, fontWeight: '800' },
 +  change: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1, minHeight: 44 },
 +  tick: { width: 32, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
 +});
@@ -5191,7 +5417,7 @@ diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
 +}
 diff -ruN a/src/theme/index.ts b/src/theme/index.ts
 --- a/src/theme/index.ts	2026-11-16 05:43:15.822578154 +0000
-+++ b/src/theme/index.ts	2026-11-16 16:09:32.196271873 +0000
++++ b/src/theme/index.ts	2026-11-16 16:49:01.508385804 +0000
 @@ -4,28 +4,39 @@
  
  import type { AccentKey, ThemeMode } from '@/types';
@@ -5201,7 +5427,7 @@ diff -ruN a/src/theme/index.ts b/src/theme/index.ts
 +import { DEFAULT_ACCENT, THEME_LABELS, THEME_SEEDS, type ColorScheme, type Palette } from './tokens';
  
  export * from './tokens';
-+export { contrast, seedForHue } from './engine';
++export { contrast, mix, seedForHue } from './engine';
  
  export interface Theme {
    readonly scheme: ColorScheme;
@@ -5247,7 +5473,7 @@ diff -ruN a/src/theme/index.ts b/src/theme/index.ts
  export const ThemeContext = createContext<Theme>(buildTheme('light'));
 diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 --- a/src/theme/tokens.ts	2026-11-16 05:43:15.822695778 +0000
-+++ b/src/theme/tokens.ts	2026-11-16 16:16:16.973688601 +0000
++++ b/src/theme/tokens.ts	2026-11-16 16:47:50.283671774 +0000
 @@ -6,20 +6,46 @@
   *   the dark-mode override block inside design-input/Fallback Handoff (standalone).html
   *
@@ -5412,7 +5638,29 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    textOnAccent: '#ffffff',
  };
  
-@@ -129,4 +159,8 @@
+@@ -106,7 +136,20 @@
+ /** 8px base scale, per Verdant tokens/spacing.css. */
+ export const SPACE = { s0: 0, s1: 4, s2: 8, s3: 16, s4: 24, s5: 32, s6: 48, s7: 64, s8: 96 } as const;
+ 
+-export const RADIUS = { sm: 8, md: 12, lg: 16, pill: 999 } as const;
++export const RADIUS = { sm: 8, md: 12, lg: 16, xl: 20, pill: 999 } as const;
++
++/**
++ * Depth. Anything you can press is a chunky piece: a 2px outline and a thicker bottom edge.
++ * Pressing it pushes it down by the difference (see `cardSurface` in `@/ui/surface`).
++ */
++export const EDGE = { outline: 2, bottom: 5 } as const;
++
++/**
++ * Typeface: Nunito, a rounded face. Headings and numbers use 800, labels 700, body 500/600.
++ * On device each weight is its own font file, so text must go through the kit's weight map
++ * rather than `fontWeight` alone.
++ */
++export const FONT_FAMILY = 'Nunito';
+ 
+ export const FONT_SIZE = { xs: 12, sm: 14, base: 16, md: 18, lg: 20, xl: 24, xxl: 32, xxxl: 40, display: 56 } as const;
+ 
+@@ -129,4 +172,8 @@
   * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
   * one). The only sanctioned raw colour literal outside this file is this constant's use.
   */
@@ -5572,13 +5820,41 @@ diff -ruN a/src/ui/ButtonPair.tsx b/src/ui/ButtonPair.tsx
 +const styles = StyleSheet.create({ root: { gap: SPACE.s2, alignSelf: 'stretch' } });
 diff -ruN a/src/ui/Card.tsx b/src/ui/Card.tsx
 --- a/src/ui/Card.tsx	2026-11-16 05:43:15.819443859 +0000
-+++ b/src/ui/Card.tsx	2026-11-16 05:49:00.646180335 +0000
-@@ -59,6 +59,6 @@
++++ b/src/ui/Card.tsx	2026-11-16 16:47:50.284340419 +0000
+@@ -6,7 +6,8 @@
+ import type { ReactNode } from 'react';
+ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+ 
+-import { RADIUS, SPACE, useTheme } from '@/theme';
++import { SPACE, useTheme } from '@/theme';
++import { cardSurface, pressedSurface } from './surface';
+ 
+ export interface CardProps {
+   readonly children: ReactNode;
+@@ -24,7 +25,7 @@
+   const t = useTheme();
+   const base: StyleProp<ViewStyle> = [
+     styles.root,
+-    { backgroundColor: t.color.bgAlt, borderColor: t.color.border },
++    cardSurface(t),
+     style,
+   ];
+ 
+@@ -36,7 +37,7 @@
+         accessibilityLabel={accessibilityLabel}
+         accessibilityHint={accessibilityHint}
+         testID={testID}
+-        style={({ pressed }) => [base, pressed && { backgroundColor: t.color.surface, borderColor: t.color.borderStrong }]}
++        style={({ pressed }) => [base, pressed && pressedSurface]}
+       >
+         {children}
+         {corner ? <View style={styles.corner}>{corner}</View> : null}
+@@ -59,6 +60,6 @@
  }
  
  const styles = StyleSheet.create({
 -  root: { borderWidth: 1, borderRadius: RADIUS.md, padding: SPACE.s3, gap: SPACE.s2 },
-+  root: { borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 },
++  root: { padding: SPACE.s3, gap: SPACE.s2 },
    corner: { position: 'absolute', top: SPACE.s1, right: SPACE.s1 },
  });
 diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
@@ -5644,8 +5920,22 @@ diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
 +const styles = StyleSheet.create({ message: { fontSize: FONT_SIZE.base, lineHeight: 24 } });
 diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.tsx
 --- a/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 05:43:15.819505214 +0000
-+++ b/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 05:50:15.605904782 +0000
-@@ -79,6 +79,6 @@
++++ b/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 16:47:50.300489373 +0000
+@@ -31,7 +31,7 @@
+   return (
+     <View>
+       <View
+-        style={[styles.track, { backgroundColor: 'transparent', borderColor: t.color.border }]}
++        style={[styles.track, { backgroundColor: t.color.surface, borderColor: t.color.surface }]}
+         accessibilityRole="progressbar"
+         accessibilityLabel={accessibilityLabel}
+       >
+@@ -75,10 +75,10 @@
+ }
+ 
+ const styles = StyleSheet.create({
+-  track: { flexDirection: 'row', height: 16, borderRadius: 999, borderWidth: 1, overflow: 'hidden' },
++  track: { flexDirection: 'row', height: 14, borderRadius: 999, borderWidth: 0, overflow: 'hidden' },
    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2, marginTop: SPACE.s2 },
    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
    swatch: { width: 10, height: 10, borderRadius: 5 },
@@ -5884,14 +6174,65 @@ diff -ruN a/src/ui/Dialog.tsx b/src/ui/Dialog.tsx
 +  scroll: { flexGrow: 0 },
 +  scrollContent: { gap: SPACE.s3, paddingBottom: SPACE.s1 },
  });
+diff -ruN a/src/ui/EmptyArt.tsx b/src/ui/EmptyArt.tsx
+--- a/src/ui/EmptyArt.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/EmptyArt.tsx	2026-11-16 16:58:53.757325347 +0000
+@@ -0,0 +1,47 @@
++/**
++ * EmptyArt — the small drawing on an empty screen. One shape language for all of them: a soft
++ * blob of the theme tint, a white tile with the subject on it, a gold spark. Drawn with the
++ * theme's own colours, so it follows every theme and both appearances.
++ */
++import { View } from 'react-native';
++import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
++
++import { useTheme } from '@/theme';
++import type { IconComponent } from './icon';
++
++export type EmptyArtKind = 'calendar' | 'tile';
++
++export function EmptyArt({ kind = 'tile', icon: Icon }: { readonly kind?: EmptyArtKind; readonly icon?: IconComponent }) {
++  const t = useTheme();
++  const spark = <Path d="M124 18l2.4 6.4L133 27l-6.6 2.6L124 36l-2.4-6.4L115 27l6.6-2.6z" fill={t.color.celebrationGold} />;
++  return (
++    <View style={{ width: 156, height: 104, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
++      <Svg width={156} height={104} viewBox="0 0 156 104" style={{ position: 'absolute' }}>
++        <Ellipse cx={78} cy={60} rx={70} ry={38} fill={t.accent.soft} />
++        {kind === 'calendar' ? (
++          <>
++            <Rect x={44} y={20} width={68} height={62} rx={11} fill={t.color.bgAlt} stroke={t.color.borderStrong} strokeWidth={2} />
++            <Path d="M44 31a11 11 0 0 1 11-11h46a11 11 0 0 1 11 11v8H44z" fill={t.accent.fill} />
++            <Rect x={58} y={13} width={5} height={13} rx={2.5} fill={t.color.borderStrong} />
++            <Rect x={93} y={13} width={5} height={13} rx={2.5} fill={t.color.borderStrong} />
++            <Circle cx={62} cy={53} r={5.5} fill={t.color.ideal} />
++            <Circle cx={78} cy={53} r={5.5} fill={t.color.fallback} />
++            <Circle cx={94} cy={53} r={5.5} fill={t.color.borderStrong} />
++            <Circle cx={62} cy={69} r={5.5} fill={t.color.borderStrong} />
++            <Circle cx={78} cy={69} r={4.5} fill="none" stroke={t.accent.text} strokeWidth={2.5} />
++          </>
++        ) : (
++          <Rect x={46} y={20} width={64} height={64} rx={18} fill={t.color.bgAlt} stroke={t.color.borderStrong} strokeWidth={2} />
++        )}
++        {spark}
++        <Circle cx={26} cy={36} r={4} fill={t.color.celebrationGold} />
++      </Svg>
++      {/* In its own layer so it paints above the drawing on the web as well. */}
++      {kind === 'tile' && Icon ? (
++        <View style={{ zIndex: 1 }}>
++          <Icon size={30} color={t.accent.text} />
++        </View>
++      ) : null}
++    </View>
++  );
++}
 diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 --- a/src/ui/EmptyState.tsx	2026-11-16 05:43:15.819714553 +0000
-+++ b/src/ui/EmptyState.tsx	2026-11-16 05:49:00.624359147 +0000
-@@ -1,8 +1,11 @@
++++ b/src/ui/EmptyState.tsx	2026-11-16 16:49:01.526139967 +0000
+@@ -1,13 +1,21 @@
 -/** M0 kit — Fallback-custom `EmptyState`. Icon + headline + subcopy + optional primary action. */
 +/**
-+ * EmptyState — a genuinely empty screen (D15): icon, title, one muted line,
-+ * one button. The round add button stays hidden until there is content.
++ * EmptyState — a genuinely empty screen (D15): a small drawing in the theme's
++ * colours, title, one muted line, one button. The round add button stays hidden until there is content.
 + * A section that is merely empty uses <EmptyLine> instead.
 + */
  import { StyleSheet, Text, View } from 'react-native';
@@ -5900,16 +6241,30 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 -
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
  import { Button } from './Button';
++import { EmptyArt, type EmptyArtKind } from './EmptyArt';
  import type { IconComponent } from './icon';
  
-@@ -20,20 +23,33 @@
+ export interface EmptyStateProps {
+   readonly icon: IconComponent;
++  /** Which drawing. Defaults to a tile carrying `icon`. */
++  readonly art?: EmptyArtKind;
++  /** Less vertical padding, for an empty section inside a screen that has other content. */
++  readonly compact?: boolean;
+   readonly headline: string;
+   readonly subcopy: string;
+   readonly actionLabel?: string;
+@@ -16,24 +24,36 @@
+   readonly testID?: string;
+ }
+ 
+-export function EmptyState({ icon: Icon, headline, subcopy, actionLabel, onAction, actionVariant = 'primary', testID }: EmptyStateProps) {
++export function EmptyState({ icon, art = 'tile', compact = false, headline, subcopy, actionLabel, onAction, actionVariant = 'primary', testID }: EmptyStateProps) {
    const t = useTheme();
    return (
-     <View style={styles.root} accessibilityRole="text" testID={testID}>
+-    <View style={styles.root} accessibilityRole="text" testID={testID}>
 -      <Icon size={40} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
-+      <View style={[styles.iconWrap, { backgroundColor: t.color.surface }]}>
-+        <Icon size={28} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-+      </View>
++    <View style={[styles.root, compact && styles.compact]} accessibilityRole="text" testID={testID}>
++      <EmptyArt kind={art} icon={icon} />
        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
          {headline}
        </Text>
@@ -5936,7 +6291,8 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 -  subcopy: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
 +  root: { alignItems: 'center', gap: SPACE.s2, paddingVertical: SPACE.s6, paddingHorizontal: SPACE.s4 },
 +  iconWrap: { width: 64, height: 64, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s1 },
-+  headline: { fontSize: FONT_SIZE.lg, fontWeight: '700', textAlign: 'center' },
++  compact: { paddingVertical: SPACE.s3 },
++  headline: { fontSize: FONT_SIZE.lg, fontWeight: '800', textAlign: 'center' },
 +  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
 +  action: { marginTop: SPACE.s2 },
 +  line: { fontSize: FONT_SIZE.sm, lineHeight: 20, paddingVertical: SPACE.s1 },
@@ -6047,8 +6403,8 @@ diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
  });
 diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 --- a/src/ui/ListGroup.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/ListGroup.tsx	2026-11-16 07:14:30.441930874 +0000
-@@ -0,0 +1,132 @@
++++ b/src/ui/ListGroup.tsx	2026-11-16 16:47:50.299697444 +0000
+@@ -0,0 +1,139 @@
 +/**
 + * ListGroup / ListRow / SectionHeading — the grouped list (D7, D19).
 + * A bold heading above ONE card; rows separated by hairlines; a row is
@@ -6060,6 +6416,7 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +import { ChevronRight } from 'lucide-react-native';
 +
 +import { FONT_SIZE, HAIRLINE, MIN_TAP_TARGET, RADIUS, SPACE, useTheme } from '@/theme';
++import { cardSurface } from './surface';
 +import type { IconComponent } from './icon';
 +
 +export function SectionHeading({ children, right }: { readonly children: string; readonly right?: ReactNode }) {
@@ -6088,7 +6445,7 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +  return (
 +    <View style={styles.group} testID={testID}>
 +      {title ? <SectionHeading right={titleRight}>{title}</SectionHeading> : null}
-+      <View style={[styles.card, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
++      <View style={[styles.card, cardSurface(t)]}>
 +        {rows.map((row, i) => (
 +          <Fragment key={i}>
 +            {i > 0 ? <View style={[styles.divider, { backgroundColor: t.color.border }]} /> : null}
@@ -6127,7 +6484,12 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +  const labelColor = danger ? t.color.dangerDeep : t.color.text;
 +  const content = (
 +    <>
-+      {leading ?? (Icon ? <Icon size={20} color={danger ? t.color.dangerDeep : t.color.textMuted} /> : null)}
++      {leading ??
++        (Icon ? (
++          <View style={[styles.iconTile, { backgroundColor: danger ? t.color.dangerSoft : t.accent.soft }]}>
++            <Icon size={18} color={danger ? t.color.dangerDeep : t.accent.text} />
++          </View>
++        ) : null)}
 +      <View style={styles.rowText}>
 +        <Text style={[styles.rowLabel, { color: labelColor }]}>{label}</Text>
 +        {sublabel ? (
@@ -6169,22 +6531,23 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +
 +const styles = StyleSheet.create({
 +  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2, minHeight: 28 },
-+  heading: { fontSize: FONT_SIZE.md, fontWeight: '700', flexShrink: 1 },
++  heading: { fontSize: FONT_SIZE.md, fontWeight: '800', flexShrink: 1 },
 +  group: { gap: SPACE.s2 },
-+  card: { borderWidth: 1, borderRadius: RADIUS.lg, overflow: 'hidden' },
++  card: { overflow: 'hidden' },
++  iconTile: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 +  divider: { height: HAIRLINE, marginLeft: SPACE.s3 },
 +  footer: { fontSize: FONT_SIZE.sm, lineHeight: 20, paddingHorizontal: SPACE.s1 },
 +  row: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, minHeight: MIN_TAP_TARGET + 8, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s3 },
 +  rowText: { flex: 1, gap: 2 },
-+  rowLabel: { fontSize: FONT_SIZE.base, fontWeight: '500' },
++  rowLabel: { fontSize: FONT_SIZE.base, fontWeight: '600' },
 +  rowSub: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  rowValue: { fontSize: FONT_SIZE.sm, flexShrink: 1, maxWidth: '45%', textAlign: 'right' },
 +  disabled: { opacity: 0.5 },
 +});
 diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 --- a/src/ui/LogControl.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/LogControl.tsx	2026-11-16 16:12:20.617956499 +0000
-@@ -0,0 +1,242 @@
++++ b/src/ui/LogControl.tsx	2026-11-16 16:58:53.757610551 +0000
+@@ -0,0 +1,245 @@
 +/**
 + * LogControl — how a day gets logged, everywhere (D1).
 + *
@@ -6198,7 +6561,7 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +import { Check, CheckCheck, ChevronDown, Minus } from 'lucide-react-native';
 +
-+import { FONT_SIZE, MIN_TAP_TARGET, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
++import { FONT_SIZE, MIN_TAP_TARGET, mix, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
 +import type { ChipState } from '@/types';
 +import type { IconComponent } from './icon';
 +
@@ -6290,7 +6653,8 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +        accessibilityLabel={`${accessibilityLabel}: ${label}`}
 +        style={({ pressed }) => [
 +          styles.button,
-+          { borderColor: selected || pressed ? v.line : v.soft, backgroundColor: selected ? t.color.bgAlt : v.soft },
++          { borderColor: selected ? v.line : v.soft, borderBottomColor: selected ? v.line : t.scheme === 'dark' ? mix(v.soft, '#000000', 0.42) : mix(v.soft, v.deep, 0.16), backgroundColor: selected ? t.color.bgAlt : v.soft },
++          pressed && styles.buttonPressed,
 +          disabled && styles.disabled,
 +        ]}
 +      >
@@ -6409,14 +6773,16 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +    justifyContent: 'center',
 +    gap: 2,
 +    minHeight: MIN_TAP_TARGET + 4,
-+    borderWidth: 1.5,
++    borderWidth: 2,
++    borderBottomWidth: 5,
 +    borderRadius: RADIUS.lg,
 +    paddingHorizontal: SPACE.s2,
 +    paddingVertical: SPACE.s1 + 2,
 +  },
++  buttonPressed: { borderBottomWidth: 2, marginTop: 3 },
 +  buttonHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
 +  buttonHint: { fontSize: FONT_SIZE.xs, maxWidth: '100%' },
-+  buttonLabel: { fontSize: FONT_SIZE.base, fontWeight: '700' },
++  buttonLabel: { fontSize: FONT_SIZE.base, fontWeight: '800' },
 +  quietRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 +  quiet: { minHeight: 28, justifyContent: 'center', paddingHorizontal: SPACE.s1 },
 +  quietLabel: { fontSize: FONT_SIZE.sm },
@@ -6487,32 +6853,55 @@ diff -ruN a/src/ui/MenuSheet.tsx b/src/ui/MenuSheet.tsx
 +const styles = StyleSheet.create({ caption: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
 diff -ruN a/src/ui/MilestoneBadge.tsx b/src/ui/MilestoneBadge.tsx
 --- a/src/ui/MilestoneBadge.tsx	2026-11-16 05:43:15.819486436 +0000
-+++ b/src/ui/MilestoneBadge.tsx	2026-11-16 05:49:00.646732305 +0000
-@@ -41,7 +41,7 @@
++++ b/src/ui/MilestoneBadge.tsx	2026-11-16 16:56:05.162102258 +0000
+@@ -16,7 +16,7 @@
+ import { Pressable, StyleSheet, Text, View } from 'react-native';
+ import { Lock } from 'lucide-react-native';
+ 
+-import { RADIUS, SPACE, useTheme } from '@/theme';
++import { INK, mix, RADIUS, SPACE, useTheme } from '@/theme';
+ import type { IconComponent } from './icon';
+ 
+ export interface MilestoneBadgeProps {
+@@ -36,12 +36,14 @@
+       <View
+         style={[
+           styles.pill,
+-          { backgroundColor: earned ? t.color.goldSoft : t.color.surface, borderColor: earned ? t.color.celebrationGold : t.color.border },
++          earned
++            ? { backgroundColor: t.color.celebrationGold, borderColor: t.color.celebrationGold, borderBottomColor: mix(t.color.celebrationGold, INK, 0.28), borderBottomWidth: 5 }
++            : { backgroundColor: t.color.surface, borderColor: t.color.border, marginTop: 3 },
+         ]}
        >
-         {earned ? <Icon size={24} color={t.color.goldDeep} /> : <Lock size={20} color={t.color.textDim} />}
+-        {earned ? <Icon size={24} color={t.color.goldDeep} /> : <Lock size={20} color={t.color.textDim} />}
++        {earned ? <Icon size={26} color={INK} /> : <Lock size={20} color={t.color.textMuted} />}
        </View>
 -      <Text style={[styles.label, { color: earned ? t.color.text : t.color.textMuted }]}>{label}</Text>
 +      <Text numberOfLines={2} style={[styles.label, { color: earned ? t.color.text : t.color.textMuted }]}>{label}</Text>
      </View>
    );
  
-@@ -66,7 +66,7 @@
+@@ -66,7 +68,7 @@
  }
  
  const styles = StyleSheet.create({
 -  column: { alignItems: 'center', gap: SPACE.s1, minWidth: 84 },
+-  pill: { width: 54, height: 54, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+-  label: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
 +  column: { alignItems: 'center', gap: SPACE.s1 },
-   pill: { width: 54, height: 54, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-   label: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
++  pill: { width: 60, height: 60, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
++  label: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
  });
 diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
 --- a/src/ui/ProgressRing.tsx	2026-11-16 05:43:15.819476749 +0000
-+++ b/src/ui/ProgressRing.tsx	2026-11-16 16:12:20.617758906 +0000
-@@ -10,10 +10,15 @@
++++ b/src/ui/ProgressRing.tsx	2026-11-16 16:49:01.526380843 +0000
+@@ -10,10 +10,18 @@
    readonly size?: number;
    readonly strokeWidth?: number;
    readonly label?: string;
++  /** Colour and size of the text inside the ring. */
++  readonly labelColor?: string;
++  readonly labelSize?: number;
 +  /** Arc colour. Defaults to the theme colour. */
 +  readonly color?: string;
 +  /** Track colour and opacity. Defaults to the neutral surface. */
@@ -6522,11 +6911,11 @@ diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
  }
  
 -export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, accessibilityLabel }: ProgressRingProps) {
-+export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, color, trackColor, trackOpacity = 1, accessibilityLabel }: ProgressRingProps) {
++export function ProgressRing({ percent, size = 64, strokeWidth = 8, label, labelColor, labelSize, color, trackColor, trackOpacity = 1, accessibilityLabel }: ProgressRingProps) {
    const t = useTheme();
    const clamped = Math.max(0, Math.min(100, percent));
    const radius = (size - strokeWidth) / 2;
-@@ -28,12 +33,12 @@
+@@ -28,12 +36,12 @@
        accessibilityValue={{ min: 0, max: 100, now: clamped }}
      >
        <Svg width={size} height={size}>
@@ -6541,6 +6930,21 @@ diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
            strokeWidth={strokeWidth}
            fill="none"
            strokeDasharray={`${circumference} ${circumference}`}
+@@ -43,12 +51,12 @@
+           origin={`${size / 2}, ${size / 2}`}
+         />
+       </Svg>
+-      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
++      {label ? <Text style={[styles.label, { color: labelColor ?? t.color.text }, labelSize ? { fontSize: labelSize } : null]}>{label}</Text> : null}
+     </View>
+   );
+ }
+ 
+ const styles = StyleSheet.create({
+   root: { alignItems: 'center', justifyContent: 'center' },
+-  label: { position: 'absolute', fontSize: 14, fontWeight: '700', textAlign: 'center' },
++  label: { position: 'absolute', fontSize: 14, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
+ });
 diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
 --- a/src/ui/Radio.tsx	2026-11-16 05:43:15.819596120 +0000
 +++ b/src/ui/Radio.tsx	2026-11-16 05:48:00.601577588 +0000
@@ -6884,6 +7288,47 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
    },
    optionLabel: { fontSize: 16, flexShrink: 1 },
  });
+diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
+--- a/src/ui/StatTile.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/StatTile.tsx	2026-11-16 16:49:01.515113062 +0000
+@@ -0,0 +1,37 @@
++/** StatTile — one count, drawn: a small tinted icon, a heavy number, a label. */
++import { StyleSheet, Text, View } from 'react-native';
++
++import { FONT_SIZE, SPACE, useTheme } from '@/theme';
++import type { IconComponent } from './icon';
++import { cardSurface } from './surface';
++
++export interface StatTileProps {
++  readonly icon: IconComponent;
++  readonly value: number | string;
++  readonly label: string;
++  /** Tint behind the icon and the icon's colour. */
++  readonly tint: string;
++  readonly ink: string;
++}
++
++export function StatTile({ icon: Icon, value, label, tint, ink }: StatTileProps) {
++  const t = useTheme();
++  return (
++    <View style={[styles.root, cardSurface(t)]} accessible accessibilityRole="text" accessibilityLabel={`${label}: ${value}`}>
++      <View style={[styles.icon, { backgroundColor: tint }]}>
++        <Icon size={18} color={ink} />
++      </View>
++      <Text style={[styles.value, { color: t.color.text }]}>{value}</Text>
++      <Text numberOfLines={1} style={[styles.label, { color: t.color.textMuted }]}>
++        {label}
++      </Text>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { flex: 1, padding: SPACE.s2 + 4, gap: 2, alignItems: 'flex-start' },
++  icon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
++  value: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
++  label: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
++});
 diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
 --- a/src/ui/Stepper.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/Stepper.tsx	2026-11-16 07:14:18.910624181 +0000
@@ -7083,6 +7528,100 @@ diff -ruN a/src/ui/Switch.tsx b/src/ui/Switch.tsx
    const knobTranslate = progress.interpolate({
      inputRange: [0, 1],
      outputRange: [KNOB_INSET, TRACK_WIDTH - KNOB_SIZE - KNOB_INSET],
+diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
+--- a/src/ui/TabSummary.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/TabSummary.tsx	2026-11-16 16:49:01.513965757 +0000
+@@ -0,0 +1,90 @@
++/**
++ * TabSummary — the quiet headline at the top of a list tab: one mark, one fact, one line.
++ * Deliberately not the solid card Today uses, so Today stays the only "main" headline. The
++ * figure sits inside the ring; the text is ordinary size.
++ */
++import type { ReactNode } from 'react';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++import { ChevronRight } from 'lucide-react-native';
++
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { ProgressRing } from './ProgressRing';
++
++export type TabSummaryMark =
++  | { readonly kind: 'ring'; readonly done: number; readonly total: number }
++  | { readonly kind: 'date'; readonly top: string; readonly main: string }
++  | { readonly kind: 'count'; readonly value: number };
++
++export interface TabSummaryProps {
++  readonly mark: TabSummaryMark;
++  readonly title: string;
++  readonly detail?: string;
++  readonly onPress?: () => void;
++  readonly right?: ReactNode;
++  readonly testID?: string;
++}
++
++export function TabSummary({ mark, title, detail, onPress, right, testID }: TabSummaryProps) {
++  const t = useTheme();
++  const leading =
++    mark.kind === 'ring' ? (
++      <ProgressRing
++        percent={mark.total > 0 ? (mark.done / mark.total) * 100 : 0}
++        size={52}
++        strokeWidth={6}
++        label={`${mark.done}/${mark.total}`}
++        trackColor={t.color.bgAlt}
++        accessibilityLabel={`${mark.done} of ${mark.total}`}
++      />
++    ) : mark.kind === 'date' ? (
++      <View style={[styles.tile, { backgroundColor: t.color.bgAlt }]}>
++        <Text style={[styles.tileTop, { color: t.accent.text }]}>{mark.top}</Text>
++        <Text style={[styles.tileMain, { color: t.color.text }]}>{mark.main}</Text>
++      </View>
++    ) : (
++      <View style={[styles.tile, styles.round, { backgroundColor: t.color.bgAlt }]}>
++        <Text style={[styles.tileMain, { color: t.color.text }]}>{mark.value}</Text>
++      </View>
++    );
++  const body = (
++    <>
++      {leading}
++      <View style={styles.text}>
++        <Text numberOfLines={1} style={[styles.title, { color: t.color.text }]}>
++          {title}
++        </Text>
++        {detail ? (
++          <Text numberOfLines={2} style={[styles.detail, { color: t.color.text }]}>
++            {detail}
++          </Text>
++        ) : null}
++      </View>
++      {right}
++      {onPress ? <ChevronRight size={18} color={t.accent.text} /> : null}
++    </>
++  );
++  const style = [styles.root, { backgroundColor: t.accent.soft }];
++  if (!onPress) {
++    return (
++      <View style={style} accessible accessibilityRole="text" accessibilityLabel={[title, detail].filter(Boolean).join('. ')} testID={testID}>
++        {body}
++      </View>
++    );
++  }
++  return (
++    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={[title, detail].filter(Boolean).join('. ')} testID={testID} style={style}>
++      {body}
++    </Pressable>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, borderRadius: RADIUS.xl, paddingVertical: SPACE.s2 + 4, paddingHorizontal: SPACE.s3 },
++  text: { flex: 1, gap: 2 },
++  title: { fontSize: FONT_SIZE.base, fontWeight: '800' },
++  detail: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
++  tile: { width: 52, height: 52, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
++  round: { borderRadius: RADIUS.pill },
++  tileTop: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
++  tileMain: { fontSize: FONT_SIZE.lg, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
++});
 diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
 --- a/src/ui/Tabs.tsx	2026-11-16 05:43:15.819659401 +0000
 +++ b/src/ui/Tabs.tsx	2026-11-16 07:14:18.909685843 +0000
@@ -7608,6 +8147,147 @@ diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
 +  tableWide: { flex: 1.35, fontSize: FONT_SIZE.xs, textAlign: 'right', fontVariant: ['tabular-nums'] },
 +  tableCell: { flex: 1, fontSize: FONT_SIZE.xs, textAlign: 'right', fontVariant: ['tabular-nums'] },
  });
+diff -ruN a/src/ui/VoiceMark.tsx b/src/ui/VoiceMark.tsx
+--- a/src/ui/VoiceMark.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/VoiceMark.tsx	2026-11-16 16:56:05.151938369 +0000
+@@ -0,0 +1,63 @@
++/**
++ * VoiceMark — Fallback AI's mark: a four-point star with a sound wave inside it. The star says
++ * "assistant", the wave says "talk to it". `live` makes the wave move (the listening orb);
++ * it stays still when the OS asks for reduced motion.
++ */
++import { useEffect, useRef } from 'react';
++import { Animated, Easing, StyleSheet, View } from 'react-native';
++import Svg, { Path } from 'react-native-svg';
++
++import { useTheme } from '@/theme';
++import { useReduceMotion } from './motion';
++
++const STAR = 'M50 0 Q62 38 100 50 Q62 62 50 100 Q38 62 0 50 Q38 38 50 0Z';
++/** Bar heights as a share of the star's size, centre tallest. */
++const BARS = [0.13, 0.24, 0.36, 0.24, 0.13] as const;
++
++export interface VoiceMarkProps {
++  readonly size?: number;
++  /** Star colour. Defaults to the theme's bright fill. */
++  readonly fill?: string;
++  /** Wave colour. Defaults to the theme's large-text colour for that fill. */
++  readonly wave?: string;
++  readonly live?: boolean;
++}
++
++export function VoiceMark({ size = 40, fill, wave, live = false }: VoiceMarkProps) {
++  const t = useTheme();
++  const reduced = useReduceMotion();
++  const phase = useRef(new Animated.Value(0)).current;
++  useEffect(() => {
++    if (!live || reduced) return;
++    const loop = Animated.loop(
++      Animated.sequence([
++        Animated.timing(phase, { toValue: 1, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
++        Animated.timing(phase, { toValue: 0, duration: 520, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
++      ]),
++    );
++    loop.start();
++    return () => loop.stop();
++  }, [live, reduced, phase]);
++  const barW = Math.max(2, Math.round(size * 0.055));
++  return (
++    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
++      <Svg width={size} height={size} viewBox="0 0 100 100" style={StyleSheet.absoluteFill}>
++        <Path d={STAR} fill={fill ?? t.accent.fill} />
++      </Svg>
++      <View style={{ flexDirection: 'row', alignItems: 'center', gap: Math.max(1.5, size * 0.035) }}>
++        {BARS.map((h, i) => (
++          <Animated.View
++            key={i}
++            style={{
++              width: barW,
++              height: Math.round(size * h),
++              borderRadius: barW,
++              backgroundColor: wave ?? t.accent.onLarge,
++              transform: [{ scaleY: live ? phase.interpolate({ inputRange: [0, 1], outputRange: i % 2 ? [1, 0.55] : [0.6, 1.1] }) : 1 }],
++            }}
++          />
++        ))}
++      </View>
++    </View>
++  );
++}
+diff -ruN a/src/ui/WeekStrip.tsx b/src/ui/WeekStrip.tsx
+--- a/src/ui/WeekStrip.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/WeekStrip.tsx	2026-11-16 16:47:50.308240740 +0000
+@@ -0,0 +1,70 @@
++/**
++ * WeekStrip — the last seven days of one task, drawn. Green tick = ideal, blue tick =
++ * fallback, grey dash = an off day, empty ring = missed, theme ring = today and still open,
++ * dashed ring = not due. Colour is never the only signal: each state has its own mark.
++ */
++import { StyleSheet, Text, View } from 'react-native';
++import { Check, CheckCheck, Minus } from 'lucide-react-native';
++
++import { FONT_SIZE, useTheme } from '@/theme';
++
++export type WeekDayState = 'ideal' | 'fallback' | 'off' | 'missed' | 'open' | 'none';
++
++export interface WeekStripDay {
++  readonly key: string;
++  /** One letter, e.g. "M". */
++  readonly label: string;
++  readonly state: WeekDayState;
++  readonly isToday?: boolean;
++}
++
++const SPOKEN: Record<WeekDayState, string> = { ideal: 'ideal', fallback: 'fallback', off: 'off day', missed: 'missed', open: 'not logged yet', none: 'not due' };
++
++export function WeekStrip({ days, size = 28 }: { readonly days: readonly WeekStripDay[]; readonly size?: number }) {
++  const t = useTheme();
++  const summary = days.map((d) => `${d.label} ${SPOKEN[d.state]}`).join(', ');
++  return (
++    <View style={styles.root} accessible accessibilityRole="text" accessibilityLabel={`Last seven days: ${summary}`}>
++      {days.map((d) => {
++        const dot = { width: size, height: size, borderRadius: size / 2 };
++        return (
++          <View key={d.key} style={styles.day}>
++            {d.state === 'ideal' ? (
++              <View style={[styles.dot, dot, { backgroundColor: t.color.ideal }]}>
++                <CheckCheck size={size * 0.55} color={t.color.iconOnSignal} />
++              </View>
++            ) : d.state === 'fallback' ? (
++              <View style={[styles.dot, dot, { backgroundColor: t.color.fallback }]}>
++                <Check size={size * 0.55} color={t.color.iconOnSignal} />
++              </View>
++            ) : d.state === 'off' ? (
++              <View style={[styles.dot, dot, { backgroundColor: t.color.surface }]}>
++                <Minus size={size * 0.55} color={t.color.textMuted} />
++              </View>
++            ) : (
++              <View
++                style={[
++                  styles.dot,
++                  dot,
++                  d.state === 'open'
++                    ? { borderWidth: 3, borderColor: t.accent.text }
++                    : d.state === 'missed'
++                      ? { borderWidth: 2, borderColor: t.color.borderStrong }
++                      : { borderWidth: 2, borderColor: t.color.border, borderStyle: 'dashed' },
++                ]}
++              />
++            )}
++            <Text style={[styles.label, { color: d.isToday ? t.accent.text : t.color.textMuted, fontWeight: d.isToday ? '800' : '600' }]}>{d.label}</Text>
++          </View>
++        );
++      })}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { flexDirection: 'row', justifyContent: 'space-between' },
++  day: { alignItems: 'center', gap: 3, flex: 1 },
++  dot: { alignItems: 'center', justifyContent: 'center' },
++  label: { fontSize: FONT_SIZE.xs },
++});
 diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
 --- a/src/ui/WeekdayPicker.tsx	2026-11-16 05:43:15.819795475 +0000
 +++ b/src/ui/WeekdayPicker.tsx	2026-11-16 16:12:20.616951465 +0000
@@ -7717,7 +8397,7 @@ diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
  });
 diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
 --- a/src/ui/XPBar.tsx	2026-11-16 05:43:15.819524086 +0000
-+++ b/src/ui/XPBar.tsx	2026-11-16 05:49:00.647224392 +0000
++++ b/src/ui/XPBar.tsx	2026-11-16 16:47:50.300321684 +0000
 @@ -34,7 +34,7 @@
        </Text>
        {percent !== null ? (
@@ -7732,16 +8412,31 @@ diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
    root: { gap: SPACE.s1 },
    title: { fontSize: 14, fontWeight: '600' },
 -  value: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-+  value: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
-   track: { height: 10, borderRadius: RADIUS.pill, overflow: 'hidden' },
+-  track: { height: 10, borderRadius: RADIUS.pill, overflow: 'hidden' },
++  value: { fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] },
++  track: { height: 14, borderRadius: RADIUS.pill, overflow: 'hidden' },
    fill: { height: '100%', borderRadius: RADIUS.pill },
 -  subline: { fontSize: 13 },
 +  subline: { fontSize: 14 },
  });
 diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 --- a/src/ui/index.ts	2026-11-16 05:43:15.819514483 +0000
-+++ b/src/ui/index.ts	2026-11-16 16:12:20.618170332 +0000
-@@ -32,7 +32,7 @@
++++ b/src/ui/index.ts	2026-11-16 16:56:05.161847315 +0000
+@@ -24,6 +24,13 @@
+ export { Dialog, type DialogProps } from './Dialog';
+ export { Toast } from './Toast';
+ export { ProgressRing, type ProgressRingProps } from './ProgressRing';
++export { WeekStrip, type WeekStripDay, type WeekDayState } from './WeekStrip';
++export { TabSummary, type TabSummaryProps } from './TabSummary';
++export { StatTile, type StatTileProps } from './StatTile';
++export { EmptyArt, type EmptyArtKind } from './EmptyArt';
++export { cardSurface, pressedSurface, settledSurface } from './surface';
++export { useReduceMotion, PopIn, Burst } from './motion';
++export { VoiceMark, type VoiceMarkProps } from './VoiceMark';
+ 
+ // Fallback-custom components (design-input README "Custom components")
+ export { StateChip, type StateChipProps } from './StateChip';
+@@ -32,7 +39,7 @@
  export { ConsistencyBreakdownBar, type ConsistencyBreakdownBarProps } from './ConsistencyBreakdownBar';
  export { ConsistencyRing, type ConsistencyRingProps } from './ConsistencyRing';
  export { MilestoneBadge, type MilestoneBadgeProps } from './MilestoneBadge';
@@ -7750,7 +8445,7 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
  export { Skeleton, type SkeletonProps } from './Skeleton';
  export { InlineRetryBanner, type InlineRetryBannerProps } from './InlineRetryBanner';
  export { Tag, type TagProps } from './Tag';
-@@ -43,3 +43,13 @@
+@@ -43,3 +50,13 @@
  export { XPBar, type XPBarProps } from './XPBar';
  export { TrendGraph, type TrendGraphProps, type TrendGraphPoint } from './TrendGraph';
  export { AsNeededCard, type AsNeededCardProps } from './AsNeededCard';
@@ -7764,6 +8459,127 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { DateField, TimeField, formatDateValue, formatTimeValue, type DateFieldProps, type TimeFieldProps } from './DateField';
 +export { TaskIcon, type TaskIconProps } from './TaskIcon';
 +export { Stepper, type StepperProps } from './Stepper';
+diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
+--- a/src/ui/motion.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/motion.tsx	2026-11-16 16:49:01.509686737 +0000
+@@ -0,0 +1,84 @@
++/**
++ * Motion — small, physical feedback. Buttons press down (see `pressedSurface`), a tick pops
++ * in, a bar fills, and logging the ideal throws a small burst. Everything here is skipped
++ * when the OS asks for reduced motion.
++ */
++import { useEffect, useRef, useState, type ReactNode } from 'react';
++import { AccessibilityInfo, Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
++
++export function useReduceMotion(): boolean {
++  const [reduced, setReduced] = useState(false);
++  useEffect(() => {
++    let mounted = true;
++    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
++      if (mounted) setReduced(v);
++    });
++    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
++    return () => {
++      mounted = false;
++      sub.remove();
++    };
++  }, []);
++  return reduced;
++}
++
++/** Scales its child in with a small overshoot whenever `trigger` changes to a truthy value. */
++export function PopIn({ trigger, children, style, from = 0.4 }: { readonly trigger: unknown; readonly children: ReactNode; readonly style?: StyleProp<ViewStyle>; readonly from?: number }) {
++  const reduced = useReduceMotion();
++  const scale = useRef(new Animated.Value(1)).current;
++  const first = useRef(true);
++  useEffect(() => {
++    if (first.current) {
++      first.current = false;
++      return;
++    }
++    if (!trigger || reduced) return;
++    scale.setValue(from);
++    Animated.spring(scale, { toValue: 1, damping: 9, stiffness: 240, mass: 0.7, useNativeDriver: true }).start();
++  }, [trigger, reduced, scale, from]);
++  return <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>;
++}
++
++const PIECES = [
++  [-38, -34], [34, -40], [-52, 4], [50, -6], [-18, -54], [20, 36], [-42, 32], [8, -60], [56, 26], [-60, -22],
++] as const;
++
++/** A small burst of pieces from its centre, once, each time `fire` increases. Decorative only. */
++export function Burst({ fire, colors }: { readonly fire: number; readonly colors: readonly string[] }) {
++  const reduced = useReduceMotion();
++  const progress = useRef(new Animated.Value(1)).current;
++  const [live, setLive] = useState(false);
++  useEffect(() => {
++    if (fire <= 0 || reduced) return;
++    setLive(true);
++    progress.setValue(0);
++    Animated.timing(progress, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(() => setLive(false));
++  }, [fire, reduced, progress]);
++  if (!live) return null;
++  return (
++    <View pointerEvents="none" style={styles.burst} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
++      {PIECES.map(([dx, dy], i) => (
++        <Animated.View
++          key={i}
++          style={[
++            styles.piece,
++            {
++              backgroundColor: colors[i % colors.length],
++              opacity: progress.interpolate({ inputRange: [0, 0.1, 0.7, 1], outputRange: [0, 1, 1, 0] }),
++              transform: [
++                { translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
++                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
++                { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${(i % 2 ? 1 : -1) * (140 + i * 24)}deg`] }) },
++              ],
++            },
++          ]}
++        />
++      ))}
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  burst: { position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, zIndex: 5 },
++  piece: { position: 'absolute', width: 7, height: 10, borderRadius: 2 },
++});
+diff -ruN a/src/ui/surface.ts b/src/ui/surface.ts
+--- a/src/ui/surface.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/ui/surface.ts	2026-11-16 16:49:01.508791786 +0000
+@@ -0,0 +1,29 @@
++/**
++ * The one card surface. Everything card-like (Card, list groups, task cards) is a chunky
++ * piece: a 2px outline, rounder corners and a thicker bottom edge. A pressable piece is
++ * pushed down by the thickness of that edge while pressed.
++ */
++import type { ViewStyle } from 'react-native';
++
++import { EDGE, RADIUS, type Theme } from '@/theme';
++
++export function cardSurface(t: Theme): ViewStyle {
++  return {
++    backgroundColor: t.color.bgAlt,
++    borderColor: t.color.border,
++    borderWidth: EDGE.outline,
++    borderBottomWidth: EDGE.bottom,
++    borderRadius: RADIUS.xl,
++  };
++}
++
++/**
++ * A piece that has taken a state colour (a logged task). It sits flat: no raised edge, as if
++ * it has been pressed in. Never give it a contrasting bar underneath.
++ */
++export function settledSurface(fill: string): ViewStyle {
++  return { backgroundColor: fill, borderColor: fill, borderWidth: EDGE.outline, borderRadius: RADIUS.xl, marginTop: EDGE.bottom - EDGE.outline };
++}
++
++/** Applied while a pressable piece is held: the bottom edge collapses and the piece moves down. */
++export const pressedSurface: ViewStyle = { borderBottomWidth: EDGE.outline, marginTop: EDGE.bottom - EDGE.outline };
 diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
 --- a/app/(tabs)/_layout.tsx	2026-11-16 05:43:15.827117772 +0000
 +++ b/app/(tabs)/_layout.tsx	2026-11-16 16:16:16.973440611 +0000
@@ -7964,7 +8780,7 @@ diff -ruN a/app/achievements/celebrate.tsx b/app/achievements/celebrate.tsx
 -});
 diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
 --- a/app/achievements/index.tsx	2026-11-16 05:43:15.826913407 +0000
-+++ b/app/achievements/index.tsx	2026-11-16 06:11:56.894582421 +0000
++++ b/app/achievements/index.tsx	2026-11-16 16:56:05.162298754 +0000
 @@ -1,29 +1,23 @@
  /**
   * S27 — Achievements    route: /achievements
@@ -7990,7 +8806,7 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
 -import { SPACE, useTheme } from '@/theme';
 -import { Card, InlineRetryBanner, MilestoneBadge, Select, Skeleton, Tabs, XPBar } from '@/ui';
 +import type { AchievementCategory, CycleCadence, LocalDate } from '@/types';
-+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
++import { FONT_SIZE, INK, mix, RADIUS, SPACE, useTheme } from '@/theme';
 +import { Card, Dialog, EmptyLine, InlineRetryBanner, ListGroup, ListRow, MilestoneBadge, Radio, Screen, SectionHeading, Skeleton, Tabs, XPBar } from '@/ui';
  
  import { BADGE_ICONS } from '@/features/progress/badgeIcons';
@@ -8072,7 +8888,7 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
      );
    }
  
-@@ -91,110 +85,96 @@
+@@ -91,110 +85,117 @@
    const unlockedKeys = new Set(unlocked.map((u) => u.key));
    const nonTenureEarned = unlocked.some((u) => !u.key.startsWith('tenure-'));
  
@@ -8123,18 +8939,28 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
 -            <Text style={[styles.banner, { color: t.color.textMuted }]}>{S27_COPY.newUserBanner}</Text>
 -          </Card>
 -        ) : null}
--
 +    <Screen title={S27_COPY.title} level="page" onBack={goBack}>
-+      <Card accessibilityLabel={`Level ${progress.level.level}, ${progress.level.title}`} style={styles.card}>
-+        <XPBar
-+          title={`Level ${progress.level.level} · ${progress.level.title}`}
-+          valueLabel={`${progress.level.xpIntoLevel} / ${progress.level.xpForLevel} XP`}
-+          current={progress.level.xpIntoLevel}
-+          max={progress.level.xpForLevel}
-+          subline={S27_COPY.lifetimeSubline(progress.lifetimeXp)}
-+        />
++      <Card accessibilityLabel={`Level ${progress.level.level}, ${progress.level.title}. ${progress.level.xpIntoLevel} of ${progress.level.xpForLevel} XP`} style={styles.card}>
++        <View style={styles.levelRow}>
++          <View style={[styles.medal, { backgroundColor: t.color.celebrationGold, borderColor: t.color.celebrationGold, borderBottomColor: mix(t.color.celebrationGold, INK, 0.28) }]}>
++            <Text style={styles.medalNumber}>{progress.level.level}</Text>
++          </View>
++          <View style={styles.levelText}>
++            <Text style={[styles.levelKicker, { color: t.color.textMuted }]}>{`Level ${progress.level.level}`}</Text>
++            <Text numberOfLines={1} style={[styles.levelTitle, { color: t.color.text }]}>
++              {progress.level.title}
++            </Text>
++          </View>
++        </View>
++        <View style={[styles.xpTrack, { backgroundColor: t.color.surface }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: progress.level.xpForLevel, now: progress.level.xpIntoLevel }}>
++          <View style={[styles.xpFill, { backgroundColor: t.color.xpFill, width: `${Math.max(4, Math.min(100, (progress.level.xpIntoLevel / Math.max(1, progress.level.xpForLevel)) * 100))}%` }]} />
++        </View>
++        <View style={styles.xpRow}>
++          <Text style={[styles.xpStrong, { color: t.color.text }]}>{`${Math.max(0, progress.level.xpForLevel - progress.level.xpIntoLevel)} XP to level ${progress.level.level + 1}`}</Text>
++          <Text style={[styles.note, { color: t.color.textMuted }]}>{S27_COPY.lifetimeSubline(progress.lifetimeXp)}</Text>
++        </View>
 +      </Card>
-+
+ 
 +      <Card accessibilityLabel={S27_COPY.cadenceLabel[progress.cycleCadence]} style={styles.card}>
 +        <XPBar
 +          title={S27_COPY.cadenceLabel[progress.cycleCadence]}
@@ -8259,7 +9085,17 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
 +  section: { gap: SPACE.s2 + 4 },
 +  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  centered: { textAlign: 'center' },
-+  categoryHeader: { fontSize: FONT_SIZE.base, fontWeight: '700' },
++  categoryHeader: { fontSize: FONT_SIZE.base, fontWeight: '800' },
++  levelRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3 },
++  medal: { width: 64, height: 64, borderRadius: RADIUS.pill, borderWidth: 2, borderBottomWidth: 6, alignItems: 'center', justifyContent: 'center' },
++  medalNumber: { fontSize: FONT_SIZE.xl, lineHeight: 30, fontWeight: '800', color: INK, fontVariant: ['tabular-nums'] },
++  levelText: { flex: 1, gap: 2 },
++  levelKicker: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  levelTitle: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800' },
++  xpTrack: { height: 16, borderRadius: RADIUS.pill, overflow: 'hidden' },
++  xpFill: { height: '100%', borderRadius: RADIUS.pill },
++  xpRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: SPACE.s2, flexWrap: 'wrap' },
++  xpStrong: { fontSize: FONT_SIZE.base, fontWeight: '700', fontVariant: ['tabular-nums'] },
 +  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: SPACE.s3 },
 +  badgeCell: { width: '25%', alignItems: 'center', paddingHorizontal: 2 },
 +  detail: { alignItems: 'center', gap: SPACE.s2 + 4 },
@@ -9766,7 +10602,7 @@ diff -ruN a/app/assistant/history/index.tsx b/app/assistant/history/index.tsx
 -});
 diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 --- a/app/assistant/index.tsx	2026-11-16 05:43:15.826867228 +0000
-+++ b/app/assistant/index.tsx	2026-11-16 16:12:20.617507923 +0000
++++ b/app/assistant/index.tsx	2026-11-16 16:56:05.162679895 +0000
 @@ -1,18 +1,13 @@
 -/**
 - * S31 — Assistant Home    route: /assistant
@@ -9776,8 +10612,9 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 +/** S31 — Assistant home    route: /assistant */
  import { useState } from 'react';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
+-import { ArrowUp, Mic } from 'lucide-react-native';
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
- import { ArrowUp, Mic } from 'lucide-react-native';
++import { ArrowUp } from 'lucide-react-native';
  import { useRouter, type Href } from 'expo-router';
  
 -import { AssistantHeader } from '@/features/assistant/AssistantHeader';
@@ -9786,11 +10623,11 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 -import { SPACE, useTheme } from '@/theme';
 -import { Input, IconButton, InlineRetryBanner, Skeleton } from '@/ui';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { IconButton, InlineRetryBanner, Input, ListGroup, ListRow, Screen, Skeleton } from '@/ui';
++import { IconButton, InlineRetryBanner, Input, Screen, SectionHeading, Skeleton, VoiceMark } from '@/ui';
  
  export default function S31AssistantHome() {
    const t = useTheme();
-@@ -26,149 +21,82 @@
+@@ -26,149 +21,97 @@
    }
  
    function handleMicPress() {
@@ -9874,14 +10711,58 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 +            <View style={styles.flex}>
 +              <Input label="" value={text} onChangeText={setText} placeholder={S31_COPY.inputPlaceholder} accessibilityLabel="Type your request" onSubmitEditing={handleSend} testID="s31-input" />
              </View>
--
--            <View style={styles.chips}>
++            <IconButton icon={ArrowUp} onPress={handleSend} disabled={text.trim().length === 0} variant="accent" accessibilityLabel="Send" testID="s31-send" />
++          </View>
++        ) : undefined
++      }
++    >
++      {error ? (
++        <InlineRetryBanner message={S31_COPY.error} onRetry={retry} retryLabel={S31_COPY.retry} />
++      ) : loading ? (
++        <>
++          <Skeleton width="80%" height={28} />
++          <Skeleton width="60%" height={18} />
++          <Skeleton height={200} />
++        </>
++      ) : (
++        <>
++          <View style={styles.hero}>
++            <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
++              {S31_COPY.headline}
++            </Text>
++            <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S31_COPY.subcopy}</Text>
++            <Pressable
++              onPress={handleMicPress}
++              accessibilityRole="button"
++              accessibilityLabel="Speak to Fallback AI"
++              testID="s31-mic"
++              style={({ pressed }) => [styles.orb, { backgroundColor: t.accent.soft, transform: [{ scale: pressed ? 0.96 : 1 }] }]}
++            >
++              <VoiceMark size={128} live />
++            </Pressable>
++            <Text style={[styles.caption, { color: t.color.textMuted }]}>{S31_COPY.micCaption}</Text>
++          </View>
+ 
++          <View style={styles.suggest}>
++            <SectionHeading>{S31_COPY.suggestionsHeading}</SectionHeading>
+             <View style={styles.chips}>
 -              {loading
 -                ? [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} width="45%" height={36} radius={18} />)
 -                : S31_COPY.chips.map((chip) => (
 -                    <ChipButton key={chip} label={chip} onPress={() => handleChipPress(chip)} />
 -                  ))}
--            </View>
++              {S31_COPY.chips.map((chip) => (
++                <Pressable
++                  key={chip}
++                  onPress={() => handleSuggestion(chip)}
++                  accessibilityRole="button"
++                  accessibilityLabel={`Suggestion: ${chip}`}
++                  style={({ pressed }) => [styles.chip, { backgroundColor: t.color.bgAlt, borderColor: pressed ? t.accent.text : t.color.border }]}
++                >
++                  <Text style={[styles.chipLabel, { color: t.color.text }]}>{chip}</Text>
++                </Pressable>
++              ))}
+             </View>
 -          </>
 -        )}
 -      </ScrollView>
@@ -9897,7 +10778,6 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 -              accessibilityLabel="Type your request"
 -              testID="s31-input"
 -            />
-+            <IconButton icon={ArrowUp} onPress={handleSend} disabled={text.trim().length === 0} variant="accent" accessibilityLabel="Send" testID="s31-send" />
            </View>
 -          <IconButton
 -            icon={ArrowUp}
@@ -9921,43 +10801,9 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 -      accessibilityRole="button"
 -      accessibilityLabel={`Suggestion: ${label}, button`}
 -      style={[styles.chip, { backgroundColor: t.color.surface, color: t.color.text, borderColor: t.color.border }]}
-+        ) : undefined
-+      }
-     >
+-    >
 -      {label}
 -    </Text>
-+      {error ? (
-+        <InlineRetryBanner message={S31_COPY.error} onRetry={retry} retryLabel={S31_COPY.retry} />
-+      ) : loading ? (
-+        <>
-+          <Skeleton width="80%" height={28} />
-+          <Skeleton width="60%" height={18} />
-+          <Skeleton height={200} />
-+        </>
-+      ) : (
-+        <>
-+          <View style={styles.hero}>
-+            <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
-+              {S31_COPY.headline}
-+            </Text>
-+            <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S31_COPY.subcopy}</Text>
-+            <Pressable
-+              onPress={handleMicPress}
-+              accessibilityRole="button"
-+              accessibilityLabel="Speak to Fallback AI"
-+              testID="s31-mic"
-+              style={({ pressed }) => [styles.mic, { backgroundColor: pressed ? t.accent.fillEdge : t.accent.fill }]}
-+            >
-+              <Mic size={32} color={t.accent.onLarge} />
-+            </Pressable>
-+            <Text style={[styles.caption, { color: t.color.textMuted }]}>{S31_COPY.micCaption}</Text>
-+          </View>
-+
-+          <ListGroup title={S31_COPY.suggestionsHeading}>
-+            {S31_COPY.chips.map((chip) => (
-+              <ListRow key={chip} label={chip} onPress={() => handleSuggestion(chip)} accessibilityLabel={`Suggestion: ${chip}`} />
-+            ))}
-+          </ListGroup>
 +        </>
 +      )}
 +    </Screen>
@@ -9993,9 +10839,13 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 -  footerInputWrap: { flex: 1 },
 +  flex: { flex: 1 },
 +  hero: { alignItems: 'center', gap: SPACE.s2, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 },
-+  headline: { fontSize: FONT_SIZE.xl, fontWeight: '700', lineHeight: 30, textAlign: 'center' },
++  headline: { fontSize: FONT_SIZE.xl, fontWeight: '800', lineHeight: 30, textAlign: 'center' },
 +  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
-+  mic: { width: 80, height: 80, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.s3 },
++  orb: { width: 176, height: 176, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.s3 },
++  suggest: { gap: SPACE.s2 + 4 },
++  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
++  chip: { minHeight: 44, justifyContent: 'center', borderRadius: RADIUS.pill, borderWidth: 2, borderBottomWidth: 4, paddingHorizontal: SPACE.s3 },
++  chipLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
 +  caption: { fontSize: FONT_SIZE.sm, textAlign: 'center' },
 +  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
  });
@@ -10750,8 +11600,8 @@ diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
  });
 diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 --- a/app/progress/index.tsx	2026-11-16 05:43:15.826599667 +0000
-+++ b/app/progress/index.tsx	2026-11-16 06:10:43.820244587 +0000
-@@ -1,10 +1,6 @@
++++ b/app/progress/index.tsx	2026-11-16 16:54:29.132857553 +0000
+@@ -1,23 +1,20 @@
  /**
 - * S25 — Consistency Dashboard    route: /progress
 - * Owner: M5. Features: F5.
@@ -10764,20 +11614,25 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
   */
  import { useEffect, useState } from 'react';
  import { useRouter } from 'expo-router';
-@@ -14,10 +10,9 @@
+-import { CalendarSearch } from 'lucide-react-native';
++import { CalendarSearch, Check, CheckCheck, Minus } from 'lucide-react-native';
+ import { StyleSheet, Text, View } from 'react-native';
+ 
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { useConsistency, useTasks } from '@/queries';
  import type { ConsistencyScope, ConsistencyWindow, Id } from '@/types';
 -import { SPACE, useTheme } from '@/theme';
 -import { Button, Card, ConsistencyBreakdownBar, EmptyState, InlineRetryBanner, Select, Skeleton, Tabs } from '@/ui';
 +import { FONT_SIZE, SPACE, useTheme } from '@/theme';
-+import { Card, ConsistencyBreakdownBar, Dialog, EmptyState, InlineRetryBanner, ListGroup, ListRow, Screen, Select, Skeleton, Tabs } from '@/ui';
++import { Card, ConsistencyBreakdownBar, Dialog, EmptyState, InlineRetryBanner, ListGroup, ListRow, Screen, Select, Skeleton, StatTile, Tabs } from '@/ui';
++
++import { StatHero } from '@/features/today/StatHero';
  
 -import { ProgressHeader } from '@/features/progress/ProgressHeader';
  import { S25_COPY } from '@/features/progress/copy';
  
  const SCOPE_ITEMS = [
-@@ -31,13 +26,7 @@
+@@ -31,13 +28,7 @@
    { value: 'all-time', label: S25_COPY.windowTabs.allTime },
  ];
  
@@ -10792,7 +11647,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
  function truncatedWindowDays(window: ConsistencyWindow, denominator: number): number | null {
    if (window === 'last-7' && denominator < 7) return 7;
    if (window === 'last-30' && denominator < 30) return 30;
-@@ -52,150 +41,107 @@
+@@ -52,150 +43,112 @@
    const [scope, setScope] = useState<ConsistencyScope>('per-task');
    const [window, setWindow] = useState<ConsistencyWindow>('last-30');
    const [selectedTaskId, setSelectedTaskId] = useState<Id | null>(null);
@@ -10844,11 +11699,11 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -            onChange={(v) => setSelectedTaskId(v as Id)}
 -          />
 -        ) : null}
--
--        <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Window" />
 +    <Screen title={S25_COPY.appBarTitle} level="page" onBack={goBack}>
 +      <Tabs items={SCOPE_ITEMS} value={scope} onChange={(v) => setScope(v as ConsistencyScope)} accessibilityLabel="Scope" />
  
+-        <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Window" />
+-
 -        {isLoading ? (
 -          <View style={styles.skeletonBlock}>
 -            <Skeleton height={48} />
@@ -10867,30 +11722,8 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -        ) : result ? (
 -          <>
 -            <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
-+      {scope === 'per-task' && trackableTasks.length > 0 ? (
-+        <Select label={S25_COPY.taskSelectLabel} value={selectedTaskId} options={trackableTasks.map((task) => ({ value: task.id, label: task.name }))} onChange={(v) => setSelectedTaskId(v as Id)} />
-+      ) : null}
-+
-+      <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Time window" />
-+
-+      {isLoading ? (
-+        <View style={styles.skeletonBlock}>
-+          <Skeleton height={48} />
-+          <Skeleton height={16} width="80%" />
-+          <Skeleton height={16} />
-+        </View>
-+      ) : scope === 'per-task' && trackableTasks.length === 0 ? (
-+        <EmptyState icon={CalendarSearch} headline={S25_COPY.emptyHeadline} subcopy={S25_COPY.emptySubcopy} />
-+      ) : consistencyQuery.isError ? (
-+        <InlineRetryBanner message={S25_COPY.errorMessage} onRetry={() => consistencyQuery.refetch()} tone="warning" />
-+      ) : result && result.percent === null ? (
-+        <EmptyState icon={CalendarSearch} headline={S25_COPY.emptyHeadline} subcopy={S25_COPY.emptySubcopy} />
-+      ) : result ? (
-+        <Card style={styles.card}>
-+          <View style={styles.numeralRow}>
-+            <Text accessibilityRole="header" style={[styles.numeral, { color: t.color.text }]}>
-               {result.percent}%
-             </Text>
+-              {result.percent}%
+-            </Text>
 -            <Text style={[styles.subcopy, { color: t.color.textMuted }]}>
 -              {scope === 'per-task'
 -                ? [
@@ -10905,13 +11738,43 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -            </Text>
 -            <Text style={[styles.offNote, { color: t.color.textDim }]}>
 -              {scope === 'per-task' ? S25_COPY.offNotePerTask(result.breakdown.off) : S25_COPY.offNoteAggregate(result.breakdown.off)}
-+            <Text style={[styles.numeralLabel, { color: t.color.textMuted }]}>{S25_COPY.numeralLabel}</Text>
-+          </View>
-+          <Text style={[styles.subcopy, { color: t.color.text }]}>
-+            {scope === 'per-task'
++      {scope === 'per-task' && trackableTasks.length > 0 ? (
++        <Select label={S25_COPY.taskSelectLabel} value={selectedTaskId} options={trackableTasks.map((task) => ({ value: task.id, label: task.name }))} onChange={(v) => setSelectedTaskId(v as Id)} />
++      ) : null}
++
++      <Tabs items={WINDOW_ITEMS} value={window} onChange={(v) => setWindow(v as ConsistencyWindow)} accessibilityLabel="Time window" />
++
++      {isLoading ? (
++        <View style={styles.skeletonBlock}>
++          <Skeleton height={148} radius={20} />
++          <Skeleton height={16} width="80%" />
++          <Skeleton height={16} />
++        </View>
++      ) : scope === 'per-task' && trackableTasks.length === 0 ? (
++        <EmptyState icon={CalendarSearch} headline={S25_COPY.emptyHeadline} subcopy={S25_COPY.emptySubcopy} />
++      ) : consistencyQuery.isError ? (
++        <InlineRetryBanner message={S25_COPY.errorMessage} onRetry={() => consistencyQuery.refetch()} tone="warning" />
++      ) : result && result.percent === null ? (
++        <EmptyState icon={CalendarSearch} headline={S25_COPY.emptyHeadline} subcopy={S25_COPY.emptySubcopy} />
++      ) : result ? (
++        <>
++        <StatHero
++          percent={result.percent}
++          label={`Days you ${S25_COPY.numeralLabel}`}
++          detail={
++            scope === 'per-task'
 +              ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator)
-+              : S25_COPY.aggregateSubcopy(result.numerator, result.denominator)}
-+          </Text>
++              : S25_COPY.aggregateSubcopy(result.numerator, result.denominator)
++          }
++          detailLines={2}
++          accessibilityLabel={`${result.percent} percent ${S25_COPY.numeralLabel}`}
++        />
++        <View style={styles.tiles}>
++          <StatTile icon={CheckCheck} value={result.breakdown.ideal} label="Ideal" tint={t.color.idealSoft} ink={t.color.idealDeep} />
++          <StatTile icon={Check} value={result.breakdown.fallback} label="Fallback" tint={t.color.fallbackSoft} ink={t.color.fallbackDeep} />
++          <StatTile icon={Minus} value={result.breakdown.off} label="Off" tint={t.color.offSoft} ink={t.color.offDeep} />
++        </View>
++        <Card style={styles.card}>
 +          <ConsistencyBreakdownBar
 +            breakdown={result.breakdown}
 +            total={
@@ -10931,6 +11794,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 +              .join(' ')}
 +          </Text>
 +        </Card>
++        </>
 +      ) : null}
 +
 +      <Text style={[styles.note, { color: t.color.textMuted }]}>{S25_COPY.explainer}</Text>
@@ -11010,9 +11874,7 @@ diff -ruN a/app/progress/index.tsx b/app/progress/index.tsx
 -  offNote: { fontSize: 13 },
 -  explainer: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
 +  card: { gap: SPACE.s2 + 4 },
-+  numeralRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACE.s2 },
-+  numeral: { fontSize: FONT_SIZE.xxxl, fontWeight: '700', fontVariant: ['tabular-nums'] },
-+  numeralLabel: { fontSize: FONT_SIZE.base },
++  tiles: { flexDirection: 'row', gap: SPACE.s2 + 2 },
 +  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24 },
 +  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
    skeletonBlock: { gap: SPACE.s2 },
@@ -14376,7 +15238,7 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-16 07:03:34.094602043 +0000
++++ b/app/task/[id]/index.tsx	2026-11-16 16:54:29.131847836 +0000
 @@ -1,38 +1,41 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
@@ -14436,7 +15298,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  import { isDue, perTaskConsistency } from '@/domain';
  import {
    useConsistency,
-@@ -48,38 +51,29 @@
+@@ -48,38 +51,31 @@
    useUpdateTask,
  } from '@/queries';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -14452,7 +15314,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -import type { ChipState, Id, Importance, Necessity, LocalDate, Occurrence, Weekday } from '@/types';
 +import { useLogFeedback } from '@/features/task/logFeedback';
 +import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
-+import { MetaLine, PlanTiles, metaParts } from '@/features/task/TaskDetails';
++import { PlanTiles, metaParts } from '@/features/task/TaskDetails';
++import { TaskHero } from '@/features/task/TaskHero';
 +import { formatDateValue } from '@/ui';
 +import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
  
@@ -14475,6 +15338,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -  return `Dose ${index + 1}`;
 -}
 +const ALL_DAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
++const TYPE_TITLE = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' } as const;
  
 -export default function S20ManageTaskSheet() {
 +export default function S20ManageTask() {
@@ -14489,7 +15353,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  
    const taskQuery = useTask(taskId);
    const today = todayFn();
-@@ -90,12 +84,7 @@
+@@ -90,12 +86,7 @@
    const monthFrom = startOfMonth(monthAnchor);
    const monthTo = endOfMonth(monthAnchor);
    const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
@@ -14502,7 +15366,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
  
    const updateTask = useUpdateTask();
-@@ -107,100 +96,78 @@
+@@ -107,100 +98,78 @@
    const snoozeOccurrence = useSnoozeOccurrence();
    const undoSnooze = useUndoSnooze();
  
@@ -14637,7 +15501,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +177,356 @@
+@@ -210,380 +179,354 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -14649,14 +15513,14 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
      if (!snoozeSlot.enabled) return;
      const result = await snoozeOccurrence.mutateAsync({ taskId, date: today });
 -    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+-  }
+-
+-  function onDelete() {
+-    router.push(`/task/${taskId}/delete?openedFrom=manage&origin=${from ?? ''}` as never);
 +    if (!result.ok) fail();
 +    else showToast('Moved to tomorrow', 'neutral');
    }
  
--  function onDelete() {
--    router.push(`/task/${taskId}/delete?openedFrom=manage&origin=${from ?? ''}` as never);
--  }
--
 -  function startScheduleEdit() {
 +  function openSchedule() {
      if (!task) return;
@@ -14774,29 +15638,33 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -    <ScrollView style={[styles.root, { backgroundColor: t.color.bg }]} contentContainerStyle={styles.content}>
 -      <View style={styles.header}>
 -        <IconButton icon={X} onPress={goBack} accessibilityLabel="Close" />
-+    <Screen
-+      title={task.name}
-+      onBack={goBack}
-+      leading={
-         <Pressable
-           onPress={() => router.push(`/task/${taskId}/icon` as never)}
-           accessibilityRole="button"
+-        <Pressable
+-          onPress={() => router.push(`/task/${taskId}/icon` as never)}
+-          accessibilityRole="button"
 -          accessibilityLabel="Change icon and color"
-+          accessibilityLabel="Change icon and colour"
-           testID="s20-icon-avatar"
+-          testID="s20-icon-avatar"
 -          style={[styles.avatar, { backgroundColor: ACCENTS[task.color].base }]}
-         >
+-        >
 -          <Icon size={22} color={t.color.textOnAccent} />
-+          <TaskIcon icon={Icon} color={taskColor(task.color)} size={36} />
-         </Pressable>
+-        </Pressable>
 -        <View style={styles.nameCol}>
 -          <Input label="Task name" value={nameDraft ?? task.name} onChangeText={setNameDraft} accessibilityLabel="Task name" testID="s20-name-input" />
 -          {nameDraft !== null && nameDraft !== task.name ? (
 -            <Button label="Save name" onPress={onNameBlur} variant="ghost" accessibilityLabel="Save name" testID="s20-save-name" />
-+      }
++    <Screen
++      title={isNote ? 'Note' : TYPE_TITLE[task.type]}
++      onBack={goBack}
 +      right={<IconButton icon={MoreHorizontal} onPress={() => setMenuOpen(true)} accessibilityLabel="More actions" testID="s20-more" />}
 +    >
-+      <MetaLine parts={metaParts({ schedule: cadenceSummary(task), extra: when, importance: task.importance, necessity: task.necessity })} numberOfLines={2} />
++      <TaskHero
++        taskId={taskId}
++        name={task.name}
++        icon={Icon}
++        color={taskColor(task.color)}
++        meta={metaParts({ schedule: cadenceSummary(task), extra: when, importance: task.importance, necessity: task.necessity })}
++        showWeek={isTrackedTask && !task.isAsNeeded && (task.type === 'routine' || task.type === 'course')}
++        onIconPress={() => router.push(`/task/${taskId}/icon` as never)}
++      />
 +
 +      {isTodo ? (
 +        <>

@@ -10,6 +10,7 @@ const S = '/tmp/claude-0/-home-user-fallbackv3/4065cf9b-48bb-5876-bcc5-38bb70a7f
   page.on('pageerror', (e) => errs.push('PAGEERROR ' + String(e.message).slice(0, 300)));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text().slice(0, 200)); });
   await page.goto('http://localhost:8767/', { waitUntil: 'load' });
+  await page.addStyleTag({ content: "@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap'); #root *, body > div * { font-family: 'Nunito', system-ui, sans-serif !important; }" }).catch(() => {});
   await page.waitForTimeout(2500);
   const P = (fn, arg) => page.evaluate(fn, arg);
   if (mode === 'sample') { await P(() => window.__fallbackPreview.loadSample()); await page.waitForTimeout(2500); }

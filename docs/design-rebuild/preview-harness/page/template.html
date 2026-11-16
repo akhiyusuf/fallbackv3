@@ -1,6 +1,6 @@
 <title>Fallback Preview</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=Nunito:wght@400;500;600;700;800;900&display=swap">
 <style>
 /* Layout: the phone is the page. A quiet side column holds the preview controls; on a phone it folds into a top strip. */
 :root {
@@ -19,6 +19,8 @@ html { height: 100%; box-sizing: border-box; background: var(--ground); display:
 /* body IS the phone screen: the transform makes in-app dialogs (position: fixed) stay inside it. */
 body { height: 100%; width: 100%; margin: 0; position: relative; transform: translateZ(0); display: flex; flex-direction: column; background: var(--screen); color: var(--panel-fg); font-family: var(--body); overflow: visible; }
 #root { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* The app's typeface (rounded). On a device this is a bundled font; here it is a web font. */
+#root, #root *, body > div:not(#root):not(#panel):not(#bar):not(#boot):not(#statusbar):not(#homebar) * { font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif !important; }
 
 /* Stand-ins for the phone's own status bar and home indicator, so the app's header gets the room it has on a device. */
 #statusbar { flex: 0 0 10px; background: var(--app-bg, var(--screen)); color: var(--app-fg, var(--panel-fg)); }

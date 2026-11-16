@@ -561,4 +561,59 @@ colour board's base styles). Colours are unchanged in every option.
 | 11 | How the app reacts | logging, buttons, progress | B — responsive |
 | 12 | The voice screen | Fallback AI | B — listening orb |
 
-Nothing is applied yet. Picks pending.
+## Round 4 — picks (received 2026-11-16) and how each was applied
+
+Applied to the preview only (Fallback Preview, version 6). Not in `src/**`.
+
+| # | Pick | The human's note | Applied as |
+|---|---|---|---|
+| 01 | Typeface: **not decided** | "the fraction should be within the circle" | Defaulted to the rounded face (Nunito) so the look can be judged; one line to switch back. Every ring now carries its own figure inside it (`ProgressRing` `label`), Today's hero included. |
+| 02 | B — chunky, with an edge | — | `cardSurface()` in `src/ui/surface.ts`: 2px outline, 5px bottom edge, 20px corners. Cards, list groups, stat tiles, log buttons, chips. Pressed = edge collapses. |
+| 03 | B — a headline on every tab | "shouldn't look or feel like the main one too much… redundant, inconsistent, confusing instead of being simple" | New `TabSummary`: one quiet tinted row (a mark, one fact, one line), ordinary text size. Never the solid card Today uses. It replaces information rather than repeating it: on Events it stands in for the empty "Today" section. |
+| 04 | B — the week at a glance | — | `WeekStrip` + `useWeekStrip` on routine and course cards (last seven days), with the plan on one line beneath. |
+| 05 | B — a block in the task's own colour | — | `TaskHero`: wash of the task colour, icon on a solid tile, name large, week strip. The screen title becomes the type ("Routine"). |
+| 06 | B — ring, stat tiles, thick bar | — | Progress reuses Today's `StatHero`, then three `StatTile`s (ideal, fallback, off), then the breakdown bar at 14px. |
+| 07 | B — medallions and a thick XP bar | — | Level medallion, 16px XP bar, "N XP to level N+1". Earned badges are solid gold coins; locked ones are flat and quiet. |
+| 08 | B — icons on a tile of the theme tint | — | `ListRow` `icon` sits on a 32px tinted tile everywhere. |
+| 09 | B — a small illustration and a button | "in dark mode the circles representing dates need to be a bit brighter" | `EmptyArt`, drawn from the theme's own colours. The calendar's dots use the solid signal colours, so they stay bright in dark mode. |
+| 10 | B — a coloured top with a picture | — | `OnboardingShell`: solid theme-colour top holding the step dots, a tile with the step's icon, a green and a blue tick. Back and Skip sit on white pills. |
+| 11 | **C** — responsive, plus a little celebration (recommendation was B) | — | `src/ui/motion.tsx`: buttons press down, the tick pops, logging the ideal throws a ten-piece burst. All skipped when the OS asks for reduced motion. |
+| 12 | B — a listening orb | "maybe a star and the waveform combined (a waveform within the star icon)" | `VoiceMark`: a four-point star with five wave bars inside it. Large and moving on the voice screen, small and still on the add sheet. |
+
+Further feedback while this was being applied:
+
+- **"This reads as AI. I'm talking about the green bar under the card."** A
+  logged card no longer has any coloured edge: it sits flat in its state colour
+  (`settledSurface()`), as if pressed in. The Done and Fallback buttons keep a
+  tonal edge (a slightly deeper shade of their own fill), never a saturated one.
+  Rule for builders: a raised edge is always a tone of the surface it belongs
+  to, never a second colour.
+- **"I'm not a fan of how big the text is for Thursday"** (Events headline on
+  the board). The tab headline uses body-size text; the date sits in a small
+  tile.
+
+Checks on the preview build: contrast audit over 41 screens in both
+appearances — no failures beyond the known disabled controls and
+screen-reader-only text; 680 theme checks (5 named themes, 15 hues, both
+appearances) — 0 failing.
+
+### What the architect needs to know from round 4
+
+- **A bundled font.** The preview loads Nunito as a web font. On a device it is
+  a bundled asset, one file per weight (400, 600, 700, 800), with a
+  weight-to-family map, because React Native does not synthesise weights for a
+  custom family. Pending the human's typeface decision.
+- **New shared kit, all presentation-only:** `surface.ts`, `motion.tsx`,
+  `WeekStrip`, `TabSummary`, `StatTile`, `EmptyArt`, `VoiceMark`; new
+  `features/task/TaskHero.tsx`, `useWeekStrip.ts`. No schema change this round.
+- **More reads per list.** Each routine or course card now reads seven days of
+  occurrences (`useTaskOccurrences`). Fine at the sizes tested; a batched query
+  would be the cleaner contract.
+- Token changes: `RADIUS` 8/12/16/20, new `EDGE = { outline: 2, bottom: 5 }`.
+
+### Still open with the human after round 4
+
+- The typeface (rounded is in the preview as a default, not a decision).
+- Dark labels on the orange buttons (carried from round 3).
+- Locked badges do not show progress toward the badge: the app has no
+  per-badge progress read yet. That is a small feature, not a restyle.

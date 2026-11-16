@@ -645,9 +645,13 @@ So the work is not lost with the session, it is saved in
 theme engine, a second data-model change (`settings.accent_ext`, migration
 006) and moves Fallback AI from the Today header into the add sheet.
 
-**Round 4 (whole-app polish) is open with the human.** The Fallback Polish
-Board (https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh) carries twelve
-decisions; picks are pending. See `docs/DESIGN_DECISIONS.md`, Round 4.
+**Round 4 (whole-app polish): picks received and applied to the preview**
+(Fallback Preview, version 6), across every screen. Board:
+https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh. Recorded in
+`docs/DESIGN_DECISIONS.md`, "Round 4 — picks". The patch in
+`docs/design-rebuild/` includes it. The look is still awaiting the human's
+approval; nothing has been routed to pipeline agents. Open: the typeface
+(rounded is a default, not a decision) and dark labels on orange buttons.
 
 **New feature request, not built: AI agent access over MCP.** Only a labelled
 design-reference screen exists. It is a product feature and must go through
