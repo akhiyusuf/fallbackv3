@@ -7,7 +7,8 @@ Rule from the human: do not go overboard. Twelve short source sounds were genera
 ## How they are made
 
 - Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. 48 clips, about 140 credits.
-- The human picks one take per job on the "Fallback Sound Picker" page and can leave a note per sound.
+- The human picks one take per job on the "Fallback Sound Picker" page (https://claude.ai/artifact/Tybxk4ZABSdF8L5DzXK5c6) and can leave a note per sound. Picks are stored in that page's database, collection `picks`, one document per job: `{choice: "<label>_<n>" | "redo" | "none", note}`.
+- The raw takes are not in the repo (they live in the ElevenLabs flow "Fallback app sounds"); `docs/design-rebuild/sound-picker/generations.json` lists every take's generation id.
 - Each pick is then edited: levels matched across the set, tails trimmed, pitch and repeats used to make the variants, echo only where it suits.
 - AI-generated: credit as "ElevenLabs Sound Effects v2 (AI)". The account is on the Starter plan; confirm its licence covers a shipped app before release.
 

@@ -1,0 +1,145 @@
+<title>Fallback Sound Picker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
+<style>
+/* layout: a sticky progress strip, then one card per job in the app; each card holds its takes as a row of play/choose tiles */
+:root{--bg:#f6ede5;--panel:#fffaf5;--ink:#26241f;--muted:#6b6259;--line:#e3d5c8;--accent:#c8490c;--accent-ink:#ffffff;--soft:#fbe3d3;--ok:#17743a;--ok-soft:#dff5e5;
+--f-head:"Nunito",system-ui,sans-serif;--f-body:"Nunito",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1612;--panel:#2a201a;--ink:#f5ece4;--muted:#b9aa9c;--line:#46362b;--accent:#ff8a4f;--accent-ink:#26140a;--soft:#3d2415;--ok:#6bdd90;--ok-soft:#173623;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1612;--panel:#2a201a;--ink:#f5ece4;--muted:#b9aa9c;--line:#46362b;--accent:#ff8a4f;--accent-ink:#26140a;--soft:#3d2415;--ok:#6bdd90;--ok-soft:#173623;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.5 var(--f-body)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.strip{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:2px solid var(--line)}
+.strip-in,main{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.strip-in{padding-block:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-weight:800;font-variant-numeric:tabular-nums}
+.track{flex:1;min-width:80px;height:12px;border-radius:999px;background:var(--line);overflow:hidden}
+.fill{height:100%;background:var(--ok);width:0;transition:width .2s}
+#status{flex-basis:100%;font-weight:700;font-size:14px;color:var(--muted)}
+main{padding-block:24px 72px;display:flex;flex-direction:column;gap:22px}
+h1,h2,h3{font-family:var(--f-head);font-weight:900;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:30px;line-height:1.15}
+h2{font-size:20px}
+h3{font-size:16px;font-weight:800}
+p{margin:0}
+.lede{color:var(--muted);max-width:60ch;margin-top:8px}
+.card{background:var(--panel);border:2px solid var(--line);border-bottom-width:5px;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card.set{border-color:var(--ok)}
+.why{color:var(--muted)}
+.takes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.take{display:flex;flex-direction:column;gap:6px;min-width:0}
+button{font:800 15px var(--f-body);cursor:pointer;border-radius:12px;min-height:44px;padding:8px 6px}
+.play{background:var(--soft);color:var(--ink);border:0;display:flex;align-items:center;justify-content:center;gap:6px}
+.play svg{width:14px;height:14px;fill:currentColor;flex:none}
+.play[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.use{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.use[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:var(--panel)}
+.other{display:flex;flex-wrap:wrap;gap:8px}
+.other button{padding-inline:14px}
+input[type=text]{font:500 15px var(--f-body);width:100%;box-sizing:border-box;min-height:44px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px}
+label{font-weight:700;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.copy{background:var(--accent);color:var(--accent-ink);border:0;padding-inline:16px;align-self:flex-start}
+textarea{width:100%;box-sizing:border-box;min-height:110px;font:13px ui-monospace,Menlo,monospace;background:var(--panel);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:10px}
+@media (max-width:420px){.takes{gap:6px}button{font-size:14px}}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+<div class="strip"><div class="strip-in"><span id="count">0 of 10 chosen</span><div class="track" aria-hidden="true"><div class="fill" id="fill"></div></div><span id="status">Loading your picks…</span></div></div>
+<main>
+<header>
+  <h1>Fallback Sound Picker</h1>
+  <p class="lede">These are raw takes, straight from the generator, with no musical instruments: only things hitting things. Play them, choose one take for each job, and add a note if you want it changed. After that each one gets trimmed, levelled and shaped for the app.</p>
+</header>
+<div id="cards" style="display:flex;flex-direction:column;gap:18px"></div>
+<section class="card">
+  <h2>When you are done</h2>
+  <p class="why">Tell Claude in the chat. Your picks save by themselves. If the strip at the top says they could not be saved, copy them here and paste them into the chat.</p>
+  <button class="copy" id="copy" type="button">Copy my picks</button>
+  <textarea id="dump" hidden readonly aria-label="Your picks as text"></textarea>
+</section>
+</main>
+<script>
+const SPEC = __SPEC__;
+const CLIPS = __CLIPS__;
+const PLAY = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1.5v11l9-5.5z"/></svg>';
+const STOP = '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="3" width="8" height="8"/></svg>';
+const picks = {};            // job id -> { choice: '<label>_<n>' | 'redo' | 'none', note }
+const ui = {};               // job id -> { card, uses: {choice: button}, note }
+let db = null, cur = null;
+const statusEl = document.getElementById('status');
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function stop() { if (!cur) return; cur.a.pause(); cur.b.setAttribute('aria-pressed', 'false'); cur.b.innerHTML = PLAY + '<span>' + cur.n + '</span>'; cur = null; }
+function play(b, key, n) {
+  const same = cur && cur.b === b; stop(); if (same) return;
+  const a = new Audio(CLIPS[key]); cur = { a, b, n };
+  b.setAttribute('aria-pressed', 'true'); b.innerHTML = STOP + '<span>' + n + '</span>';
+  a.addEventListener('ended', () => { if (cur && cur.a === a) stop(); });
+  a.play().catch(() => { stop(); statusEl.textContent = 'That take could not be played on this device.'; });
+}
+function render() {
+  let n = 0;
+  SPEC.forEach((g) => {
+    const p = picks[g.id] || {}; const u = ui[g.id];
+    Object.entries(u.uses).forEach(([choice, b]) => b.setAttribute('aria-pressed', p.choice === choice ? 'true' : 'false'));
+    u.card.classList.toggle('set', !!p.choice);
+    if (document.activeElement !== u.note) u.note.value = p.note || '';
+    if (p.choice) n++;
+  });
+  document.getElementById('count').textContent = n + ' of ' + SPEC.length + ' chosen';
+  document.getElementById('fill').style.width = (100 * n / SPEC.length) + '%';
+  document.getElementById('dump').value = JSON.stringify(picks, null, 1);
+}
+async function save(id) {
+  render();
+  if (!db) { statusEl.textContent = 'Not saved online here. Use "Copy my picks" at the bottom when you are done.'; return; }
+  statusEl.textContent = 'Saving…';
+  try { await db.doc('picks/' + id).set({ choice: picks[id].choice || '', note: picks[id].note || '' }); statusEl.textContent = 'Saved'; }
+  catch (e) { statusEl.textContent = 'Could not save. Use "Copy my picks" at the bottom when you are done.'; }
+}
+function choose(id, choice) { const p = picks[id] || (picks[id] = {}); p.choice = p.choice === choice ? '' : choice; save(id); }
+const root = document.getElementById('cards');
+SPEC.forEach((g) => {
+  const card = el('section', 'card'); const uses = {};
+  card.appendChild(el('h2', '', g.title));
+  if (g.pick) card.appendChild(el('p', 'why', g.pick));
+  g.sources.forEach((s) => {
+    card.appendChild(el('h3', '', s.name));
+    const row = el('div', 'takes');
+    s.takes.forEach((n) => {
+      const key = s.label + '_' + n; const t = el('div', 'take');
+      const pb = el('button', 'play'); pb.type = 'button'; pb.innerHTML = PLAY + '<span>' + n + '</span>';
+      pb.setAttribute('aria-label', 'Play ' + s.name + ', take ' + n); pb.setAttribute('aria-pressed', 'false');
+      pb.addEventListener('click', () => play(pb, key, n));
+      const ub = el('button', 'use', 'Use'); ub.type = 'button'; ub.setAttribute('aria-label', 'Use ' + s.name + ', take ' + n); ub.setAttribute('aria-pressed', 'false');
+      ub.addEventListener('click', () => choose(g.id, key));
+      uses[key] = ub; t.append(pb, ub); row.appendChild(t);
+    });
+    card.appendChild(row);
+  });
+  const other = el('div', 'other');
+  const redo = el('button', 'use', 'None of these, make new ones'); redo.type = 'button'; redo.setAttribute('aria-pressed', 'false'); redo.addEventListener('click', () => choose(g.id, 'redo'));
+  const none = el('button', 'use', 'No sound for this'); none.type = 'button'; none.setAttribute('aria-pressed', 'false'); none.addEventListener('click', () => choose(g.id, 'none'));
+  uses.redo = redo; uses.none = none; other.append(redo, none); card.appendChild(other);
+  const lab = el('label', '', 'Note for the edit (optional)'); const note = el('input'); note.type = 'text'; note.id = 'note-' + g.id; note.placeholder = 'softer, shorter, a little echo…'; note.autocomplete = 'off';
+  note.addEventListener('change', () => { const p = picks[g.id] || (picks[g.id] = {}); p.note = note.value.trim().slice(0, 200); save(g.id); });
+  lab.appendChild(note); card.appendChild(lab);
+  ui[g.id] = { card, uses, note }; root.appendChild(card);
+});
+document.getElementById('copy').addEventListener('click', async () => {
+  const ta = document.getElementById('dump');
+  try { await navigator.clipboard.writeText(ta.value); statusEl.textContent = 'Copied. Paste it into the chat.'; }
+  catch (e) { ta.hidden = false; ta.select(); statusEl.textContent = 'Select the text at the bottom and copy it.'; }
+});
+render();
+(async () => {
+  let d = null;
+  try { d = window.claude && window.claude.use ? await window.claude.use('db') : null; } catch (e) {}
+  if (!d) { statusEl.textContent = 'Picks stay on this page only. Use "Copy my picks" at the bottom when you are done.'; return; }
+  db = d; statusEl.textContent = 'Your picks save by themselves.';
+  const timer = setTimeout(() => { if (statusEl.textContent === 'Loading your picks…') statusEl.textContent = 'Your picks save by themselves.'; }, 10000);
+  db.collection('picks').onSnapshot((snap) => {
+    clearTimeout(timer);
+    snap.docs.forEach((doc) => { const b = doc.data(); if (b && ui[doc.id]) picks[doc.id] = { choice: b.choice || '', note: b.note || '' }; });
+    render();
+  }, () => { statusEl.textContent = 'Live saving stopped. Use "Copy my picks" at the bottom when you are done.'; });
+})();
+</script>

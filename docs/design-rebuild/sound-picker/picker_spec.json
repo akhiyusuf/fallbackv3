@@ -1,0 +1,15 @@
+[
+ {"id":"done","title":"The done sound","pick":"Pick one take from any of the three. It becomes the whole family: Done is two hits with the second one higher, Fallback is one softer hit, finishing the day is a short rising run, and a reminder is two calm hits.","sources":[
+   {"label":"iron_ting","name":"Iron rod on an iron bar"},
+   {"label":"glass_clink","name":"Spoon on a glass jar"},
+   {"label":"stone_click","name":"Two pebbles"}]},
+ {"id":"wood_knock","title":"Skip, and something went wrong","pick":"One knock for Skip today. Two quick knocks when something could not be saved.","sources":[{"label":"wood_knock","name":"Knuckle on a wooden table"}]},
+ {"id":"tap","title":"Buttons and tabs","pick":"The quietest sound in the app. It plays on main buttons and when you change tabs.","sources":[{"label":"tap","name":"Fingertip on a desk"}]},
+ {"id":"switch_click","title":"Switches and step ticks","pick":"Turning a switch on or off, and ticking one step of a routine.","sources":[{"label":"switch_click","name":"Light switch"}]},
+ {"id":"pencil_check","title":"Ticking a to-do","pick":"","sources":[{"label":"pencil_check","name":"Pencil check mark"}]},
+ {"id":"swish","title":"Undo, menus, next step","pick":"Undo, the add menu opening, and moving to the next onboarding step. Played backwards for closing.","sources":[{"label":"swish","name":"Paper through the air"}]},
+ {"id":"page_flip","title":"Moved to tomorrow","pick":"","sources":[{"label":"page_flip","name":"Calendar page"}]},
+ {"id":"block_clunk","title":"Saved","pick":"A new routine, event, course or to-do is saved.","sources":[{"label":"block_clunk","name":"Wooden block into a box"}]},
+ {"id":"coin","title":"Badge earned and level up","pick":"","sources":[{"label":"coin","name":"Coin settling on a table"}]},
+ {"id":"glass_flick","title":"Fallback AI","pick":"Starts listening (pitched up), stops listening (pitched down), and finished setting something up.","sources":[{"label":"glass_flick","name":"Fingernail on a drinking glass"}]}
+]

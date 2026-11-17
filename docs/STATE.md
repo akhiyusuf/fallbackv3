@@ -661,7 +661,8 @@ black-and-white Mono theme, a light/dark choice in onboarding, fixed banner
 sizes in onboarding with an eased change between steps, and centred, aligned
 empty screens that no longer bounce. Sounds: the human connected ElevenLabs;
 twelve source sounds (no musical instruments) were generated and the human is
-choosing takes on the "Fallback Sound Picker" page. Next: edit the chosen
+choosing takes on the "Fallback Sound Picker" page
+(https://claude.ai/artifact/Tybxk4ZABSdF8L5DzXK5c6). Next: edit the chosen
 takes and wire them into the preview. Banner pictures: the human wants
 AI-made images in place of the onboarding drawings; none made yet. Still
 awaiting the human's approval of the look; nothing routed to pipeline agents.
