@@ -7,7 +7,9 @@
  * is a plain function of its arguments, so it is unit-testable without a device/simulator.
  */
 import { isDue } from '@/domain';
-import { addDays } from '@/lib/date';
+import { format } from 'date-fns';
+
+import { addDays, parseLocalDate } from '@/lib/date';
 import type { LocalDate, NotificationPrefs, TaskWithSteps } from '@/types';
 
 export const NOTIFICATION_HORIZON_DAYS = 7;
@@ -123,7 +125,7 @@ export function buildRollingSchedule(input: {
             date: fireDate,
             timeOfDay: task.timeOfDay ?? DEFAULT_TIME_OF_DAY,
             title: `${task.name} is ending soon`,
-            body: `Runs through ${task.endDate}.`,
+            body: `Runs through ${format(parseLocalDate(task.endDate), 'EEE, MMM d')}.`,
           });
         }
       }

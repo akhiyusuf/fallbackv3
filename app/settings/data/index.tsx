@@ -12,7 +12,8 @@ import { EraseDataSheet } from '@/features/data/EraseDataSheet';
 import { createBackup, restoreBackup } from '@/services/data';
 import { QUERY_KEYS, useSettings } from '@/queries';
 import { InlineRetryBanner, ListGroup, ListRow, Screen } from '@/ui';
-import { useToastStore } from '@/app-shell';
+import { useThemeStore, useToastStore } from '@/app-shell';
+import type { Settings } from '@/types';
 
 function formatInstant(iso: string): string {
   return format(new Date(iso), "MMM d, yyyy 'at' h:mm a");
@@ -56,7 +57,12 @@ export default function S47Data() {
   }
 
   async function pickAndRestore() {
-    const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/octet-stream', '*/*'] });
+    const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/octet-stream', '*/*'] }).catch(() => null);
+    if (!picked) {
+      // The phone's file picker itself failed: show the same calm "could not restore" state.
+      setRestoreFailed(true);
+      return;
+    }
     if (picked.canceled || !picked.assets?.[0]) return;
     setRestoring(true);
     setRestoreFailed(false);
@@ -67,6 +73,9 @@ export default function S47Data() {
       return;
     }
     await qc.invalidateQueries();
+    // A backup carries its own look (light or dark, and the colour): show it straight away.
+    const restored = qc.getQueryData<Settings>(QUERY_KEYS.settings);
+    if (restored) useThemeStore.getState().hydrate(restored.theme, restored.accent);
     showToast(S47_COPY.restoreSuccessToast, 'success');
   }
 

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 
 import { useToastStore } from '@/app-shell';
 import { play } from '@/services/sfx';
+import { SAVE_FAILED } from '@/features/task/formShared';
 
 jest.mock('@/services/sfx', () => ({ play: jest.fn() }));
 
@@ -135,5 +136,55 @@ describe('S13 — To-dos & Notes Browse', () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() });
     await render(<ToDosBrowseScreen />);
     expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
+  });
+
+  it('a tick that the save rejects shows the "Couldn\'t save" warning, plays no done sound and shows no Done toast', async () => {
+    mockUseTasks.mockReturnValue({ data: [todo()], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUpdateTaskMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    const user = userEvent.setup();
+    await render(<ToDosBrowseScreen />);
+    await user.press(screen.getByRole('checkbox', { name: 'Renew passport' }));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(SAVE_FAILED));
+    expect(useToastStore.getState().toast?.tone).toBe('warning');
+    expect(play).not.toHaveBeenCalledWith('todo_done');
+  });
+
+  it('a tick whose write throws shows the same "Couldn\'t save" warning', async () => {
+    mockUseTasks.mockReturnValue({ data: [todo()], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUpdateTaskMutateAsync.mockRejectedValue(new Error('database closed'));
+    const user = userEvent.setup();
+    await render(<ToDosBrowseScreen />);
+    await user.press(screen.getByRole('checkbox', { name: 'Renew passport' }));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(SAVE_FAILED));
+    expect(useToastStore.getState().toast?.tone).toBe('warning');
+  });
+
+  it('a failed Undo shows the "Couldn\'t save" warning in place of the Done toast', async () => {
+    mockUseTasks.mockReturnValue({ data: [todo()], isLoading: false, isError: false, refetch: jest.fn() });
+    mockUpdateTaskMutateAsync.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    const user = userEvent.setup();
+    await render(<ToDosBrowseScreen />);
+    await user.press(screen.getByRole('checkbox', { name: 'Renew passport' }));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Done'));
+    const undo = useToastStore.getState().toast?.action?.onPress;
+    await act(async () => {
+      undo?.();
+    });
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(SAVE_FAILED));
+    expect(useToastStore.getState().toast?.tone).toBe('warning');
+    expect(mockUpdateTaskMutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('the checkbox is named by the to-do alone; its ticked state is carried by checked, not by the name', async () => {
+    mockUseTasks.mockReturnValue({ data: [todo()], isLoading: false, isError: false, refetch: jest.fn() });
+    const open = await render(<ToDosBrowseScreen />);
+    expect(screen.getByRole('checkbox', { name: 'Renew passport', checked: false })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Renew passport, done' })).toBeNull();
+    await open.unmount();
+
+    mockUseTasks.mockReturnValue({ data: [todo({ todoDoneAt: '2026-11-16T09:00:00.000Z' })], isLoading: false, isError: false, refetch: jest.fn() });
+    await render(<ToDosBrowseScreen />);
+    expect(screen.getByRole('checkbox', { name: 'Renew passport', checked: true })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Renew passport, done' })).toBeNull();
   });
 });

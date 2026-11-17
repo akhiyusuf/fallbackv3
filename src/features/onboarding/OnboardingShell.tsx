@@ -5,12 +5,13 @@
  */
 import type { ReactNode } from 'react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { now } from '@/lib/date';
+import { useToastStore } from '@/app-shell/stores/toast';
 import { useUpdateSettings } from '@/queries';
 import { FONT_SIZE, HEADER_HEIGHT, RADIUS, SPACE, useTheme } from '@/theme';
 import { Button, useReduceMotion } from '@/ui';
@@ -117,6 +118,7 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const updateSettings = useUpdateSettings();
+  const showToast = useToastStore((s) => s.show);
   // The real height of this screen (in a phone it equals the window; in a frame it does not).
   const windowHeight = useWindowDimensions().height;
   const [height, setHeight] = useState(windowHeight);
@@ -149,7 +151,12 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
   }, [step, headline]);
 
   async function handleSkip() {
-    void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
+    // Wait for the save: leaving without it would bring onboarding back on the next launch.
+    const saved = await updateSettings.mutateAsync({ onboardingCompletedAt: now() }).catch(() => ({ ok: false as const }));
+    if (!saved.ok) {
+      showToast(ONBOARDING_SHELL_COPY.skipFailure, 'warning');
+      return;
+    }
     await finishOnboardingProgress();
     router.replace('/today' as Href);
   }
@@ -160,7 +167,8 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => {
+    // Step 7 is a form: pad by the keyboard so its fields and Save stay above it (see `Screen`).
+    <KeyboardAvoidingView behavior="padding" style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => {
       // A step left behind in the stack is hidden and reports 0: never let that set the density.
       const h = e.nativeEvent.layout.height;
       if (h > 0) {
@@ -219,7 +227,7 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
       <View style={[styles.footer, density !== 'regular' && styles.footerCompact, { paddingBottom: (density === 'regular' ? SPACE.s3 : SPACE.s2 + 4) + insets.bottom, borderTopColor: t.color.border, backgroundColor: t.color.bgAlt }]}>
         {footer ?? <Button label={nextLabel} onPress={onNext ?? (() => undefined)} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. Do NOT mock expo-router. */
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 const mockPurchase = jest.fn();
@@ -18,11 +18,23 @@ describe('S39 — Choose Plan & Confirm', () => {
   });
 
   it('a biometric cancel is calm and non-punitive: stays on S39, shows the retry banner, charges nothing, never navigates', async () => {
-    mockPurchase.mockResolvedValue({ ok: false, error: { code: 'CANCELLED', message: 'x' } });
+    mockPurchase.mockResolvedValue({ ok: false, error: { code: 'CANCELLED', message: 'x', cause: 'biometric' } });
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     await render(<S39ChoosePlanAndConfirm />);
     await userEvent.press(screen.getByTestId('s39-confirm'));
     expect(await screen.findByText(S39_COPY.biometricFailed)).toBeTruthy();
+    expect(replace).not.toHaveBeenCalledWith('/assistant/chat');
+    replace.mockRestore();
+  });
+
+  it('closing the store sheet is not a failed Face ID check: no banner, stays on S39, never navigates', async () => {
+    mockPurchase.mockResolvedValue({ ok: false, error: { code: 'CANCELLED', message: 'Purchase was cancelled. Nothing was charged.' } });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    await render(<S39ChoosePlanAndConfirm />);
+    await userEvent.press(screen.getByTestId('s39-confirm'));
+    await waitFor(() => expect(mockPurchase).toHaveBeenCalled());
+    expect(screen.queryByText(S39_COPY.biometricFailed)).toBeNull();
+    expect(screen.getByTestId('s39-confirm')).toBeTruthy();
     expect(replace).not.toHaveBeenCalledWith('/assistant/chat');
     replace.mockRestore();
   });

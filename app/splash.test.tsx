@@ -9,6 +9,7 @@ const mockGetSettings = jest.fn();
 jest.mock('@/db', () => ({ store: { open: () => mockOpen() }, repos: { settings: { get: () => mockGetSettings() } } }));
 
 import S01Splash from './splash';
+import { useThemeStore } from '@/app-shell';
 import { S01_COPY } from '@/features/data/copy';
 
 describe('S01 — Splash', () => {
@@ -29,6 +30,15 @@ describe('S01 — Splash', () => {
     mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z' });
     await render(<S01Splash />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today'));
+  });
+
+  it('puts the saved look (theme and colour) back before the first screen', async () => {
+    mockOpen.mockResolvedValue({ ok: true, value: 'ready' });
+    mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z', theme: 'dark', accent: 'ocean' });
+    await render(<S01Splash />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today'));
+    expect(useThemeStore.getState().mode).toBe('dark');
+    expect(useThemeStore.getState().accent).toBe('ocean');
   });
 
   it('routes to /onboarding/concept (the first onboarding step) when onboarding is not complete', async () => {

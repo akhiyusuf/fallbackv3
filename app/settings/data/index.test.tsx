@@ -31,13 +31,16 @@ jest.mock('expo-document-picker', () => ({ getDocumentAsync: () => mockGetDocume
 jest.mock('react-native/Libraries/Share/Share', () => ({ share: jest.fn().mockResolvedValue({}) }));
 
 const mockShowToast = jest.fn();
-jest.mock('@/app-shell', () => ({ useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }) }));
+const mockHydrateTheme = jest.fn();
+jest.mock('@/app-shell', () => ({
+  useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }),
+  useThemeStore: { getState: () => ({ hydrate: mockHydrateTheme }) },
+}));
 
 import S47Data from './index';
 import { S47_COPY, S48_COPY } from '@/features/data/copy';
 
-function renderScreen() {
-  const client = new QueryClient();
+function renderScreen(client = new QueryClient()) {
   return render(
     <QueryClientProvider client={client}>
       <S47Data />
@@ -153,6 +156,28 @@ describe('S47 — Data', () => {
     const user = userEvent.setup();
     await renderScreen();
     await user.press(screen.getByText(S47_COPY.restoreFromBackup));
+    expect(mockRestoreBackup).not.toHaveBeenCalled();
+  });
+
+  it('a restored backup brings its own look (theme and colour) back straight away', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockGetDocumentAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///backup.json' }] });
+    mockRestoreBackup.mockResolvedValue({ ok: true, value: undefined });
+    const client = new QueryClient();
+    client.setQueryData(['settings'], { theme: 'dark', accent: 'ocean' });
+    const user = userEvent.setup();
+    await renderScreen(client);
+    await user.press(screen.getByText(S47_COPY.restoreFromBackup));
+    await waitFor(() => expect(mockHydrateTheme).toHaveBeenCalledWith('dark', 'ocean'));
+  });
+
+  it('a file picker that fails to open shows the same restore failure banner and starts no restore', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockGetDocumentAsync.mockRejectedValue(new Error('picker unavailable'));
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.restoreFromBackup));
+    await waitFor(() => expect(screen.getByText(S47_COPY.restoreFailure)).toBeTruthy());
     expect(mockRestoreBackup).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,16 @@
 import type { Cadence, Id, LocalDate, TaskWithSteps } from '@/types';
 import { addDays, daysBetween, isAfter, isSameOrBefore, weekdayOf } from './dateMath';
 
+/**
+ * Is `date` the day a monthly rhythm lands on? A day the month does not have (the 31st in June,
+ * the 30th in February) lands on that month's last day, so "monthly on the 31st" is due every
+ * month instead of silently skipping the short ones.
+ */
+function isMonthDay(date: LocalDate, dayOfMonth: number): boolean {
+  const lastDay = new Date(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0).getDate();
+  return Number(date.slice(8, 10)) === Math.min(dayOfMonth, lastDay);
+}
+
 function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
   switch (cadence.kind) {
     case 'daily':
@@ -19,9 +29,9 @@ function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
       return weeks % 2 === 0;
     }
     case 'monthly':
-      return date.slice(8, 10) === String(cadence.dayOfMonth).padStart(2, '0') && isSameOrBefore(cadence.anchorDate, date);
+      return isMonthDay(date, cadence.dayOfMonth) && isSameOrBefore(cadence.anchorDate, date);
     case 'bi-monthly': {
-      if (date.slice(8, 10) !== String(cadence.dayOfMonth).padStart(2, '0') || !isSameOrBefore(cadence.anchorDate, date)) {
+      if (!isMonthDay(date, cadence.dayOfMonth) || !isSameOrBefore(cadence.anchorDate, date)) {
         return false;
       }
       const anchorY = Number(cadence.anchorDate.slice(0, 4));
@@ -34,7 +44,7 @@ function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
     case 'yearly':
       return (
         Number(date.slice(5, 7)) === cadence.month &&
-        Number(date.slice(8, 10)) === cadence.dayOfMonth &&
+        isMonthDay(date, cadence.dayOfMonth) &&
         isSameOrBefore(cadence.anchorDate, date)
       );
     default:

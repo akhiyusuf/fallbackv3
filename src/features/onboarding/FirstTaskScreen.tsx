@@ -1,5 +1,5 @@
 /** S08 — onboarding step 7: add the first routine. Same top bar as every other step (D6). */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import { StyleSheet } from 'react-native';
@@ -30,6 +30,7 @@ export function FirstTaskScreen() {
   const [fallback, setFallback] = useState('');
   const [errors, setErrors] = useState<{ name?: string; ideal?: string; fallback?: string }>({});
   const [saving, setSaving] = useState(false);
+  const createdRef = useRef(false);
 
   async function handleSave() {
     const nextErrors: typeof errors = {};
@@ -40,27 +41,38 @@ export function FirstTaskScreen() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setSaving(true);
-    const draft: TaskDraft = {
-      type: 'routine',
-      name: name.trim(),
-      cadence: { kind: 'daily' },
-      icon: 'Repeat',
-      color: 'forge-orange',
-      importance: 'med',
-      necessity: 'recommended',
-      isAsNeeded: false,
-      isTracked: true,
-      idealSteps: [{ text: ideal.trim(), dueWeekdays: null }],
-      fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
-    };
-    // A thrown write must reach the calm retry toast too, or the Save button would spin for ever.
-    const result = await createTask.mutateAsync(draft).catch(() => ({ ok: false as const }));
-    if (!result.ok) {
+    // If the routine was saved on an earlier press and only the "onboarding finished" save failed,
+    // a second press must not create the routine again.
+    if (!createdRef.current) {
+      const draft: TaskDraft = {
+        type: 'routine',
+        name: name.trim(),
+        cadence: { kind: 'daily' },
+        icon: 'Repeat',
+        color: 'forge-orange',
+        importance: 'med',
+        necessity: 'recommended',
+        isAsNeeded: false,
+        isTracked: true,
+        idealSteps: [{ text: ideal.trim(), dueWeekdays: null }],
+        fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
+      };
+      // A thrown write must reach the calm retry toast too, or the Save button would spin for ever.
+      const result = await createTask.mutateAsync(draft).catch(() => ({ ok: false as const }));
+      if (!result.ok) {
+        setSaving(false);
+        showToast(S08_COPY.saveFailure, 'warning');
+        return;
+      }
+      createdRef.current = true;
+    }
+    // Wait for this save too: without it onboarding would start again on the next launch.
+    const finished = await updateSettings.mutateAsync({ onboardingCompletedAt: now() }).catch(() => ({ ok: false as const }));
+    if (!finished.ok) {
       setSaving(false);
       showToast(S08_COPY.saveFailure, 'warning');
       return;
     }
-    void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
     await finishOnboardingProgress();
     setSaving(false);
     router.replace('/today?justAdded=1' as Href);

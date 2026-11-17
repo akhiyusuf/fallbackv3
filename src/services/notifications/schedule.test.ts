@@ -97,6 +97,8 @@ describe('buildRollingSchedule', () => {
     const endingSoon = result.filter((r) => r.kind === 'course-ending-soon');
     expect(endingSoon).toHaveLength(1);
     expect(endingSoon[0]?.date).toBe('2026-07-27' as never); // clamped to today (natural fire date already passed)
+    // The person reads a day, never the stored date.
+    expect(endingSoon[0]?.body).toBe('Runs through Wed, Jul 29.');
   });
 
   it('a course ending outside the horizon generates no course-ending-soon reminder', () => {

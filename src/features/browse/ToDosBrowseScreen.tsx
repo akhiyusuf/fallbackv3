@@ -11,12 +11,13 @@ import { useTasks, useUpdateTask } from '@/queries';
 import { ROUTES, withOrigin } from '@/navigation';
 import { RADIUS, SPACE, useTheme } from '@/theme';
 import { EmptyLine, EmptyState, InlineRetryBanner, ListGroup, ListRow, Skeleton, TabSummary, Tabs } from '@/ui';
-import type { Id, TaskWithSteps } from '@/types';
+import type { Id, Instant, TaskWithSteps } from '@/types';
 
 import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
 import { importanceLabel } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
+import { SAVE_FAILED } from '@/features/task/formShared';
 
 type Lens = 'todos' | 'notes';
 
@@ -47,11 +48,23 @@ export default function ToDosBrowseScreen() {
 
   async function toggleDone(tk: TaskWithSteps) {
     const wasDone = !!tk.todoDoneAt;
-    const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: wasDone ? null : now() } });
-    if (!result.ok || wasDone) return;
+    // A write that throws is a failed save like any other: say so instead of leaving the box unchanged in silence.
+    const write = (todoDoneAt: Instant | null) => updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt } }).catch(() => ({ ok: false as const }));
+    const result = await write(wasDone ? null : now());
+    if (!result.ok) return showToast(SAVE_FAILED, 'warning');
+    if (wasDone) return;
     play('todo_done');
     // Ticking is one tap, so a slip has to be one tap to take back.
-    showToast('Done', 'success', { icon: 'ideal', action: { label: 'Undo', onPress: () => void updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: null } }) } });
+    showToast('Done', 'success', {
+      icon: 'ideal',
+      action: {
+        label: 'Undo',
+        onPress: () =>
+          void write(null).then((undone) => {
+            if (!undone.ok) showToast(SAVE_FAILED, 'warning');
+          }),
+      },
+    });
   }
 
   return (
@@ -102,7 +115,7 @@ export default function ToDosBrowseScreen() {
                           onPress={() => void toggleDone(tk)}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: !!tk.todoDoneAt }}
-                          accessibilityLabel={`${tk.name}, done`}
+                          accessibilityLabel={tk.name}
                           hitSlop={10}
                           testID={`todo-checkbox-${tk.id}`}
                           style={[

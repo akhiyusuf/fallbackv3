@@ -44,6 +44,9 @@ const config: ExpoConfig = {
   android: {
     package: 'com.fallback.app',
     versionCode: 1,
+    // App data (the habit database and the encrypted assistant key) stays out of Google's automatic
+    // device backup. The person's own backups are the files they make in Settings.
+    allowBackup: false,
     adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#F2601A' },
     permissions: [
       'android.permission.RECORD_AUDIO',
@@ -96,7 +99,7 @@ const config: ExpoConfig = {
     ],
     ['expo-local-authentication', { faceIDPermission: 'Confirm your subscription purchase with Face ID.' }],
     ['expo-audio', { microphonePermission: 'Fallback listens only while you hold the assistant mic button.' }],
-    ['expo-notifications', { color: '#F2601A' }],
+    ['expo-notifications', { color: '#F2601A', icon: './assets/notification-icon.png' }],
     'expo-iap',
     // M7 native widget targets (iOS WidgetKit + Android AppWidget). The plugin
     // file is owned by M7; this reference is frozen so M7 never edits app.config.ts.

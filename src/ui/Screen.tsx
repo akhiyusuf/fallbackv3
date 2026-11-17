@@ -4,7 +4,7 @@
  * position are identical everywhere.
  */
 import { useEffect, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SPACE, useTheme } from '@/theme';
@@ -25,10 +25,13 @@ export interface ScreenProps extends ScreenHeaderProps {
   readonly overlay?: ReactNode;
 }
 
+// The keyboard: Android draws the app edge to edge, so the window is NOT resized when the keyboard
+// opens (the old Android behaviour). Padding the screen by the keyboard's height on both platforms
+// keeps the focused field and the pinned button above it.
 export function Screen({ children, footer, scroll = true, contentStyle, headerless = false, subheader, overlay, ...header }: ScreenProps) {
   const t = useTheme();
   return (
-    <KeyboardAvoidingView style={[styles.root, { backgroundColor: t.color.bg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.root, { backgroundColor: t.color.bg }]} behavior="padding">
       {headerless ? null : <ScreenHeader {...header} />}
       {subheader}
       {scroll ? (

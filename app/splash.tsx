@@ -11,6 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
+import { useThemeStore } from '@/app-shell';
 import { store, repos } from '@/db';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
@@ -48,6 +49,9 @@ export default function S01Splash() {
 
         const settings = await repos.settings.get();
         if (cancelled || navigatedRef.current) return;
+        // The look the person chose (light or dark, and the colour) is kept with their settings;
+        // put it back before the first real screen draws.
+        useThemeStore.getState().hydrate(settings.theme, settings.accent);
         navigatedRef.current = true;
         if (settings.onboardingCompletedAt) {
           router.replace('/today');

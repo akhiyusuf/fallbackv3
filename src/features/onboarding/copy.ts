@@ -7,6 +7,7 @@ export const ONBOARDING_SHELL_COPY = {
   skip: 'Skip',
   next: 'Next',
   save: 'Save routine',
+  skipFailure: "Couldn't save that — try again",
 } as const;
 
 export const S02_COPY = {

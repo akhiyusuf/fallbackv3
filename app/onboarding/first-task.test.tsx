@@ -108,4 +108,28 @@ describe('S08 — Onboarding: First Task', () => {
     await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning'));
     expect(screen.getByDisplayValue('Morning workout')).toBeTruthy();
   });
+
+  // The routine is saved first, then the "onboarding finished" save. If only that second save fails, the
+  // second press must finish onboarding without creating the routine a second time (createdRef).
+  it('a failed "onboarding finished" save keeps the screen; the next Save does not create the routine again', async () => {
+    mockUpdateSettingsMutateAsync.mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<S08OnboardingFirstTask />);
+    await user.type(screen.getByLabelText(S08_COPY.nameLabel), 'Morning workout');
+    await user.type(screen.getByLabelText(S08_COPY.idealLabel), 'Full workout');
+    await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
+
+    await user.press(screen.getByLabelText(S08_COPY.save));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning'));
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('Morning workout')).toBeTruthy();
+    expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
+
+    await user.press(screen.getByLabelText(S08_COPY.save));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today?justAdded=1'));
+    expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(2);
+    replace.mockRestore();
+  });
 });

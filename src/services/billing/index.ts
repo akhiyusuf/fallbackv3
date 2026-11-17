@@ -79,7 +79,8 @@ async function requestBiometricConfirmation(): Promise<Result<void>> {
     cancelLabel: 'Cancel',
   });
   if (!result.success) {
-    return err({ code: 'CANCELLED', message: result.error ?? 'Biometric confirmation was not completed.' });
+    // `cause: 'biometric'` tells the screen this was the identity check, not the store sheet being closed.
+    return err({ code: 'CANCELLED', message: result.error ?? 'Biometric confirmation was not completed.', cause: 'biometric' });
   }
   return ok(undefined);
 }

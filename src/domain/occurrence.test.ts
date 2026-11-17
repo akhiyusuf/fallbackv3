@@ -42,6 +42,29 @@ describe('occurrence — cadence -> occurrence set', () => {
     expect(occurrencesBetween(task, d('2024-06-01'), d('2024-06-30'))).toEqual([]);
   });
 
+  test('monthly on a day the month does not have lands on the month\'s last day, once', () => {
+    const task = makeTask({ cadence: { kind: 'monthly', dayOfMonth: 31, anchorDate: d('2024-01-31') } });
+    expect(occurrencesBetween(task, d('2024-02-01'), d('2024-04-30'))).toEqual([d('2024-02-29'), d('2024-03-31'), d('2024-04-30')]);
+    expect(isDue(task, d('2024-06-29'))).toBe(false);
+    expect(isDue(task, d('2024-06-30'))).toBe(true);
+    expect(isDue(task, d('2024-07-30'))).toBe(false);
+    expect(isDue(task, d('2024-07-31'))).toBe(true);
+  });
+
+  test('yearly on Feb 29 lands on Feb 28 in a year without one', () => {
+    const task = makeTask({ cadence: { kind: 'yearly', month: 2, dayOfMonth: 29, anchorDate: d('2024-02-29') } });
+    expect(isDue(task, d('2024-02-29'))).toBe(true);
+    expect(isDue(task, d('2025-02-28'))).toBe(true);
+    expect(isDue(task, d('2025-03-01'))).toBe(false);
+    expect(isDue(task, d('2028-02-28'))).toBe(false);
+    expect(isDue(task, d('2028-02-29'))).toBe(true);
+  });
+
+  test('bi-monthly on the 30th still lands in February when February is one of its months', () => {
+    const task = makeTask({ cadence: { kind: 'bi-monthly', dayOfMonth: 30, anchorDate: d('2023-12-30') } });
+    expect(occurrencesBetween(task, d('2024-01-01'), d('2024-04-30'))).toEqual([d('2024-02-29'), d('2024-04-30')]);
+  });
+
   test('a To-do is never due', () => {
     const task = makeTask({ type: 'todo', cadence: null });
     expect(isDue(task, d('2024-06-01'))).toBe(false);

@@ -15,7 +15,7 @@
  */
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
@@ -28,6 +28,25 @@ import type { LocalDate, NotificationScheduler, Result } from '@/types';
 import { buildRollingSchedule, NOTIFICATION_HORIZON_DAYS } from './schedule';
 
 const REMINDER_PREFIX = 'fallback-reminder:';
+
+/**
+ * Android shows every notification through a named channel, and on Android 13 and later the
+ * system's "Allow notifications?" question is only shown once the app has a channel. So the
+ * channel is made before asking, and again (a no-op) before scheduling. The name is what the
+ * person sees in the phone's own notification settings.
+ */
+const CHANNEL_ID = 'reminders';
+async function ensureChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+      name: 'Reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
+  } catch {
+    // Without the channel Android falls back to its own default one; reminders still arrive.
+  }
+}
 
 /**
  * F14's deep-link contract, cross-module (see the coordinator note this module's final
@@ -54,6 +73,7 @@ function triggerDateFor(date: LocalDate, timeOfDay: string): Date {
 
 async function requestPermission(): Promise<Result<boolean>> {
   try {
+    await ensureChannel();
     const result = await Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: true, allowSound: true } });
     return ok(!!result.granted);
   } catch (cause) {
@@ -79,6 +99,7 @@ async function reschedule(): Promise<Result<void>> {
     if (!settings.notifications.master) return ok(undefined);
     if (!(await hasPermission())) return ok(undefined); // fully usable if declined — a silent no-op, not an error
 
+    await ensureChannel();
     const tasks = await repos.tasks.list();
     // SCHEMA §4.2's standing principle (review pass 1, blocking item 3): `buildRollingSchedule`
     // is cadence-only (`isDue`), so a date the user snoozed AWAY (its own `day_log` row has
@@ -97,6 +118,7 @@ async function reschedule(): Promise<Result<void>> {
         content: { title: reminder.title, body: reminder.body, data: { kind: reminder.kind, taskId: reminder.taskId } },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
+          channelId: CHANNEL_ID,
           date: triggerDateFor(reminder.date, reminder.timeOfDay),
         },
       });
@@ -112,7 +134,8 @@ async function reschedule(): Promise<Result<void>> {
         await Notifications.scheduleNotificationAsync({
           identifier: `${REMINDER_PREFIX}daily-digest:${date}`,
           content: { title: 'Your day, at a glance', body: "Check in on today's habits." },
-          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDateFor(date, settings.notifications.dailyDigestTime) },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE,
+          channelId: CHANNEL_ID, date: triggerDateFor(date, settings.notifications.dailyDigestTime) },
         });
       }
     }
@@ -169,7 +192,8 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
           body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.',
           data: { kind: 'gentle-reentry', taskId: task.id },
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: triggerDateFor(today(), '09:00') },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE,
+          channelId: CHANNEL_ID, date: triggerDateFor(today(), '09:00') },
       });
       return; // one invitation, not one per missed task (ARCHITECTURE §9.3's own wording).
     }
@@ -268,7 +292,7 @@ async function sendMilestoneNotification(): Promise<void> {
     if (!(await hasPermission())) return;
     await Notifications.scheduleNotificationAsync({
       content: { title: 'Milestone reached', body: "You've hit a new level or badge — nice work." },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
     });
   } catch {
     // Best-effort celebration notification — never worth surfacing an error for.

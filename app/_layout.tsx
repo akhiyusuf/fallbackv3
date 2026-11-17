@@ -54,7 +54,7 @@ function AppShell() {
   const osScheme = useColorScheme();
   const mode = useThemeStore((s) => s.mode);
   const accent = useThemeStore((s) => s.accent);
-  // TODO(M1/M7): hydrate `useThemeStore` from `settings.theme`/`settings.accent` on boot.
+  // The saved look is put back by the splash screen (`app/splash.tsx`) once the store is open.
   const theme = useMemo(
     () => buildTheme(resolveScheme(mode, osScheme === 'dark' ? 'dark' : osScheme === 'light' ? 'light' : null), accent),
     [mode, accent, osScheme],
@@ -74,7 +74,8 @@ function AppShell() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <StatusBar style="auto" />
+      {/* The clock and battery icons follow the look chosen in the app, not the phone's own setting. */}
+      <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
       <ErrorBoundary>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.color.bg } }} />
       </ErrorBoundary>

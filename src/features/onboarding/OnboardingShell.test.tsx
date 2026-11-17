@@ -1,8 +1,13 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
 import { Dimensions, Text as RNText } from 'react-native';
-import { render, screen } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { router } from 'expo-router';
 
-jest.mock('@/queries', () => ({ useUpdateSettings: () => ({ mutateAsync: jest.fn().mockResolvedValue({ ok: true }) }) }));
+import { useToastStore } from '@/app-shell/stores/toast';
+import { ONBOARDING_SHELL_COPY } from './copy';
+
+const mockUpdateSettingsMutateAsync = jest.fn();
+jest.mock('@/queries', () => ({ useUpdateSettings: () => ({ mutateAsync: mockUpdateSettingsMutateAsync }) }));
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn().mockResolvedValue(null),
   setItemAsync: jest.fn().mockResolvedValue(undefined),
@@ -61,12 +66,58 @@ describe('OnboardingShell (the top bar and fit for all seven steps)', () => {
   it('Back is hidden on step 1 and shown from step 2', async () => {
     const first = await renderAt(390, 844, 1);
     expect(screen.queryByLabelText('Back')).toBeNull();
-    first.utils.unmount();
+    await first.utils.unmount();
     first.spy.mockRestore();
 
     const second = await renderAt(390, 844, 2);
     expect(screen.getByLabelText('Back')).toBeTruthy();
-    second.utils.unmount();
+    await second.utils.unmount();
     second.spy.mockRestore();
+  });
+});
+
+describe('OnboardingShell Skip (the save before leaving)', () => {
+  afterEach(() => jest.restoreAllMocks());
+  async function renderSkipShell() {
+    return renderAt(390, 844, 3);
+  }
+
+  beforeEach(() => {
+    mockUpdateSettingsMutateAsync.mockReset();
+    mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: true });
+    useToastStore.setState({ toast: null });
+  });
+
+  it('a saved Skip navigates to /today and shows no toast', async () => {
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await renderSkipShell();
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today'));
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ onboardingCompletedAt: expect.any(String) });
+    expect(useToastStore.getState().toast).toBeNull();
+  });
+
+  it('a failed save ({ ok: false }) shows the warning toast and does not navigate', async () => {
+    mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await renderSkipShell();
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(ONBOARDING_SHELL_COPY.skipFailure));
+    expect(useToastStore.getState().toast?.tone).toBe('warning');
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('a save that throws shows the same warning toast and does not navigate', async () => {
+    mockUpdateSettingsMutateAsync.mockRejectedValue(new Error('database closed'));
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await renderSkipShell();
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(ONBOARDING_SHELL_COPY.skipFailure));
+    expect(useToastStore.getState().toast?.tone).toBe('warning');
+    expect(replace).not.toHaveBeenCalled();
   });
 });

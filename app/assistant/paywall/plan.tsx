@@ -30,7 +30,8 @@ export default function S39ChoosePlanAndConfirm() {
     const result = await billing.purchase(plan);
     setVerifying(false);
     if (!result.ok) {
-      if (result.error.code === 'CANCELLED') setBiometricFailed(true);
+      // Closing the store's own sheet is the person changing their mind: no message. Only a failed identity check gets one.
+      if (result.error.code === 'CANCELLED') setBiometricFailed(result.error.cause === 'biometric');
       else setPurchaseError(true);
       return;
     }

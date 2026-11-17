@@ -24,7 +24,7 @@ describe('IndeterminateBar (splash loading bar)', () => {
       await Promise.resolve();
     });
     expect(loop).toHaveBeenCalledTimes(1);
-    unmount();
+    await unmount();
   });
 
   it('does not start a loop if it unmounts before the preference arrives', async () => {
@@ -32,7 +32,7 @@ describe('IndeterminateBar (splash loading bar)', () => {
     const pref = deferred<boolean>();
     jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockReturnValue(pref.promise);
     const { unmount } = await render(<IndeterminateBar />);
-    unmount();
+    await unmount();
     // React runs the effect cleanup asynchronously after unmount; let it run before the preference arrives.
     await act(async () => {});
     await act(async () => {

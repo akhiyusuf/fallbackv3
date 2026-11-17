@@ -4,7 +4,7 @@
  * `presentation="center"` is reserved for the milestone pop-up (D2).
  */
 import type { ReactNode } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,7 +30,8 @@ export function Dialog({ visible, onClose, title, children, presentation = 'shee
   const isSheet = presentation === 'sheet';
   return (
     <Modal visible={visible} transparent animationType={isSheet && Platform.OS !== 'web' ? 'slide' : 'fade'} onRequestClose={onClose} testID={testID}>
-      <View style={[styles.scrim, { backgroundColor: SCRIM, justifyContent: isSheet ? 'flex-end' : 'center' }]} accessibilityViewIsModal>
+      {/* Padded by the keyboard, so a dialog with a field (rename, edit) is not hidden under it. */}
+      <KeyboardAvoidingView behavior="padding" style={[styles.scrim, { backgroundColor: SCRIM, justifyContent: isSheet ? 'flex-end' : 'center' }]} accessibilityViewIsModal>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" accessibilityRole="button" />
         <View
           style={[isSheet ? styles.sheet : styles.center, { backgroundColor: t.color.bg }, isSheet && { paddingBottom: SPACE.s4 + insets.bottom }]}
@@ -54,7 +55,7 @@ export function Dialog({ visible, onClose, title, children, presentation = 'shee
             children
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
