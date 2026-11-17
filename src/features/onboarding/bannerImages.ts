@@ -16,3 +16,14 @@ export const BANNER_IMAGES: Record<OnboardingStep, ImageSourcePropType> = {
   6: require('../../../assets/onboarding/banner_6.webp') as ImageSourcePropType,
   7: require('../../../assets/onboarding/banner_7.webp') as ImageSourcePropType,
 };
+
+/** Each picture's width over its height (from the files), so the banner can size it exactly. */
+export const BANNER_ASPECT: Record<OnboardingStep, number> = {
+  1: 960 / 547,
+  2: 423 / 640,
+  3: 960 / 388,
+  4: 960 / 384,
+  5: 644 / 640,
+  6: 943 / 640,
+  7: 544 / 640,
+};

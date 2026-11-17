@@ -5,12 +5,15 @@
  *
  * Played with `expo-audio` from bundled files. The on/off choice ("Sounds" in Settings) is kept
  * on the device. Sounds mix with whatever the person is already playing and never take over the
- * audio session; on an iPhone the silent switch silences them.
+ * audio session. On an iPhone the silent switch silences them. On Android they follow the media
+ * volume, the way other apps' sounds do: `expo-audio` would otherwise drop every sound while the
+ * phone is on vibrate or silent, which on most Android phones is all day.
  *
  * Nothing here may ever break the action that asked for a sound: every native call is guarded.
  */
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 
 import { SOUND_FILES } from './sounds';
@@ -54,7 +57,7 @@ function playerFor(name: SoundName): AudioPlayer | null {
   try {
     if (!modeAsked) {
       modeAsked = true;
-      void setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => undefined);
+      void setAudioModeAsync({ playsInSilentMode: Platform.OS === 'android', interruptionMode: 'mixWithOthers' }).catch(() => undefined);
     }
     player = createAudioPlayer(SOUND_FILES[name]);
   } catch {
@@ -82,6 +85,13 @@ function start(name: SoundName): void {
     warmed = true;
     setTimeout(() => FREQUENT.forEach((n) => playerFor(n)), 0);
   }
+}
+
+/** Makes the sounds heard most ready in advance, so the first press is heard on the press. */
+export function warmUpSounds(): void {
+  if (warmed) return;
+  warmed = true;
+  FREQUENT.forEach((n) => playerFor(n));
 }
 
 const NOTHING = (): void => undefined;

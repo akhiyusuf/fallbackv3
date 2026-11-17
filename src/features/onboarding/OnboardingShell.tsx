@@ -4,7 +4,9 @@
  * the right. The main action is pinned at the bottom (D8).
  */
 import type { ReactNode } from 'react';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+// The screen's own navigation, read without throwing when there is none (a test renders the shell alone).
+import { NavigationContext } from 'expo-router/build/react-navigation/core';
 import { AccessibilityInfo, Animated, Easing, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
@@ -18,7 +20,7 @@ import { Button, useReduceMotion } from '@/ui';
 import type { IconComponent } from '@/ui';
 
 import { ONBOARDING_SHELL_COPY } from './copy';
-import { BANNER_IMAGES } from './bannerImages';
+import { BANNER_ASPECT, BANNER_IMAGES } from './bannerImages';
 import { ONBOARDING_NEEDS } from './onboardingNeeds';
 import { OnboardingPicture, PICTURE_HEIGHT, PICTURE_WIDTH } from './OnboardingPicture';
 import { finishOnboardingProgress } from './useOnboardingResume';
@@ -87,6 +89,15 @@ function planFor(height: number, width: number): Plan {
   const density = forced ?? DENSITIES.find((d) => room(d) >= best * NEAR) ?? 'tight';
   return { density, top: Math.max(HEADER_HEIGHT, room(density)) };
 }
+// Room kept around a picture: a little air above, more below so a cut-out never touches the banner's
+// rounded bottom edge, and side margins that keep a wide picture clear of the back and skip buttons.
+const PICTURE_TOP = 6;
+const PICTURE_BOTTOM = 16;
+const PICTURE_SIDE = 28;
+const DOT_SIZE = 8;
+const DOT_ACTIVE = 20;
+// The step shown last, so the next one knows which way the person is going.
+let lastShownStep = 0;
 // The height the top had on the step the person just left, so the next one can start from it.
 let lastTopHeight: number | null = null;
 
@@ -124,6 +135,7 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
   const [height, setHeight] = useState(windowHeight);
   const [width, setWidth] = useState(0);
   const [pictureRoom, setPictureRoom] = useState(0);
+  const [pictureRoomWidth, setPictureRoomWidth] = useState(0);
   const windowWidth = useWindowDimensions().width;
   // The measured needs are for a screen with no insets; the phone's own insets come off the room first.
   const plan = planFor(height - insets.top - insets.bottom, width > 0 ? width : windowWidth);
@@ -143,7 +155,79 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
     run.start();
     return () => run.stop();
   }, [basis, reduced, target]);
+  // Moving between steps does not swap the whole page. The banner and the button stay where they
+  // are; the new picture springs in from the side the person is heading, and the words rise into
+  // place one after another. Going back plays it the other way. Reduced motion shows it all at once.
+  const pictureIn = useState(() => new Animated.Value(0))[0];
+  const headlineIn = useState(() => new Animated.Value(0))[0];
+  const bodyIn = useState(() => new Animated.Value(0))[0];
+  const restIn = useState(() => new Animated.Value(0))[0];
+  const activeDot = useState(() => new Animated.Value(DOT_ACTIVE))[0];
+  const [direction, setDirection] = useState(() => (step >= lastShownStep ? 1 : -1));
+  const entrance = useRef<Animated.CompositeAnimation | null>(null);
+  function playEntrance() {
+    lastShownStep = step;
+    entrance.current?.stop();
+    const parts = [pictureIn, headlineIn, bodyIn, restIn];
+    if (reduced) {
+      parts.forEach((v) => v.setValue(1));
+      activeDot.setValue(DOT_ACTIVE);
+      return;
+    }
+    parts.forEach((v) => v.setValue(0));
+    activeDot.setValue(DOT_SIZE);
+    const rise = (v: Animated.Value, delay: number) =>
+      Animated.timing(v, { toValue: 1, duration: 420, delay, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    entrance.current = Animated.parallel([
+      Animated.spring(pictureIn, { toValue: 1, friction: 7, tension: 60, useNativeDriver: true }),
+      rise(headlineIn, 60),
+      rise(bodyIn, 130),
+      rise(restIn, 200),
+      Animated.timing(activeDot, { toValue: DOT_ACTIVE, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+    ]);
+    entrance.current.start();
+  }
+  useEffect(() => {
+    playEntrance();
+    return () => entrance.current?.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Coming back to a step (Back, or the phone's back gesture) plays it again, from the other side.
+  const navigation = useContext(NavigationContext);
+  const playRef = useRef(playEntrance);
+  useEffect(() => {
+    playRef.current = playEntrance;
+  });
+  useEffect(() => {
+    if (!navigation) return;
+    let left = false;
+    const offBlur = navigation.addListener('blur', () => {
+      left = true;
+    });
+    const offFocus = navigation.addListener('focus', () => {
+      if (left) {
+        setDirection(step >= lastShownStep ? 1 : -1);
+        playRef.current();
+      }
+      left = false;
+    });
+    return () => {
+      offBlur();
+      offFocus();
+    };
+  }, [navigation, step]);
+  const slide = (v: Animated.Value, distance: number) => ({
+    opacity: v,
+    transform: [
+      { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [direction * distance, 0] }) },
+      { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) },
+    ],
+  });
   const image = BANNER_IMAGES[step];
+  // The picture gets an exact size, worked out here, and the room centres it. Left to an image's
+  // own "fit inside" rule, Android drew some pictures against one side of the banner.
+  const aspect = BANNER_ASPECT[step];
+  const fitWidth = Math.max(0, Math.min(pictureRoomWidth - PICTURE_SIDE * 2, (pictureRoom - PICTURE_TOP - PICTURE_BOTTOM) * aspect));
   const pictureScale = Math.min(1.6, (pictureRoom - 12) / PICTURE_HEIGHT, width > 0 ? (width - 48) / PICTURE_WIDTH : 1.2);
 
   useEffect(() => {
@@ -193,10 +277,10 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
         </View>
         <View style={styles.dots} accessibilityLabel={`Step ${step} of ${ONBOARDING_TOTAL_STEPS}`}>
           {Array.from({ length: ONBOARDING_TOTAL_STEPS }, (_, i) => i + 1).map((dot) => (
-            <View
+            <Animated.View
               key={dot}
               testID={`onboarding-dot-${dot}`}
-              style={[styles.dot, { backgroundColor: t.accent.onLarge, opacity: dot === step ? 1 : dot < step ? 0.75 : 0.4, width: dot === step ? 20 : 8 }]}
+              style={[styles.dot, { backgroundColor: t.accent.onLarge, opacity: dot === step ? 1 : dot < step ? 0.75 : 0.4, width: dot === step ? activeDot : DOT_SIZE }]}
             />
           ))}
         </View>
@@ -206,20 +290,48 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
           </Pressable>
         </View>
       </View>
-      <View style={styles.pictureRoom} onLayout={(e) => setPictureRoom(e.nativeEvent.layout.height)}>
+      <View
+        style={styles.pictureRoom}
+        onLayout={(e) => {
+          setPictureRoom(e.nativeEvent.layout.height);
+          setPictureRoomWidth(e.nativeEvent.layout.width);
+        }}
+      >
         {pictureRoom < 44 ? null : image ? (
-          <Image source={image} resizeMode="contain" accessibilityElementsHidden importantForAccessibility="no" style={styles.image} />
+          fitWidth > 0 ? (
+            <Animated.View
+              style={{
+                opacity: pictureIn,
+                transform: [
+                  { translateX: pictureIn.interpolate({ inputRange: [0, 1], outputRange: [direction * 36, 0] }) },
+                  { scale: pictureIn.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
+                ],
+              }}
+            >
+            <Image
+              source={image}
+              resizeMode="contain"
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+              style={{ width: fitWidth, height: fitWidth / aspect, marginTop: PICTURE_TOP, marginBottom: PICTURE_BOTTOM }}
+            />
+            </Animated.View>
+          ) : null
         ) : (
           <OnboardingPicture step={step} scale={pictureScale} />
         )}
       </View>
       </Animated.View>
       <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact, density === 'tight' && styles.contentTight]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text accessibilityRole="header" style={[styles.headline, density === 'compact' && styles.headlineCompact, density === 'tight' && styles.headlineTight, { color: t.color.text }]}>
-          {headline}
-        </Text>
-        <Text style={[styles.bodyText, density === 'tight' && styles.bodyTight, { color: t.color.textMuted }]}>{body}</Text>
-        <View style={[styles.children, density !== 'regular' && styles.childrenCompact, density === 'tight' && styles.childrenTight]}>{children}</View>
+        <Animated.View style={slide(headlineIn, 24)}>
+          <Text accessibilityRole="header" style={[styles.headline, density === 'compact' && styles.headlineCompact, density === 'tight' && styles.headlineTight, { color: t.color.text }]}>
+            {headline}
+          </Text>
+        </Animated.View>
+        <Animated.View style={slide(bodyIn, 24)}>
+          <Text style={[styles.bodyText, density === 'tight' && styles.bodyTight, { color: t.color.textMuted }]}>{body}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.children, density !== 'regular' && styles.childrenCompact, density === 'tight' && styles.childrenTight, slide(restIn, 24)]}>{children}</Animated.View>
       </ScrollView>
       {/* Whatever room the banner does not take sits here, above the button. */}
       <View style={styles.flex} />
@@ -236,9 +348,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   // The top gives up its height before anything below has to scroll.
   top: { flexGrow: 0, flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  // A little air, so a cut-out never touches the banner's rounded bottom edge.
-  // Side margins keep a wide picture off the banner's edges and clear of the back and skip buttons.
-  image: { flex: 1, alignSelf: 'stretch', marginTop: 6, marginBottom: 16, marginHorizontal: 28 },
   pictureRoom: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   body: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto' },
   bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s2 + 4 },

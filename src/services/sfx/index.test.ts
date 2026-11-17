@@ -171,4 +171,30 @@ describe('sfx', () => {
     await flushPromises();
     expect(sfx.useSoundStore.getState().on).toBe(false);
   });
+
+  it('on Android, sounds follow the media volume rather than being dropped on vibrate or silent', () => {
+    loadFresh(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Platform } = require('react-native') as typeof import('react-native');
+      Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    });
+    sfx.play('tap');
+    expect(audio.setAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ playsInSilentMode: true, interruptionMode: 'mixWithOthers' }));
+  });
+
+  it('on an iPhone, the silent switch silences them', () => {
+    loadFresh(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Platform } = require('react-native') as typeof import('react-native');
+      Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+    });
+    sfx.play('tap');
+    expect(audio.setAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({ playsInSilentMode: false }));
+  });
+
+  it('warmUpSounds makes the frequent sounds ready before the first press', () => {
+    loadFresh();
+    sfx.warmUpSounds();
+    expect(audio.createAudioPlayer.mock.calls.length).toBeGreaterThanOrEqual(5);
+  });
 });

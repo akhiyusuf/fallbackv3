@@ -1050,6 +1050,33 @@ The human, after using the preview:
   (app and server copies) now tell it not to write em dashes either. This
   departs from the dash-heavy wording in `design-input/`, on the human's word.
 
+### Round 4, seventeenth pass (2026-11-17, after the first APK)
+
+The human, after installing the APK:
+
+- **"The sfx isn't in the app."** Cause found in `expo-audio`'s Android code:
+  with `playsInSilentMode: false` it refuses to start any sound while the
+  phone's ringer is on vibrate or silent. On Android the app now passes `true`,
+  so sounds follow the media volume like other apps; the iPhone keeps the
+  silent switch. The sounds heard most are also made ready at start-up, so the
+  first press is not late. Not confirmed on a phone yet.
+- **The onboarding pictures sat towards one side on the phone, not in the
+  centre.** The picture box was sized by the image's own "fit inside" rule,
+  which Android drew against one edge. Each picture now gets an exact width and
+  height worked out from the room in the banner and the picture's shape
+  (`BANNER_ASPECT`), and the room centres it. Measured in the browser at
+  360, 390, 412 and 480 wide: equal space left and right on all seven steps.
+- **"Instead of the entire page ... flipping from page to page, I want it to
+  animate in a very nice and interactive way."** Onboarding steps no longer
+  swap pages. The banner, dots and Next button stay where they are; the new
+  picture springs in from the side the person is heading, and the headline,
+  body and content rise in one after another (about half a second in all).
+  Back, and the phone's back gesture, play it from the other side. Reduced
+  motion shows it at once. Everywhere else in the app, a new screen on Android
+  slides in from the right over the last one (`ios_from_right`) instead of
+  Android's quick fade and jump (main session's reading: the human named
+  button presses in general).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

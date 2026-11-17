@@ -8,12 +8,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary, useAppBootstrap, useDayRollover, useThemeStore } from '@/app-shell';
 import { initNotificationsBridge } from '@/services/notifications';
+import { warmUpSounds } from '@/services/sfx';
 import { initWidgetsBridge } from '@/services/widgets';
 import { ThemeContext, buildTheme, resolveScheme } from '@/theme';
 import { Toast } from '@/ui/Toast';
@@ -70,6 +71,7 @@ function AppShell() {
   useEffect(() => {
     initNotificationsBridge();
     initWidgetsBridge();
+    warmUpSounds();
   }, []);
 
   return (
@@ -77,7 +79,17 @@ function AppShell() {
       {/* The clock and battery icons follow the look chosen in the app, not the phone's own setting. */}
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
       <ErrorBoundary>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.color.bg } }} />
+        <Stack
+          screenOptions={({ route }) => ({
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.color.bg },
+            // Onboarding steps do not swap pages: the shell keeps the banner and button in place and
+            // animates the new step's picture and words in (OnboardingShell). Elsewhere a new screen
+            // slides in over the last one, which eases back under it; Android's own change was a
+            // quick fade with a short jump.
+            animation: route.name.startsWith('onboarding/') ? 'none' : Platform.OS === 'android' ? 'ios_from_right' : 'default',
+          })}
+        />
       </ErrorBoundary>
       <AddMenuHost />
       <CelebrationHost />
