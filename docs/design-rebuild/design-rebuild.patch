@@ -940,15 +940,16 @@ diff -ruN a/src/features/assistant/TaskCreatedCard.tsx b/src/features/assistant/
  });
 diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant/TranscriptBubble.tsx
 --- a/src/features/assistant/TranscriptBubble.tsx	2026-11-16 05:43:15.822213600 +0000
-+++ b/src/features/assistant/TranscriptBubble.tsx	2026-11-16 07:14:18.914236249 +0000
++++ b/src/features/assistant/TranscriptBubble.tsx	2026-11-17 03:17:31.653406371 +0000
 @@ -1,8 +1,8 @@
 -/** M6. A single user/assistant text bubble in S32/S35's transcript. */
 +/** One chat bubble. The user's sits right in the accent tint; the assistant's sits left. */
  import { StyleSheet, Text, View } from 'react-native';
- import { Sparkles } from 'lucide-react-native';
+-import { Sparkles } from 'lucide-react-native';
  
 -import { RADIUS, SPACE, useTheme } from '@/theme';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { VoiceMark } from '@/ui';
  
  export interface TranscriptBubbleProps {
    readonly role: 'user' | 'assistant';
@@ -959,7 +960,7 @@ diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant
 -        <View style={[styles.avatar, { backgroundColor: t.color.surface }]} accessibilityElementsHidden importantForAccessibility="no">
 -          <Sparkles size={14} color={t.accent.base} />
 +        <View style={[styles.avatar, { backgroundColor: t.accent.soft }]} accessibilityElementsHidden importantForAccessibility="no">
-+          <Sparkles size={14} color={t.accent.text} />
++          <VoiceMark size={22} />
          </View>
        )}
        <View
@@ -987,7 +988,7 @@ diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant
  });
 diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
 --- a/src/features/assistant/copy.ts	2026-11-16 05:43:15.822152474 +0000
-+++ b/src/features/assistant/copy.ts	2026-11-16 06:17:32.401864713 +0000
++++ b/src/features/assistant/copy.ts	2026-11-17 03:17:31.653721179 +0000
 @@ -4,23 +4,27 @@
   */
  
@@ -1056,7 +1057,7 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
    savedToast: 'Saved',
  } as const;
  
-@@ -72,44 +76,43 @@
+@@ -72,45 +76,48 @@
    primer: {
      headline: 'Just say what you need.',
      body: 'The microphone powers the voice assistant. Audio is processed only when you tap the mic.',
@@ -1084,8 +1085,13 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
    retry: 'Retry',
    headline: 'Just say it. AI builds it.',
 -  subcopy: 'Speak naturally — Fallback AI turns it into routines, events & courses, each with an ideal and a fallback.',
+-  bullets: ['Voice-first — talk, no typing', 'Drafts ideal + fallback for you', 'Bulk-create a whole week at once'] as const,
 +  subcopy: 'Speak naturally. Fallback AI turns it into routines, events and courses, each with an ideal and a fallback.',
-   bullets: ['Voice-first — talk, no typing', 'Drafts ideal + fallback for you', 'Bulk-create a whole week at once'] as const,
++  benefits: [
++    { title: "Talk, don't type", body: 'Say what you want in your own words.' },
++    { title: 'Ideal and fallback, written for you', body: 'Every habit comes with both.' },
++    { title: 'A whole week in one go', body: 'Routines, events and courses together.' },
++  ] as const,
    cardA: {
 -    eyebrow: 'SUBSCRIBE',
 -    heading: 'Fallback AI Subscription',
@@ -1107,15 +1113,18 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
 -    heading: 'Use Your Own AI Key',
 +    heading: 'Use your own AI key',
      description:
-       'Already have an OpenAI-compatible API key? Connect it directly — free, no subscription. Your key stays on this device; calls go straight to your provider, never through Fallback\'s servers.',
+-      'Already have an OpenAI-compatible API key? Connect it directly — free, no subscription. Your key stays on this device; calls go straight to your provider, never through Fallback\'s servers.',
 -    bullets: ['Free — no subscription required', 'Works with OpenAI, Groq, local models & more'] as const,
 -    cta: 'Use Your Own AI Key',
-+    bullets: ['Free — no subscription required', 'Works with OpenAI, Groq, local models and more'] as const,
+-    finePrint: "If your endpoint can't transcribe audio, voice degrades gracefully to text.",
++      'Have an OpenAI-compatible API key? Connect it for free. The key stays on this device and calls go straight to your provider.',
++    bullets: ['Free, no subscription', 'Works with OpenAI, Groq, local models and more'] as const,
 +    cta: 'Use your own AI key',
-     finePrint: "If your endpoint can't transcribe audio, voice degrades gracefully to text.",
++    finePrint: "If your provider can't turn speech into text, you can still type.",
    },
    footerDisclosure:
-@@ -120,7 +123,8 @@
+     'While subscribed, your conversation messages are processed by our AI provider to generate responses — separate from your habit data, which never leaves this device.',
+@@ -120,7 +127,8 @@
  export const S39_COPY = {
    title: 'Choose your plan',
    annual: {
@@ -1125,7 +1134,7 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
      title: 'Annual',
      price: '$3.33/mo',
      billed: 'billed yearly',
-@@ -136,7 +140,7 @@
+@@ -136,7 +144,7 @@
    confirmIos: 'Confirm with Face ID',
    confirmAndroid: 'Confirm with fingerprint',
    verifying: 'Verifying…',
@@ -1134,7 +1143,7 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
    biometricFailed: "Face ID didn't recognize you — try again, or use your device passcode.",
    purchaseError: "Couldn't complete the purchase. Nothing was charged — try again.",
    retry: 'Retry',
-@@ -145,7 +149,7 @@
+@@ -145,7 +153,7 @@
  } as const;
  
  export const S40_COPY = {
@@ -1143,7 +1152,7 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
    intro:
      'Connect any OpenAI-compatible endpoint — OpenAI, Groq, a local model server, or another provider. Your key is stored only on this device; requests go straight to your provider, never through Fallback\'s servers.',
    baseUrlLabel: 'API base URL',
-@@ -154,10 +158,10 @@
+@@ -154,10 +162,10 @@
    apiKeyLabel: 'API key',
    apiKeyPlaceholder: 'sk-…',
    apiKeyHelper: 'Stored only on this device — never sent anywhere but your provider.',
@@ -2597,27 +2606,37 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
 +const styles = StyleSheet.create({ note: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
 diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/HookScreen.tsx
 --- a/src/features/onboarding/HookScreen.tsx	2026-11-16 05:43:15.822535341 +0000
-+++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 03:03:53.653562241 +0000
-@@ -1,35 +1,12 @@
++++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 03:17:31.660240599 +0000
+@@ -1,35 +1,60 @@
 -/** S02 — Onboarding: Hook. route: /onboarding/hook. Features: F9. */
-+/** S02 — onboarding step 2: why a plan B is worth having. */
++/**
++ * S02 — onboarding step 2: why a plan B is worth having. The same week shown twice, with and
++ * without a fallback. (The picture above is the plant; this is the proof, not a copy of it.)
++ */
  import { useRouter, type Href } from 'expo-router';
- import { Sprout } from 'lucide-react-native';
+-import { Sprout } from 'lucide-react-native';
 -import { View } from 'react-native';
--
++import { StyleSheet, Text, View } from 'react-native';
+ 
 -import { useUpdateSettings } from '@/queries';
 -import { now } from '@/lib/date';
--
++import { FONT_SIZE, SPACE, useTheme } from '@/theme';
++import { Card, WeekStrip, type WeekDayState } from '@/ui';
+ 
  import { S02_COPY } from './copy';
  import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingResumeRedirect } from './useOnboardingResume';
 +import { useOnboardingStepMarker } from './useOnboardingResume';
  
- export function HookScreen() {
-   const router = useRouter();
+-export function HookScreen() {
+-  const router = useRouter();
 -  const updateSettings = useUpdateSettings();
 -  const { resuming } = useOnboardingResumeRedirect('/onboarding/hook');
--
++const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
++/** Three good days and four hard ones. Only the hard days differ between the two rows. */
++const WITHOUT: readonly WeekDayState[] = ['ideal', 'missed', 'missed', 'ideal', 'missed', 'ideal', 'missed'];
++const WITH: readonly WeekDayState[] = ['ideal', 'fallback', 'fallback', 'ideal', 'fallback', 'ideal', 'fallback'];
+ 
 -  async function handleSkip() {
 -    // F9 edge case: a failed persist here is a silent retry-on-next-launch, never a blocking
 -    // error — the user still advances (S02's own spec, "States > Error").
@@ -2631,13 +2650,48 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
 -  }
 -
 -  if (resuming) return <View accessibilityLabel="Loading" />;
--
--  return (
--    <OnboardingShell step={1} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={handleNext} onSkip={handleSkip} />
--  );
++function week(states: readonly WeekDayState[]) {
++  return states.map((state, i) => ({ key: String(i), label: LETTERS[i] ?? '', state }));
++}
+ 
++export function HookScreen() {
++  const t = useTheme();
++  const router = useRouter();
 +  useOnboardingStepMarker('/onboarding/hook');
-+  return <OnboardingShell step={2} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={() => router.push('/onboarding/types' as Href)} />;
+   return (
+-    <OnboardingShell step={1} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={handleNext} onSkip={handleSkip} />
++    <OnboardingShell step={2} headline={S02_COPY.headline} body={S02_COPY.body} onNext={() => router.push('/onboarding/types' as Href)}>
++      <Card accessibilityLabel={`${S02_COPY.compareTitle}. ${S02_COPY.withoutLabel}: ${S02_COPY.withoutCount}. ${S02_COPY.withLabel}: ${S02_COPY.withCount}.`} style={styles.card}>
++        <Text style={[styles.title, { color: t.color.textMuted }]}>{S02_COPY.compareTitle}</Text>
++        <View style={styles.row}>
++          <View style={styles.rowHead}>
++            <Text style={[styles.label, { color: t.color.text }]}>{S02_COPY.withoutLabel}</Text>
++            <Text style={[styles.count, { color: t.color.textMuted }]}>{S02_COPY.withoutCount}</Text>
++          </View>
++          <WeekStrip days={week(WITHOUT)} size={26} />
++        </View>
++        <View style={[styles.rule, { backgroundColor: t.color.border }]} />
++        <View style={styles.row}>
++          <View style={styles.rowHead}>
++            <Text style={[styles.label, { color: t.color.text }]}>{S02_COPY.withLabel}</Text>
++            <Text style={[styles.count, { color: t.color.idealDeep }]}>{S02_COPY.withCount}</Text>
++          </View>
++          <WeekStrip days={week(WITH)} size={26} />
++        </View>
++      </Card>
++    </OnboardingShell>
+   );
  }
++
++const styles = StyleSheet.create({
++  card: { gap: SPACE.s2 + 4 },
++  title: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  row: { gap: SPACE.s2 },
++  rowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: SPACE.s2 },
++  label: { fontSize: FONT_SIZE.base, fontWeight: '800' },
++  count: { fontSize: FONT_SIZE.sm, fontWeight: '700', fontVariant: ['tabular-nums'] },
++  rule: { height: 1 },
++});
 diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
 +++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 19:34:15.563419261 +0000
@@ -3508,8 +3562,16 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
  });
 diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-17 03:03:53.654056527 +0000
-@@ -15,13 +15,11 @@
++++ b/src/features/onboarding/copy.ts	2026-11-17 03:17:31.668080299 +0000
+@@ -12,16 +12,19 @@
+ export const S02_COPY = {
+   headline: 'Something beats nothing.',
+   body: 'Build habits that survive your worst days — not just your best ones.',
++  compareTitle: 'The same week, twice',
++  withoutLabel: 'The full version or nothing',
++  withoutCount: '3 of 7 days',
++  withLabel: 'With a fallback',
++  withCount: '7 of 7 days',
  } as const;
  
  export const S03_COPY = {
@@ -3527,7 +3589,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
  } as const;
  
-@@ -32,14 +30,13 @@
+@@ -32,14 +35,13 @@
      { label: 'Routines', helper: 'Recurring, day to day.' },
      { label: 'Events', helper: 'One-off, at a set time.' },
      { label: 'Courses', helper: 'A run with an end date.' },
@@ -3543,7 +3605,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    bigNumeral: '83%',
    subLabel: '5 of 6 days you showed up',
    legend: { ideal: 'Ideal', fallback: 'Fallback', off: 'Off' },
-@@ -49,9 +46,9 @@
+@@ -49,9 +51,9 @@
  
  export const S06_COPY = {
    headline: 'Make it yours.',
@@ -3556,7 +3618,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    previewLabel: 'Preview',
    remindersSectionLabel: 'Reminders',
    remindersRowLabel: 'Gentle nudges for due habits',
-@@ -72,7 +69,7 @@
+@@ -72,7 +74,7 @@
  
  export const S08_COPY = {
    headline: 'Add your first habit.',
@@ -3565,7 +3627,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    lastStep: 'Last step',
    tiles: [
      { label: 'Routines', enabled: true },
-@@ -89,7 +86,7 @@
+@@ -89,7 +91,7 @@
    fallbackLabel: 'Fallback',
    fallbackPlaceholder: '10 pushups',
    fallbackHelper: 'The low bar — still counts as showing up.',
@@ -4220,8 +4282,8 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
  } as const;
 diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.tsx
 --- a/src/features/task/AddMenuHost.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/AddMenuHost.tsx	2026-11-16 16:56:15.514742361 +0000
-@@ -0,0 +1,80 @@
++++ b/src/features/task/AddMenuHost.tsx	2026-11-17 03:16:42.498230145 +0000
+@@ -0,0 +1,79 @@
 +/**
 + * AddMenuHost — S15 "What do you want to add?" as a bottom sheet over the
 + * dimmed current screen (D3). Fallback AI leads the sheet: speaking or typing
@@ -4230,7 +4292,7 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 + * is a coloured icon circle (D14) in one grouped list (D7).
 + * Mounted once in app/_layout.tsx.
 + */
-+import { CalendarRange, ListTodo, Repeat, Sparkles, Timer } from 'lucide-react-native';
++import { CalendarRange, ListTodo, Repeat, Timer } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
@@ -4270,7 +4332,6 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 +        <View style={styles.aiText}>
 +          <View style={styles.aiTitleRow}>
 +            <Text style={[styles.aiTitle, { color: t.color.text }]}>{AI_TITLE}</Text>
-+            <Sparkles size={16} color={t.accent.text} />
 +          </View>
 +          <Text style={[styles.aiBody, { color: t.color.text }]}>{AI_BODY}</Text>
 +        </View>
@@ -4364,14 +4425,15 @@ diff -ruN a/src/features/task/DeleteTaskSheet.tsx b/src/features/task/DeleteTask
 +}
 diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEditor.tsx
 --- a/src/features/task/StepListEditor.tsx	2026-11-16 05:43:15.821745148 +0000
-+++ b/src/features/task/StepListEditor.tsx	2026-11-16 05:56:01.153787126 +0000
-@@ -1,73 +1,60 @@
++++ b/src/features/task/StepListEditor.tsx	2026-11-17 03:16:42.497102541 +0000
+@@ -1,73 +1,106 @@
  /**
 - * M4 — shared ideal/fallback step-row editor (S16/S17/S18): drag handle (decorative — no
 - * reorder gesture in v1), text Input, ghost delete IconButton, "+ Add step" Button.
 + * StepListEditor — the ideal / fallback step list on every form.
 + * A bold heading (D19), one field per step with its delete inside the field,
-+ * and a single "Add step" button.
++ * and a single "Add step" button. When steps can run on different days, each step's days sit
++ * directly under that step, never in a separate section further down.
   */
  import { StyleSheet, Text, View } from 'react-native';
 -import { GripVertical, Plus, Trash2 } from 'lucide-react-native';
@@ -4379,9 +4441,24 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
  
 -import { SPACE, useTheme } from '@/theme';
 -import { Button, IconButton, Input } from '@/ui';
-+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
-+import { Button, IconButton, Input, SectionHeading } from '@/ui';
- import type { StepDraft } from '@/types';
+-import type { StepDraft } from '@/types';
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++import { Button, IconButton, Input, SectionHeading, WeekdayPicker } from '@/ui';
++import type { StepDraft, Weekday } from '@/types';
++
++const ALL_DAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
++
++/** Per-step days. Present only when the task runs on more than one day and has more than one step. */
++export interface StepDaySchedule {
++  /** The days the task itself runs; other days are locked. */
++  readonly parentDays: readonly Weekday[];
++  readonly onToggle: (index: number, day: Weekday) => void;
++  /** One line under the heading explaining the circles. */
++  readonly helper: string;
++  readonly footnote?: string;
++  /** A day that has ended up with no step due, e.g. "Wednesday". */
++  readonly bannerDay?: string;
++}
  
  export interface StepListEditorProps {
    readonly label: string;
@@ -4393,11 +4470,12 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
    readonly addLabel?: string;
 +  readonly placeholder?: string;
    readonly error?: string;
++  readonly schedule?: StepDaySchedule;
    readonly testID?: string;
  }
  
 -export function StepListEditor({ label, itemLabel, helper, steps, onChange, addLabel = '+ Add step', error, testID }: StepListEditorProps) {
-+export function StepListEditor({ label, itemLabel, helper, steps, onChange, addLabel = 'Add step', placeholder, error, testID }: StepListEditorProps) {
++export function StepListEditor({ label, itemLabel, helper, steps, onChange, addLabel = 'Add step', placeholder, error, schedule, testID }: StepListEditorProps) {
    const t = useTheme();
 -
 -  const updateText = (index: number, text: string) => {
@@ -4418,7 +4496,7 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
 -      <Text style={[styles.label, { color: t.color.text }]}>{label}</Text>
 +      <SectionHeading>{label}</SectionHeading>
        {helper ? <Text style={[styles.helper, { color: t.color.textMuted }]}>{helper}</Text> : null}
-       {steps.map((step, i) => (
+-      {steps.map((step, i) => (
 -        <View key={i} style={styles.row}>
 -          <GripVertical size={18} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
 -          <View style={styles.inputWrap}>
@@ -4428,21 +4506,48 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
 -              onChangeText={(text) => updateText(i, text)}
 -              placeholder="e.g. Review notes (30 min)"
 -              accessibilityLabel={`${itemLabel} ${i + 1}`}
--            />
--          </View>
++      {schedule ? <Text style={[styles.helper, { color: t.color.textMuted }]}>{schedule.helper}</Text> : null}
++      {schedule?.bannerDay ? (
++        <View accessibilityRole="alert" style={[styles.banner, { backgroundColor: t.color.dangerSoft }]}>
++          <Text style={[styles.helper, { color: t.scheme === 'dark' ? t.color.text : t.color.dangerDeep }]}>
++            {schedule.bannerDay} has no ideal step due. Turn at least one step back on for {schedule.bannerDay}.
++          </Text>
++        </View>
++      ) : null}
++      {steps.map((step, i) => {
++        const field = (
++          <Input
++            key={i}
++            label=""
++            value={step.text}
++            onChangeText={(text) => updateText(i, text)}
++            placeholder={placeholder ?? `${itemLabel} ${i + 1}`}
++            accessibilityLabel={`${itemLabel} ${i + 1}`}
++            right={<IconButton icon={Trash2} size={18} onPress={() => removeAt(i)} accessibilityLabel={`Delete ${itemLabel.toLowerCase()} ${i + 1}`} />}
++          />
++        );
++        if (!schedule) return field;
++        const on = (step.dueWeekdays ?? schedule.parentDays).filter((d) => schedule.parentDays.includes(d));
++        return (
++          <View key={i} style={[styles.stepBlock, i > 0 && styles.stepBlockGap]}>
++            {field}
++            <WeekdayPicker
++              selected={on}
++              disabledDays={ALL_DAYS.filter((d) => !schedule.parentDays.includes(d))}
++              onChange={(next) => {
++                const changed = [...next.filter((d) => !on.includes(d)), ...on.filter((d) => !next.includes(d))][0];
++                if (changed) schedule.onToggle(i, changed);
++              }}
++              accessibilityLabel={`Days for ${step.text.trim() || `${itemLabel.toLowerCase()} ${i + 1}`}`}
+             />
+           </View>
 -          <IconButton icon={Trash2} onPress={() => removeAt(i)} accessibilityLabel={`Delete ${itemLabel.toLowerCase()} ${i + 1}`} />
 -        </View>
-+        <Input
-+          key={i}
-+          label=""
-+          value={step.text}
-+          onChangeText={(text) => updateText(i, text)}
-+          placeholder={placeholder ?? `${itemLabel} ${i + 1}`}
-+          accessibilityLabel={`${itemLabel} ${i + 1}`}
-+          right={<IconButton icon={Trash2} size={18} onPress={() => removeAt(i)} accessibilityLabel={`Delete ${itemLabel.toLowerCase()} ${i + 1}`} />}
-+        />
-       ))}
+-      ))}
 -      <Button label={addLabel} onPress={add} variant="secondary" icon={<Plus size={16} color={t.color.text} />} accessibilityLabel={addLabel} />
++        );
++      })}
++      {schedule?.footnote ? <Text style={[styles.helper, { color: t.color.textMuted }]}>{schedule.footnote}</Text> : null}
        {error ? (
          <Text accessibilityRole="alert" style={[styles.error, { color: t.color.danger }]}>
            {error}
@@ -4462,6 +4567,9 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
 -  error: { fontSize: 14 },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  error: { fontSize: FONT_SIZE.sm },
++  stepBlock: { gap: SPACE.s2 },
++  stepBlockGap: { marginTop: SPACE.s2 },
++  banner: { borderRadius: RADIUS.sm, padding: SPACE.s2 + 4 },
  });
 diff -ruN a/src/features/task/StepScheduleSection.tsx b/src/features/task/StepScheduleSection.tsx
 --- a/src/features/task/StepScheduleSection.tsx	1970-01-01 00:00:00.000000000 +0000
@@ -9631,7 +9739,7 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
  });
 diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 --- a/app/add/course.tsx	2026-11-16 05:43:15.826512966 +0000
-+++ b/app/add/course.tsx	2026-11-17 03:03:53.652865669 +0000
++++ b/app/add/course.tsx	2026-11-17 03:16:42.497952422 +0000
 @@ -1,51 +1,32 @@
 -/**
 - * S18 — Create Course    route: /add/course
@@ -9657,7 +9765,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 +import { today as todayFn } from '@/lib/date';
  import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
  import { StepListEditor } from '@/features/task/StepListEditor';
-+import { StepScheduleSection, WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
++import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
 +import { SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
  import { isValidLocalDateString } from '@/features/task/dateValidation';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -9694,7 +9802,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
    const [cadence, setCadence] = useState<Cadence>({ kind: 'daily' });
    const [idealSteps, setIdealSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
    const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
-@@ -60,154 +41,87 @@
+@@ -60,154 +41,91 @@
    const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
  
    const parentDays = parentDaysFor(cadence);
@@ -9802,7 +9910,13 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 -        error={endDateError}
 -        accessibilityLabel="End date"
 -        placeholder={addDays(startDate, 10)}
-+      <CadencePicker value={cadence} onChange={setCadence} weekdayError={cadenceError} testID="course-cadence-picker" />
+-      />
+-      <Input label="Doses per day" value={dosesPerDay} onChangeText={setDosesPerDay} keyboardType="number-pad" accessibilityLabel="Doses per day" />
+-      {doses > 1 ? (
+-        <Text style={[styles.helper, { color: t.color.textMuted }]}>Each dose completes on its own — the day counts once every dose is handled.</Text>
+-      ) : null}
+-
+       <CadencePicker value={cadence} onChange={setCadence} weekdayError={cadenceError} testID="course-cadence-picker" />
 +      <Stepper
 +        label="Doses per day"
 +        value={doses}
@@ -9810,16 +9924,9 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 +        min={1}
 +        max={12}
 +        helper={doses > 1 ? 'Each dose is logged on its own. The day counts once every dose is handled.' : undefined}
-       />
--      <Input label="Doses per day" value={dosesPerDay} onChangeText={setDosesPerDay} keyboardType="number-pad" accessibilityLabel="Doses per day" />
--      {doses > 1 ? (
--        <Text style={[styles.helper, { color: t.color.textMuted }]}>Each dose completes on its own — the day counts once every dose is handled.</Text>
--      ) : null}
++      />
  
--      <CadencePicker value={cadence} onChange={setCadence} weekdayError={cadenceError} testID="course-cadence-picker" />
-+      <StepListEditor label="Ideal" itemLabel="Ideal step" helper="Your full version, on a good day." steps={idealSteps} onChange={setIdealSteps} error={idealError} testID="course-ideal-editor" />
- 
-       {showSubStepGrid ? (
+-      {showSubStepGrid ? (
 -        <View style={styles.subStepRegion}>
 -          <Text style={[styles.label, { color: t.color.text }]}>When does each step apply?</Text>
 -          <Text style={[styles.helper, { color: t.color.textMuted }]}>These toggles apply to the whole day, not a single dose.</Text>
@@ -9841,26 +9948,31 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 -        </View>
 -      ) : cadence.kind !== 'daily' && cadence.kind !== 'specific-weekdays' ? (
 -        <Text style={[styles.helper, { color: t.color.textMuted }]}>Single occurrence per period — nothing to subset.</Text>
-+        <StepScheduleSection
-+          steps={idealSteps}
-+          parentDays={parentDays}
-+          onToggle={(i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day))}
-+          helper="These apply to the whole day, not a single dose."
-+          footnote="A day logs as ideal once every dose is handled and every step due that day is complete."
-+          bannerDay={bannerDay}
-+          errorDays={errorWeekdays}
-+        />
-       ) : null}
- 
-       <StepListEditor
+-      ) : null}
+-
+-      <StepListEditor
 -        label="Ideal — your full version"
 -        itemLabel="Ideal step"
 -        steps={idealSteps}
--        onChange={setIdealSteps}
--        error={idealError}
--        testID="course-ideal-editor"
--      />
--      <StepListEditor
++      <StepListEditor label="Ideal" itemLabel="Ideal step" helper="Your full version, on a good day." steps={idealSteps}
+         onChange={setIdealSteps}
+         error={idealError}
++        schedule={
++          showSubStepGrid
++            ? {
++                parentDays,
++                onToggle: (i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day)),
++                helper: 'Under each step: the days it runs. These apply to the whole day, not a single dose.',
++                footnote: 'A day logs as ideal once every dose is handled and every step due that day is complete.',
++                bannerDay,
++              }
++            : undefined
++        }
+         testID="course-ideal-editor"
+       />
++
++
+       <StepListEditor
 -        label="Fallback — your minimum-viable version"
 +        label="Fallback"
          itemLabel="Fallback step"
@@ -9894,7 +10006,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 +const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: SPACE.s2 + 4 } });
 diff -ruN a/app/add/event.tsx b/app/add/event.tsx
 --- a/app/add/event.tsx	2026-11-16 05:43:15.826539891 +0000
-+++ b/app/add/event.tsx	2026-11-17 03:03:53.652729470 +0000
++++ b/app/add/event.tsx	2026-11-17 03:16:42.498082444 +0000
 @@ -1,45 +1,25 @@
 -/**
 - * S17 — Create Event    route: /add/event
@@ -9920,7 +10032,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
  import { today as todayFn } from '@/lib/date';
  import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
  import { StepListEditor } from '@/features/task/StepListEditor';
-+import { StepScheduleSection, WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
++import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
 +import { SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
  import { isValidLocalDateString } from '@/features/task/dateValidation';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -9958,7 +10070,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
  
    function buildDraft(): TaskDraft {
      return {
-@@ -73,137 +53,94 @@
+@@ -73,137 +53,97 @@
      };
    }
  
@@ -10071,8 +10183,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
  
        {tracking ? (
          <>
-+          <StepListEditor label="Ideal" itemLabel="Ideal step" helper="Your full version, on a good day." steps={idealSteps} onChange={setIdealSteps} testID="event-ideal-editor" />
-           {showSubStepGrid ? (
+-          {showSubStepGrid ? (
 -            <View style={styles.subStepRegion}>
 -              <Text style={[styles.label, { color: t.color.text }]}>When does each step apply?</Text>
 -              <Text style={[styles.helper, { color: t.color.textMuted }]}>
@@ -10093,17 +10204,23 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
 -            </View>
 -          ) : repeats && cadence.kind !== 'daily' && cadence.kind !== 'specific-weekdays' ? (
 -            <Text style={[styles.helper, { color: t.color.textMuted }]}>Single occurrence per period — nothing to subset.</Text>
-+            <StepScheduleSection
-+              steps={idealSteps}
-+              parentDays={parentDays}
-+              onToggle={(i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day))}
-+              helper="Every step runs each time the event is due, unless you narrow it here."
-+              bannerDay={bannerDay}
-+              errorDays={errorWeekdays}
-+            />
-           ) : null}
+-          ) : null}
 -
 -          <StepListEditor label="Ideal — your full version" itemLabel="Ideal step" steps={idealSteps} onChange={setIdealSteps} testID="event-ideal-editor" />
++          <StepListEditor label="Ideal" itemLabel="Ideal step" helper="Your full version, on a good day." steps={idealSteps}
++            onChange={setIdealSteps}
++            schedule={
++              showSubStepGrid
++                ? {
++                    parentDays,
++                    onToggle: (i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day)),
++                    helper: 'Under each step: the days it runs. Each time the event is due, unless you turn some off.',
++                    bannerDay,
++                  }
++                : undefined
++            }
++            testID="event-ideal-editor"
++          />
            <StepListEditor
 -            label="Fallback — your minimum-viable version"
 +            label="Fallback"
@@ -10236,7 +10353,7 @@ diff -ruN a/app/add/index.tsx b/app/add/index.tsx
 -});
 diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 --- a/app/add/routine.tsx	2026-11-16 05:43:15.826553558 +0000
-+++ b/app/add/routine.tsx	2026-11-17 03:08:49.183702236 +0000
++++ b/app/add/routine.tsx	2026-11-17 03:16:42.497823834 +0000
 @@ -1,59 +1,30 @@
 -/**
 - * S16 — Create Routine    route: /add/routine
@@ -10260,7 +10377,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
  import { useCreateTask } from '@/queries';
  import type { Cadence, Importance, Necessity, StepDraft, TaskDraft, Weekday } from '@/types';
  import { StepListEditor } from '@/features/task/StepListEditor';
-+import { StepScheduleSection, WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
++import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
 +import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
  import { useToastStore } from '@/app-shell/stores/toast';
 -import { ChevronLeft } from 'lucide-react-native';
@@ -10316,7 +10433,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
  
    function buildDraft(): TaskDraft {
      return {
-@@ -78,155 +49,106 @@
+@@ -78,155 +49,107 @@
        cadence: isAsNeeded ? null : cadence,
        importance,
        necessity,
@@ -10467,19 +10584,20 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
          steps={idealSteps}
          onChange={setIdealSteps}
          error={idealError}
++        schedule={
++          showSubStepGrid
++            ? {
++                parentDays,
++                onToggle: (i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day)),
++                helper: 'Under each step: the days it runs. Every day the routine is due, unless you turn some off.',
++                bannerDay,
++              }
++            : undefined
++        }
          testID="ideal-steps-editor"
        />
  
-+      {showSubStepGrid ? (
-+        <StepScheduleSection
-+          steps={idealSteps}
-+          parentDays={parentDays}
-+          onToggle={(i, day) => setIdealSteps((prev) => toggleStepDay(prev, parentDays, i, day))}
-+          helper="Every step runs on every day the routine is due, unless you narrow it here."
-+          bannerDay={bannerDay}
-+          errorDays={errorWeekdays}
-+        />
-+      ) : bannerDay ? (
++      {!showSubStepGrid && bannerDay ? (
 +        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.danger }]}>{`${bannerDay} has no ideal step due.`}</Text>
 +      ) : null}
 +
@@ -11735,8 +11853,8 @@ diff -ruN a/app/assistant/paywall/byo.tsx b/app/assistant/paywall/byo.tsx
  });
 diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 --- a/app/assistant/paywall/index.tsx	2026-11-16 05:43:15.826830951 +0000
-+++ b/app/assistant/paywall/index.tsx	2026-11-16 07:17:35.680542812 +0000
-@@ -1,20 +1,29 @@
++++ b/app/assistant/paywall/index.tsx	2026-11-17 03:17:31.654483824 +0000
+@@ -1,20 +1,17 @@
 -/**
 - * S38 — Paywall    route: /assistant/paywall
 - * Owner: M6. Features: F16, F17, F18.
@@ -11747,7 +11865,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
 -import { CheckCircle2, Sparkles } from 'lucide-react-native';
 +import { StyleSheet, Text, View } from 'react-native';
-+import { Check, RotateCcw, Sparkles } from 'lucide-react-native';
++import { CalendarRange, Check, KeyRound, Mic, PencilLine, RotateCcw } from 'lucide-react-native';
  import { useRouter, type Href } from 'expo-router';
  
 -import { AssistantHeader } from '@/features/assistant/AssistantHeader';
@@ -11756,27 +11874,15 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -import { SPACE, useTheme } from '@/theme';
 -import { Badge, Button, Card, InlineRetryBanner, Skeleton } from '@/ui';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
-+import { Badge, Button, Card, InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton } from '@/ui';
++import { Button, Card, InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton, tintedSurface, VoiceMark } from '@/ui';
  import { useToastStore } from '@/app-shell';
  
-+function Bullets({ items }: { readonly items: readonly string[] }) {
-+  const t = useTheme();
-+  return (
-+    <View style={styles.bullets}>
-+      {items.map((b) => (
-+        <View key={b} style={styles.bulletRow}>
-+          <Check size={18} color={t.color.idealDeep} />
-+          <Text style={[styles.bulletText, { color: t.color.text }]}>{b}</Text>
-+        </View>
-+      ))}
-+    </View>
-+  );
-+}
++const BENEFIT_ICONS = [Mic, PencilLine, CalendarRange] as const;
 +
  export default function S38Paywall() {
    const t = useTheme();
    const router = useRouter();
-@@ -34,11 +43,8 @@
+@@ -34,11 +31,8 @@
      void checkStore();
    }, []);
  
@@ -11789,7 +11895,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
      setRestoring(true);
      const result = await billing.restore();
      setRestoring(false);
-@@ -50,125 +56,71 @@
+@@ -50,125 +44,108 @@
    }
  
    return (
@@ -11800,9 +11906,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -          <Sparkles size={14} color={t.accent.base} />
 -          <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>{S38_COPY.eyebrow}</Text>
 -        </View>
-+    <Screen title={S38_COPY.title} level="page" onBack={() => router.replace('/assistant' as Href)}>
-+      {storeUnreachable ? <InlineRetryBanner message={S38_COPY.storeUnreachable} onRetry={checkStore} retryLabel={S38_COPY.retry} tone="warning" /> : null}
- 
+-
 -        {storeUnreachable ? (
 -          <InlineRetryBanner message={S38_COPY.storeUnreachable} onRetry={checkStore} retryLabel={S38_COPY.retry} tone="warning" />
 -        ) : null}
@@ -11817,44 +11921,84 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -        ) : (
 -          <>
 -            <Sparkles size={32} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" />
++    <Screen title={S38_COPY.title} level="page" onBack={() => router.replace('/assistant' as Href)}>
++      {storeUnreachable ? <InlineRetryBanner message={S38_COPY.storeUnreachable} onRetry={checkStore} retryLabel={S38_COPY.retry} tone="warning" /> : null}
++
 +      {loading ? (
 +        <>
-+          <Skeleton width={56} height={56} radius={28} />
-+          <Skeleton width="80%" height={28} />
-+          <Skeleton height={160} />
-+          <Skeleton height={160} />
++          <Skeleton height={150} radius={20} />
++          <Skeleton height={190} radius={20} />
++          <Skeleton height={200} radius={20} />
 +        </>
 +      ) : (
 +        <>
++          {/* The same star-and-wave mark as the voice screen and the add sheet. */}
 +          <View style={styles.hero}>
-+            <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
-+              <Sparkles size={28} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
++            <View style={[styles.orb, { backgroundColor: t.accent.soft }]}>
++              <VoiceMark size={84} />
 +            </View>
              <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
                {S38_COPY.headline}
              </Text>
              <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S38_COPY.subcopy}</Text>
-+            <Bullets items={S38_COPY.bullets} />
 +          </View>
  
--            <View style={styles.bullets}>
++          <ListGroup>
++            {S38_COPY.benefits.map((b, i) => (
++              <ListRow key={b.title} icon={BENEFIT_ICONS[i]} label={b.title} sublabel={b.body} chevron={false} />
++            ))}
++          </ListGroup>
++
++          {/* The plan: the one tinted block on the screen, price large, one button. */}
++          <View accessible={false} style={[styles.plan, tintedSurface(t, t.accent.fill)]}>
++            <View style={styles.planHead}>
++              <Text style={[styles.planName, { color: t.color.text }]}>{S38_COPY.cardA.heading}</Text>
++              <View style={[styles.trial, { backgroundColor: t.color.bgAlt }]}>
++                <Text style={[styles.trialLabel, { color: t.accent.text }]}>{S38_COPY.cardA.badge}</Text>
++              </View>
++            </View>
++            <View>
++              <Text style={[styles.price, { color: t.color.text }]}>{S38_COPY.cardA.price}</Text>
++              <Text style={[styles.note, { color: t.color.text }]}>{S38_COPY.cardA.priceSecondary}</Text>
++            </View>
++            <Button label={S38_COPY.cardA.cta} onPress={() => router.push('/assistant/paywall/plan' as Href)} disabled={storeUnreachable} accessibilityLabel={S38_COPY.cardA.cta} fullWidth />
++            <Text style={[styles.finePrint, { color: t.color.text }]}>{storeUnreachable ? S38_COPY.storeUnavailableFinePrint : S38_COPY.cardA.finePrint}</Text>
++          </View>
++
++          <View style={styles.or} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
++            <View style={[styles.orLine, { backgroundColor: t.color.border }]} />
++            <Text style={[styles.orLabel, { color: t.color.textMuted }]}>{S38_COPY.divider}</Text>
++            <View style={[styles.orLine, { backgroundColor: t.color.border }]} />
++          </View>
++
++          <Card accessibilityLabel={S38_COPY.cardB.heading} style={styles.card}>
++            <View style={styles.byoHead}>
++              <View style={[styles.byoIcon, { backgroundColor: t.color.surface }]}>
++                <KeyRound size={20} color={t.color.text} />
++              </View>
++              <Text style={[styles.planName, { color: t.color.text }]}>{S38_COPY.cardB.heading}</Text>
++            </View>
++            <Text style={[styles.note, { color: t.color.textMuted }]}>{S38_COPY.cardB.description}</Text>
+             <View style={styles.bullets}>
 -              {S38_COPY.bullets.map((b) => (
--                <View key={b} style={styles.bulletRow}>
++              {S38_COPY.cardB.bullets.map((b) => (
+                 <View key={b} style={styles.bulletRow}>
 -                  <CheckCircle2 size={16} color={t.color.ideal} />
--                  <Text style={[styles.bulletText, { color: t.color.text }]}>{b}</Text>
--                </View>
--              ))}
--            </View>
++                  <View style={[styles.tick, { backgroundColor: t.color.ideal }]}>
++                    <Check size={12} color={t.color.iconOnSignal} />
++                  </View>
+                   <Text style={[styles.bulletText, { color: t.color.text }]}>{b}</Text>
+                 </View>
+               ))}
+             </View>
 -
 -            {/* Card A — Subscribe */}
 -            <Card accessibilityLabel="Subscribe to Fallback AI" accessibilityRole="summary">
 -              <Text style={[styles.cardEyebrow, { color: t.accent.deep }]}>{S38_COPY.cardA.eyebrow}</Text>
-+          <Card accessibilityLabel={S38_COPY.cardA.heading} style={styles.card}>
-+            <View style={styles.headingRow}>
-               <Text style={[styles.cardHeading, { color: t.color.text }]}>{S38_COPY.cardA.heading}</Text>
+-              <Text style={[styles.cardHeading, { color: t.color.text }]}>{S38_COPY.cardA.heading}</Text>
 -              <Text style={[styles.price, { color: t.color.text }]}>{S38_COPY.cardA.price}</Text>
 -              <Text style={[styles.priceSecondary, { color: t.color.textMuted }]}>{S38_COPY.cardA.priceSecondary}</Text>
-               <Badge label={S38_COPY.cardA.badge} tone="accent" />
+-              <Badge label={S38_COPY.cardA.badge} tone="accent" />
 -              <Button
 -                label={S38_COPY.cardA.cta}
 -                onPress={() => router.push('/assistant/paywall/plan' as Href)}
@@ -11879,7 +12023,7 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -              <View style={[styles.dividerLine, { backgroundColor: t.color.border }]} />
 -              <Text style={[styles.dividerLabel, { color: t.color.textDim }]}>{S38_COPY.divider}</Text>
 -              <View style={[styles.dividerLine, { backgroundColor: t.color.border }]} />
-             </View>
+-            </View>
 -
 -            {/* Card B — Bring your own key. Structurally identical to Card A; never disabled by store outages. */}
 -            <Card accessibilityLabel="Use your own AI key" accessibilityRole="summary">
@@ -11910,18 +12054,6 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -        )}
 -      </ScrollView>
 -    </View>
-+            <View>
-+              <Text style={[styles.price, { color: t.color.text }]}>{S38_COPY.cardA.price}</Text>
-+              <Text style={[styles.note, { color: t.color.textMuted }]}>{S38_COPY.cardA.priceSecondary}</Text>
-+            </View>
-+            <Button label={S38_COPY.cardA.cta} onPress={() => router.push('/assistant/paywall/plan' as Href)} disabled={storeUnreachable} accessibilityLabel={S38_COPY.cardA.cta} fullWidth />
-+            <Text style={[styles.finePrint, { color: t.color.textMuted }]}>{storeUnreachable ? S38_COPY.storeUnavailableFinePrint : S38_COPY.cardA.finePrint}</Text>
-+          </Card>
-+
-+          <Card accessibilityLabel={S38_COPY.cardB.heading} style={styles.card}>
-+            <Text style={[styles.cardHeading, { color: t.color.text }]}>{S38_COPY.cardB.heading}</Text>
-+            <Text style={[styles.note, { color: t.color.textMuted }]}>{S38_COPY.cardB.description}</Text>
-+            <Bullets items={S38_COPY.cardB.bullets} />
 +            <Button label={S38_COPY.cardB.cta} onPress={() => router.push('/assistant/paywall/byo' as Href)} variant="secondary" accessibilityLabel={S38_COPY.cardB.cta} fullWidth testID="s38-byo-cta" />
 +            <Text style={[styles.finePrint, { color: t.color.textMuted }]}>{S38_COPY.cardB.finePrint}</Text>
 +          </Card>
@@ -11955,19 +12087,28 @@ diff -ruN a/app/assistant/paywall/index.tsx b/app/assistant/paywall/index.tsx
 -  dividerLine: { flex: 1, height: 1 },
 -  dividerLabel: { fontSize: 12, fontWeight: '600' },
 -  footerDisclosure: { fontSize: 12, lineHeight: 18, textAlign: 'center', paddingTop: SPACE.s2 },
-+  hero: { gap: SPACE.s2 + 4 },
-+  iconWrap: { width: 56, height: 56, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
-+  headline: { fontSize: FONT_SIZE.xl, fontWeight: '700', lineHeight: 30 },
-+  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24 },
-+  bullets: { gap: SPACE.s2 },
-+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-+  bulletText: { fontSize: FONT_SIZE.base, flexShrink: 1 },
-+  card: { gap: SPACE.s2 + 4 },
-+  headingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2 },
-+  cardHeading: { fontSize: FONT_SIZE.md, fontWeight: '700', flexShrink: 1 },
-+  price: { fontSize: FONT_SIZE.xl, fontWeight: '700' },
++  hero: { alignItems: 'center', gap: SPACE.s2, paddingTop: SPACE.s1 },
++  orb: { width: 124, height: 124, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s1 },
++  headline: { fontSize: FONT_SIZE.xl, fontWeight: '800', lineHeight: 30, textAlign: 'center' },
++  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
++  plan: { padding: SPACE.s3, gap: SPACE.s2 + 4 },
++  planHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2 },
++  planName: { fontSize: FONT_SIZE.base, fontWeight: '800', flexShrink: 1 },
++  trial: { borderRadius: RADIUS.pill, paddingHorizontal: SPACE.s2 + 2, paddingVertical: 4 },
++  trialLabel: { fontSize: FONT_SIZE.xs, fontWeight: '800' },
++  price: { fontSize: FONT_SIZE.xxl, lineHeight: 38, fontWeight: '800', fontVariant: ['tabular-nums'] },
 +  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  finePrint: { fontSize: FONT_SIZE.xs, lineHeight: 18, textAlign: 'center' },
++  or: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
++  orLine: { flex: 1, height: 2, borderRadius: 1 },
++  orLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  card: { gap: SPACE.s2 + 4 },
++  byoHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
++  byoIcon: { width: 40, height: 40, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
++  bullets: { gap: SPACE.s2 },
++  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
++  tick: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
++  bulletText: { fontSize: FONT_SIZE.sm, flexShrink: 1 },
  });
 diff -ruN a/app/assistant/paywall/plan.tsx b/app/assistant/paywall/plan.tsx
 --- a/app/assistant/paywall/plan.tsx	2026-11-16 05:43:15.826820147 +0000

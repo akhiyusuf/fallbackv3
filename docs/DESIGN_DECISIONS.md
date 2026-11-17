@@ -723,6 +723,28 @@ task's steps and history at once (`softDelete` cascades), so an Undo there is
 not a restyle: it needs the delete to be deferred, or the rows kept until the
 sweep. Architect decision; flagged to the human.
 
+### Round 4, sixth pass (2026-11-17, preview version 12)
+
+- **Onboarding step 2 ("Something beats nothing") looked empty.** It now has
+  one card under the words, "The same week, twice": the same seven days shown
+  as "The full version or nothing" (3 of 7 days) and "With a fallback"
+  (7 of 7 days), drawn with the app's own week dots. Still fits without
+  scrolling at all eight sizes.
+- **Fallback AI pricing screen (S38) redrawn.** It opens with the star-and-wave
+  mark, centred, then three benefit rows with icons, then the plan as the one
+  tinted block (price large, one button), an "or" divider, and the bring-your-
+  own-key card. Copy tightened: benefits are now a title and a line each; the
+  own-key description and its fine print are shorter and plainer.
+- **One mark for Fallback AI.** The loose sparkle icon is gone from the add
+  sheet title and from the assistant's chat bubbles; both use the mark.
+- **Step days sit under their step.** On the routine, event and course create
+  forms, the separate "When each step applies" section is gone. Each step's
+  day circles are directly beneath that step's field (`StepListEditor`
+  `schedule` prop), with one line of explanation under the heading.
+
+These change approved copy and layout in `design-input/` (S02, S15, S17, S18,
+S38); the spec needs the same changes before builders work from them.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
