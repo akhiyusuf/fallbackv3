@@ -95,6 +95,8 @@ Each source take is trimmed to the useful part, high-passed to remove rumble, fa
 - Silent on purpose: undo, menus (the human chose no sound). Also left silent, by the orchestrator's choice, so the tap does not become noise: icon buttons (back arrows, the add button, close crosses), list rows, chips, date and option pickers, and the Done / Fallback / Skip controls, which have their own sounds. Onboarding's Continue is a kit button, so it now taps.
 - A save is two sounds close together: the tap of the button, then the stamp when the save has gone through. Checked in a browser with `preview-harness/sfxcheck4.js`: bottom tab plays the tap, Skip today plays the flip, Save to-do plays the tap then the stamp.
 
+**Preview versions 1 to 20 were silent.** The clips were loaded with `fetch`, which the artifact viewer refuses even for inlined data. Fixed in version 21 (decoded from the inlined text instead); `preview-harness/sfxcheck5.js` checks the published page under a no-network policy. The human had not heard any edited sound in the app before version 21.
+
 ## Still needed before builders touch it
 
 - A line in the PRD (sound is a new feature) and a `sounds` setting stored with the other settings (the preview keeps it in the browser only).

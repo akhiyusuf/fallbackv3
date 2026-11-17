@@ -998,6 +998,23 @@ we don't burn credits" (step 4).
 - The two pieces of copy removed from onboarding step 7 in the thirteenth
   pass are still waiting on the human's yes or no.
 
+### Round 4, fifteenth pass (2026-11-17, preview version 21)
+
+- **The preview was silent; the human said so** ("I expected to hear my
+  chosen sfxs on the preview"). Cause: the sound service loaded each inlined
+  clip with `fetch`, and the artifact viewer forbids network calls, data:
+  addresses included. Every load failed quietly, so no sound has ever played
+  in the published preview, in any pass. The local checks ran against a
+  plain local server with no such rule and so reported sounds starting.
+- **Fix:** `src/services/sfx/index.ts` decodes the clip straight from its
+  inlined text (no `fetch`). `preview-harness/sfxcheck5.js` now loads the
+  published page wrapped as the viewer wraps it, under a policy that blocks
+  network calls: before the fix it shows the refusal and no sound; after, a
+  bottom tab starts the tap.
+- **Lesson for later checks:** anything that has to work in the published
+  preview is checked on the published page under that policy, not only on
+  the local build.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

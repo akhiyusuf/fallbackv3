@@ -6301,8 +6301,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/queries/mutatio
          deletedAt: null,
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/services/sfx/index.ts web/src/services/sfx/index.ts
 --- a/src/services/sfx/index.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/services/sfx/index.ts	2026-11-17 05:14:19.603686265 +0000
-@@ -0,0 +1,79 @@
++++ b/src/services/sfx/index.ts	2026-11-17 16:08:02.234677217 +0000
+@@ -0,0 +1,88 @@
 +/**
 + * Sounds. One call: `play('log_ideal')`. Every sound is cut from a recording of one object
 + * hitting another (no musical instruments), levelled as a set: frequent sounds are quiet and
@@ -6359,10 +6359,19 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/services/sfx/in
 +function load(c: Ctx, name: SoundName): Promise<AudioBuffer | null> {
 +  let p = buffers.get(name);
 +  if (!p) {
-+    p = fetch(SOUND_DATA[name])
-+      .then((r) => r.arrayBuffer())
-+      .then((b) => c.decodeAudioData(b))
-+      .catch(() => null);
++    // Decoded straight from the inlined text, never fetched: a host page that forbids network
++    // calls (the artifact viewer does) also refuses `fetch` of a data: address, which left every
++    // sound silent there. The callback form of decodeAudioData is the one every browser has.
++    p = new Promise<AudioBuffer | null>((resolve) => {
++      try {
++        const text = atob(SOUND_DATA[name].slice(SOUND_DATA[name].indexOf(',') + 1));
++        const bytes = new Uint8Array(text.length);
++        for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);
++        void c.decodeAudioData(bytes.buffer, resolve, () => resolve(null));
++      } catch {
++        resolve(null);
++      }
++    });
 +    buffers.set(name, p);
 +  }
 +  return p;
