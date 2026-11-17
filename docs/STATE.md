@@ -724,6 +724,16 @@ new sounds, and whether the tap should also be on icon buttons and list rows
 (left silent for now). Details: `docs/design-rebuild/SOUND_EFFECTS.md` and
 "Round 4, twelfth pass" in `docs/DESIGN_DECISIONS.md`.
 
+**Round 4, thirteenth pass (2026-11-17): Fallback Preview is at version 19.**
+From the human's screenshots: onboarding banners were uneven and small in
+their window. Now all seven steps share one banner height (step 5 up to 15%
+taller), bought by tightening the type on every step together; and step 4's
+example data matches the marble tray picture (86%, 6 of 7 days). Waiting on
+the human: a look at the new sizes, and a yes or no on the copy this removed
+from step 7 (the helper line under each field, and on short screens the "It
+runs every day" line). Details: "Round 4, thirteenth pass" in
+`docs/DESIGN_DECISIONS.md`.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go

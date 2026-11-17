@@ -941,6 +941,52 @@ before builders work from them.
   onboarding fit check passes at all 14 sizes. **Not checked:** by ear.
   Levels are set by measurement.
 
+### Round 4, thirteenth pass (2026-11-17, preview version 19)
+
+The human sent screenshots of onboarding in their preview window (about
+375 by 609): step 5's banner was about 200 px, steps 1 to 4 about 135,
+steps 6 and 7 about 115, with empty room under steps 4 and 6. Their words:
+step 5 "should be a bit bigger ... so that all the space at the bottom will
+be used up", and the text in the others should shrink "so that the others
+may share the exact same space that the fifth one is using". Also: "the art
+doesn't match the example data so make the example data match it, this way
+we don't burn credits" (step 4).
+
+- **One banner height for all seven steps.** Replaces the two groups
+  (steps 1 to 4, steps 6 and 7) of the eleventh pass. The height is what the
+  fullest step leaves free, capped at 36% of the screen. Step 5 may run up
+  to 15% taller, to use the room it would otherwise leave empty.
+- **The type tightens on all steps together, in favour of the banner.** A
+  roomier setting is used only if the banner keeps at least 92% of what the
+  tightest setting would give it. Result on a 390-wide phone: tight below about 760 px
+  of height, compact from there to about 860, regular above.
+- **What was tightened on a short screen ("tight"):** headline 22/27 and
+  body 14/20 on every step; smaller gaps and paddings; step 1's card and
+  privacy line; step 2's card and day circles (24); step 3's tiles put the
+  icon beside the label (28 px icon) instead of above it; step 7's fields
+  are 44 high instead of 48 (`dense` on the kit `Input`).
+- **Copy removed, for the human to confirm.** Step 7 no longer shows the
+  helper line under each field at any size ("What do you want to build?",
+  "The full version, on a good day.", "The low bar — still counts as showing
+  up."): the three cost 66 px and the placeholders already give an example
+  of each. On a short screen step 7 also drops "It runs every day. You can
+  change that anytime." These are in the design's verbatim copy, so the
+  human decides whether they stay out.
+- **Measured, in the human's window (375 by 609):** every banner 190 px,
+  step 5 215 px. Before: 134, 203 and 116. On a 390 by 844 phone: 304 on
+  every step, 350 on step 5.
+- **The measurements moved into their own generated file.**
+  `src/features/onboarding/onboardingNeeds.ts` is written by
+  `preview-harness/obneed.js`, which now forces each type setting (the shell
+  obeys `globalThis.__obDensity`) instead of relying on window height. Any
+  change to a step's content needs a re-measure.
+- **Step 4's example matches the tray in the picture.** The picture shows a
+  week tray with four green marbles and two blue in it and the seventh place
+  empty. The example now reads 86%, "6 of 7 days you showed up", a bar of
+  four ideal, two fallback and one empty seventh, and a legend of Ideal and
+  Fallback only (no Off, since the picture has none). The design had 83%,
+  5 of 6, with an off day. No image was generated.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

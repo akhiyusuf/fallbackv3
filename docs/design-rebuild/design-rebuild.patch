@@ -2324,8 +2324,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/notifi
 +});
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/ConceptScreen.tsx web/src/features/onboarding/ConceptScreen.tsx
 --- a/src/features/onboarding/ConceptScreen.tsx	2026-11-16 05:43:15.822544297 +0000
-+++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-17 03:03:53.653452636 +0000
-@@ -1,53 +1,34 @@
++++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-17 14:25:10.449249378 +0000
+@@ -1,68 +1,51 @@
 -/** S03 — Onboarding: Concept (ideal + fallback). route: /onboarding/concept. Features: F9, F2. */
 +/** S03 — onboarding step 1 (it leads the tour: the idea first, then the reason for it). The example uses the real task-card pieces so it matches the app. */
  import { useRouter, type Href } from 'expo-router';
@@ -2342,8 +2342,9 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +import { Card, TaskIcon } from '@/ui';
  
  import { S03_COPY } from './copy';
- import { OnboardingShell } from './OnboardingShell';
+-import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
++import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
 +import { useOnboardingResumeRedirect } from './useOnboardingResume';
  
  export function ConceptScreen() {
@@ -2361,6 +2362,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -  function handleNext() {
 -    router.push('/onboarding/types' as Href);
 -  }
++  const tight = useOnboardingDensity() === 'tight';
 +  // The first step is the one that reads the saved place back and forwards a returning person.
 +  const { resuming } = useOnboardingResumeRedirect('/onboarding/concept');
 +  if (resuming) return <View accessibilityLabel="Loading" />;
@@ -2384,7 +2386,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S03_COPY.fallbackLabel}</Text>
 -            <Text style={[styles.rowHelper, { color: t.color.textMuted }]}>{S03_COPY.fallbackHelper}</Text>
 +    <OnboardingShell step={1} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={() => router.push('/onboarding/hook' as Href)}>
-+      <Card accessibilityLabel="Example: Morning workout. Ideal: full workout, 30 minutes. Fallback: 10 pushups." style={styles.card}>
++      <Card accessibilityLabel="Example: Morning workout. Ideal: full workout, 30 minutes. Fallback: 10 pushups." style={[styles.card, tight && styles.cardTight]}>
 +        <View style={styles.head}>
 +          <TaskIcon icon={Dumbbell} />
 +          <View style={styles.text}>
@@ -2396,7 +2398,11 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
        </Card>
        <View style={styles.privacyRow} accessibilityLabel={S03_COPY.privacy}>
          <Lock size={16} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-@@ -58,11 +39,10 @@
+-        <Text style={[styles.privacyText, { color: t.color.textMuted }]}>{S03_COPY.privacy}</Text>
++        <Text style={[styles.privacyText, tight && styles.privacyTight, { color: t.color.textMuted }]}>{S03_COPY.privacy}</Text>
+       </View>
+     </OnboardingShell>
+   );
  }
  
  const styles = StyleSheet.create({
@@ -2408,6 +2414,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -  privacyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2, marginTop: SPACE.s2 },
 -  privacyText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
 +  card: { gap: SPACE.s2 + 4 },
++  cardTight: { gap: SPACE.s2, padding: SPACE.s2 + 4 },
++  privacyTight: { fontSize: 13, lineHeight: 18 },
 +  head: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
 +  text: { flex: 1, gap: 2 },
 +  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
@@ -2416,7 +2424,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/ConsistencyScreen.tsx web/src/features/onboarding/ConsistencyScreen.tsx
 --- a/src/features/onboarding/ConsistencyScreen.tsx	2026-11-16 05:43:15.822426326 +0000
-+++ b/src/features/onboarding/ConsistencyScreen.tsx	2026-11-16 06:06:46.785498886 +0000
++++ b/src/features/onboarding/ConsistencyScreen.tsx	2026-11-17 14:25:10.452091151 +0000
 @@ -1,51 +1,39 @@
 -/** S05 — Onboarding: Consistency, not perfection. route: /onboarding/consistency. Features: F9, F5. */
 +/** S05 — onboarding step 4. */
@@ -2462,7 +2470,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -        <Text style={[styles.eyebrow, { color: t.color.textDim }]}>{S05_COPY.eyebrow}</Text>
 -        <Text style={[styles.numeral, { color: t.color.text }]}>{S05_COPY.bigNumeral}</Text>
 +    <OnboardingShell step={4} icon={TrendingUp} headline={S05_COPY.headline} body={S05_COPY.body} onNext={() => router.push('/onboarding/personalize' as Href)}>
-+      <Card accessibilityLabel="Example: 83 percent, 5 of 6 days you showed up. Breakdown: ideal, fallback, off." style={styles.card}>
++      <Card accessibilityLabel="Example: 86 percent, 6 of 7 days you showed up. Four ideal days and two fallback days." style={styles.card}>
 +        <View style={styles.head}>
 +          <Text style={[styles.numeral, { color: t.color.text }]}>{S05_COPY.bigNumeral}</Text>
 +          <StatusPill label="Example" />
@@ -2487,7 +2495,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/FirstTaskScreen.tsx web/src/features/onboarding/FirstTaskScreen.tsx
 --- a/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 05:43:15.822514959 +0000
-+++ b/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 18:29:55.020917820 +0000
++++ b/src/features/onboarding/FirstTaskScreen.tsx	2026-11-17 14:26:37.730107199 +0000
 @@ -1,24 +1,24 @@
 -/** S08 — Onboarding: First Task. route: /onboarding/first-task. Features: F9, F2. */
 +/** S08 — onboarding step 7: add the first routine. Same top bar as every other step (D6). */
@@ -2538,7 +2546,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
      const draft: TaskDraft = {
        type: 'routine',
        name: name.trim(),
-@@ -56,108 +52,41 @@
+@@ -56,108 +52,43 @@
        idealSteps: [{ text: ideal.trim(), dueWeekdays: null }],
        fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
      };
@@ -2559,8 +2567,9 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
      router.replace('/today?justAdded=1' as Href);
    }
  
-+  // On the smallest phones the helper lines go, so the form still fits; the placeholders carry the examples.
-+  const field = (key: 'name' | 'ideal' | 'fallback', label: string, placeholder: string, helper: string, value: string, set: (v: string) => void) => (
++  // No helper line under each field: three of them cost the banner 66 px on every phone, and the
++  // placeholders already show an example of each. An error still appears under its field.
++  const field = (key: 'name' | 'ideal' | 'fallback', label: string, placeholder: string, value: string, set: (v: string) => void) => (
 +    <Input
 +      label={label}
 +      value={value}
@@ -2569,7 +2578,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +        if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
 +      }}
 +      placeholder={placeholder}
-+      helper={errors[key] || tight ? undefined : helper}
++      dense={tight}
 +      error={errors[key]}
 +    />
 +  );
@@ -2648,10 +2657,11 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -      </View>
 -    </View>
 +    <OnboardingShell step={7} icon={Plus} headline={S08_COPY.headline} body={S08_COPY.body} onNext={() => void handleSave()} nextLabel={S08_COPY.save} nextLoading={saving}>
-+      {field('name', S08_COPY.nameLabel, S08_COPY.namePlaceholder, S08_COPY.nameHelper, name, setName)}
-+      {field('ideal', S08_COPY.idealLabel, S08_COPY.idealPlaceholder, S08_COPY.idealHelper, ideal, setIdeal)}
-+      {field('fallback', S08_COPY.fallbackLabel, S08_COPY.fallbackPlaceholder, S08_COPY.fallbackHelper, fallback, setFallback)}
-+      <Text style={[styles.note, { color: t.color.textMuted }]}>{S08_COPY.cadenceNote}</Text>
++      {field('name', S08_COPY.nameLabel, S08_COPY.namePlaceholder, name, setName)}
++      {field('ideal', S08_COPY.idealLabel, S08_COPY.idealPlaceholder, ideal, setIdeal)}
++      {field('fallback', S08_COPY.fallbackLabel, S08_COPY.fallbackPlaceholder, fallback, setFallback)}
++      {/* On a short screen this line goes: the words above already say the routine is daily. */}
++      {tight ? null : <Text style={[styles.note, { color: t.color.textMuted }]}>{S08_COPY.cadenceNote}</Text>}
 +    </OnboardingShell>
    );
  }
@@ -2671,8 +2681,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +const styles = StyleSheet.create({ note: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/HookScreen.tsx web/src/features/onboarding/HookScreen.tsx
 --- a/src/features/onboarding/HookScreen.tsx	2026-11-16 05:43:15.822535341 +0000
-+++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 03:17:31.660240599 +0000
-@@ -1,35 +1,60 @@
++++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 14:25:10.449847364 +0000
+@@ -1,35 +1,63 @@
 -/** S02 — Onboarding: Hook. route: /onboarding/hook. Features: F9. */
 +/**
 + * S02 — onboarding step 2: why a plan B is worth having. The same week shown twice, with and
@@ -2689,8 +2699,9 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +import { Card, WeekStrip, type WeekDayState } from '@/ui';
  
  import { S02_COPY } from './copy';
- import { OnboardingShell } from './OnboardingShell';
+-import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingResumeRedirect } from './useOnboardingResume';
++import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
 +import { useOnboardingStepMarker } from './useOnboardingResume';
  
 -export function HookScreen() {
@@ -2722,26 +2733,27 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +export function HookScreen() {
 +  const t = useTheme();
 +  const router = useRouter();
++  const tight = useOnboardingDensity() === 'tight';
 +  useOnboardingStepMarker('/onboarding/hook');
    return (
 -    <OnboardingShell step={1} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={handleNext} onSkip={handleSkip} />
 +    <OnboardingShell step={2} headline={S02_COPY.headline} body={S02_COPY.body} onNext={() => router.push('/onboarding/types' as Href)}>
-+      <Card accessibilityLabel={`${S02_COPY.compareTitle}. ${S02_COPY.withoutLabel}: ${S02_COPY.withoutCount}. ${S02_COPY.withLabel}: ${S02_COPY.withCount}.`} style={styles.card}>
++      <Card accessibilityLabel={`${S02_COPY.compareTitle}. ${S02_COPY.withoutLabel}: ${S02_COPY.withoutCount}. ${S02_COPY.withLabel}: ${S02_COPY.withCount}.`} style={[styles.card, tight && styles.cardTight]}>
 +        <Text style={[styles.title, { color: t.color.textMuted }]}>{S02_COPY.compareTitle}</Text>
-+        <View style={styles.row}>
++        <View style={[styles.row, tight && styles.rowTight]}>
 +          <View style={styles.rowHead}>
 +            <Text style={[styles.label, { color: t.color.text }]}>{S02_COPY.withoutLabel}</Text>
 +            <Text style={[styles.count, { color: t.color.textMuted }]}>{S02_COPY.withoutCount}</Text>
 +          </View>
-+          <WeekStrip days={week(WITHOUT)} size={26} />
++          <WeekStrip days={week(WITHOUT)} size={tight ? 24 : 26} />
 +        </View>
 +        <View style={[styles.rule, { backgroundColor: t.color.border }]} />
-+        <View style={styles.row}>
++        <View style={[styles.row, tight && styles.rowTight]}>
 +          <View style={styles.rowHead}>
 +            <Text style={[styles.label, { color: t.color.text }]}>{S02_COPY.withLabel}</Text>
 +            <Text style={[styles.count, { color: t.color.idealDeep }]}>{S02_COPY.withCount}</Text>
 +          </View>
-+          <WeekStrip days={week(WITH)} size={26} />
++          <WeekStrip days={week(WITH)} size={tight ? 24 : 26} />
 +        </View>
 +      </Card>
 +    </OnboardingShell>
@@ -2750,6 +2762,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +
 +const styles = StyleSheet.create({
 +  card: { gap: SPACE.s2 + 4 },
++  cardTight: { gap: SPACE.s2, padding: SPACE.s2 + 4 },
++  rowTight: { gap: SPACE.s1 + 2 },
 +  title: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
 +  row: { gap: SPACE.s2 },
 +  rowHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: SPACE.s2 },
@@ -3120,8 +3134,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +});
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/OnboardingShell.tsx web/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 06:13:59.893971996 +0000
-@@ -1,99 +1,231 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 14:24:35.420372503 +0000
+@@ -1,99 +1,227 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -3149,6 +3163,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  
  import { ONBOARDING_SHELL_COPY } from './copy';
 +import { BANNER_IMAGES } from './bannerImages';
++import { ONBOARDING_NEEDS } from './onboardingNeeds';
 +import { OnboardingPicture, PICTURE_HEIGHT, PICTURE_WIDTH } from './OnboardingPicture';
 +import { finishOnboardingProgress } from './useOnboardingResume';
 +
@@ -3179,47 +3194,46 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  );
 +}
 +/**
-+ * How tightly a step is set. The last two steps carry the most below their words (a form, two
-+ * buttons), so they tighten earlier: otherwise a mid-height screen leaves their banner no room
-+ * for its picture.
++ * Every step's banner (the coloured top) is the same height, so the words start at the same
++ * place on all seven steps and no picture is smaller than another. That height is what the
++ * fullest step leaves free, up to BANNER_SHARE of the screen. To keep it generous the type and
++ * the gaps tighten on ALL steps together ("compact", then "tight"): a roomier setting is used
++ * only when it costs the banner almost nothing (NEAR). Step 5 has the least below its words,
++ * so its banner may run a little taller (STEP5_EXTRA) to use up the room it would leave empty.
++ *
++ * ONBOARDING_NEEDS is the height each step needs below the banner (words, example, buttons),
++ * measured in the built app by docs/design-rebuild/preview-harness/obneed.js. Re-measure after
++ * changing any step's content or these styles.
 + */
-+function densityFor(height: number, end = false): OnboardingDensity {
-+  if (end) return height >= 800 ? 'regular' : height >= 730 ? 'compact' : 'tight';
-+  return height >= 760 ? 'regular' : height >= 650 ? 'compact' : 'tight';
-+}
-+/**
-+ * The banner is the coloured top of a step. Steps 1 to 4 share one height and steps 6 and 7
-+ * share another, so the words do not jump between them. Step 5 has little below its words, so
-+ * its banner takes all the room that is left. Moving between steps eases from the banner the
-+ * person was just looking at to the new one.
-+ */
-+type BannerKind = 'main' | 'tall' | 'end';
-+function bannerKind(step: number): BannerKind {
-+  return step === 5 ? 'tall' : step >= 6 ? 'end' : 'main';
-+}
-+/**
-+ * The height the words, the example and the button need below the banner: the tallest step of
-+ * each group, measured in the built app at each width (docs/design-rebuild/preview-harness/obneed.js).
-+ * Rows are [from this width, steps 1 to 4, steps 6 and 7]; a narrower screen wraps more, so it needs more.
-+ */
-+const NEEDS: Record<OnboardingDensity, readonly (readonly [number, number, number])[]> = {
-+  tight: [[0, 487, 505], [360, 467, 485], [390, 447, 485]],
-+  compact: [[0, 521, 620], [344, 521, 596], [360, 521, 576], [375, 501, 576], [390, 487, 576]],
-+  regular: [[0, 587, 720], [344, 587, 696], [360, 587, 638], [390, 567, 638]],
-+};
-+const BANNER_MAX = 240;
-+// Room kept spare so a slightly wider typeface on a real phone does not push the step into scrolling.
++const BANNER_SHARE = 0.36;
++const NEAR = 0.92;
++const STEP5_EXTRA = 1.15;
++// Room kept spare so a slightly wider typeface on a real phone does not push a step into scrolling.
 +const NEED_SLACK = 8;
-+/**
-+ * Height of the whole top (bar and banner) for a step, before the phone's top inset: everything
-+ * the tallest step of its group does not need, up to BANNER_MAX. If a step still turns out
-+ * taller than measured, the top gives up height before anything scrolls (flexShrink below).
-+ */
-+function topHeight(kind: BannerKind, height: number, width: number): number {
-+  let need = 0;
-+  for (const [from, main, end] of NEEDS[densityFor(height, kind === 'end')]) if (width >= from) need = kind === 'end' ? end : main;
-+  need += NEED_SLACK;
-+  return Math.max(HEADER_HEIGHT, Math.min(BANNER_MAX, height - need));
++const DENSITIES: readonly OnboardingDensity[] = ['regular', 'compact', 'tight'];
++function needsAt(density: OnboardingDensity, width: number): readonly number[] {
++  const rows = ONBOARDING_NEEDS[density];
++  let found = rows[0]!;
++  for (const row of rows) if (width >= row[0]!) found = row;
++  return found.slice(1);
++}
++interface Plan {
++  readonly density: OnboardingDensity;
++  /** Height of the whole top (bar and banner) on every step, before the phone's top inset. */
++  readonly top: number;
++  /** The same for step 5. */
++  readonly topStep5: number;
++}
++function planFor(height: number, width: number): Plan {
++  const cap = Math.round(height * BANNER_SHARE);
++  const room = (d: OnboardingDensity) => Math.min(cap, height - Math.max(...needsAt(d, width)) - NEED_SLACK);
++  const best = room('tight');
++  // Only for the measuring script, which has to see each setting at any window size.
++  const forced = (globalThis as { __obDensity?: OnboardingDensity }).__obDensity;
++  const density = forced ?? DENSITIES.find((d) => room(d) >= best * NEAR) ?? 'tight';
++  const top = Math.max(HEADER_HEIGHT, room(density));
++  const step5Room = height - (needsAt(density, width)[4] ?? 0) - NEED_SLACK;
++  return { density, top, topStep5: Math.max(top, Math.min(step5Room, Math.round(top * STEP5_EXTRA))) };
 +}
 +// The height the top had on the step the person just left, so the next one can start from it.
 +let lastTopHeight: number | null = null;
@@ -3283,29 +3297,25 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  const [height, setHeight] = useState(windowHeight);
 +  const [width, setWidth] = useState(0);
 +  const [pictureRoom, setPictureRoom] = useState(0);
-+  const kind = bannerKind(step);
-+  // Judged on the room inside the phone's insets, the same room topHeight works with.
-+  const density = densityFor(height - insets.top - insets.bottom, kind === 'end');
-+  useEffect(() => publishDensity(density), [density]);
-+  const barAndInset = HEADER_HEIGHT + insets.top;
 +  const windowWidth = useWindowDimensions().width;
 +  // The measured needs are for a screen with no insets; the phone's own insets come off the room first.
-+  const target = topHeight(kind, height - insets.top - insets.bottom, width > 0 ? width : windowWidth) + insets.top;
++  const plan = planFor(height - insets.top - insets.bottom, width > 0 ? width : windowWidth);
++  const density = plan.density;
++  useEffect(() => publishDensity(density), [density]);
++  const barAndInset = HEADER_HEIGHT + insets.top;
++  const target = (step === 5 ? plan.topStep5 : plan.top) + insets.top;
 +  const reduced = useReduceMotion();
++  // Moving between steps eases from the banner the person was just looking at to this one.
 +  const basis = useState(() => new Animated.Value(lastTopHeight ?? target))[0];
-+  const grow = useState(() => new Animated.Value(0))[0];
 +  useEffect(() => {
-+    const fill = kind === 'tall' ? 1 : 0;
 +    if (reduced) {
 +      basis.setValue(target);
-+      grow.setValue(fill);
 +      return;
 +    }
-+    const ease = { duration: 420, easing: Easing.inOut(Easing.cubic), useNativeDriver: false };
-+    const run = Animated.parallel([Animated.timing(basis, { toValue: target, ...ease }), Animated.timing(grow, { toValue: fill, ...ease })]);
++    const run = Animated.timing(basis, { toValue: target, duration: 420, easing: Easing.inOut(Easing.cubic), useNativeDriver: false });
 +    run.start();
 +    return () => run.stop();
-+  }, [basis, grow, kind, reduced, target]);
++  }, [basis, reduced, target]);
 +  const image = BANNER_IMAGES[step];
 +  const pictureScale = Math.min(1.6, (pictureRoom - 12) / PICTURE_HEIGHT, width > 0 ? (width - 48) / PICTURE_WIDTH : 1.2);
  
@@ -3351,7 +3361,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +      }
 +    }}>
 +      <Animated.View
-+        style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: basis, flexGrow: grow, minHeight: barAndInset }]}
++        style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: basis, minHeight: barAndInset }]}
 +        onLayout={(e) => {
 +          const h = e.nativeEvent.layout.height;
 +          if (h > 0) lastTopHeight = h;
@@ -3396,7 +3406,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +        )}
 +      </View>
 +      </Animated.View>
-+      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact, density === 'tight' && styles.contentTight]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 +        <Text accessibilityRole="header" style={[styles.headline, density === 'compact' && styles.headlineCompact, density === 'tight' && styles.headlineTight, { color: t.color.text }]}>
            {headline}
          </Text>
@@ -3404,10 +3414,10 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -        {children}
 -      </View>
 +        <Text style={[styles.bodyText, density === 'tight' && styles.bodyTight, { color: t.color.textMuted }]}>{body}</Text>
-+        <View style={[styles.children, density !== 'regular' && styles.childrenCompact]}>{children}</View>
++        <View style={[styles.children, density !== 'regular' && styles.childrenCompact, density === 'tight' && styles.childrenTight]}>{children}</View>
 +      </ScrollView>
 +      {/* Whatever room the banner does not take sits here, above the button. */}
-+      <Animated.View style={{ flexGrow: grow.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }} />
++      <View style={styles.flex} />
  
 -      <View style={styles.footer}>
 -        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />
@@ -3416,7 +3426,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
        </View>
      </View>
    );
-@@ -101,11 +233,31 @@
+@@ -101,11 +229,33 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },
@@ -3429,7 +3439,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -  footer: { padding: SPACE.s3 },
 +  flex: { flex: 1 },
 +  // The top gives up its height before anything below has to scroll.
-+  top: { flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  top: { flexGrow: 0, flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
 +  // A little air, so a cut-out never touches the banner's rounded bottom edge.
 +  // Side margins keep a wide picture off the banner's edges and clear of the back and skip buttons.
 +  image: { flex: 1, alignSelf: 'stretch', marginTop: 6, marginBottom: 16, marginHorizontal: 28 },
@@ -3446,11 +3456,13 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  content: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s4, paddingBottom: SPACE.s5, gap: SPACE.s2 },
 +  headline: { fontSize: FONT_SIZE.xxl, fontWeight: '800', lineHeight: 38 },
 +  headlineCompact: { fontSize: 26, lineHeight: 32 },
-+  headlineTight: { fontSize: 23, lineHeight: 28 },
++  headlineTight: { fontSize: 22, lineHeight: 27 },
 +  bodyText: { fontSize: FONT_SIZE.base, lineHeight: 24 },
-+  bodyTight: { fontSize: 15, lineHeight: 21 },
++  bodyTight: { fontSize: 14, lineHeight: 20 },
 +  contentCompact: { paddingTop: SPACE.s3, paddingBottom: SPACE.s3, gap: SPACE.s1 + 2 },
 +  childrenCompact: { gap: SPACE.s2 + 4, marginTop: SPACE.s2 },
++  contentTight: { paddingTop: SPACE.s2 + 4, paddingBottom: SPACE.s2 + 2, gap: SPACE.s1 },
++  childrenTight: { gap: SPACE.s2 + 2, marginTop: SPACE.s1 + 2 },
 +  footerCompact: { paddingTop: SPACE.s2 + 4 },
 +  children: { gap: SPACE.s3, marginTop: SPACE.s3 },
 +  footer: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, borderTopWidth: 1, gap: SPACE.s2 },
@@ -3630,7 +3642,29 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/SampleBreakdownBar.tsx web/src/features/onboarding/SampleBreakdownBar.tsx
 --- a/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-16 05:43:15.822475472 +0000
-+++ b/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-16 06:06:46.795751117 +0000
++++ b/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-17 14:25:10.452334053 +0000
+@@ -27,17 +27,17 @@
+       <View
+         style={[styles.track, { borderColor: t.color.border }]}
+         accessibilityRole="progressbar"
+-        accessibilityLabel="Example breakdown: ideal, fallback, off"
++        accessibilityLabel="Example breakdown: ideal and fallback"
+       >
+         <View style={{ width: pct(ideal), backgroundColor: t.color.ideal }} />
+         <View style={{ width: pct(fallback), backgroundColor: t.color.fallback }} />
+-        <View style={{ width: pct(off), backgroundColor: t.color.off }} />
+-        {/* The remainder — 1 of 7, the sample's missed day — is deliberately unfilled and unnamed. */}
++        {off > 0 ? <View style={{ width: pct(off), backgroundColor: t.color.off }} /> : null}
++        {/* The remainder, 1 of 7, is the empty place in the tray: deliberately unfilled and unnamed. */}
+       </View>
+       <View style={styles.legend}>
+         <LegendItem swatchColor={t.color.ideal} label={S05_COPY.legend.ideal} textColor={t.color.textMuted} />
+         <LegendItem swatchColor={t.color.fallback} label={S05_COPY.legend.fallback} textColor={t.color.textMuted} />
+-        <LegendItem swatchColor={t.color.off} label={S05_COPY.legend.off} textColor={t.color.textMuted} />
++        {off > 0 ? <LegendItem swatchColor={t.color.off} label={S05_COPY.legend.off} textColor={t.color.textMuted} /> : null}
+       </View>
+     </View>
+   );
 @@ -58,5 +58,5 @@
    legend: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
    legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -3640,8 +3674,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/TypesScreen.tsx web/src/features/onboarding/TypesScreen.tsx
 --- a/src/features/onboarding/TypesScreen.tsx	2026-11-16 05:43:15.822526108 +0000
-+++ b/src/features/onboarding/TypesScreen.tsx	2026-11-16 18:29:39.646713538 +0000
-@@ -1,56 +1,44 @@
++++ b/src/features/onboarding/TypesScreen.tsx	2026-11-17 14:25:10.448883450 +0000
+@@ -1,56 +1,57 @@
 -/** S04 — Onboarding: Four ways to plan. route: /onboarding/types. Features: F9, F11. */
 +/** S04 — onboarding step 3. Four equal tiles in a 2×2 grid, each with the coloured icon circle (D14). */
  import { useRouter, type Href } from 'expo-router';
@@ -3700,9 +3734,19 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -        })}
 +        {S04_COPY.tiles.map((tile, i) => (
 +          <View key={tile.label} style={[styles.tile, density === 'compact' && styles.tileCompact, density === 'tight' && styles.tileTight, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]} accessible accessibilityLabel={`${tile.label}. ${tile.helper}`}>
-+            <TaskIcon icon={TILE_ICONS[i]!} color={TILE_COLORS[i]} />
-+            <Text style={[styles.tileLabel, { color: t.color.text }]}>{tile.label}</Text>
-+            <Text style={[styles.tileHelper, { color: t.color.textMuted }]}>{tile.helper}</Text>
++            {density === 'tight' ? (
++              // A short screen: the icon moves beside the label, so each tile is a row shorter.
++              <View style={styles.tileHead}>
++                <TaskIcon icon={TILE_ICONS[i]!} color={TILE_COLORS[i]} size={28} />
++                <Text style={[styles.tileLabel, styles.tileLabelTight, { color: t.color.text }]}>{tile.label}</Text>
++              </View>
++            ) : (
++              <>
++                <TaskIcon icon={TILE_ICONS[i]!} color={TILE_COLORS[i]} />
++                <Text style={[styles.tileLabel, { color: t.color.text }]}>{tile.label}</Text>
++              </>
++            )}
++            <Text style={[styles.tileHelper, density === 'tight' && styles.tileHelperTight, { color: t.color.textMuted }]}>{tile.helper}</Text>
 +          </View>
 +        ))}
        </View>
@@ -3717,13 +3761,16 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 + 4 },
 +  tile: { flexBasis: '47%', flexGrow: 1, minHeight: 148, borderWidth: 1, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s1 + 2 },
 +  tileCompact: { minHeight: 128, padding: SPACE.s2 + 4 },
-+  tileTight: { minHeight: 0, padding: SPACE.s2 + 2, gap: 2 },
++  tileTight: { minHeight: 0, padding: SPACE.s2 + 2, gap: SPACE.s1 },
++  tileHead: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
++  tileLabelTight: { marginTop: 0, flexShrink: 1, fontSize: 15, lineHeight: 19 },
++  tileHelperTight: { fontSize: 13, lineHeight: 18 },
 +  tileLabel: { fontSize: FONT_SIZE.base, fontWeight: '600', marginTop: SPACE.s1 },
 +  tileHelper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/copy.ts web/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-17 04:49:24.839577335 +0000
++++ b/src/features/onboarding/copy.ts	2026-11-17 14:25:10.451354152 +0000
 @@ -12,16 +12,19 @@
  export const S02_COPY = {
    headline: 'Something beats nothing.',
@@ -3750,7 +3797,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
    privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
  } as const;
  
-@@ -32,14 +35,13 @@
+@@ -32,26 +35,33 @@
      { label: 'Routines', helper: 'Recurring, day to day.' },
      { label: 'Events', helper: 'One-off, at a set time.' },
      { label: 'Courses', helper: 'A run with an end date.' },
@@ -3763,10 +3810,18 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
    headline: 'Every day counts — ideal or fallback.',
    body: 'Nothing to lose here. We count how often you show up — a fallback still counts.',
 -  eyebrow: 'EXAMPLE',
-   bigNumeral: '83%',
-   subLabel: '5 of 6 days you showed up',
+-  bigNumeral: '83%',
+-  subLabel: '5 of 6 days you showed up',
++  bigNumeral: '86%',
++  subLabel: '6 of 7 days you showed up',
    legend: { ideal: 'Ideal', fallback: 'Fallback', off: 'Off' },
-@@ -49,9 +51,15 @@
+-  // 7-day sample composition, spec-pinned: 3 ideal + 2 fallback + 1 off + 1 missed (unfilled).
+-  sample: { ideal: 3, fallback: 2, off: 1, missed: 1, total: 7 },
++  // The week in the banner picture: a tray of seven with four green marbles and two blue in it
++  // and the seventh place still empty. (The design said 3 ideal + 2 fallback + 1 off + 1 missed;
++  // the human asked for the example to match the picture.)
++  sample: { ideal: 4, fallback: 2, off: 0, missed: 1, total: 7 },
+ } as const;
  
  export const S06_COPY = {
    headline: 'Make it yours.',
@@ -3785,7 +3840,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
    previewLabel: 'Preview',
    remindersSectionLabel: 'Reminders',
    remindersRowLabel: 'Gentle nudges for due habits',
-@@ -72,7 +80,7 @@
+@@ -72,7 +82,7 @@
  
  export const S08_COPY = {
    headline: 'Add your first habit.',
@@ -3794,7 +3849,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
    lastStep: 'Last step',
    tiles: [
      { label: 'Routines', enabled: true },
-@@ -89,7 +97,7 @@
+@@ -89,7 +99,7 @@
    fallbackLabel: 'Fallback',
    fallbackPlaceholder: '10 pushups',
    fallbackHelper: 'The low bar — still counts as showing up.',
@@ -3803,6 +3858,43 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
    save: 'Save routine',
    nameError: 'Add a name to continue',
    idealError: 'Add an ideal version to continue',
+diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/onboardingNeeds.ts web/src/features/onboarding/onboardingNeeds.ts
+--- a/src/features/onboarding/onboardingNeeds.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/onboarding/onboardingNeeds.ts	2026-11-17 14:28:01.411502657 +0000
+@@ -0,0 +1,33 @@
++/**
++ * GENERATED by docs/design-rebuild/preview-harness/obneed.js. Do not edit by hand.
++ * The height each onboarding step needs below the banner (words, example, buttons) at each type
++ * setting. Rows are [from this screen width, step 1, step 2, ... step 7]; a narrower screen wraps more.
++ */
++import type { OnboardingDensity } from './OnboardingShell';
++
++export const ONBOARDING_NEEDS: Record<OnboardingDensity, readonly (readonly number[])[]> = {
++  tight: [
++    [0, 403, 405, 378, 366, 442, 398, 411],
++    [344, 403, 405, 378, 366, 442, 378, 411],
++    [360, 403, 385, 360, 366, 386, 378, 411],
++    [375, 403, 385, 360, 366, 386, 351, 411],
++    [412, 403, 385, 342, 366, 386, 351, 411],
++    [430, 376, 385, 332, 366, 386, 351, 391],
++  ],
++  compact: [
++    [0, 475, 494, 521, 424, 469, 436, 542],
++    [344, 455, 494, 521, 424, 469, 436, 518],
++    [360, 455, 494, 521, 400, 413, 436, 498],
++    [375, 455, 442, 501, 400, 413, 412, 498],
++    [390, 455, 442, 487, 400, 413, 412, 498],
++    [430, 455, 442, 487, 400, 413, 380, 498],
++  ],
++  regular: [
++    [0, 573, 550, 587, 518, 523, 492, 642],
++    [344, 515, 550, 587, 480, 523, 492, 618],
++    [360, 515, 550, 587, 456, 467, 492, 560],
++    [375, 515, 530, 587, 456, 467, 468, 560],
++    [390, 515, 530, 567, 456, 467, 468, 560],
++    [412, 515, 530, 565, 456, 467, 468, 560],
++  ],
++};
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/priorities/PriorityPlaceRow.tsx web/src/features/priorities/PriorityPlaceRow.tsx
 --- a/src/features/priorities/PriorityPlaceRow.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/priorities/PriorityPlaceRow.tsx	2026-11-16 18:26:00.483076077 +0000
@@ -7528,14 +7620,14 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/IconButton.t
      <Pressable
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Input.tsx web/src/ui/Input.tsx
 --- a/src/ui/Input.tsx	2026-11-16 05:43:15.819457108 +0000
-+++ b/src/ui/Input.tsx	2026-11-16 07:14:18.910067307 +0000
++++ b/src/ui/Input.tsx	2026-11-17 14:26:37.729315690 +0000
 @@ -1,4 +1,5 @@
  /** M0 kit — Verdant `Input`. Labeled text field, radius `sm`, inline error state. */
 +import type { ReactNode } from 'react';
  import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
  
  import { RADIUS, SPACE, useTheme } from '@/theme';
-@@ -15,6 +16,10 @@
+@@ -15,6 +16,12 @@
    readonly secureTextEntry?: boolean;
    readonly accessibilityLabel?: string;
    readonly testID?: string;
@@ -7543,20 +7635,23 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Input.tsx we
 +  readonly right?: ReactNode;
 +  readonly multiline?: boolean;
 +  readonly onSubmitEditing?: () => void;
++  /** A shorter field (44 instead of 48) with the label closer, for a form that has to fit a short screen. */
++  readonly dense?: boolean;
  }
  
  export function Input({
-@@ -29,32 +34,32 @@
+@@ -29,32 +36,33 @@
    secureTextEntry,
    accessibilityLabel,
    testID,
 +  right,
 +  multiline,
 +  onSubmitEditing,
++  dense = false,
  }: InputProps) {
    const t = useTheme();
    return (
-     <View style={styles.root}>
+-    <View style={styles.root}>
 -      <Text style={[styles.label, { color: t.color.text }]}>{label}</Text>
 -      <TextInput
 -        value={value}
@@ -7579,8 +7674,9 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Input.tsx we
 -          },
 -        ]}
 -      />
++    <View style={[styles.root, dense && styles.rootDense]}>
 +      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
-+      <View style={[styles.fieldWrap, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
++      <View style={[styles.fieldWrap, dense && styles.fieldWrapDense, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
 +        <TextInput
 +          value={value}
 +          onChangeText={onChangeText}
@@ -7594,19 +7690,22 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Input.tsx we
 +          accessibilityLabel={accessibilityLabel ?? label}
 +          aria-invalid={!!error}
 +          testID={testID}
-+          style={[styles.field, multiline && styles.multiline, { color: t.color.text }]}
++          style={[styles.field, dense && styles.fieldDense, multiline && styles.multiline, { color: t.color.text }]}
 +        />
 +        {right}
 +      </View>
        {error ? (
          <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.danger }]}>
            {error}
-@@ -67,8 +72,10 @@
+@@ -67,8 +75,13 @@
  }
  
  const styles = StyleSheet.create({
 -  root: { gap: SPACE.s1 },
 +  root: { gap: SPACE.s1 + 2 },
++  rootDense: { gap: SPACE.s1 },
++  fieldWrapDense: { minHeight: 44 },
++  fieldDense: { paddingVertical: SPACE.s2, minHeight: 42 },
    label: { fontSize: 14, fontWeight: '600' },
 -  field: { borderWidth: 1, borderRadius: RADIUS.sm, paddingVertical: SPACE.s2, paddingHorizontal: SPACE.s2, fontSize: 16 },
 +  fieldWrap: { borderWidth: 1, borderRadius: RADIUS.md, flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingRight: 2 },
