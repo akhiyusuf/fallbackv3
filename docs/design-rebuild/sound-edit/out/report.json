@@ -45,6 +45,15 @@
   "kb": 144
  },
  {
+  "name": "badge_earned",
+  "source": "iron_ting_3",
+  "seconds": 2.0,
+  "peak_db": -4.0,
+  "mean_db": -19.1,
+  "echo": true,
+  "kb": 125
+ },
+ {
   "name": "reminder",
   "source": "iron_ting_3",
   "seconds": 1.6,

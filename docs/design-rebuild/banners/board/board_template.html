@@ -1,0 +1,128 @@
+<title>Fallback Banner Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap">
+<style>
+/* layout: a sticky status strip, then one card per onboarding step; each card shows both passes side by side on the banner colour */
+:root{--bg:#f6ede5;--panel:#fffaf5;--ink:#26241f;--muted:#6b6259;--line:#e3d5c8;--accent:#c8490c;--accent-ink:#ffffff;--ok:#17743a;--banner:#f2601a;--banner-ink:#ffffff;
+--f:"Nunito",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1612;--panel:#2a201a;--ink:#f5ece4;--muted:#b9aa9c;--line:#46362b;--accent:#ff8a4f;--accent-ink:#26140a;--ok:#6bdd90;--banner:#f2601a;--banner-ink:#ffffff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1d1612;--panel:#2a201a;--ink:#f5ece4;--muted:#b9aa9c;--line:#46362b;--accent:#ff8a4f;--accent-ink:#26140a;--ok:#6bdd90;--banner:#f2601a;--banner-ink:#ffffff;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font:500 16px/1.5 var(--f)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.strip{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:2px solid var(--line)}
+.strip-in,main{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.strip-in{padding-block:10px;font-weight:700;font-size:14px;color:var(--muted)}
+main{padding-block:24px 72px;display:flex;flex-direction:column;gap:22px}
+h1,h2{font-family:var(--f);font-weight:900;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:30px;line-height:1.15}
+h2{font-size:20px;line-height:1.25}
+p{margin:0}
+.lede{color:var(--muted);max-width:60ch;margin-top:8px}
+.card{background:var(--panel);border:2px solid var(--line);border-bottom-width:5px;border-radius:20px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.step{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.why{color:var(--muted)}
+.pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{display:flex;flex-direction:column;gap:8px;min-width:0}
+.shot{position:relative;background:var(--banner);border-radius:14px;aspect-ratio:16/11;border:3px solid transparent;cursor:zoom-in}
+.shot img{position:absolute;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);object-fit:contain;display:block}
+.tile.on .shot{border-color:var(--ok)}
+.cap{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-weight:800;font-size:14px;min-height:26px}
+.tile .use{margin-top:auto}
+.chip{font-size:12px;font-weight:800;border-radius:999px;padding:2px 9px;background:var(--line);color:var(--ink)}
+button{font:800 15px var(--f);cursor:pointer;border-radius:12px;min-height:44px;padding:8px 12px}
+.use{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.use[aria-pressed="true"]{background:var(--ok);border-color:var(--ok);color:var(--panel)}
+.redo[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.other{display:flex;flex-wrap:wrap;gap:8px}
+input[type=text]{font:500 15px var(--f);width:100%;box-sizing:border-box;min-height:44px;border-radius:12px;border:2px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px}
+label{font-weight:700;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.copy{background:var(--accent);color:var(--accent-ink);border:0;align-self:flex-start}
+textarea{width:100%;box-sizing:border-box;min-height:110px;font:13px ui-monospace,Menlo,monospace;background:var(--panel);color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:10px}
+.zoom{position:fixed;inset:0;z-index:20;background:var(--banner);display:flex;align-items:center;justify-content:center;padding:max(20px,env(safe-area-inset-top,0px)) 20px 20px;cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%;object-fit:contain}
+@media (max-width:420px){button{font-size:14px;padding-inline:8px}}
+</style>
+<div class="strip"><div class="strip-in"><span id="status">Loading your choices…</span></div></div>
+<main>
+<header>
+  <h1>Fallback Banner Board</h1>
+  <p class="lede">Two passes for each onboarding step, made one at a time. The one outlined in green is the one in the preview now. If it says "my pick", I chose it; tap "Use this one" on the other pass to overrule me, or "Redo this step" with a note if neither is right. Tap a picture to see it large.</p>
+</header>
+<div id="cards" style="display:flex;flex-direction:column;gap:18px"></div>
+<section class="card">
+  <h2>When you are done</h2>
+  <p class="why">Tell Claude in the chat. Your choices save by themselves. If the strip at the top says they could not be saved, copy them here and paste them into the chat.</p>
+  <button class="copy" id="copy" type="button">Copy my choices</button>
+  <textarea id="dump" hidden readonly aria-label="Your choices as text"></textarea>
+</section>
+</main>
+<div class="zoom" id="zoom" hidden><img id="zoomimg" alt=""></div>
+<script>
+const STEPS = __STEPS__;
+const IMAGES = __IMAGES__;
+const picks = {};   // 'step_<n>' -> { choice: 'a' | 'b' | 'redo' | '', note }
+const ui = {};
+let db = null;
+const statusEl = document.getElementById('status');
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function shown(s) { const c = (picks['step_' + s.n] || {}).choice; return c === 'a' || c === 'b' ? c : s.pick; }
+function render() {
+  STEPS.forEach((s) => {
+    const p = picks['step_' + s.n] || {}; const u = ui[s.n]; const cur = shown(s);
+    ['a', 'b'].forEach((k) => { u.tiles[k].classList.toggle('on', cur === k && p.choice !== 'redo'); u.uses[k].setAttribute('aria-pressed', p.choice === k ? 'true' : 'false'); });
+    u.redo.setAttribute('aria-pressed', p.choice === 'redo' ? 'true' : 'false');
+    if (document.activeElement !== u.note) u.note.value = p.note || '';
+  });
+  document.getElementById('dump').value = JSON.stringify(picks, null, 1);
+}
+async function save(id) {
+  render();
+  if (!db) { statusEl.textContent = 'Not saved online here. Use "Copy my choices" at the bottom when you are done.'; return; }
+  statusEl.textContent = 'Saving…';
+  try { await db.doc('picks/' + id).set({ choice: picks[id].choice || '', note: picks[id].note || '' }); statusEl.textContent = 'Saved'; }
+  catch (e) { statusEl.textContent = 'Could not save. Use "Copy my choices" at the bottom when you are done.'; }
+}
+function choose(n, choice) { const id = 'step_' + n; const p = picks[id] || (picks[id] = {}); p.choice = p.choice === choice ? '' : choice; save(id); }
+const zoom = document.getElementById('zoom');
+zoom.addEventListener('click', () => { zoom.hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') zoom.hidden = true; });
+const root = document.getElementById('cards');
+STEPS.forEach((s) => {
+  const card = el('section', 'card'); const tiles = {}, uses = {};
+  card.appendChild(el('p', 'step', 'Step ' + s.n)); card.appendChild(el('h2', '', s.headline));
+  const pair = el('div', 'pair');
+  ['a', 'b'].forEach((k) => {
+    const t = el('div', 'tile'); const shot = el('div', 'shot'); const img = el('img'); img.src = IMAGES[s.n + k]; img.alt = s[k]; shot.appendChild(img);
+    shot.addEventListener('click', () => { document.getElementById('zoomimg').src = img.src; zoom.hidden = false; });
+    const cap = el('div', 'cap'); cap.appendChild(el('span', '', k === 'a' ? 'First pass' : 'Second pass')); if (s.pick === k) cap.appendChild(el('span', 'chip', 'my pick'));
+    const ub = el('button', 'use', 'Use this one'); ub.type = 'button'; ub.setAttribute('aria-pressed', 'false'); ub.setAttribute('aria-label', 'Use the ' + (k === 'a' ? 'first' : 'second') + ' pass for step ' + s.n);
+    ub.addEventListener('click', () => choose(s.n, k));
+    t.append(shot, cap, el('p', 'why', s[k]), ub); tiles[k] = t; uses[k] = ub; pair.appendChild(t);
+  });
+  card.appendChild(pair); card.appendChild(el('p', '', s.why));
+  const other = el('div', 'other'); const redo = el('button', 'use redo', 'Redo this step'); redo.type = 'button'; redo.setAttribute('aria-pressed', 'false'); redo.addEventListener('click', () => choose(s.n, 'redo')); other.appendChild(redo); card.appendChild(other);
+  const lab = el('label', '', 'Note (optional)'); const note = el('input'); note.type = 'text'; note.id = 'note-' + s.n; note.placeholder = 'what to change…'; note.autocomplete = 'off';
+  note.addEventListener('change', () => { const id = 'step_' + s.n; const p = picks[id] || (picks[id] = {}); p.note = note.value.trim().slice(0, 240); save(id); });
+  lab.appendChild(note); card.appendChild(lab);
+  ui[s.n] = { tiles, uses, redo, note }; root.appendChild(card);
+});
+document.getElementById('copy').addEventListener('click', async () => {
+  const ta = document.getElementById('dump');
+  try { await navigator.clipboard.writeText(ta.value); statusEl.textContent = 'Copied. Paste it into the chat.'; }
+  catch (e) { ta.hidden = false; ta.select(); statusEl.textContent = 'Select the text at the bottom and copy it.'; }
+});
+render();
+(async () => {
+  let d = null;
+  try { d = window.claude && window.claude.use ? await window.claude.use('db') : null; } catch (e) {}
+  if (!d) { statusEl.textContent = 'Choices stay on this page only. Use "Copy my choices" at the bottom when you are done.'; return; }
+  db = d; statusEl.textContent = 'Your choices save by themselves.';
+  const timer = setTimeout(() => { if (statusEl.textContent === 'Loading your choices…') statusEl.textContent = 'Your choices save by themselves.'; }, 10000);
+  db.collection('picks').onSnapshot((snap) => {
+    clearTimeout(timer);
+    snap.docs.forEach((doc) => { const b = doc.data(); if (b && /^step_[1-7]$/.test(doc.id)) picks[doc.id] = { choice: b.choice || '', note: b.note || '' }; });
+    render();
+  }, () => { statusEl.textContent = 'Live saving stopped. Use "Copy my choices" at the bottom when you are done.'; });
+})();
+</script>

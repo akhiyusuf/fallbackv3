@@ -845,6 +845,39 @@ before builders work from them.
   audio library, silent-mode behaviour, the notification sound), and bundled
   AI-made banner images (files per step, licence for AI-made content).
 
+### Round 4, tenth pass (2026-11-17, preview version 16)
+
+- **Every onboarding step has a banner picture.** The human approved going on
+  with gpt-image-2: two passes per step, made one at a time, vetted before
+  being shown. Fourteen pictures; one per step is in the preview and both
+  passes are on the "Fallback Banner Board"
+  (https://claude.ai/artifact/EwgWnHvKpF5k14c57Vyizz), where the human can
+  overrule a pick (`picks/step_<n>` = `{choice: "a" | "b" | "redo", note}`).
+  Chosen: 1 two dumbbells lying down, green tick on the big one and blue on
+  the small one; 2 a sprout between a rain cloud and a sun; 3 repeat arrows,
+  calendar, pill bottle and checklist in a cluster; 4 a week tray of seven
+  ticked tokens, green and blue; 5 a painter's palette with a sun and a moon;
+  6 a bell on a cushion; 7 three pots going from seed to sprout.
+- **One look for all of them:** matte cream-white clay, chunky rounded shapes,
+  accents only in the ideal green and fallback blue, no text. They are cut out
+  so the banner colour (which follows the chosen theme colour) shows through.
+- **Vetting rules used:** same material and palette as the others; reads at
+  the size of the banner on a 360-wide phone; says what the headline says
+  without needing the text; a clean edge on both the orange and a dark
+  ground; nothing cropped. The second pass of a step was written after
+  looking at the first, to fix what the first got wrong or to try the other
+  reading of the copy.
+- **Banner pictures get side margins** (28 px) so a wide picture clears the
+  banner's edges and the back and skip buttons.
+- **Badge earned has its sound** (the human's pick): two quick iron hits and a
+  higher third, played when the badge pop-up appears.
+- **Skip today cannot be heard on a phone**, and the human said so. Measured:
+  the knock is nearly all below 500 Hz. Brighter replacements for Skip,
+  "could not save", and buttons and tabs are on "Fallback Sound Picker 3"
+  (https://claude.ai/artifact/RanySU19mQXes9mdyq6oht). Takes are now
+  measured before they are offered. Details in
+  `docs/design-rebuild/SOUND_EFFECTS.md`.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

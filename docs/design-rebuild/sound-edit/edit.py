@@ -36,6 +36,7 @@ SOUNDS = {
     'log_skip':     dict(hits=[('knock', 0, 0, 1.0)], level=-10, length=0.42),
     'day_complete': dict(hits=[('ting', 0, 0, 0.7), ('ting', 4, 110, 0.8), ('ting', 7, 220, 0.9), ('ting', 12, 330, 1.0)], level=-4, length=1.9, extra=ECHO_SOFT),
     'level_up':     dict(hits=[('ting', 0, 0, 0.7), ('ting', 4, 100, 0.75), ('ting', 7, 200, 0.85), ('ting', 12, 300, 0.95), ('ting', 16, 420, 1.0)], level=-3, length=2.3, extra=ECHO_WIDE),
+    'badge_earned': dict(hits=[('ting', 0, 0, 0.75), ('ting', 0, 120, 0.8), ('ting', 7, 280, 1.0)], level=-4, length=2.0, extra=ECHO_WIDE),
     'reminder':     dict(hits=[('ting', 0, 0, 0.9), ('ting', 7, 320, 1.0)], level=-6, length=1.6, extra='lowpass=f=4800,' + ECHO_SOFT),
     'error':        dict(hits=[('knock', 0, 0, 1.0), ('knock', -2, 150, 0.9)], level=-8, length=0.6),
     'toggle_on':    dict(hits=[('click', 3, 0, 1.0)], level=-14, length=0.22),

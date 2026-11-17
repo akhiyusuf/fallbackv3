@@ -1,0 +1,14 @@
+{
+ "jobs": [
+  {"id": "skip", "title": "Skip today",
+   "pick": "You could not hear the knock. I measured it: almost all of it sits below what a phone speaker can play. Every take here was measured to make sure a phone can play it. Your pick is also used for \"could not save\": the same sound twice, the second one lower.",
+   "sources": [{"label": "card_flick", "name": "Playing card flicked onto a table"}, {"label": "page_flip", "name": "Calendar page flipped"}, {"label": "cork_pop", "name": "Cork pulled from a small bottle"}]},
+  {"id": "tap", "title": "Buttons and tabs",
+   "pick": "The fingertip taps had the same problem as the knock: too dull for a phone. These three are brighter. Whichever you choose plays very quietly.",
+   "sources": [{"label": "key_press", "name": "One key on a quiet keyboard"}, {"label": "nail_tap", "name": "Fingernail on hard plastic"}, {"label": "water_drop", "name": "Water drop into a cup"}]},
+  {"id": "saved", "title": "Saved",
+   "pick": "No answer for this one last time, so saving is silent for now. Same takes as before. Choose no sound to keep it silent for good.",
+   "sources": [{"label": "latch_click", "name": "Metal latch on a tin box"}, {"label": "stamp", "name": "Rubber stamp on paper"}]}
+ ],
+ "review": []
+}

@@ -6,11 +6,12 @@ Rule from the human: do not go overboard. Every sound the app plays is cut from 
 
 ## How they are made
 
-- Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. Round one: 12 sounds, 48 takes, about 140 credits. Round two: 4 sounds, 16 takes, about 36 credits.
+- Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. Round one: 12 sounds, 48 takes, about 140 credits. Round two: 4 sounds, 16 takes, about 36 credits. Round three: 5 sounds, 20 takes, 40 credits.
 - The human picks takes on a picker page and can leave a note per sound. Picks are stored in the page's database, collection `picks`, one document per job: `{choice: "<label>_<n>" | "redo" | "none", note}`.
   - Round one: "Fallback Sound Picker", https://claude.ai/artifact/Tybxk4ZABSdF8L5DzXK5c6 (source in `sound-picker/`). Answered.
-  - Round two: "Fallback Sound Picker 2", https://claude.ai/artifact/6JuV4MSQ3FfVu1eUHnh4hL (source in `sound-picker/round2/`). **Waiting for the human.** It also lists the fifteen edited sounds; a flagged one is stored as `picks/rev_<sound>` = `{choice: "change", note}`.
-- Only the six picked source takes are in the repo (`sound-edit/raw/`). Every take's generation id is in `sound-picker/generations.json` and `sound-picker/round2/generations.json`.
+  - Round two: "Fallback Sound Picker 2", https://claude.ai/artifact/6JuV4MSQ3FfVu1eUHnh4hL (source in `sound-picker/round2/`). Answered. It also listed the fifteen edited sounds; a flagged one is stored as `picks/rev_<sound>` = `{choice: "change", note}`.
+  - Round three: "Fallback Sound Picker 3", https://claude.ai/artifact/RanySU19mQXes9mdyq6oht (source in `sound-picker/round3/`). **Waiting for the human.**
+- Only the six picked source takes are in the repo (`sound-edit/raw/`). Every take's generation id is in `sound-picker/generations.json`, `sound-picker/round2/generations.json` and `sound-picker/round3/generations.json`.
 - AI-generated: credit as "ElevenLabs Sound Effects v2 (AI)". The account is on the Starter plan; confirm its licence covers a shipped app before release.
 
 ## Round-one picks (2026-11-17)
@@ -28,15 +29,30 @@ Rule from the human: do not go overboard. Every sound the app plays is cut from 
 | Buttons and tabs | no answer | Silent for now; asked again in round two. |
 | Moved to tomorrow (calendar page) | no answer | Replaced by `swish_4`, as the note asks. |
 
+## Round-two answers (2026-11-17)
+
+| Job | Answer | Note from the human |
+|---|---|---|
+| Badge earned | `ting_badge_1` (built from the chosen iron hit: two quick hits, then one a fifth higher, wide echo) | |
+| Buttons and tabs | redo | "I'm not really feeling these ones either" |
+| Skip today (flagged in the review list) | change | "I can't even hear anything, so another sound it is then" |
+| Saved | no answer | Silent for now; asked again in round three. |
+
+**Why the knock could not be heard (measured).** Running each take through a 500 Hz high-pass, which is roughly what a phone speaker does, the picked knock (`wood_knock_1`) loses 29 dB: almost all of it is low thud. The four fingertip taps lose 12 to 24 dB, which is very likely why they also felt wrong. Everything else in the edited set loses under 2 dB. "Could not save" is cut from the same knock, so it has the same problem and is replaced with whatever is picked for Skip.
+
+**Rule from now on:** a take is only offered if it keeps most of its level above 500 Hz (loses under 10 dB) and is not near-silent at source. Round three was filtered this way: `nail_tap_4` and `cork_pop_2` to `_4` were dropped before the human saw them.
+
+Round three offers: Skip today (playing card flicked onto a table, calendar page flipped, cork pulled from a bottle), Buttons and tabs (one key on a quiet keyboard, fingernail on hard plastic, water drop into a cup), and Saved again (metal latch, rubber stamp).
+
 ## The edit (sound director pass)
 
-`sound-edit/edit.py` (needs ffmpeg) cuts all fifteen sounds from `sound-edit/raw/` into `sound-edit/out/` as 32 kHz mono 16-bit WAV, 824 KB in total, and writes `out/report.json` with the measured levels.
+`sound-edit/edit.py` (needs ffmpeg) cuts all sixteen sounds from `sound-edit/raw/` into `sound-edit/out/` as 32 kHz mono 16-bit WAV, 949 KB in total, and writes `out/report.json` with the measured levels.
 
 Each source take is trimmed to the useful part, high-passed to remove rumble, faded at both ends and brought to the same peak. Then:
 
 - **Levels follow how often a sound is heard.** Switches and ticks are the quietest (peaks at -14 to -12 dBFS), logging sits in the middle (-10 to -5), and the two rare, happy sounds are the loudest (-4 and -3).
-- **Echo only on the rare ones.** Frequent sounds are dry. Day finished, reminder and assistant finished get a short soft echo (`aecho=0.9:0.5:110|230:0.22|0.10`); level up gets a wider one (`aecho=0.9:0.6:120|250|390:0.30|0.16|0.08`).
-- **One family.** Done, fallback, day finished, level up and reminder are all the same iron hit, so they belong together: more hits and a higher finish mean a bigger moment. Fallback is deliberately one softer, duller hit next to Done's two.
+- **Echo only on the rare ones.** Frequent sounds are dry. Day finished, reminder and assistant finished get a short soft echo (`aecho=0.9:0.5:110|230:0.22|0.10`); level up and badge earned get a wider one (`aecho=0.9:0.6:120|250|390:0.30|0.16|0.08`).
+- **One family.** Done, fallback, day finished, level up, badge earned and reminder are all the same iron hit, so they belong together: more hits and a higher finish mean a bigger moment. Fallback is deliberately one softer, duller hit next to Done's two.
 
 | Sound | Plays when | How it is cut | Source take | Seconds | Peak dBFS | Echo |
 |---|---|---|---|---|---|---|
@@ -45,6 +61,7 @@ Each source take is trimmed to the useful part, high-passed to remove rumble, fa
 | `log_skip` | Skip today | One knock | `wood_knock_1` | 0.42 | -10.0 | none |
 | `day_complete` | Last open task of the day logged (only when the day has more than one task) | Four rising iron hits (0, +4, +7, +12 semitones), 110 ms apart | `iron_ting_3` | 1.9 | -4.1 | soft |
 | `level_up` | Reaching a new level (700 ms after the log sound) | Five rising iron hits (0, +4, +7, +12, +16) | `iron_ting_3` | 2.3 | -3.3 | wide |
+| `badge_earned` | A badge pop-up appears (600 ms after it opens) | Two quick iron hits, then one 7 semitones up, 120 and 280 ms apart | `iron_ting_3` | 2.0 | -4.0 | wide |
 | `reminder` | With a notification; in the preview, tapping a sample notification | Two iron hits (0, +7), 320 ms apart, highs rolled off at 4.8 kHz | `iron_ting_3` | 1.6 | -6.1 | soft |
 | `error` | A warning toast (something could not be saved) | Two knocks, the second 2 semitones down, 150 ms apart | `wood_knock_1` | 0.6 | -8.0 | none |
 | `toggle_on` | Any switch turned on | Switch click, 3 semitones up | `switch_click_1` | 0.22 | -15.2 | none |
@@ -59,13 +76,13 @@ Each source take is trimmed to the useful part, high-passed to remove rumble, fa
 ## Where it lives in the preview
 
 - `src/services/sfx/index.ts`: `play(name, delayMs?)` and `useSoundStore` (`on`, `setOn`). Web Audio in the browser preview; the audio is inlined in `sounds.generated.ts`, which is left out of the patch (rebuild it with `python3 sound-edit/make_ts.py <path>`).
-- Hooks: `src/features/task/logFeedback.ts` (done, fallback, skip, level up), `TodayScreen.handleLog` (day finished), `src/app-shell/stores/toast.ts` (warning), `src/ui/Switch.tsx`, `src/ui/Checkbox.tsx`, `ToDosBrowseScreen.toggleDone`, `app/task/[id]/index.tsx` (moved to tomorrow), `app/assistant/index.tsx` and `chat.tsx` (microphone), `NotificationSample` (reminder).
+- Hooks: `src/features/task/logFeedback.ts` (done, fallback, skip, level up), `TodayScreen.handleLog` (day finished), `src/app-shell/stores/toast.ts` (warning), `src/ui/Switch.tsx`, `src/ui/Checkbox.tsx`, `ToDosBrowseScreen.toggleDone`, `app/task/[id]/index.tsx` (moved to tomorrow), `app/assistant/index.tsx` and `chat.tsx` (microphone), `NotificationSample` (reminder), `src/features/progress/CelebrationHost.tsx` (badge earned: it belongs to the pop-up, so a queued badge sounds when it is shown).
 - Settings has a "Sounds" switch ("Small sounds when you log, tick and switch things."). Turning it on plays the switch sound; turning it off is silent.
-- Silent on purpose: undo, menus, onboarding steps (the human chose no sound). Silent until round two is answered: saving, badge earned, buttons and tabs.
+- Silent on purpose: undo, menus, onboarding steps (the human chose no sound). Silent until round three is answered: saving, buttons and tabs. **Known bad until round three is answered:** Skip today and "could not save" still use the knock that phones cannot play.
 
 ## Still needed before builders touch it
 
 - A line in the PRD (sound is a new feature) and a `sounds` setting stored with the other settings (the preview keeps it in the browser only).
 - The architect's choice of audio library for the phone build, the sounds bundled as files, and silence when the phone is on silent.
 - The reminder sound attached to real notifications (a notification sound file per platform).
-- The answers from round two, then the edit for Saved and Badge earned.
+- The answers from round three, then the edit for Skip today, "could not save", buttons and tabs, and Saved.

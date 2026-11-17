@@ -683,6 +683,22 @@ ElevenLabs credits used this pass: about 140 + 36 for sounds and 260 for the
 one image. Still awaiting the human's approval of the look; nothing routed to
 pipeline agents.
 
+**Round 4, tenth pass (2026-11-17): Fallback Preview is at version 16.**
+All seven onboarding steps now have an AI-made banner picture (gpt-image-2,
+two passes per step, one image at a time, vetted before showing). Both passes
+and the reason for each pick are on the "Fallback Banner Board"
+(https://claude.ai/artifact/EwgWnHvKpF5k14c57Vyizz). **Waiting for the human
+to accept or overrule the picks there.** Sounds: badge earned is wired with
+the human's pick. The human could not hear Skip today (measured: the knock is
+below what a phone speaker plays) and rejected the button taps, so
+"Fallback Sound Picker 3" (https://claude.ai/artifact/RanySU19mQXes9mdyq6oht)
+offers brighter takes for Skip, buttons and tabs, and Saved. **Waiting for the
+human there too.** Until then Skip and "could not save" still use the old
+knock. ElevenLabs credits this pass: 3,447 for thirteen images and 40 for
+twenty sound takes; the account stands at 15,446 of 40,000 for the month.
+Still awaiting the human's approval of the look; nothing routed to pipeline
+agents.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go
