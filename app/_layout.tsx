@@ -20,6 +20,7 @@ import { ThemeContext, buildTheme, resolveScheme } from '@/theme';
 import { Toast } from '@/ui/Toast';
 import { CelebrationHost } from '@/features/progress/CelebrationHost';
 import { AddMenuHost } from '@/features/task/AddMenuHost';
+import { SkipSheetHost } from '@/features/task/SkipSheetHost';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +93,7 @@ function AppShell() {
         />
       </ErrorBoundary>
       <AddMenuHost />
+      <SkipSheetHost />
       <CelebrationHost />
       <Toast />
     </ThemeContext.Provider>

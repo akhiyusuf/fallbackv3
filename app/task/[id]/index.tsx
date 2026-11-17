@@ -68,6 +68,7 @@ import { PriorityPlaceRow } from '@/features/priorities/PriorityPlaceRow';
 import { formatDateValue } from '@/ui';
 import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
 import { Text } from '@/ui/AppText';
+import { useSkipSheetStore } from '@/features/task/skipSheet';
 
 const ALL_DAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const TYPE_TITLE = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' } as const;
@@ -98,6 +99,7 @@ export default function S20ManageTask() {
   const toggleStep = useToggleStep();
   const logDose = useLogDose();
   const markOffDay = useMarkOffDay();
+  const askSkip = useSkipSheetStore((s) => s.ask);
   const duplicateTask = useDuplicateTask();
   const snoozeOccurrence = useSnoozeOccurrence();
   const undoSnooze = useUndoSnooze();
@@ -130,6 +132,15 @@ export default function S20ManageTask() {
     if (!result.ok) return fail();
     if (isUndo) return showToast('Undone', 'neutral');
     logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
+  }
+
+  // Skip asks first (the Skip sheet): it shows the cost and offers taking today off instead.
+  function onTodayLog(chip: ChipState) {
+    if (chip === 'skip' && task) {
+      askSkip({ taskId, name: task.name, date: today, onSkip: () => void onChipChange('skip') });
+      return;
+    }
+    void onChipChange(chip);
   }
 
   async function onDoseChange(index: number, chip: ChipState) {
@@ -344,14 +355,14 @@ export default function S20ManageTask() {
                   label="Whole day"
                   caption={`${dosesDone} of ${task.dosesPerDay} doses taken. The day logs itself once every dose is handled, or you can set it here.`}
                   value={todayOccurrence?.chipState ?? null}
-                  onChange={(chip) => void onChipChange(chip)}
+                  onChange={onTodayLog}
                   accessibilityLabel="Whole day"
                   testID="s20-day-chip"
                 />
               </>
             ) : (
               <>
-                <LogControl value={todayOccurrence?.chipState ?? null} onChange={(chip) => void onChipChange(chip)} accessibilityLabel={task.name} testID="s20-chip" />
+                <LogControl value={todayOccurrence?.chipState ?? null} onChange={onTodayLog} accessibilityLabel={task.name} testID="s20-chip" />
                 {task.idealSteps.length > 1 ? (
                   <View>
                     <Text style={[styles.caption, { color: t.color.textMuted }]}>Ticking every step logs the day as ideal.</Text>

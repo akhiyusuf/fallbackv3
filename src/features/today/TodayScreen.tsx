@@ -12,6 +12,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { roundHalfUp } from '@/lib/number';
 import { useConsistency, useLogState, useMarkOffDay, useProgress } from '@/queries';
+import { useSkipSheetStore } from '@/features/task/skipSheet';
 import { ROUTES, withOrigin } from '@/navigation';
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import {
@@ -60,6 +61,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   const router = useRouter();
   const openAddMenu = useAddMenuStore((st) => st.show);
   const showToast = useToastStore((s) => s.show);
+  const askSkip = useSkipSheetStore((s) => s.ask);
   const logFeedback = useLogFeedback();
   const params = useLocalSearchParams<{ justAdded?: string; reentry?: string; taskId?: string }>();
   const { date, rows, isLoading, isError, hasAnyTaskEver, refetch } = useTodayRows();
@@ -86,6 +88,15 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
     }
     if (isUndo) return showToast('Undone', 'neutral');
     showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral', { action: { label: 'Undo', onPress: () => void handleToggleOff(!next, true) } });
+  }
+
+  // Skip asks first: the sheet shows what a skip costs and offers taking the day off instead.
+  function onCardLog(row: TodayRow, chip: ChipState) {
+    if (chip === 'skip') {
+      askSkip({ taskId: row.task.id, name: row.task.name, date, onSkip: () => void handleLog(row, 'skip') });
+      return;
+    }
+    void handleLog(row, chip);
   }
 
   async function handleLog(row: TodayRow, chip: ChipState, isUndo = false) {
@@ -232,7 +243,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                   row={row}
                   reopened={reopenedTaskId === row.task.id}
                   onToggleReopen={() => setReopenedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
-                  onLog={(chip) => void handleLog(row, chip)}
+                  onLog={(chip) => onCardLog(row, chip)}
                   onOpen={() => openTask(row.task.id)}
                 />
               ))

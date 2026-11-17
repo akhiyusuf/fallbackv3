@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000000000000' }));
@@ -26,6 +26,7 @@ import { Toast } from '@/ui';
 import { useCelebrationStore } from '@/app-shell';
 import { useToastStore } from '@/app-shell/stores/toast';
 import type { ChipState } from '@/types';
+import { useSkipSheetStore } from '@/features/task/skipSheet';
 
 // `Toast` is a separate host mounted once at the app root (`app/_layout.tsx`) — screens only
 // call `useToastStore.getState().show(...)`. Rendering it alongside the screen here lets these
@@ -206,7 +207,17 @@ describe('S09 — Today', () => {
     await waitFor(() => expect(useCelebrationStore.getState().queue).toEqual([{ kind: 'badge', badgeKey: 'tenure-30' }]));
   });
 
-  it('chip tap: a Skip commits with no celebration and offers Undo', async () => {
+  it('chip tap: Skip asks first (the Skip sheet) and logs nothing until the person chooses', async () => {
+    todayRead();
+    const user = userEvent.setup();
+    await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Skip today'));
+    expect(useSkipSheetStore.getState().request).toMatchObject({ name: 'Movement' });
+    expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
+    useSkipSheetStore.getState().close();
+  });
+
+  it('chip tap: a Skip chosen in the sheet commits with no celebration and offers Undo', async () => {
     todayRead();
     mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
       board.chip = chip;
@@ -215,6 +226,7 @@ describe('S09 — Today', () => {
     const user = userEvent.setup();
     const view = await render(withToastHost(<TodayScreen />));
     await user.press(screen.getByLabelText('Movement: Skip today'));
+    await act(async () => useSkipSheetStore.getState().request?.onSkip());
     await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ chip: 'skip' })));
     await view.rerender(withToastHost(<TodayScreen />));
 

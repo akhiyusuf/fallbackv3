@@ -86,6 +86,27 @@ export function useConsistency(input: { scope: ConsistencyScope; window: Consist
   });
 }
 
+/**
+ * What skipping one task on one day does to the headline number (Today's last-30 consistency):
+ * the number now, and the number if that day of that task became a miss. Read by the Skip sheet,
+ * so a person sees the cost before they skip. Taking the day off instead leaves the number alone.
+ */
+export function useSkipPreview(target: { taskId: Id; date: LocalDate } | null) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.consistency('aggregate', 'last-30'), 'skip-preview', target?.taskId ?? null, target?.date ?? null] as const,
+    enabled: target !== null,
+    queryFn: async (): Promise<{ now: number | null; ifSkipped: number | null }> => {
+      const today = todayLocal();
+      const occs = await resolveAllOccurrences(repos, today, today);
+      const now = aggregateConsistency({ occurrences: occs, window: 'last-30', today }).percent;
+      if (!target) return { now, ifSkipped: now };
+      const skipped = occs.map((o) => (o.taskId === target.taskId && o.date === target.date ? { ...o, outcome: 'missed' as const } : o));
+      const ifSkipped = aggregateConsistency({ occurrences: skipped, window: 'last-30', today }).percent;
+      return { now, ifSkipped };
+    },
+  });
+}
+
 /** S25's aggregate disclosure table. */
 export function useConsistencyDisclosure() {
   return useQuery({

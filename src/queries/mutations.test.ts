@@ -35,7 +35,7 @@ import { fake } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import { QUERY_KEYS } from './index';
 import { useLogState, useMarkOffDay, useSnoozeOccurrence, useToggleStep, useUpdateSettings, __testing__ } from './mutations';
-import { useConsistency, useTaskOccurrences, useTasks } from './reads';
+import { useConsistency, useSkipPreview, useTaskOccurrences, useTasks } from './reads';
 
 const { reconcileCycleBoundaries, finalizeCycleForCadenceChange } = __testing__;
 
@@ -617,5 +617,34 @@ describe('N5 — level:up must be emitted exactly once per crossing (review pass
 describe('sanity', () => {
   test('xpForLevel(1) really is 100 — the level-up test above depends on this constant', () => {
     expect(xpForLevel(1)).toBe(100);
+  });
+});
+
+describe('useSkipPreview: the number the Skip sheet shows', () => {
+  test('skipping today lowers last-30 consistency by exactly that one miss; a day off leaves it', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' }, createdAt: '2024-06-01T00:00:00.000Z' as Instant });
+    fake.seedTask(task);
+    const client = freshClient();
+    const { result: logResult } = await rh(() => useLogState(), client);
+    // Three ideal days, then today (06-04) still open.
+    for (const date of ['2024-06-01', '2024-06-02', '2024-06-03'] as LocalDate[]) {
+      clock.today = date;
+      await act(async () => {
+        await logResult.current.mutateAsync({ taskId: task.id, date, chip: 'done' });
+      });
+    }
+    clock.today = '2024-06-04';
+    const { result } = await rh(() => useSkipPreview({ taskId: task.id, date: '2024-06-04' as LocalDate }), client);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // 3 of 3 now; a miss today makes it 3 of 4.
+    expect(result.current.data).toEqual({ now: 100, ifSkipped: 75 });
+
+    const { result: offResult } = await rh(() => useMarkOffDay(), client);
+    await act(async () => {
+      await offResult.current.mutateAsync({ date: '2024-06-04' as LocalDate, taskId: task.id, mark: true });
+    });
+    const { result: after } = await rh(() => useConsistency({ scope: 'aggregate', window: 'last-30' }), client);
+    await waitFor(() => expect(after.current.isSuccess).toBe(true));
+    expect(after.current.data?.percent).toBe(100);
   });
 });
