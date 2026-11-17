@@ -70,6 +70,37 @@ describe('S14 — Filter & Search', () => {
     expect(screen.getByText('2 results')).toBeTruthy();
   });
 
+  it('results of every type are listed, each tagged with its type (a to-do with a note is tagged "Note")', async () => {
+    mockUseTasks.mockReturnValue({
+      data: [
+        task({ id: 'r', name: 'Routine one' }),
+        task({ id: 'e', type: 'event', name: 'Event one', cadence: null, eventDate: '2026-12-24', isTracked: false }),
+        task({ id: 'c', type: 'course', name: 'Course one', dosesPerDay: 2 }),
+        task({ id: 'td', type: 'todo', name: 'Todo one', cadence: null, isTracked: false }),
+        task({ id: 'nt', type: 'todo', name: 'Note one', cadence: null, isTracked: false, isNote: true }),
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    await render(<SearchScreen />);
+    expect(screen.getByText('5 results')).toBeTruthy();
+    // Each card's label reads "name, type, ...", so the type is checked on the card itself (the filter chips use the same words).
+    expect(screen.getByLabelText(/^Routine one, Routine/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Event one, Event/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Course one, Course/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Todo one, To-do/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Note one, Note/)).toBeTruthy();
+  });
+
+  it('a result that matches nothing in the search says so, with Clear all to get back', async () => {
+    mockUseTasks.mockReturnValue({ data: [task({ name: 'Movement' })], isLoading: false, isError: false });
+    const user = userEvent.setup();
+    await render(<SearchScreen />);
+    await user.type(screen.getByLabelText('Search tasks'), 'qqq');
+    expect(screen.getByText('No matches.')).toBeTruthy();
+    expect(screen.getByText('Try a different search term, or clear a filter.')).toBeTruthy();
+  });
+
   it('typing a query live-filters results', async () => {
     mockUseTasks.mockReturnValue({ data: [task(), task({ id: 't2', name: 'Read' })], isLoading: false, isError: false });
     const user = userEvent.setup();

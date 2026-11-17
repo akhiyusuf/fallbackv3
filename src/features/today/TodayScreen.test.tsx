@@ -7,6 +7,7 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000
 const mockUseTasks = jest.fn();
 const mockUseToday = jest.fn();
 const mockUseConsistency = jest.fn();
+const mockUseProgress = jest.fn();
 const mockLogStateMutateAsync = jest.fn();
 const mockMarkOffDayMutateAsync = jest.fn();
 
@@ -14,6 +15,7 @@ jest.mock('@/queries', () => ({
   useTasks: () => mockUseTasks(),
   useToday: () => mockUseToday(),
   useConsistency: () => mockUseConsistency(),
+  useProgress: () => mockUseProgress(),
   useLogState: () => ({ mutateAsync: mockLogStateMutateAsync }),
   useMarkOffDay: () => ({ mutateAsync: mockMarkOffDayMutateAsync }),
 }));
@@ -21,6 +23,9 @@ jest.mock('@/queries', () => ({
 import type { ReactElement } from 'react';
 import TodayScreen from './TodayScreen';
 import { Toast } from '@/ui';
+import { useCelebrationStore } from '@/app-shell';
+import { useToastStore } from '@/app-shell/stores/toast';
+import type { ChipState } from '@/types';
 
 // `Toast` is a separate host mounted once at the app root (`app/_layout.tsx`) — screens only
 // call `useToastStore.getState().show(...)`. Rendering it alongside the screen here lets these
@@ -80,9 +85,22 @@ function occurrence(overrides: Partial<Record<string, unknown>> = {}) {
 const TODAY = '2026-07-16'; // matches @/lib/date's real `today()` only coincidentally not required — rows are date-filtered internally.
 
 describe('S09 — Today', () => {
+  // The occurrence the mocked read returns. Logging updates it, the way the query refetch would.
+  const board: { chip: ChipState | null } = { chip: 'todo' };
+
+  function todayRead() {
+    const { today } = jest.requireActual('@/lib/date');
+    mockUseToday.mockImplementation(() => ({ data: [occurrence({ date: today(), chipState: board.chip })], isLoading: false, isError: false }));
+    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
+    board.chip = 'todo';
+    useToastStore.setState({ toast: null });
+    useCelebrationStore.setState({ queue: [] });
     mockUseConsistency.mockReturnValue({ isLoading: false, data: { percent: 84, numerator: 26.3, denominator: 31 } });
+    mockUseProgress.mockReturnValue({ isLoading: false, data: undefined });
   });
 
   it('loading: renders skeleton rows while chrome (toggle) renders immediately', async () => {
@@ -106,8 +124,8 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen />);
-    expect(screen.getByText('Nothing due right now.')).toBeTruthy();
-    expect(screen.getByText('Enjoy the open day, or add something new.')).toBeTruthy();
+    // The headline and the subcopy are one line of text on the card.
+    expect(screen.getByText('Nothing due right now. Enjoy the open day, or add something new.')).toBeTruthy();
     expect(screen.queryByText('Nothing planned for today yet.')).toBeNull();
   });
 
@@ -121,84 +139,119 @@ describe('S09 — Today', () => {
   });
 
   it('stat chip: zero-data reads the no-data copy, never "0%"', async () => {
-    mockUseTasks.mockReturnValue({ data: [], isLoading: false, isError: false });
+    // A tracked task exists (so the stat chip is shown) but nothing is due yet.
+    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     mockUseConsistency.mockReturnValue({ isLoading: false, data: { percent: null, numerator: 0, denominator: 0 } });
     await render(<TodayScreen />);
-    expect(screen.getByText('No data yet · see your dashboard →')).toBeTruthy();
+    expect(screen.getByText('No data yet')).toBeTruthy();
     expect(screen.queryByText(/0%/)).toBeNull();
   });
 
   it('populated: renders a due task row with its meta line and current chip state', async () => {
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: '__any__', outcome: 'not-due' })], isLoading: false, isError: false });
-    // Simulate a genuinely due occurrence dated to whatever @/lib/date's real today() resolves to
-    // by re-mocking with the row's date matched at render time via a spy on the hook return.
-    const { today } = jest.requireActual('@/lib/date');
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today() })], isLoading: false, isError: false });
+    todayRead();
     await render(<TodayScreen />);
     expect(screen.getByText('Movement')).toBeTruthy();
-    expect(screen.getByText('Routine · daily')).toBeTruthy();
+    expect(screen.getByText('Routine · Daily')).toBeTruthy();
+    expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
+    expect(screen.getByLabelText('Movement: Fallback')).toBeTruthy();
+    expect(screen.getByLabelText('Movement: Skip today')).toBeTruthy();
   });
 
-  it('chip tap: logging Done persists via useLogState and, on a qualifying completion, navigates to S24', async () => {
+  it('chip tap: logging Done persists via useLogState, updates the card and offers Undo', async () => {
+    todayRead();
     const { today } = jest.requireActual('@/lib/date');
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
-    mockLogStateMutateAsync.mockResolvedValue({ ok: true, value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: [] } });
-    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
-    const user = userEvent.setup();
-    await render(<TodayScreen />);
-    await user.press(screen.getByLabelText('Movement state, To do'));
-    await user.press(screen.getByLabelText('Done'));
-    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today(), chip: 'done' }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/task/t1/celebrate?variant=ideal&xp=10&levelUp=0&from=today'));
-    push.mockRestore();
-  });
-
-  it('chip tap: a milestone badge unlock carries badgeKey through to S24 (so it can chain to S28)', async () => {
-    const { today } = jest.requireActual('@/lib/date');
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
-    mockLogStateMutateAsync.mockResolvedValue({
-      ok: true,
-      value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: ['tenure-30'] },
+    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
+      board.chip = chip;
+      return { ok: true, value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: [] } };
     });
-    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
-    await render(<TodayScreen />);
-    await user.press(screen.getByLabelText('Movement state, To do'));
-    await user.press(screen.getByLabelText('Done'));
+    const view = await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Done'));
     await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today(), chip: 'done' }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/task/t1/celebrate?variant=ideal&xp=10&levelUp=0&from=today&badgeKey=tenure-30'));
-    push.mockRestore();
+    await view.rerender(withToastHost(<TodayScreen />));
+
+    expect(screen.getByLabelText('Movement, Ideal done. Change')).toBeTruthy();
+    expect(useToastStore.getState().toast).toMatchObject({ message: 'Ideal done', tone: 'success', detail: '+10 XP' });
+    expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
+    expect(useCelebrationStore.getState().queue).toEqual([]);
   });
 
-  it('chip tap: a Skip commits with no celebration', async () => {
-    const { today } = jest.requireActual('@/lib/date');
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
-    mockLogStateMutateAsync.mockResolvedValue({ ok: true, value: { outcome: 'missed', xpAwarded: 0, celebrate: 'none', levelUp: null, badgesUnlocked: [] } });
-    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+  it('chip tap: logging Fallback updates the card to "Fallback done" and offers Undo', async () => {
+    todayRead();
+    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
+      board.chip = chip;
+      return { ok: true, value: { outcome: 'fallback', xpAwarded: 6, celebrate: 'none', levelUp: null, badgesUnlocked: [] } };
+    });
     const user = userEvent.setup();
-    await render(<TodayScreen />);
-    await user.press(screen.getByLabelText('Movement state, To do'));
-    await user.press(screen.getByLabelText('Skip'));
-    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalled());
-    expect(push).not.toHaveBeenCalledWith(expect.stringContaining('celebrate'));
-    push.mockRestore();
+    const view = await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Fallback'));
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ chip: 'fallback' })));
+    await view.rerender(withToastHost(<TodayScreen />));
+
+    expect(screen.getByLabelText('Movement, Fallback done. Change')).toBeTruthy();
+    expect(useToastStore.getState().toast).toMatchObject({ message: 'Fallback done', icon: 'fallback', detail: '+6 XP' });
+    expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
+  });
+
+  it('chip tap: a milestone badge unlock queues its pop-up with the badge key (so it can chain to S28)', async () => {
+    todayRead();
+    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
+      board.chip = chip;
+      return { ok: true, value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: ['tenure-30'] } };
+    });
+    const user = userEvent.setup();
+    await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Done'));
+    await waitFor(() => expect(useCelebrationStore.getState().queue).toEqual([{ kind: 'badge', badgeKey: 'tenure-30' }]));
+  });
+
+  it('chip tap: a Skip commits with no celebration and offers Undo', async () => {
+    todayRead();
+    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
+      board.chip = chip;
+      return { ok: true, value: { outcome: 'missed', xpAwarded: 0, celebrate: 'none', levelUp: null, badgesUnlocked: [] } };
+    });
+    const user = userEvent.setup();
+    const view = await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Skip today'));
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ chip: 'skip' })));
+    await view.rerender(withToastHost(<TodayScreen />));
+
+    expect(screen.getByLabelText('Movement, Skipped. Change')).toBeTruthy();
+    expect(useToastStore.getState().toast).toMatchObject({ message: 'Skipped for today', icon: 'skip' });
+    expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
+    expect(useCelebrationStore.getState().queue).toEqual([]);
+  });
+
+  it('chip tap: Undo on the toast restores the previous (unlogged) state', async () => {
+    todayRead();
+    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
+      board.chip = chip;
+      return { ok: true, value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: [] } };
+    });
+    const user = userEvent.setup();
+    const view = await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Done'));
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledTimes(1));
+    await view.rerender(withToastHost(<TodayScreen />));
+
+    await user.press(await screen.findByLabelText('Undo'));
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenLastCalledWith(expect.objectContaining({ chip: 'todo' })));
+    await view.rerender(withToastHost(<TodayScreen />));
+    expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
+    expect(useToastStore.getState().toast?.message).toBe('Undone');
   });
 
   it('chip tap: a failed persist reverts (no optimistic change survives) and shows the retry toast', async () => {
-    const { today } = jest.requireActual('@/lib/date');
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
+    todayRead();
     mockLogStateMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'nope' } });
     const user = userEvent.setup();
     await render(withToastHost(<TodayScreen />));
-    await user.press(screen.getByLabelText('Movement state, To do'));
-    await user.press(screen.getByLabelText('Done'));
+    await user.press(screen.getByLabelText('Movement: Done'));
     await waitFor(() => expect(screen.getByText("Couldn't save that — try again.")).toBeTruthy());
+    expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
+    expect(screen.queryByText('Ideal done')).toBeNull();
   });
 
   it('whole-day off: toggling on disables every row\'s chip and shows the off-day toast', async () => {
@@ -226,29 +279,30 @@ describe('S09 — Today', () => {
     const { today } = jest.requireActual('@/lib/date');
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     await render(<TodayScreen reentryOverride reentryTaskIdOverride="t1" />);
     expect(screen.getByText("No workout yesterday — that's okay.")).toBeTruthy();
     expect(screen.getByText('Your consistency is intact — 84% · 26 of the last 30 days you showed up — ideal or fallback.')).toBeTruthy();
     const user = userEvent.setup();
-    await user.press(screen.getByLabelText('Even 10 pushups counts →'));
-    expect(screen.getByLabelText('Set state for Movement')).toBeTruthy();
+    await user.press(screen.getByLabelText('Even the fallback counts'));
+    expect(push).toHaveBeenCalledWith('/task/t1?from=today');
+    push.mockRestore();
   });
 
   it('just-added banner: renders the verbatim first-habit-set copy', async () => {
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen justAddedOverride />);
-    expect(screen.getByText(/your first habit is set 🌱/)).toBeTruthy();
+    expect(screen.getByText('Your first habit is set.')).toBeTruthy();
+    expect(screen.getByText('Do the ideal or the fallback today — either one counts.')).toBeTruthy();
   });
 
   it('tapping anywhere on the card row (not the chip) navigates to S20 with origin=today', async () => {
-    const { today } = jest.requireActual('@/lib/date');
-    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
-    mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
+    todayRead();
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<TodayScreen />);
-    await user.press(screen.getByLabelText('Movement, Routine · daily'));
+    await user.press(screen.getByLabelText('Movement, Routine, Daily. Opens the task'));
     expect(push).toHaveBeenCalledWith('/task/t1?from=today');
     push.mockRestore();
   });

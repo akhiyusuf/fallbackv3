@@ -12,7 +12,7 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent, waitFor } from '@testing-library/react-native';
+import { userEvent, waitFor, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
@@ -54,7 +54,7 @@ describe('S16 Create Routine', () => {
     expect(await screen.findByText('Ideal (optional)')).toBeTruthy();
     expect(screen.getByText('Fallback (optional)')).toBeTruthy();
     expect(
-      screen.getByText("As-needed routines skip Today entirely — you'll log them from the Routines list whenever the situation comes up."),
+      screen.getByText('As-needed routines have no schedule and no consistency tracking. You log them from the Routines list when the situation comes up.'),
     ).toBeTruthy();
   });
 
@@ -78,8 +78,12 @@ describe('S16 Create Routine', () => {
 
     const idealInput = await screen.findByLabelText('Ideal step 1');
     await userEvent.type(idealInput, 'Review notes');
-    // Turn the step off for Tuesday, leaving Tuesday with zero due ideal steps.
-    await userEvent.press(screen.getByLabelText('Review notes, T'));
+    // The per-step day grid only appears with two or more ideal steps.
+    await userEvent.press(screen.getAllByLabelText('Add step')[0]!);
+    await userEvent.type(await screen.findByLabelText('Ideal step 2'), 'Practice problems');
+    // Turn both steps off for Tuesday, leaving Tuesday with zero due ideal steps.
+    await userEvent.press(within(screen.getByLabelText('Days for Review notes')).getByLabelText('Tue'));
+    await userEvent.press(within(screen.getByLabelText('Days for Practice problems')).getByLabelText('Tue'));
 
     const fallbackInput = await screen.findByLabelText('Fallback step 1');
     await userEvent.type(fallbackInput, 'Skim notes');
@@ -101,6 +105,7 @@ describe('S16 Create Routine', () => {
 
     await userEvent.press(screen.getByLabelText('Save routine'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+    expect(useToastStore.getState().toast?.message).toBe('Routine saved');
   });
 
   it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {

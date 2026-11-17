@@ -50,7 +50,7 @@ describe('S41 — Settings Home', () => {
     expect(screen.getByText('Help and about')).toBeTruthy();
   });
 
-  it('empty (new user): renders "Level 1 · Getting started" and "no data yet", never "0%"', async () => {
+  it('empty (new user): renders "Level 1 · Getting started" and "No data yet", never "0%"', async () => {
     mockSettingsData.current = { notifications: { master: false } };
     mockProgressData.current = { lifetimeXp: 0, level: { level: 1, title: 'Getting started', xpIntoLevel: 0, xpForLevel: 100 } };
     mockConsistencyData.current = { percent: null };

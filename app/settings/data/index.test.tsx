@@ -58,10 +58,10 @@ describe('S47 — Data', () => {
     expect(screen.getByText(S47_COPY.noBackupYet)).toBeTruthy();
   });
 
-  it('default, has a backup: shows the "Last backup: <formatted>" subcopy', async () => {
+  it('default, has a backup: shows the "Last backup <formatted>" subcopy', async () => {
     mockSettingsData.current = { lastBackupAt: '2026-07-14T13:12:00.000Z' };
     await renderScreen();
-    expect(screen.getByText(new RegExp(`^${S47_COPY.lastBackupPrefix} \\w{3} \\d{1,2}, 2026 at `))).toBeTruthy();
+    expect(screen.getByText(/^Last backup \w{3} \d{1,2}, 2026 at /)).toBeTruthy();
   });
 
   it('the erase-all row opens the confirmation sheet and navigates nowhere', async () => {
@@ -124,7 +124,7 @@ describe('S47 — Data', () => {
     await renderScreen();
     await user.press(screen.getByText(S47_COPY.backUpNow));
     await waitFor(() =>
-      expect(mockShowToast.mock.calls.some((c) => (c[0] as string).startsWith(S47_COPY.backupSuccessPrefix) && c[1] === 'success')).toBe(true),
+      expect(mockShowToast.mock.calls.some((c) => (c[0] as string).startsWith('Backed up ') && c[1] === 'success')).toBe(true),
     );
   });
 

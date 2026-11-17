@@ -479,7 +479,7 @@ export default function S20ManageTask() {
       </Dialog>
 
       <Dialog visible={scheduleOpen} onClose={() => setScheduleOpen(false)} title="Step schedule" accessibilityLabel="Step schedule">
-        <Text style={[styles.caption, { color: t.color.textMuted }]}>Choose the days each ideal step applies. Locked days are days this {noun} doesn't run.</Text>
+        <Text style={[styles.caption, { color: t.color.textMuted }]}>Choose the days each ideal step applies. Locked days are days this {noun} doesn&apos;t run.</Text>
         {task.idealSteps.map((step) => (
           <WeekdayPicker
             key={step.id}

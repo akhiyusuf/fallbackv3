@@ -12,7 +12,7 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent } from '@testing-library/react-native';
+import { userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
@@ -95,5 +95,19 @@ describe('S23 As-Needed Routine Detail', () => {
     await userEvent.press(screen.getByLabelText('Save'));
 
     expect(await screen.findByText('Emergency plan v2')).toBeTruthy();
+  });
+  it('Edit with an empty name saves nothing, keeps the editor open and warns', async () => {
+    fake.seedTask(asNeededTask());
+    await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed', wrapper });
+    await screen.findByText('Emergency plan');
+
+    await userEvent.press(screen.getByLabelText('More actions'));
+    await userEvent.press(await screen.findByLabelText('Edit'));
+    await userEvent.clear(await screen.findByLabelText('Name'));
+    await userEvent.press(screen.getByLabelText('Save'));
+
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Give this routine a name to save it.'));
+    expect(screen.getByText('Edit routine')).toBeTruthy();
+    expect((await fake.repos.tasks.get('task-1' as Id))?.name).toBe('Emergency plan');
   });
 });

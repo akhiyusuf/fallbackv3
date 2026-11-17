@@ -13,14 +13,16 @@ import { useTheme } from '@/theme';
 function iconFor(key: string, pill: string) {
   const item = PRIMARY_NAV_ITEMS.find((i) => i.key === key)!;
   const Icon = item.icon;
-  return ({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) => (
-    <View style={styles.iconBox}>
-      {focused ? <View style={[styles.pill, { backgroundColor: pill }]} /> : null}
-      <View>
-        <Icon color={color as string} size={size} />
+  return function TabIcon({ color, size, focused }: { color: ColorValue; size: number; focused: boolean }) {
+    return (
+      <View style={styles.iconBox}>
+        {focused ? <View style={[styles.pill, { backgroundColor: pill }]} /> : null}
+        <View>
+          <Icon color={color as string} size={size} />
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 }
 
 const styles = StyleSheet.create({

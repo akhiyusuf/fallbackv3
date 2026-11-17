@@ -5,7 +5,7 @@
  * reserved and never used decoratively). Degrades to a plain opacity cross-fade under OS
  * "reduce motion" (DESIGN.md Motion → Confetti).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/theme';
@@ -23,7 +23,7 @@ interface Particle {
 export function Confetti() {
   const t = useTheme();
   const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
-  const fadeIn = useRef(new Animated.Value(0)).current;
+  const [fadeIn] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     let mounted = true;
@@ -72,7 +72,7 @@ export function Confetti() {
 }
 
 function ConfettiPiece({ particle }: { particle: Particle }) {
-  const fall = useRef(new Animated.Value(0)).current;
+  const [fall] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     Animated.timing(fall, {

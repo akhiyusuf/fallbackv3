@@ -3,7 +3,7 @@
  * Renders M2's numbers only; no percentage arithmetic lives here.
  */
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { CalendarSearch, Check, CheckCheck, Layers, Minus } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -46,12 +46,10 @@ export default function S25ConsistencyDashboard() {
   const tasksQuery = useTasks();
   const trackableTasks = (tasksQuery.data ?? []).filter((task) => task.type !== 'todo' && !task.isAsNeeded);
 
-  useEffect(() => {
-    if (!selectedTaskId && trackableTasks.length > 0) setSelectedTaskId(trackableTasks[0]!.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackableTasks.length]);
+  // Until the person picks a task, the first trackable one is the one shown.
+  const activeTaskId: Id | null = selectedTaskId ?? trackableTasks[0]?.id ?? null;
 
-  const consistencyQuery = useConsistency({ scope, window, taskId: scope === 'per-task' ? (selectedTaskId ?? undefined) : undefined });
+  const consistencyQuery = useConsistency({ scope, window, taskId: scope === 'per-task' ? (activeTaskId ?? undefined) : undefined });
   const isLoading = consistencyQuery.isLoading || (scope === 'per-task' && tasksQuery.isLoading);
   const result = consistencyQuery.data;
   const truncated = result ? truncatedWindowDays(window, result.denominator) : null;
@@ -64,7 +62,7 @@ export default function S25ConsistencyDashboard() {
           <ScopeChip
             key={task.id}
             label={task.name}
-            selected={scope === 'per-task' && selectedTaskId === task.id}
+            selected={scope === 'per-task' && activeTaskId === task.id}
             onPress={() => {
               setScope('per-task');
               setSelectedTaskId(task.id);

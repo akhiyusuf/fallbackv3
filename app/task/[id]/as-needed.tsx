@@ -60,9 +60,14 @@ export default function S23AsNeededRoutineDetail() {
   }
 
   async function saveEdit() {
+    const name = draftName.trim();
+    if (name.length === 0) {
+      showToast('Give this routine a name to save it.', 'warning');
+      return;
+    }
     const result = await updateTask.mutateAsync({
       id: taskId,
-      patch: { name: draftName },
+      patch: { name },
       steps: [
         ...(draftIdeal.trim() ? [{ id: task?.idealSteps[0]?.id ?? newId(), taskId, role: 'ideal' as const, text: draftIdeal, position: 0, dueWeekdays: null }] : []),
         ...(draftFallback.trim()
