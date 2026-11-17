@@ -157,7 +157,7 @@ describe('S25 — Consistency Dashboard', () => {
     canGoBackSpy.mockRestore();
   });
 
-  it('"See full history" navigates to S26', async () => {
+  it('"Full history" navigates to S26', async () => {
     mockConsistency.current = { scope: 'per-task', percent: 87, numerator: 26, denominator: 30, breakdown: breakdown(22, 4, 4, 4), countedDates: [] };
     const pushSpy = jest.spyOn(router, 'push').mockImplementation(() => undefined as never);
     const user = userEvent.setup();

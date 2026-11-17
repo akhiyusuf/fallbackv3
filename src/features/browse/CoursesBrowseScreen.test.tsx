@@ -55,7 +55,7 @@ describe('S12 — Courses Browse', () => {
     push.mockRestore();
   });
 
-  it('populated (Active tab): shows a dose badge and a days-left badge', async () => {
+  it('populated (Active tab): the meta line shows the day count and the doses a day', async () => {
     mockUseTasks.mockReturnValue({ data: [course()], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<CoursesBrowseScreen />);
     expect(screen.getByText('Antibiotics')).toBeTruthy();
@@ -64,7 +64,7 @@ describe('S12 — Courses Browse', () => {
     expect(screen.getByText(/2 doses a day/)).toBeTruthy();
   });
 
-  it('Past tab: shows "Completed <date>" instead of days-left, and hides the live dose badge', async () => {
+  it('Past tab: shows "Completed <date>" and hides the live doses-a-day detail', async () => {
     const pastCourse = course({ id: 'c2', name: 'Old course', startDate: addDays(today(), -20), endDate: addDays(today(), -5) });
     mockUseTasks.mockReturnValue({ data: [pastCourse], isLoading: false, isError: false, refetch: jest.fn() });
     const user = userEvent.setup();

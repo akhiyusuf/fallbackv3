@@ -12,7 +12,7 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
@@ -20,6 +20,13 @@ import { clock } from '@/queries/testSupport/clockMock';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
 import { useToastStore } from '@/app-shell/stores/toast';
 import { err } from '@/types';
+
+/** Dates are chosen in the system picker (stood in for by __mocks__/@react-native-community/datetimepicker.js). */
+async function pickDate(label: RegExp, date: Date) {
+  await userEvent.press(await screen.findByLabelText(label));
+  await fireEvent(await screen.findByTestId('date-picker'), 'change', { type: 'set' }, date);
+  await userEvent.press(screen.getByText('Done'));
+}
 
 let client: QueryClient;
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -67,17 +74,10 @@ describe('S17 Create Event', () => {
     expect(await screen.findByTestId('event-cadence-picker')).toBeTruthy();
   });
 
-  it('an unparseable free-typed Date surfaces a visible inline error (REVIEW-M4.md item 7)', async () => {
+  it('the date is picked, never typed: the field opens the system picker and shows the chosen day', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
-    const name = await screen.findByLabelText('Event name');
-    await userEvent.type(name, 'Dentist visit');
-    const dateInput = screen.getByLabelText('Date');
-    await userEvent.clear(dateInput);
-    await userEvent.type(dateInput, 'not-a-date');
-
-    await userEvent.press(screen.getByLabelText('Save event'));
-    expect(await screen.findByText('Pick a date for this event.')).toBeTruthy();
-    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+    await pickDate(/^Date/, new Date(2026, 6, 26));
+    expect(await screen.findByLabelText('Date, Sun, Jul 26')).toBeTruthy();
   });
 
   it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {

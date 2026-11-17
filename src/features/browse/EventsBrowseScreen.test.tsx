@@ -70,7 +70,7 @@ describe('S11 — Events Browse', () => {
     expect(screen.getByText('One-time')).toBeTruthy();
   });
 
-  it('no events today, but some upcoming: Today section shows its own scoped empty copy; Upcoming still lists', async () => {
+  it('no events today, but some upcoming: the Today summary says nothing is on, and Upcoming still lists', async () => {
     const upcoming = event({ id: 'e2', name: 'Team dinner', eventDate: '2099-01-01' });
     mockUseTasks.mockReturnValue({ data: [upcoming], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<EventsBrowseScreen />);

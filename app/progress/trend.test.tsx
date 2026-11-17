@@ -63,7 +63,7 @@ describe('S26 — All-time Trend Graph', () => {
     expect(screen.getByText('May')).toBeTruthy();
   });
 
-  it('carries a real "View as table" alternative — a chart is never the only representation', async () => {
+  it('carries a real "Table" alternative — a chart is never the only representation', async () => {
     mockTrend.current = monthlyPoints();
     const user = userEvent.setup();
     await render(<S26AllTimeTrendGraph />);

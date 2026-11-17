@@ -1,12 +1,12 @@
 import { makeTask } from '@/features/task/testSupport/taskFixture';
-import type { Instant, LocalDate } from '@/types';
+import type { Id, Instant, LocalDate } from '@/types';
 
 import { groupByImportance } from './order';
 
 const DATE = '2026-11-17' as LocalDate;
 
 function task(id: string, patch: Parameters<typeof makeTask>[0] = {}) {
-  return makeTask({ id, name: id, ...patch });
+  return makeTask({ id: id as Id, name: id, ...patch });
 }
 
 function names(list: readonly { name: string }[]) {

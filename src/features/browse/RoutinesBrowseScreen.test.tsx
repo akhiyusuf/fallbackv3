@@ -69,7 +69,7 @@ describe('S10 — Routines Browse', () => {
     expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
   });
 
-  it('populated: a daily routine always appears in the Due section with a Due badge; an as-needed routine renders as AsNeededCard in Other routines with no due badge/cadence/heatmap', async () => {
+  it('populated: a daily routine always appears in the Due section with a Due badge; an as-needed routine renders in its own As needed section with no due badge or cadence', async () => {
     const asNeeded = routine({ id: 'r2', name: 'Emergency plan', isAsNeeded: true, cadence: null, importance: null, necessity: null });
     mockUseTasks.mockReturnValue({ data: [routine(), asNeeded], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<RoutinesBrowseScreen />);
@@ -126,7 +126,7 @@ describe('S10 — Routines Browse', () => {
     expect(screen.getByText('Yoga flow')).toBeTruthy();
   });
 
-  it('the + FAB navigates to S15 (pick type)', async () => {
+  it('the + FAB opens the new-routine form directly', async () => {
     mockUseTasks.mockReturnValue({ data: [routine()], isLoading: false, isError: false, refetch: jest.fn() });
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();

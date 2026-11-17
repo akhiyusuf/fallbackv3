@@ -19,7 +19,7 @@ jest.mock('@/queries', () => ({
 import PrioritiesScreen from './index';
 
 function high(id: string, name: string, patch: Partial<TaskWithSteps> = {}) {
-  return makeTask({ id, name, importance: 'high', createdAt: `2026-01-0${id.length}T00:00:00.000Z` as Instant, ...patch });
+  return makeTask({ id: id as Id, name, importance: 'high', createdAt: `2026-01-0${id.length}T00:00:00.000Z` as Instant, ...patch });
 }
 
 /** Applies a save to the rows, the way the database would. */

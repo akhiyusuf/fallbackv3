@@ -13,7 +13,7 @@ jest.mock('@/queries', () => ({
 import { PriorityPlaceRow } from './PriorityPlaceRow';
 
 function high(id: string, name: string, rank: number | null) {
-  return makeTask({ id, name, importance: 'high', priorityRank: rank, createdAt: '2026-01-01T00:00:00.000Z' as Instant });
+  return makeTask({ id: id as Id, name, importance: 'high', priorityRank: rank, createdAt: '2026-01-01T00:00:00.000Z' as Instant });
 }
 
 describe('PriorityPlaceRow (on a task screen)', () => {
