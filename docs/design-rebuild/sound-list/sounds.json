@@ -1,0 +1,40 @@
+[
+ {"group":"Logging a habit","note":"The heart of the app. Fallback must sound like a win too, only calmer. Never a sad or lesser sound.","items":[
+  {"file":"log_ideal","when":"You tap Done (the ideal).","secs":1.0,"prompt":"Wooden marimba, two quick rising notes in C major, bright and warm, single short phrase, close microphone, dry studio recording, no reverb"},
+  {"file":"log_fallback","when":"You tap Fallback.","secs":1.0,"prompt":"Wooden marimba, one soft warm middle note in C major with a short gentle ring, single note, close microphone, dry studio recording, no reverb"},
+  {"file":"log_skip","when":"You tap Skip today.","secs":0.5,"prompt":"Felt mallet on a wooden block, one soft low muted knock, single sound, close microphone, dry foley recording"},
+  {"file":"undo","when":"You tap Undo on any toast, or clear a log.","secs":0.5,"prompt":"Sheet of paper, one quick light backward swish, single sound, close microphone, dry foley recording"},
+  {"file":"step_tick","when":"You tick one step of a routine.","secs":0.5,"prompt":"Ballpoint pen, one small crisp click, single sound, close microphone, dry foley recording"},
+  {"file":"todo_done","when":"You tick a to-do.","secs":0.7,"prompt":"Pencil on paper, one quick short check mark scratch then a light tap, single sound, close microphone, dry foley recording"},
+  {"file":"day_complete","when":"The last thing due today gets logged.","secs":2.0,"prompt":"Wooden marimba, quick rising run of four notes in C major ending on a bright high note with a short ring, joyful, single phrase, close microphone, dry studio recording"},
+  {"file":"day_off","when":"You mark today off.","secs":0.6,"prompt":"Small soft pillow, one gentle muffled pat, single sound, close microphone, dry foley recording"},
+  {"file":"snooze","when":"You move a task to tomorrow.","secs":0.7,"prompt":"Paper desk calendar, one quick page flip, single sound, close microphone, dry foley recording"}
+ ]},
+ {"group":"Rewards","note":"Short and happy. These play on top of a log sound, so they start a beat later.","items":[
+  {"file":"level_up","when":"You reach a new level.","secs":2.5,"prompt":"Wooden marimba with a small glockenspiel, bright rising fanfare of five notes in C major, joyful, short sparkle at the end, single phrase, close microphone, dry studio recording"},
+  {"file":"badge_earned","when":"You earn a badge.","secs":1.5,"prompt":"Metal coin, one bright coin spinning and settling quickly on a wooden table, single sound, close microphone, dry foley recording"}
+ ]},
+ {"group":"Buttons and moving around","note":"Very quiet, very short. These play hundreds of times, so they must never be annoying.","items":[
+  {"file":"tap","when":"Any main button press.","secs":0.5,"prompt":"Small wooden button, one soft short muted tap, single sound, close microphone, dry foley recording"},
+  {"file":"tab_switch","when":"You change tabs at the bottom.","secs":0.5,"prompt":"Felt pad, one light quick soft pop, single sound, close microphone, dry foley recording"},
+  {"file":"toggle_on","when":"A switch turns on.","secs":0.5,"prompt":"Small plastic light switch, one soft click, higher pitched, single sound, close microphone, dry foley recording"},
+  {"file":"toggle_off","when":"A switch turns off.","secs":0.5,"prompt":"Small plastic light switch, one soft click, lower pitched and duller, single sound, close microphone, dry foley recording"},
+  {"file":"sheet_open","when":"The add menu or a dialog opens, and the next onboarding step.","secs":0.5,"prompt":"Soft air, one short quick upward swish, single sound, close microphone, dry foley recording"},
+  {"file":"sheet_close","when":"A menu or dialog closes.","secs":0.5,"prompt":"Soft air, one short quick downward swish, single sound, close microphone, dry foley recording"},
+  {"file":"save_task","when":"A new routine, event, course or to-do is saved.","secs":0.6,"prompt":"Wooden toy block dropped into a wooden slot, one short satisfying clunk, single sound, close microphone, dry foley recording"},
+  {"file":"delete","when":"Something is deleted.","secs":0.7,"prompt":"Sheet of paper, one quick crumple, single sound, close microphone, dry foley recording"},
+  {"file":"reorder","when":"You move a priority up or down.","secs":0.5,"prompt":"Wooden game tile, one short slide across a wooden table and stop, single sound, close microphone, dry foley recording"},
+  {"file":"theme_change","when":"You pick a theme or colour.","secs":0.5,"prompt":"Water, one single bright drop falling into a full glass, single plop, close microphone, dry recording"},
+  {"file":"error","when":"Something could not be saved.","secs":0.6,"prompt":"Low wooden block, two quick dull muted knocks, single sound, close microphone, dry foley recording"}
+ ]},
+ {"group":"Fallback AI","note":"A different material from the rest (glass, not wood) so the AI has its own voice.","items":[
+  {"file":"ai_listen_start","when":"Fallback AI starts listening.","secs":0.8,"prompt":"Small glass chime, two quick soft rising notes, airy, single phrase, close microphone, dry studio recording"},
+  {"file":"ai_listen_stop","when":"Fallback AI stops listening.","secs":0.8,"prompt":"Small glass chime, two quick soft falling notes, airy, single phrase, close microphone, dry studio recording"},
+  {"file":"ai_send","when":"You send a typed message to Fallback AI.","secs":0.5,"prompt":"Soap bubble, one light soft pop, single sound, close microphone, dry foley recording"},
+  {"file":"ai_done","when":"Fallback AI finishes setting something up.","secs":1.5,"prompt":"Small glass chimes, quick rising shimmer of three notes ending bright with a short ring, single phrase, close microphone, dry studio recording"}
+ ]},
+ {"group":"Reminders and first run","note":"","items":[
+  {"file":"reminder","when":"A reminder arrives (you can also hear it by tapping a sample in Settings, Notifications).","secs":1.5,"prompt":"Wooden marimba, two gentle calm notes in C major, the second a little higher, short soft ring, single phrase, close microphone, dry studio recording"},
+  {"file":"welcome","when":"You finish onboarding and land on Today for the first time.","secs":2.0,"prompt":"Wooden marimba, warm friendly rising phrase of three notes in C major with a soft ring, single phrase, close microphone, dry studio recording"}
+ ]}
+]

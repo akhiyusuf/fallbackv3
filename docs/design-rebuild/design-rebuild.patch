@@ -1676,7 +1676,7 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
  });
 diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/RoutinesBrowseScreen.tsx
 --- a/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 05:43:15.822061751 +0000
-+++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 03:03:53.651624665 +0000
++++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 04:24:38.232154167 +0000
 @@ -1,34 +1,37 @@
 -/**
 - * S10 — Routines Browse. F2 (browse), F6, F27 (as-needed rows, never on Today, → S23).
@@ -1701,7 +1701,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 +import { StatusPill, metaParts } from '@/features/task/TaskDetails';
  import { BROWSE_SHARED_COPY, dueSectionLabel, S10_COPY } from './copy';
 -import { cadenceLabel, cadenceRunsOnWeekday, importanceLabel, necessityLabel } from './format';
-+import { cadenceLabel, cadenceRunsOnWeekday } from './format';
++import { cadenceLabel, cadenceRunsOnWeekday, formatTimeOfDay } from './format';
  import { Fab, FAB_CLEARANCE } from './Fab';
  import { BrowseHeader } from './BrowseHeader';
 -import { resolveTaskIcon } from './resolveIcon';
@@ -1792,7 +1792,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 +                  <TaskCard
 +                    key={tk.id}
 +                    task={tk}
-+                    meta={metaParts({ schedule: cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
++                    meta={metaParts({ schedule: tk.timeOfDay ? `${cadenceLabel(tk.cadence)} · ${formatTimeOfDay(tk.timeOfDay)}` : cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
 +                    status={selectedWeekday === todayWeekday ? <StatusPill label={S10_COPY.dueBadge} tone="due" /> : undefined}
 +                    onPress={() => openTask(tk.id)}
 +                  />
@@ -1809,7 +1809,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 +                  <TaskCard
 +                    key={tk.id}
 +                    task={tk}
-+                    meta={metaParts({ schedule: cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
++                    meta={metaParts({ schedule: tk.timeOfDay ? `${cadenceLabel(tk.cadence)} · ${formatTimeOfDay(tk.timeOfDay)}` : cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
 +                    onPress={() => openTask(tk.id)}
 +                  />
                  ))}
@@ -2257,6 +2257,59 @@ diff -ruN a/src/features/data/EraseDataSheet.tsx b/src/features/data/EraseDataSh
 +    </ConfirmSheet>
 +  );
 +}
+diff -ruN a/src/features/notifications/NotificationSample.tsx b/src/features/notifications/NotificationSample.tsx
+--- a/src/features/notifications/NotificationSample.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/notifications/NotificationSample.tsx	2026-11-17 04:28:43.605776383 +0000
+@@ -0,0 +1,49 @@
++/**
++ * NotificationSample — one reminder drawn the way the phone shows it: app icon, app name,
++ * when, a bold first line and a second line. The wording is the wording the reminder
++ * service sends. Dimmed when that kind of reminder is switched off.
++ */
++import { Sprout } from 'lucide-react-native';
++import { StyleSheet, Text, View } from 'react-native';
++
++import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
++
++export interface NotificationSampleProps {
++  readonly title: string;
++  readonly body: string;
++  readonly when: string;
++  readonly off?: boolean;
++}
++
++export function NotificationSample({ title, body, when, off = false }: NotificationSampleProps) {
++  const t = useTheme();
++  return (
++    <View
++      accessible
++      accessibilityLabel={`${off ? 'Off. ' : ''}Looks like: Fallback, ${when}. ${title}. ${body}`}
++      style={[styles.root, { backgroundColor: t.color.surface, opacity: off ? 0.45 : 1 }]}
++    >
++      <View style={[styles.appIcon, { backgroundColor: t.accent.fill }]}>
++        <Sprout size={20} color={t.accent.onLarge} strokeWidth={2.5} />
++      </View>
++      <View style={styles.text}>
++        <View style={styles.top}>
++          <Text style={[styles.app, { color: t.color.textMuted }]}>Fallback</Text>
++          <Text style={[styles.app, { color: t.color.textMuted }]}>{when}</Text>
++        </View>
++        <Text style={[styles.title, { color: t.color.text }]}>{title}</Text>
++        <Text style={[styles.body, { color: t.color.text }]}>{body}</Text>
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { flexDirection: 'row', gap: SPACE.s3, padding: SPACE.s3, borderRadius: RADIUS.lg, marginHorizontal: SPACE.s3, marginBottom: SPACE.s3 },
++  appIcon: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
++  text: { flex: 1, gap: 1 },
++  top: { flexDirection: 'row', justifyContent: 'space-between' },
++  app: { fontSize: FONT_SIZE.xs, fontWeight: '700' },
++  title: { fontSize: FONT_SIZE.sm, fontWeight: '800', lineHeight: 19 },
++  body: { fontSize: FONT_SIZE.sm, lineHeight: 19 },
++});
 diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/ConceptScreen.tsx
 --- a/src/features/onboarding/ConceptScreen.tsx	2026-11-16 05:43:15.822544297 +0000
 +++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-17 03:03:53.653452636 +0000
@@ -2694,7 +2747,7 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
 +});
 diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
-+++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 19:34:15.563419261 +0000
++++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-17 04:23:45.577987666 +0000
 @@ -1,99 +1,95 @@
 -/** S07 — Notification Permission Primer. route: /onboarding/notifications-primer. Features: F9, F14. */
 +/** S07 — onboarding step 6. Permission primer: "Allow" on top, "Not now" below (D11). */
@@ -2821,8 +2874,8 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
 +    >
 +      <Card accessibilityLabel={`Sample notification: ${S07_COPY.previewTitle}. ${S07_COPY.previewBody}`}>
 +        <View style={styles.previewHeader}>
-+          <View style={[styles.appIcon, { backgroundColor: t.accent.base }]}>
-+            <Bell size={14} color={t.color.textOnAccent} accessibilityElementsHidden importantForAccessibility="no" />
++          <View style={[styles.appIcon, { backgroundColor: t.accent.fill }]}>
++            <Bell size={14} color={t.accent.onLarge} accessibilityElementsHidden importantForAccessibility="no" />
 +          </View>
 +          <Text style={[styles.previewApp, { color: t.color.textMuted }]}>{S07_COPY.previewApp}</Text>
 +          <Text style={[styles.previewTimestamp, { color: t.color.textDim }]}>{S07_COPY.previewTimestamp}</Text>
@@ -3308,7 +3361,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  });
 diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboarding/PersonalizeScreen.tsx
 --- a/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 05:43:15.822463487 +0000
-+++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 19:34:31.797321559 +0000
++++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-17 04:23:45.578142239 +0000
 @@ -1,24 +1,21 @@
 -/** S06 — Onboarding: Make it yours. route: /onboarding/personalize. Features: F9, F8, F14. */
 +/** S06 — onboarding step 5. Accent swatches and one reminders row; no dead "Preview" button. */
@@ -3341,7 +3394,7 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
  
  export function PersonalizeScreen() {
    const t = useTheme();
-@@ -30,110 +27,57 @@
+@@ -30,110 +27,59 @@
    const setAccent = useThemeStore((s) => s.setAccent);
    useOnboardingStepMarker('/onboarding/personalize');
  
@@ -3420,10 +3473,11 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -                accessibilityLabel={`${swatch.label}${selected ? ', selected' : ''}`}
 -                style={[styles.swatch, { backgroundColor: swatch.base }]}
 +                accessibilityLabel={`${ACCENT_LABEL[key]}${selected ? ', selected' : ''}`}
-+                style={[styles.swatch, { backgroundColor: THEME_SEEDS[key as keyof typeof THEME_SEEDS] }]}
++                style={[styles.swatch, { backgroundColor: THEME_SEEDS[key as keyof typeof THEME_SEEDS] }, key === 'mono' && { borderWidth: 2, borderColor: t.color.borderStrong }]}
                >
 -                {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
-+                {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}
++                {key === 'mono' ? <View style={styles.monoHalf} /> : null}
++                {selected ? <Check size={20} color={key === 'mono' ? '#8a8a8a' : t.color.textOnAccent} /> : null}
                </Pressable>
              );
            })}
@@ -3464,8 +3518,9 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -  switchLabel: { fontSize: 16, fontWeight: '500' },
 +  section: { gap: SPACE.s2 + 4 },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
-+  swatchRow: { flexDirection: 'row', gap: SPACE.s3 },
-+  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
++  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 + 4 },
++  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
++  monoHalf: { position: 'absolute', right: 0, top: 0, bottom: 0, width: '50%', backgroundColor: '#ffffff' },
  });
 diff -ruN a/src/features/onboarding/SampleBreakdownBar.tsx b/src/features/onboarding/SampleBreakdownBar.tsx
 --- a/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-16 05:43:15.822475472 +0000
@@ -5094,7 +5149,7 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-17 03:08:49.184216093 +0000
++++ b/src/features/today/TodayScreen.tsx	2026-11-17 04:24:38.230760088 +0000
 @@ -1,35 +1,52 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
@@ -5482,8 +5537,10 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +function scheduleParts(row: TodayRow, logged = false): string[] {
    const { task, occurrence } = row;
 -  if (occurrence.outcome === 'off') return S09_COPY.offTodayMeta;
-   const parts = [taskTypeLabel(task.type)];
-   if (task.timeOfDay) parts.push(formatTimeOfDay(task.timeOfDay));
+-  const parts = [taskTypeLabel(task.type)];
+-  if (task.timeOfDay) parts.push(formatTimeOfDay(task.timeOfDay));
++  // The time leads, so the list reads as a day: 7:00 AM, then what it is.
++  const parts = task.timeOfDay ? [formatTimeOfDay(task.timeOfDay), taskTypeLabel(task.type)] : [taskTypeLabel(task.type)];
    if (task.type === 'course' && task.dosesPerDay > 1) {
 -    parts.push(`dose ${occurrence.dosesCompleted}/${occurrence.dosesRequired} today`);
 +    if (!logged) parts.push(`Dose ${occurrence.dosesCompleted} of ${occurrence.dosesRequired}`);
@@ -5751,6 +5808,215 @@ diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
  }
  
  /** Builds the re-entry-state re-worded stat line — see this file's header note. */
+diff -ruN a/src/features/widgets/WidgetPreviews.tsx b/src/features/widgets/WidgetPreviews.tsx
+--- a/src/features/widgets/WidgetPreviews.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/widgets/WidgetPreviews.tsx	2026-11-17 04:28:43.603593816 +0000
+@@ -0,0 +1,205 @@
++/**
++ * WidgetPreviews — the three home-screen widgets, drawn with today's real tasks, in the
++ * current theme. This is the picture the native widgets must match: same layout, same colours.
++ */
++import { Check, CheckCheck, Minus } from 'lucide-react-native';
++import { StyleSheet, Text, View } from 'react-native';
++
++import { taskIconProps } from '@/features/browse/resolveIcon';
++import { formatTimeOfDay } from '@/features/browse/format';
++import { useTodayRows, type TodayRow } from '@/features/today/useTodayRows';
++import { FONT_SIZE, mix, SPACE, useTheme, type Theme } from '@/theme';
++import { ProgressRing, TaskIcon } from '@/ui';
++import type { ChipState, Id, WidgetConfig, WidgetSize } from '@/types';
++
++const WIDGET = 150;
++const GAP = 14;
++
++function isDone(state: ChipState | null): boolean {
++  return state === 'done' || state === 'fallback' || state === 'skip';
++}
++
++function stateColor(t: Theme, state: ChipState | null): string | null {
++  if (state === 'done') return t.color.ideal;
++  if (state === 'fallback') return t.color.fallback;
++  if (state === 'skip') return t.color.off;
++  return null;
++}
++
++function stateWord(state: ChipState | null): string {
++  if (state === 'done') return 'Ideal done';
++  if (state === 'fallback') return 'Fallback done';
++  if (state === 'skip') return 'Skipped';
++  return 'To do';
++}
++
++/** The task a widget shows: the one the user fixed, or the next one still to do. */
++function pick(rows: readonly TodayRow[], config: WidgetConfig | undefined): TodayRow | null {
++  if (config?.mode === 'fixed-task' && config.fixedTaskId) {
++    return rows.find((r) => r.task.id === (config.fixedTaskId as Id)) ?? null;
++  }
++  return rows.find((r) => !isDone(r.occurrence.chipState)) ?? rows[0] ?? null;
++}
++
++function StateMark({ state, size = 26 }: { readonly state: ChipState | null; readonly size?: number }) {
++  const t = useTheme();
++  const color = stateColor(t, state);
++  if (!color) return <View style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2.5, borderColor: t.color.borderStrong }} />;
++  const Icon = state === 'done' ? CheckCheck : state === 'fallback' ? Check : Minus;
++  return (
++    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
++      <Icon size={Math.round(size * 0.6)} color={t.color.textOnAccent} strokeWidth={3} />
++    </View>
++  );
++}
++
++function TodayWidget({ rows }: { readonly rows: readonly TodayRow[] }) {
++  const t = useTheme();
++  const done = rows.filter((r) => isDone(r.occurrence.chipState)).length;
++  return (
++    <View style={[styles.widget, styles.small, { backgroundColor: t.color.bgAlt }]}>
++      <Text style={[styles.kicker, { color: t.color.textMuted }]}>Today</Text>
++      <View style={styles.centre}>
++        <ProgressRing
++          percent={rows.length > 0 ? (done / rows.length) * 100 : 0}
++          size={74}
++          strokeWidth={9}
++          label={rows.length > 0 ? `${done}/${rows.length}` : '0'}
++          labelSize={FONT_SIZE.lg}
++          trackColor={t.color.surface}
++          accessibilityLabel={`${done} of ${rows.length} done`}
++        />
++      </View>
++      {/* One dot per task due today, in the colour of how it went. */}
++      <View style={styles.dots}>
++        {rows.slice(0, 8).map((r) => {
++          const color = stateColor(t, r.occurrence.chipState);
++          return <View key={r.task.id} style={[styles.dot, color ? { backgroundColor: color } : { borderWidth: 2, borderColor: t.color.borderStrong }]} />;
++        })}
++      </View>
++    </View>
++  );
++}
++
++function OneTaskWidget({ row }: { readonly row: TodayRow | null }) {
++  const t = useTheme();
++  if (!row) {
++    return (
++      <View style={[styles.widget, styles.small, { backgroundColor: t.color.bgAlt }]}>
++        <Text style={[styles.kicker, { color: t.color.textMuted }]}>Next</Text>
++        <View style={styles.centre}>
++          <Text style={[styles.quiet, { color: t.color.textMuted }]}>Nothing due today</Text>
++        </View>
++      </View>
++    );
++  }
++  const icon = taskIconProps(row.task);
++  const state = row.occurrence.chipState;
++  const color = stateColor(t, state);
++  return (
++    <View style={[styles.widget, styles.small, { backgroundColor: t.color.bgAlt }]}>
++      <View style={styles.rowBetween}>
++        <TaskIcon icon={icon.icon} color={icon.color} size={38} />
++        {row.task.timeOfDay ? <Text style={[styles.time, { color: t.color.textMuted }]}>{formatTimeOfDay(row.task.timeOfDay)}</Text> : null}
++      </View>
++      <Text numberOfLines={2} style={[styles.taskName, { color: t.color.text }]}>
++        {row.task.name}
++      </Text>
++      <View style={styles.statusRow}>
++        <StateMark state={state} size={20} />
++        <Text style={[styles.status, { color: color ? t.color.text : t.color.textMuted }]}>{stateWord(state)}</Text>
++      </View>
++    </View>
++  );
++}
++
++function UpNextWidget({ rows, first }: { readonly rows: readonly TodayRow[]; readonly first: TodayRow | null }) {
++  const t = useTheme();
++  const open = rows.filter((r) => !isDone(r.occurrence.chipState));
++  const ordered = first ? [first, ...open.filter((r) => r.task.id !== first.task.id)] : open;
++  const shown = ordered.slice(0, 2);
++  const done = rows.length - open.length;
++  return (
++    <View style={[styles.widget, styles.medium, { backgroundColor: t.color.bgAlt }]}>
++      <View style={styles.rowBetween}>
++        <Text style={[styles.kicker, { color: t.color.textMuted }]}>Up next</Text>
++        {rows.length > 0 ? <Text style={[styles.kicker, { color: t.color.textMuted }]}>{`${done} of ${rows.length} done`}</Text> : null}
++      </View>
++      {shown.length === 0 ? (
++        <View style={styles.centre}>
++          <Text style={[styles.quiet, { color: t.color.textMuted }]}>{rows.length > 0 ? 'All done for today' : 'Nothing due today'}</Text>
++        </View>
++      ) : (
++        <View style={styles.nextList}>
++          {shown.map((r) => {
++            const icon = taskIconProps(r.task);
++            return (
++              <View key={r.task.id} style={styles.nextRow}>
++                <TaskIcon icon={icon.icon} color={icon.color} size={36} />
++                <View style={styles.nextText}>
++                  <Text numberOfLines={1} style={[styles.nextName, { color: t.color.text }]}>
++                    {r.task.name}
++                  </Text>
++                  {r.task.timeOfDay ? <Text style={[styles.time, { color: t.color.textMuted }]}>{formatTimeOfDay(r.task.timeOfDay)}</Text> : null}
++                </View>
++                <StateMark state={r.occurrence.chipState} />
++              </View>
++            );
++          })}
++        </View>
++      )}
++    </View>
++  );
++}
++
++export function WidgetPreviews({ widgets }: { readonly widgets: readonly WidgetConfig[] }) {
++  const t = useTheme();
++  const { rows } = useTodayRows();
++  const configFor = (size: WidgetSize) => widgets.find((w) => w.size === size);
++  // A stand-in wallpaper: the theme colour, calmed, so the widgets read as sitting on a phone.
++  const wall = mix(t.color.canvas, t.accent.fill, t.scheme === 'dark' ? 0.28 : 0.4);
++  const ghost = mix(wall, t.scheme === 'dark' ? '#ffffff' : '#ffffff', t.scheme === 'dark' ? 0.14 : 0.36);
++  return (
++    <View
++      accessible
++      accessibilityRole="image"
++      accessibilityLabel="Your three widgets as they look on the home screen: today's count, one task, and up next."
++      style={[styles.wall, { backgroundColor: wall }]}
++    >
++      <View style={styles.widgetRow}>
++        <TodayWidget rows={rows} />
++        <OneTaskWidget row={pick(rows, configFor('small-one-task'))} />
++      </View>
++      <UpNextWidget rows={rows} first={configFor('medium-up-next')?.mode === 'fixed-task' ? pick(rows, configFor('medium-up-next')) : null} />
++      <View style={styles.apps}>
++        {[0, 1, 2, 3].map((i) => (
++          <View key={i} style={[styles.app, { backgroundColor: ghost }]} />
++        ))}
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  wall: { borderRadius: 28, padding: GAP, gap: GAP, alignItems: 'center' },
++  widgetRow: { flexDirection: 'row', gap: GAP },
++  widget: { borderRadius: 24, padding: 14, height: WIDGET },
++  small: { width: WIDGET, justifyContent: 'space-between' },
++  medium: { width: WIDGET * 2 + GAP, gap: SPACE.s2 },
++  kicker: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  centre: { flex: 1, alignItems: 'center', justifyContent: 'center' },
++  dots: { flexDirection: 'row', gap: 5, justifyContent: 'center' },
++  dot: { width: 10, height: 10, borderRadius: 5 },
++  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
++  time: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  taskName: { fontSize: FONT_SIZE.base, fontWeight: '800', lineHeight: 20 },
++  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
++  status: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
++  quiet: { fontSize: FONT_SIZE.sm, fontWeight: '700', textAlign: 'center' },
++  nextList: { flex: 1, justifyContent: 'space-around' },
++  nextRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3 },
++  nextText: { flex: 1 },
++  nextName: { fontSize: FONT_SIZE.base, fontWeight: '800' },
++  apps: { flexDirection: 'row', gap: GAP, width: WIDGET * 2 + GAP, justifyContent: 'space-between' },
++  app: { width: 62, height: 62, borderRadius: 16 },
++});
 diff -ruN a/src/navigation/index.ts b/src/navigation/index.ts
 --- a/src/navigation/index.ts	2026-11-16 05:43:15.821603477 +0000
 +++ b/src/navigation/index.ts	2026-11-16 18:26:00.493786661 +0000
@@ -5764,7 +6030,7 @@ diff -ruN a/src/navigation/index.ts b/src/navigation/index.ts
    records: '/records',
 diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
 --- a/src/previewBridge.ts	2026-11-16 05:43:15.821576387 +0000
-+++ b/src/previewBridge.ts	2026-11-16 18:26:00.494072916 +0000
++++ b/src/previewBridge.ts	2026-11-17 04:30:31.630515991 +0000
 @@ -21,7 +21,7 @@
    const { ideal = [], fallback = [], ...rest } = seed;
    const task: Task = {
@@ -5774,13 +6040,26 @@ diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
      createdAt: created, updatedAt: created, deletedAt: null, ...rest,
    } as Task;
    const steps: Step[] = [
-@@ -40,11 +40,11 @@
+@@ -36,15 +36,21 @@
+ async function seedSample(): Promise<void> {
+   const t = today();
+   const d = (n: number) => addDays(t, n);
+-  await repos.settings.patch({ onboardingCompletedAt: now(), tenureAnchorDate: d(-24) });
++  const current = await repos.settings.get();
++  await repos.settings.patch({
++    onboardingCompletedAt: now(),
++    tenureAnchorDate: d(-24),
++    // The sample person tapped Allow in onboarding.
++    notifications: { ...current.notifications, master: true, routineDue: true, eventStarting: true, courseDose: true, gentleReentry: true },
++  });
  
-   const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
-   const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
+-  const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
+-  const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
 -  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
 -  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
 -  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false }, 5);
++  const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, timeOfDay: '07:00', importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
++  const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, timeOfDay: '21:30', importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
 +  await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', importance: 'low', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
 +  await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, importance: 'high', necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
 +  await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false, importance: 'high', necessity: 'recommended' }, 5);
@@ -5825,8 +6104,8 @@ diff -ruN a/src/services/widgets/index.ts b/src/services/widgets/index.ts
        generatedAt: now(),
 diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
 --- a/src/theme/engine.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/theme/engine.ts	2026-11-16 16:20:47.824087370 +0000
-@@ -0,0 +1,168 @@
++++ b/src/theme/engine.ts	2026-11-17 04:23:45.575673251 +0000
+@@ -0,0 +1,219 @@
 +/**
 + * Theme engine. One seed colour in, a whole contrast-checked theme out.
 + *
@@ -5991,19 +6270,70 @@ diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
 +  return out;
 +}
 +
++/**
++ * Mono — the black-and-white theme. Nothing here is derived from a seed: the page, the cards
++ * and every theme-coloured piece are pure neutrals, and the "theme colour" is black on a light
++ * page and white on a dark one. The state signals (ideal green, fallback blue, gold, danger)
++ * are untouched, so they are the only colour on the screen.
++ */
++export function deriveMonoTheme(scheme: ColorScheme): DerivedTheme {
++  const key = `mono|${scheme}`;
++  const hit = cache.get(key);
++  if (hit) return hit;
++  const n = PALETTES[scheme];
++  const dark = scheme === 'dark';
++  const color: Palette = dark
++    ? {
++        ...n,
++        bg: '#0f0f0f',
++        bgAlt: '#1a1a1a',
++        surface: '#262626',
++        canvas: '#000000',
++        text: '#f2f2f2',
++        textMuted: '#b8b8b8',
++        textDim: '#9c9c9c',
++        border: '#333333',
++        borderStrong: '#7a7a7a',
++        off: '#868686',
++        offDeep: '#a8a8a8',
++        offSoft: '#2b2b2b',
++      }
++    : {
++        ...n,
++        bg: '#f3f3f3',
++        bgAlt: '#ffffff',
++        surface: '#e7e7e7',
++        canvas: '#e2e2e2',
++        text: '#1c1c1c',
++        textMuted: '#555555',
++        textDim: '#6b6b6b',
++        border: '#dcdcdc',
++        borderStrong: '#8a8a8a',
++        off: '#a3a3a3',
++        offDeep: '#626262',
++        offSoft: '#ececec',
++      };
++  const accent: DerivedAccent = dark
++    ? { base: '#f2f2f2', fill: '#f2f2f2', fillEdge: '#b4b4b4', hover: '#dedede', on: '#141414', onLarge: '#141414', band: '#d2d2d2', onBand: '#141414', text: '#f2f2f2', deep: '#1c1c1c', soft: '#2e2e2e' }
++    : { base: '#1c1c1c', fill: '#1c1c1c', fillEdge: '#000000', hover: '#333333', on: WHITE, onLarge: WHITE, band: '#3a3a3a', onBand: WHITE, text: '#1c1c1c', deep: '#1c1c1c', soft: '#e6e6e6' };
++  const out: DerivedTheme = { accent, color };
++  cache.set(key, out);
++  return out;
++}
++
 +/** The seed a person's own colour produces: they choose the hue, the app fixes brightness and strength. */
 +export function seedForHue(hue: number): string {
 +  return fromLch(0.63, 0.2, hue);
 +}
 diff -ruN a/src/theme/index.ts b/src/theme/index.ts
 --- a/src/theme/index.ts	2026-11-16 05:43:15.822578154 +0000
-+++ b/src/theme/index.ts	2026-11-16 16:49:01.508385804 +0000
++++ b/src/theme/index.ts	2026-11-17 04:23:45.577429255 +0000
 @@ -4,28 +4,39 @@
  
  import type { AccentKey, ThemeMode } from '@/types';
  
 -import { ACCENTS, DEFAULT_ACCENT, PALETTES, type ColorScheme, type Palette } from './tokens';
-+import { deriveTheme, seedForHue, type DerivedAccent } from './engine';
++import { deriveMonoTheme, deriveTheme, seedForHue, type DerivedAccent } from './engine';
 +import { DEFAULT_ACCENT, THEME_LABELS, THEME_SEEDS, type ColorScheme, type Palette } from './tokens';
  
  export * from './tokens';
@@ -6046,15 +6376,15 @@ diff -ruN a/src/theme/index.ts b/src/theme/index.ts
 -    accent: { base: a.base, hover: a.hover, deep: a.deep, soft: scheme === 'dark' ? a.softDark : a.softLight },
 -    color: PALETTES[scheme],
 -  };
-+  const d = deriveTheme(themeSeed(accentKey), scheme);
++  const d = accentKey === 'mono' ? deriveMonoTheme(scheme) : deriveTheme(themeSeed(accentKey), scheme);
 +  return { scheme, accent: d.accent, color: d.color };
  }
  
  export const ThemeContext = createContext<Theme>(buildTheme('light'));
 diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 --- a/src/theme/tokens.ts	2026-11-16 05:43:15.822695778 +0000
-+++ b/src/theme/tokens.ts	2026-11-16 16:47:50.283671774 +0000
-@@ -6,20 +6,46 @@
++++ b/src/theme/tokens.ts	2026-11-17 04:23:45.575285187 +0000
+@@ -6,20 +6,48 @@
   *   the dark-mode override block inside design-input/Fallback Handoff (standalone).html
   *
   * RULE 1: no raw colour literal may appear anywhere outside this file.
@@ -6094,9 +6424,11 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +  berry: '#D6336C',
 +  plum: '#9333EA',
 +  lagoon: '#0D9488',
++  /** Black and white. Not a seed for the engine: it has its own hand-set palette (see `deriveMonoTheme`). */
++  mono: '#1C1C1C',
 +} as const;
-+export const THEME_LABELS = { 'forge-orange': 'Forge', indigo: 'Indigo', berry: 'Berry', plum: 'Plum', lagoon: 'Lagoon' } as const;
-+export const THEME_ORDER = ['forge-orange', 'indigo', 'berry', 'plum', 'lagoon'] as const;
++export const THEME_LABELS = { 'forge-orange': 'Forge', indigo: 'Indigo', berry: 'Berry', plum: 'Plum', lagoon: 'Lagoon', mono: 'Mono' } as const;
++export const THEME_ORDER = ['forge-orange', 'indigo', 'berry', 'plum', 'lagoon', 'mono'] as const;
 +
 +/**
 + * The only hues (OKLCH degrees) a person may choose for their own colour. Three families:
@@ -6108,7 +6440,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
  export type AccentToken = keyof typeof ACCENTS;
  export const DEFAULT_ACCENT: AccentToken = 'forge-orange';
  
-@@ -32,39 +58,42 @@
+@@ -32,39 +60,42 @@
    off: string; offDeep: string; offSoft: string;
    celebrationGold: string; goldDeep: string; goldSoft: string;
    danger: string; dangerSoft: string; dangerDeep: string;
@@ -6173,7 +6505,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    textOnAccent: '#ffffff',
  };
  
-@@ -74,17 +103,17 @@
+@@ -74,17 +105,17 @@
    surface: '#33302a',
    canvas: '#141312',
    text: '#efece6',
@@ -6200,7 +6532,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    off: '#8A857A',
    offDeep: '#A9A396',
    offSoft: '#302E29',
-@@ -92,12 +121,13 @@
+@@ -92,12 +123,13 @@
    goldDeep: '#DDBE79',
    goldSoft: '#332B1C',
  
@@ -6218,7 +6550,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
    textOnAccent: '#ffffff',
  };
  
-@@ -106,7 +136,20 @@
+@@ -106,7 +138,20 @@
  /** 8px base scale, per Verdant tokens/spacing.css. */
  export const SPACE = { s0: 0, s1: 4, s2: 8, s3: 16, s4: 24, s5: 32, s6: 48, s7: 64, s8: 96 } as const;
  
@@ -6240,7 +6572,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
  
  export const FONT_SIZE = { xs: 12, sm: 14, base: 16, md: 18, lg: 20, xl: 24, xxl: 32, xxxl: 40, display: 56 } as const;
  
-@@ -129,4 +172,8 @@
+@@ -129,4 +174,8 @@
   * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
   * one). The only sanctioned raw colour literal outside this file is this constant's use.
   */
@@ -6252,14 +6584,14 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +export const HAIRLINE = 1;
 diff -ruN a/src/types/settings.ts b/src/types/settings.ts
 --- a/src/types/settings.ts	2026-11-16 05:43:15.819101856 +0000
-+++ b/src/types/settings.ts	2026-11-16 16:09:32.196453185 +0000
++++ b/src/types/settings.ts	2026-11-17 04:23:45.575514900 +0000
 @@ -4,7 +4,9 @@
  import type { Id, Instant, LocalDate } from './primitives';
  
  export type ThemeMode = 'light' | 'dark' | 'auto';
 -export type AccentKey = 'forge-orange' | 'indigo' | 'berry' | 'plum';
 +/** A named theme, or a person's own colour as `hue-<0..359>` (only hues in THEME_HUES are offered). */
-+export type NamedTheme = 'forge-orange' | 'indigo' | 'berry' | 'plum' | 'lagoon';
++export type NamedTheme = 'forge-orange' | 'indigo' | 'berry' | 'plum' | 'lagoon' | 'mono';
 +export type AccentKey = NamedTheme | `hue-${number}`;
  
  export interface NotificationPrefs {
@@ -8317,8 +8649,8 @@ diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
  });
 diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 --- a/src/ui/TaskIcon.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/TaskIcon.tsx	2026-11-16 07:17:35.673318063 +0000
-@@ -0,0 +1,25 @@
++++ b/src/ui/TaskIcon.tsx	2026-11-17 04:23:45.577631452 +0000
+@@ -0,0 +1,26 @@
 +/** TaskIcon — a coloured circle with a white icon. The only task icon style (D14). */
 +import { StyleSheet, View } from 'react-native';
 +
@@ -8337,8 +8669,9 @@ diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 +export function TaskIcon({ icon: Icon, color, size = 40, muted = false }: TaskIconProps) {
 +  const t = useTheme();
 +  return (
-+    <View style={[styles.root, { width: size, height: size, backgroundColor: muted ? t.color.off : (color ?? t.accent.base) }]}>
-+      <Icon size={Math.round(size * 0.5)} color={t.color.textOnAccent} />
++    <View style={[styles.root, { width: size, height: size, backgroundColor: muted ? t.color.off : (color ?? t.accent.fill) }]}>
++      {/* A task's own colour takes a white icon; the theme colour takes whatever reads on it. */}
++      <Icon size={Math.round(size * 0.5)} color={color || muted ? t.color.textOnAccent : t.accent.onLarge} />
 +    </View>
 +  );
 +}
@@ -10353,8 +10686,8 @@ diff -ruN a/app/add/index.tsx b/app/add/index.tsx
 -});
 diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 --- a/app/add/routine.tsx	2026-11-16 05:43:15.826553558 +0000
-+++ b/app/add/routine.tsx	2026-11-17 03:16:42.497823834 +0000
-@@ -1,59 +1,30 @@
++++ b/app/add/routine.tsx	2026-11-17 04:24:38.230258284 +0000
+@@ -1,59 +1,31 @@
 -/**
 - * S16 — Create Routine    route: /add/routine
 - * Owner: M4. Features: F2, F23, F26, F27.
@@ -10370,7 +10703,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 -import { Button, Card, IconButton, Input, Radio, Switch } from '@/ui';
 -import { CadencePicker, SubStepScheduleGrid } from '@/ui';
 +import { FONT_SIZE, useTheme } from '@/theme';
-+import { Button, CadencePicker, Input, ListGroup, ListRow, Radio, Screen, SectionHeading, Switch } from '@/ui';
++import { Button, CadencePicker, Input, ListGroup, ListRow, Radio, Screen, SectionHeading, Switch, TimeField } from '@/ui';
 +import { SayItInsteadRow } from '@/features/assistant/SayItInsteadRow';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { emptyRunOccurrences, validateTaskDraft } from '@/domain';
@@ -10418,12 +10751,13 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
    const showToast = useToastStore((s) => s.show);
  
    const [name, setName] = useState('');
++  const [timeOfDay, setTimeOfDay] = useState('');
    const [isAsNeeded, setIsAsNeeded] = useState(false);
 +  const [snoozable, setSnoozable] = useState(true);
    const [cadence, setCadence] = useState<Cadence>({ kind: 'specific-weekdays', weekdays: [] });
    const [idealSteps, setIdealSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
    const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
-@@ -67,8 +38,8 @@
+@@ -67,8 +39,8 @@
    const [bannerDay, setBannerDay] = useState<string | undefined>();
    const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
  
@@ -10433,8 +10767,11 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
  
    function buildDraft(): TaskDraft {
      return {
-@@ -78,155 +49,107 @@
+@@ -76,157 +48,111 @@
+       name,
+       isAsNeeded,
        cadence: isAsNeeded ? null : cadence,
++      timeOfDay: isAsNeeded ? null : timeOfDay || null,
        importance,
        necessity,
 +      snoozable: isAsNeeded ? false : snoozable,
@@ -10566,6 +10903,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 -              Single occurrence per period — nothing to subset. Every ideal step simply runs whenever this routine is due.
 -            </Text>
 -          ) : null}
++          <TimeField label="Time (optional)" value={timeOfDay} onChange={setTimeOfDay} placeholder="Any time" />
 +          <ListGroup footer="When it's on, a day you can't manage can be moved to tomorrow from the routine's own screen, instead of being missed. Turn it off for something that can't wait.">
 +            <ListRow
 +              label="Can be moved to tomorrow"
@@ -14259,8 +14597,8 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
  });
 diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
 --- a/app/settings/notifications.tsx	2026-11-16 05:43:15.826733445 +0000
-+++ b/app/settings/notifications.tsx	2026-11-16 06:01:32.234506356 +0000
-@@ -1,21 +1,13 @@
++++ b/app/settings/notifications.tsx	2026-11-17 04:30:31.630790636 +0000
+@@ -1,21 +1,16 @@
 -/**
 - * S42 — Notifications Settings    route: /settings/notifications
 - * Owner: M7. Features: F14.
@@ -14268,6 +14606,7 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
 - */
 +/** S42 — Notifications. One grouped list per section (D7); switches as row accessories. */
  import { useEffect } from 'react';
++import { View } from 'react-native';
  import { useRouter, type Href } from 'expo-router';
 -import { BellOff } from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14275,7 +14614,10 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
  import { useToastStore } from '@/app-shell';
  import { S42_COPY } from '@/features/settings/copy';
 -import { SettingsHeader } from '@/features/settings/SettingsHeader';
- import { useSettings, useUpdateSettings } from '@/queries';
+-import { useSettings, useUpdateSettings } from '@/queries';
++import { formatTimeOfDay } from '@/features/browse/format';
++import { NotificationSample } from '@/features/notifications/NotificationSample';
++import { useSettings, useTasks, useUpdateSettings } from '@/queries';
  import { initNotificationsBridge } from '@/services/notifications';
  import { initWidgetsBridge } from '@/services/widgets';
 -import { SPACE, useTheme } from '@/theme';
@@ -14284,13 +14626,20 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
  import type { NotificationPrefs } from '@/types';
  
  const DIGEST_TIME_OPTIONS = [
-@@ -30,14 +22,11 @@
+@@ -29,15 +24,18 @@
+   { value: '21:00', label: '9:00 PM' },
  ];
  
++function shortDate(date: string): string {
++  const [y = 2000, m = 1, d = 1] = date.split('-').map(Number);
++  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
++}
++
  export default function S42NotificationsSettings() {
 -  const t = useTheme();
    const router = useRouter();
    const settingsQuery = useSettings();
++  const tasksQuery = useTasks();
    const updateSettings = useUpdateSettings();
    const showToast = useToastStore((s) => s.show);
  
@@ -14299,7 +14648,7 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
    useEffect(() => {
      initNotificationsBridge();
      initWidgetsBridge();
-@@ -50,8 +39,7 @@
+@@ -50,8 +48,7 @@
    async function patchPrefs(patch: Partial<NotificationPrefs>) {
      const current = settingsQuery.data?.notifications;
      if (!current) return;
@@ -14309,7 +14658,7 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
      if (!result.ok) showToast(S42_COPY.errorToast, 'warning');
    }
  
-@@ -59,122 +47,56 @@
+@@ -59,122 +56,87 @@
  
    if (settingsQuery.isLoading || !prefs) {
      return (
@@ -14341,7 +14690,25 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
  
 -  const masterOff = !prefs.master; // Trigger A
 -  const triggerB = prefs.master && allSubsOff;
--
++  // Each sample uses one of the person's own tasks, so the picture is of their reminder.
++  const tasks = (tasksQuery.data ?? []).filter((task) => !task.deletedAt);
++  const routines = tasks.filter((task) => task.type === 'routine' && !task.isAsNeeded);
++  const routine = routines.find((task) => task.timeOfDay) ?? routines[0];
++  const event = tasks.find((task) => task.type === 'event');
++  const course = tasks.find((task) => task.type === 'course');
++  const routineName = routine?.name ?? 'Morning workout';
++  const eventName = event?.name ?? 'Dentist';
++  const courseName = course?.name ?? 'Antibiotics';
++  const samples: Record<string, { title: string; body: string; when: string }> = {
++    routineDue: { title: `Time for your ${routineName}`, body: 'Too tired? The fallback still counts.', when: routine?.timeOfDay ? formatTimeOfDay(routine.timeOfDay) : 'now' },
++    eventStarting: { title: `${eventName} is coming up`, body: 'Starting today.', when: event?.timeOfDay ? formatTimeOfDay(event.timeOfDay) : 'now' },
++    courseDose: { title: `${courseName} — today's dose`, body: 'Log it when you take it.', when: 'now' },
++    courseEndingSoon: { title: `${courseName} is ending soon`, body: `Runs through ${course?.endDate ? shortDate(course.endDate) : 'Friday'}.`, when: 'now' },
++    gentleReentry: { title: 'A quiet invitation back', body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.', when: 'now' },
++    milestoneReached: { title: 'Milestone reached', body: "You've hit a new level or badge — nice work.", when: 'now' },
++    dailyDigest: { title: 'Your day, at a glance', body: "Check in on today's habits.", when: formatTimeOfDay(prefs.dailyDigestTime) },
++  };
+ 
 -  return (
 -    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
 -      <SettingsHeader title={S42_COPY.title} onBack={handleBack} />
@@ -14417,14 +14784,20 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
 -        )}
 -      </ScrollView>
 -    </View>
-+  const toggle = (label: string, key: keyof NotificationPrefs) => (
-+    <ListRow
-+      key={key}
-+      label={label}
-+      right={<Switch value={!!prefs[key]} onValueChange={(v) => void patchPrefs({ [key]: v } as Partial<NotificationPrefs>)} accessibilityLabel={`${label}, ${prefs[key] ? 'on' : 'off'}`} />}
-+    />
-   );
+-  );
 -}
++  const toggle = (label: string, key: keyof NotificationPrefs) => {
++    const sample = samples[key];
++    return (
++      <View key={key}>
++        <ListRow
++          label={label}
++          right={<Switch value={!!prefs[key]} onValueChange={(v) => void patchPrefs({ [key]: v } as Partial<NotificationPrefs>)} accessibilityLabel={`${label}, ${prefs[key] ? 'on' : 'off'}`} />}
++        />
++        {sample ? <NotificationSample title={sample.title} body={sample.body} when={sample.when} off={!prefs[key]} /> : null}
++      </View>
++    );
++  };
  
 -function SubToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
 -  const t = useTheme();
@@ -14462,7 +14835,14 @@ diff -ruN a/app/settings/notifications.tsx b/app/settings/notifications.tsx
 +
 +          {allSubsOff ? <EmptyLine>{`${S42_COPY.emptyHeadline}. ${S42_COPY.emptySubcopy}`}</EmptyLine> : null}
 +        </>
-+      ) : null}
++      ) : (
++        // Off: still show one, so the choice is made knowing what would arrive.
++        <ListGroup title="What a reminder looks like">
++          <View style={{ paddingTop: 12 }}>
++            <NotificationSample title={samples.routineDue?.title ?? ''} body={samples.routineDue?.body ?? ''} when={samples.routineDue?.when ?? 'now'} />
++          </View>
++        </ListGroup>
++      )}
 +    </Screen>
    );
  }
@@ -14884,7 +15264,7 @@ diff -ruN a/app/settings/sync.tsx b/app/settings/sync.tsx
 -});
 diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 --- a/app/settings/theme.tsx	2026-11-16 05:43:15.826651078 +0000
-+++ b/app/settings/theme.tsx	2026-11-16 16:13:33.576455280 +0000
++++ b/app/settings/theme.tsx	2026-11-17 04:32:23.303546445 +0000
 @@ -1,23 +1,59 @@
  /**
 - * S43 — Theme & Accent    route: /settings/theme
@@ -15110,7 +15490,7 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
 +          <TodayTaskCard
 +            name={S43_COPY.previewTaskName}
 +            icon={Dumbbell}
-+            color={themeSeed(accent)}
++            color={accent === 'mono' ? undefined : themeSeed(accent)}
 +            meta={['Routine', 'Daily']}
 +            chip={previewChip}
 +            reopened={previewReopened}
@@ -15163,8 +15543,8 @@ diff -ruN a/app/settings/theme.tsx b/app/settings/theme.tsx
  });
 diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
 --- a/app/settings/widgets.tsx	2026-11-16 05:43:15.826699893 +0000
-+++ b/app/settings/widgets.tsx	2026-11-16 06:02:08.552980546 +0000
-@@ -1,23 +1,20 @@
++++ b/app/settings/widgets.tsx	2026-11-17 04:29:13.040399931 +0000
+@@ -1,23 +1,21 @@
 -/**
 - * S46 — Widgets    route: /settings/widgets
 - * Owner: M7. Features: F21.
@@ -15181,6 +15561,7 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
  import { useToastStore } from '@/app-shell';
  import { S46_COPY } from '@/features/settings/copy';
 -import { SettingsHeader } from '@/features/settings/SettingsHeader';
++import { WidgetPreviews } from '@/features/widgets/WidgetPreviews';
  import { useSettings, useTasks, useUpdateSettings } from '@/queries';
  import { initNotificationsBridge } from '@/services/notifications';
  import { initWidgetsBridge } from '@/services/widgets';
@@ -15195,7 +15576,7 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
  function configFor(widgets: readonly WidgetConfig[], size: WidgetSize): WidgetConfig {
    return widgets.find((w) => w.size === size) ?? { size, mode: 'smart-next-due', fixedTaskId: null };
  }
-@@ -30,13 +27,10 @@
+@@ -30,13 +28,10 @@
    const updateSettings = useUpdateSettings();
    const showToast = useToastStore((s) => s.show);
  
@@ -15210,7 +15591,7 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
    useEffect(() => {
      initNotificationsBridge();
      initWidgetsBridge();
-@@ -46,127 +40,82 @@
+@@ -46,127 +41,82 @@
      router.push('/settings' as Href);
    }
  
@@ -15278,7 +15659,8 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
 -      <SettingsHeader title={S46_COPY.title} onBack={handleBack} />
 -      <ScrollView contentContainerStyle={styles.content}>
 +    <Screen title={S46_COPY.title} onBack={handleBack}>
-+      <ListGroup footer={S46_COPY.footer}>
++      <WidgetPreviews widgets={widgets} />
++      <ListGroup title="What each one shows" footer={S46_COPY.footer}>
          {S46_COPY.gallery.map((entry) => {
 -          const isOpen = expanded === entry.size;
 +          const config = configFor(widgets, entry.size);
@@ -15341,8 +15723,7 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
 +              key={entry.size}
 +              icon={ICONS[entry.size]}
 +              label={entry.label}
-+              sublabel={entry.preview}
-+              value={entry.size === 'small-today' ? undefined : value}
++              value={entry.size === 'small-today' ? "Today's count" : value}
 +              onPress={() => open(entry.size)}
 +              chevron={false}
 +              accessibilityLabel={`${entry.label} widget. Opens its settings`}
@@ -16146,8 +16527,8 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-17 03:08:49.184029093 +0000
-@@ -1,38 +1,41 @@
++++ b/app/task/[id]/index.tsx	2026-11-17 04:24:38.261710577 +0000
+@@ -1,38 +1,42 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
 - * Owner: M4. Features: F3, F4, F7, F12, F23, F24.
@@ -16199,6 +16580,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -  Tag,
 +  TaskIcon,
    WeekdayPicker,
++  TimeField,
  } from '@/ui';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
 -import { addDays, endOfMonth, startOfMonth, today as todayFn } from '@/lib/date';
@@ -16206,7 +16588,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  import { isDue, perTaskConsistency } from '@/domain';
  import {
    useConsistency,
-@@ -48,38 +51,32 @@
+@@ -48,38 +52,32 @@
    useUpdateTask,
  } from '@/queries';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -16262,7 +16644,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  
    const taskQuery = useTask(taskId);
    const today = todayFn();
-@@ -90,12 +87,7 @@
+@@ -90,12 +88,7 @@
    const monthFrom = startOfMonth(monthAnchor);
    const monthTo = endOfMonth(monthAnchor);
    const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
@@ -16275,7 +16657,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
  
    const updateTask = useUpdateTask();
-@@ -107,100 +99,78 @@
+@@ -107,100 +100,78 @@
    const snoozeOccurrence = useSnoozeOccurrence();
    const undoSnooze = useUndoSnooze();
  
@@ -16410,7 +16792,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +180,366 @@
+@@ -210,380 +181,373 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -16734,15 +17116,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +            {showScheduleEditor ? <ListRow icon={CalendarDays} label="Step schedule" sublabel="Which days each step applies" onPress={openSchedule} chevron={false} /> : null}
 +          </ListGroup>
          </View>
-+      ) : null}
-+
-+      <View style={styles.block}>
-+        <SectionHeading>Priority</SectionHeading>
-+        <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance, priorityRank: null })} testID="s20-importance-picker" />
-+        {task.importance ? <PriorityPlaceRow taskId={taskId} importance={task.importance} /> : null}
-+        <Radio label="Necessity" value={task.necessity} options={NECESSITY_OPTIONS} onChange={(v) => void patch({ necessity: v as Necessity })} testID="s20-necessity-picker" />
-       </View>
- 
+-      </View>
+-
 -      {!task.isAsNeeded ? (
 -        <Card accessibilityLabel="Today's occurrence">
 -          <Text style={[styles.dateLabel, { color: t.color.text }]}>{todayLongLabel(today)}</Text>
@@ -16780,12 +17155,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -                })}
 -              </View>
 -            </>
-+      {isTrackedTask ? (
-+        <View style={styles.block}>
-+          <SectionHeading>History</SectionHeading>
-+          {monthOccQuery.isError ? (
-+            <InlineRetryBanner message="Couldn't load your history — try again." onRetry={() => monthOccQuery.refetch()} />
-           ) : (
+-          ) : (
 -            <>
 -              <StateChip value={todayOccurrence?.chipState ?? null} onChange={onChipChange} accessibilityLabel="Today's state" testID="s20-chip" />
 -              {task.idealSteps.map((step) => {
@@ -16808,23 +17178,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -                </View>
 -              ) : null}
 -            </>
-+            <Card>
-+              <CalendarHeatmap
-+                days={heatmapDays}
-+                monthLabel={monthLabel}
-+                onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
-+                onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
-+                onCellPress={(date) => {
-+                  if (date < today) setPopoverDate(date);
-+                }}
-+                statLine={statLine}
-+                emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : 'Tap a past day to change its log.'}
-+                accessibilityLabel={`Calendar, ${monthLabel}`}
-+              />
-+            </Card>
-           )}
+-          )}
 -        </Card>
-+        </View>
        ) : null}
  
 -      <OffDayToggle
@@ -16832,41 +17187,24 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -        onValueChange={onToggleOffDay}
 -        label="Off today (this task only)"
 -        helper="Marks just this task's day off — your other tasks, and the whole-day toggle on Today, are unaffected. Turn it off to restore what was logged."
-+      <MenuSheet
-+        visible={menuOpen}
-+        onClose={() => setMenuOpen(false)}
-+        title={task.name}
-+        items={[
-+          {
-+            key: 'rename',
-+            icon: PencilLine,
-+            label: 'Rename',
-+            onPress: () => {
-+              setNameDraft(task.name);
-+              setRenameOpen(true);
-+            },
-+          },
-+          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
-+          ...(isTodo
-+            ? [
-+                {
-+                  key: 'kind',
-+                  icon: isNote ? ListTodo : StickyNote,
-+                  label: isNote ? 'Change to a to-do' : 'Change to a note',
-+                  onPress: () => void patch({ isNote: !isNote }),
-+                },
-+              ]
-+            : []),
-+          { key: 'duplicate', icon: Copy, label: 'Duplicate', onPress: () => void onDuplicate() },
-+          { key: 'delete', icon: Trash2, label: `Delete ${noun}`, danger: true, onPress: () => setDeleteOpen(true) },
-+        ]}
-       />
+-      />
++      {task.type === 'routine' && !task.isAsNeeded ? (
++        <View style={styles.block}>
++          <SectionHeading>Time</SectionHeading>
++          <TimeField label="Time of day" value={task.timeOfDay ?? ''} onChange={(v) => void patch({ timeOfDay: v || null })} placeholder="Any time" />
++        </View>
++      ) : null}
  
 -      <View style={styles.switchRow}>
 -        <Text style={{ color: t.color.text, fontWeight: '600' }}>Snoozable</Text>
 -        <Switch value={task.snoozable} onValueChange={onToggleSnoozable} accessibilityLabel="Snoozable" testID="s20-snoozable-switch" />
--      </View>
--
++      <View style={styles.block}>
++        <SectionHeading>Priority</SectionHeading>
++        <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance, priorityRank: null })} testID="s20-importance-picker" />
++        {task.importance ? <PriorityPlaceRow taskId={taskId} importance={task.importance} /> : null}
++        <Radio label="Necessity" value={task.necessity} options={NECESSITY_OPTIONS} onChange={(v) => void patch({ necessity: v as Necessity })} testID="s20-necessity-picker" />
+       </View>
+ 
 -      {showScheduleEditor ? (
 -        <View style={styles.subStepRegion}>
 -          <Button
@@ -16896,9 +17234,30 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -              <Button label="Save schedule" onPress={saveSchedule} accessibilityLabel="Save schedule" />
 -            </View>
 -          ) : null}
--        </View>
--      ) : null}
--
++      {isTrackedTask ? (
++        <View style={styles.block}>
++          <SectionHeading>History</SectionHeading>
++          {monthOccQuery.isError ? (
++            <InlineRetryBanner message="Couldn't load your history — try again." onRetry={() => monthOccQuery.refetch()} />
++          ) : (
++            <Card>
++              <CalendarHeatmap
++                days={heatmapDays}
++                monthLabel={monthLabel}
++                onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
++                onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
++                onCellPress={(date) => {
++                  if (date < today) setPopoverDate(date);
++                }}
++                statLine={statLine}
++                emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : 'Tap a past day to change its log.'}
++                accessibilityLabel={`Calendar, ${monthLabel}`}
++              />
++            </Card>
++          )}
+         </View>
+       ) : null}
+ 
 -      <View style={styles.actionsRow}>
 -        <Button
 -          label="Duplicate"
@@ -16907,6 +17266,36 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -          icon={<Copy size={16} color={t.color.text} />}
 -          accessibilityLabel="Duplicate"
 -          testID="s20-duplicate"
++      <MenuSheet
++        visible={menuOpen}
++        onClose={() => setMenuOpen(false)}
++        title={task.name}
++        items={[
++          {
++            key: 'rename',
++            icon: PencilLine,
++            label: 'Rename',
++            onPress: () => {
++              setNameDraft(task.name);
++              setRenameOpen(true);
++            },
++          },
++          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
++          ...(isTodo
++            ? [
++                {
++                  key: 'kind',
++                  icon: isNote ? ListTodo : StickyNote,
++                  label: isNote ? 'Change to a to-do' : 'Change to a note',
++                  onPress: () => void patch({ isNote: !isNote }),
++                },
++              ]
++            : []),
++          { key: 'duplicate', icon: Copy, label: 'Duplicate', onPress: () => void onDuplicate() },
++          { key: 'delete', icon: Trash2, label: `Delete ${noun}`, danger: true, onPress: () => setDeleteOpen(true) },
++        ]}
++      />
++
 +      <Dialog visible={renameOpen} onClose={() => setRenameOpen(false)} title={`Rename ${noun}`} accessibilityLabel={`Rename ${noun}`}>
 +        <Input label="Name" value={nameDraft} onChangeText={setNameDraft} autoFocus accessibilityLabel="Task name" testID="s20-name-input" onSubmitEditing={() => void saveName()} />
 +        <ButtonPair

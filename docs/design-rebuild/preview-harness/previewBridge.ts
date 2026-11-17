@@ -36,10 +36,16 @@ async function insertTask(seed: Seed, createdDaysAgo: number): Promise<string> {
 async function seedSample(): Promise<void> {
   const t = today();
   const d = (n: number) => addDays(t, n);
-  await repos.settings.patch({ onboardingCompletedAt: now(), tenureAnchorDate: d(-24) });
+  const current = await repos.settings.get();
+  await repos.settings.patch({
+    onboardingCompletedAt: now(),
+    tenureAnchorDate: d(-24),
+    // The sample person tapped Allow in onboarding.
+    notifications: { ...current.notifications, master: true, routineDue: true, eventStarting: true, courseDose: true, gentleReentry: true },
+  });
 
-  const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
-  const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
+  const workout = await insertTask({ type: 'routine', name: 'Morning workout', icon: 'Dumbbell', color: 'forge-orange', cadence: { kind: 'daily' }, timeOfDay: '07:00', importance: 'high', necessity: 'recommended', ideal: ['20-minute run', 'Stretch for 5 minutes'], fallback: ['10 push-ups'] }, 21);
+  const read = await insertTask({ type: 'routine', name: 'Read before bed', icon: 'BookOpen', color: 'indigo', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] as Weekday[] }, timeOfDay: '21:30', importance: 'med', necessity: 'optional', ideal: ['Read 20 pages'], fallback: ['Read one page'] }, 21);
   await insertTask({ type: 'routine', name: 'Headache relief', icon: 'Pill', color: 'plum', importance: 'low', isAsNeeded: true, isTracked: false, snoozable: false }, 10);
   await insertTask({ type: 'course', name: 'Antibiotics', icon: 'Pill', color: 'berry', cadence: { kind: 'daily' }, startDate: d(-3), endDate: d(4), dosesPerDay: 2, snoozable: false, importance: 'high', necessity: 'must-do', ideal: ['Take with food'], fallback: ['Take the dose'] }, 3);
   await insertTask({ type: 'event', name: 'Dentist check-up', icon: 'Stethoscope', color: 'berry', eventDate: d(3), timeOfDay: '19:00', isTracked: false, importance: 'high', necessity: 'recommended' }, 5);

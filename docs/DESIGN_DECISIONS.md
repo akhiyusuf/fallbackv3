@@ -745,6 +745,42 @@ sweep. Architect decision; flagged to the human.
 These change approved copy and layout in `design-input/` (S02, S15, S17, S18,
 S38); the spec needs the same changes before builders work from them.
 
+### Round 4, seventh pass (2026-11-17, preview version 13)
+
+- **Widgets can be seen.** Settings, Widgets opens with a picture of the three
+  widgets on a stand-in home screen, drawn from today's real tasks in the
+  current theme and scheme (`src/features/widgets/WidgetPreviews.tsx`):
+  *Small: today* (ring with the count, one dot per task in its state colour),
+  *Small: one task* (icon, time, name, state) and *Medium: up next* (two rows
+  and the day's count). The list below is now only the settings. The native
+  widgets must match this picture.
+- **Notifications can be seen.** In Settings, Notifications, every switch has
+  its reminder drawn beneath it the way a phone shows it (app icon, "Fallback",
+  time, bold first line, second line), using the person's own task names and
+  the reminder service's wording. A sample is dimmed while its switch is off.
+  With notifications off entirely, one sample is still shown.
+  Found while drawing them: "Course ending soon" sends the raw date
+  ("Runs through 2026-11-21."). The sample shows a readable date; the service
+  needs the same fix.
+- **Routines can have a time.** The routine form has an optional Time field,
+  the task screen has a Time block to change it, and Today's card now leads
+  with the time ("7:00 AM · Routine · Daily"). The Routines tab shows it after
+  the cadence. No schema change: `task.time_of_day` already exists.
+- **Mono theme.** A sixth named theme, black and white, in light and dark
+  (`deriveMonoTheme` in the theme engine; stored through `accent_ext`). The
+  state colours and each task's own colour are unchanged. Passes the same
+  contrast audit as the others (714 theme checks, 0 failing; whole-app audit
+  clean in Mono).
+- **Sounds: list written, nothing wired yet.** 28 sounds with prompts, lengths
+  and file names are in `docs/design-rebuild/SOUND_EFFECTS.md` and the
+  "Fallback Sound List" page. They get wired into the preview when the human
+  sends the files. Sound is a new feature and needs a PRD line, a Sounds
+  switch in Settings and the architect's choice of audio library.
+
+These change approved screens in `design-input/` (S09, S10, S15, S20, S42,
+S43, S46) and the widget look; the spec needs the same changes before builders
+work from them.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

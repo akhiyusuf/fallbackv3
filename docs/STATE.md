@@ -654,6 +654,15 @@ https://claude.ai/artifact/QeDRSAQgHWe5bwxRpj2Tsh. Recorded in
 approval; nothing has been routed to pipeline agents. Open: the typeface
 (rounded is a default, not a decision) and dark labels on orange buttons.
 
+**Round 4, seventh pass (2026-11-17): Fallback Preview is at version 13.**
+It adds pictures of the widgets and of every notification in Settings, an
+optional time on routines (shown first on Today), and a black-and-white Mono
+theme. A list of 28 sound effects to generate is in
+`docs/design-rebuild/SOUND_EFFECTS.md` (page:
+https://claude.ai/artifact/AYkZ64wazXWZwSEqQfZWAS); the human is generating
+them and will send a zip to wire into the preview. Still awaiting the human's
+approval of the look; nothing routed to pipeline agents.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go

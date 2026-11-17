@@ -36,6 +36,7 @@ function collect() {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: scheme }); const page = await ctx.newPage();
     await page.goto('http://localhost:8767/'); await page.waitForTimeout(2500);
     await page.evaluate(() => window.__fallbackPreview.loadSample()); await page.waitForTimeout(2500);
+    if (process.env.ACCENT) { await page.evaluate(() => window.__fallbackPreview.go('/settings/theme')); await page.waitForTimeout(900); await page.getByText(process.env.ACCENT, { exact: true }).locator('visible=true').first().click(); await page.waitForTimeout(900); }
     const tasks = await page.evaluate(async () => (await window.__fallbackPreview.repos.tasks.list()).map((t) => ({ id: t.id, name: t.name })));
     const fails = new Map(); let total = 0;
     for (const r of ROUTES) {
