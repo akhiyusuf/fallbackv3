@@ -21,8 +21,24 @@ Done so far under the new process:
   `expo-font` in `app.config.ts`) and every screen's `Text`/`TextInput` comes
   from `src/ui/AppText.tsx`; the app has an icon and splash (placeholder: the
   sprout pot on orange).
-- Non-test code type-checks. Tests and lint have NOT been brought up to date
-  with the design work: that is the Haiku agents' first job.
+- Haiku agents (seven passes, reports in `review/haiku/00`–`07`) brought the
+  tests up to date with the design work and fixed the bugs they found. Whole
+  suite: 114 files, 857 tests, all passing; `tsc` clean; lint has 10 known
+  `react-hooks/set-state-in-effect` errors left on purpose.
+- Main-session final review (after the Haiku passes) fixed what they did not
+  cover: the saved theme and colour were never put back on restart (now done
+  by `app/splash.tsx`, and after a restore); the status bar follows the app's
+  theme; Android gets a "Reminders" notification channel made before the
+  permission question, a monochrome notification icon, and
+  `android.allowBackup: false`; screens, dialogs and the onboarding form pad
+  by the keyboard on Android; native date and time pickers; monthly/yearly
+  habits on a day the month lacks; failed saves reported on to-do ticks,
+  onboarding Skip and the restore file picker; the first habit is not created
+  twice; biometric cancel told apart from a store cancel.
+- APK: built by a Sonnet agent into `build-output/` (git-ignored); its report
+  is `review/apk-build.md`. Nothing has been run on a real phone or emulator
+  (this machine has no emulator): widgets, notifications, purchases, sounds,
+  fonts, pickers and the keyboard are unverified on a device.
 
 Everything below this point describes the old pipeline's state and is history.
 
