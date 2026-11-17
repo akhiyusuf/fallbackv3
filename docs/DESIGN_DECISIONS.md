@@ -781,6 +781,39 @@ These change approved screens in `design-input/` (S09, S10, S15, S20, S42,
 S43, S46) and the widget look; the spec needs the same changes before builders
 work from them.
 
+### Round 4, eighth pass (2026-11-17, preview version 14)
+
+- **Light or dark is chosen in onboarding.** Step 5 ("Make it yours") now has
+  the colour swatches and a Light / Dark / Match phone choice. It applies as
+  soon as it is tapped and is saved with the colour on Next. Copy: body is
+  "Pick a colour, then light or dark."; the section labels are "Colour" and
+  "Light or dark".
+- **Onboarding banners.** The coloured top of each step is now called the
+  banner and has fixed sizes: steps 1 to 4 share one height, steps 6 and 7
+  share another (smaller, because step 7's form is long), and step 5 takes
+  all the room its short content leaves. Moving between steps eases the
+  banner from the size it had to the new one (420 ms, ease in and out; no
+  motion when the phone asks for reduced motion). Every step still fits
+  without scrolling at all eight test sizes.
+- **Banner pictures are replaceable.** `src/features/onboarding/bannerImages.ts`
+  maps a step to an image; a step with no image keeps its drawn stand-in. The
+  human wants AI-made pictures here in place of the drawings. None are made
+  yet (see "Still open").
+- **Empty screens.** The drawing, headline, line of text and button now sit
+  in the middle of the space between the header and the tab bar, and at the
+  same height on Today, Routines, Events, Courses and To-dos (`EmptyState`
+  keeps fixed heights for its parts). Screens whose content fits no longer
+  bounce or drag: `alwaysBounceVertical={false}` on every vertical scroller,
+  and no rubber-banding of the page in the browser preview.
+- **Sounds.** The human connected ElevenLabs and set two rules: no musical
+  instruments, and do not go overboard. Twelve source sounds were generated
+  (48 takes). The human picks on the "Fallback Sound Picker" page; editing and
+  wiring follow the picks. Details in `docs/design-rebuild/SOUND_EFFECTS.md`.
+
+These change approved screens in `design-input/` (S02 to S08 layout, S06
+content, and the empty states of S09 to S13); the spec needs the same changes
+before builders work from them.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

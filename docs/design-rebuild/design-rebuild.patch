@@ -1197,7 +1197,7 @@ diff -ruN a/src/features/browse/BrowseHeader.tsx b/src/features/browse/BrowseHea
 -});
 diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/CoursesBrowseScreen.tsx
 --- a/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 05:43:15.822009504 +0000
-+++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-17 03:03:53.651946706 +0000
++++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-17 04:57:26.429192687 +0000
 @@ -1,21 +1,22 @@
 -/** S12 — Courses Browse. F11 (browse), F12 (multi-dose meta). */
 +/** M3 — S12 Courses. Segmented Active/Past (D9), shared task cards. */
@@ -1251,7 +1251,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
 -          accessibilityLabel="Active or past courses"
 -        />
 -
-+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: noCoursesAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
          {tasksQuery.isLoading ? (
            <View style={styles.list}>
 -            <Skeleton height={96} />
@@ -1365,12 +1365,12 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
 -  name: { fontSize: 16, fontWeight: '600', flex: 1 },
 -  meta: { fontSize: 13 },
 -  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-+  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
++  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
 +  list: { gap: SPACE.s2 + 4 },
  });
 diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/EventsBrowseScreen.tsx
 --- a/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 05:43:15.821978885 +0000
-+++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-17 03:03:53.651802268 +0000
++++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-17 04:57:26.429376683 +0000
 @@ -1,6 +1,4 @@
 -/**
 - * S11 — Events Browse. F11 (browse), F26 (repeating events).
@@ -1435,7 +1435,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S11_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'events') as Href)} />
 -      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE }]}>
-+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: noEventsAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
          {tasksQuery.isLoading ? (
            <View style={styles.list}>
 -            <Skeleton height={72} />
@@ -1624,7 +1624,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
 -  name: { fontSize: 16, fontWeight: '600', flex: 1 },
 -  meta: { fontSize: 13 },
 -  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-+  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
++  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
 +  list: { gap: SPACE.s2 + 4 },
 +  hidden: { display: 'none' },
 +  group: { gap: SPACE.s2 },
@@ -1676,7 +1676,7 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
  });
 diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/RoutinesBrowseScreen.tsx
 --- a/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 05:43:15.822061751 +0000
-+++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 04:24:38.232154167 +0000
++++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 04:57:26.429592789 +0000
 @@ -1,34 +1,37 @@
 -/**
 - * S10 — Routines Browse. F2 (browse), F6, F27 (as-needed rows, never on Today, → S23).
@@ -1737,7 +1737,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 -          accessibilityLabel="Select a weekday"
 -        />
 -
-+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: noRoutinesAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
          {tasksQuery.isLoading ? (
            <View style={styles.list}>
 -            <Skeleton height={80} />
@@ -1911,12 +1911,12 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 -  name: { fontSize: 16, fontWeight: '600', flex: 1 },
 -  meta: { fontSize: 13 },
 -  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-+  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
++  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
 +  list: { gap: SPACE.s2 + 4 },
  });
 diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDosBrowseScreen.tsx
 --- a/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 05:43:15.822041156 +0000
-+++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-17 03:08:49.184397993 +0000
++++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-17 04:57:26.429798090 +0000
 @@ -1,26 +1,15 @@
 -/**
 - * S13 — To-dos & Notes Browse. F11.
@@ -2005,7 +2005,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 -          accessibilityLabel="To-dos or Notes"
 -        />
 -
-+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: nothingAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
          {tasksQuery.isLoading ? (
 -          <View style={styles.list}>
 -            <Skeleton height={56} />
@@ -2137,7 +2137,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 -  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
 -  name: { fontSize: 16, fontWeight: '600' },
 -  preview: { fontSize: 14, lineHeight: 20 },
-+  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
++  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
 +  check: { width: 28, height: 28, borderRadius: RADIUS.pill, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
  });
 diff -ruN a/src/features/browse/copy.ts b/src/features/browse/copy.ts
@@ -3108,8 +3108,8 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +});
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 03:03:53.653763012 +0000
-@@ -1,99 +1,150 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 04:52:30.528259210 +0000
+@@ -1,99 +1,205 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -3123,8 +3123,9 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 -
 -import { SPACE, useTheme } from '@/theme';
+-import { Button } from '@/ui';
 +import { useEffect, useState, useSyncExternalStore } from 'react';
-+import { AccessibilityInfo, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
++import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 +import { ChevronLeft } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -3132,11 +3133,12 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +import { now } from '@/lib/date';
 +import { useUpdateSettings } from '@/queries';
 +import { FONT_SIZE, HEADER_HEIGHT, RADIUS, SPACE, useTheme } from '@/theme';
- import { Button } from '@/ui';
++import { Button, useReduceMotion } from '@/ui';
  import type { IconComponent } from '@/ui';
  
  import { ONBOARDING_SHELL_COPY } from './copy';
-+import { OnboardingPicture, PICTURE_HEIGHT } from './OnboardingPicture';
++import { BANNER_IMAGES } from './bannerImages';
++import { OnboardingPicture, PICTURE_HEIGHT, PICTURE_WIDTH } from './OnboardingPicture';
 +import { finishOnboardingProgress } from './useOnboardingResume';
 +
 +export const ONBOARDING_TOTAL_STEPS = 7;
@@ -3168,6 +3170,26 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +function densityFor(height: number): OnboardingDensity {
 +  return height >= 760 ? 'regular' : height >= 650 ? 'compact' : 'tight';
 +}
++/**
++ * The banner is the coloured top of a step. Steps 1 to 4 share one height and steps 6 and 7
++ * share another, so the words do not jump between them. Step 5 has little below its words, so
++ * its banner takes all the room that is left. Moving between steps eases from the banner the
++ * person was just looking at to the new one.
++ */
++type BannerKind = 'main' | 'tall' | 'end';
++function bannerKind(step: number): BannerKind {
++  return step === 5 ? 'tall' : step >= 6 ? 'end' : 'main';
++}
++/** Height of the whole top (bar and banner) for a step, before the phone's top inset. */
++function topHeight(kind: BannerKind, height: number): number {
++  const density = densityFor(height);
++  const main = density === 'regular' ? Math.min(240, height - 580) : density === 'compact' ? Math.min(210, height - 500) : height - 500;
++  const end = density === 'regular' ? Math.min(240, height - 650) : density === 'compact' ? height - 590 : height - 515;
++  return Math.max(HEADER_HEIGHT, kind === 'end' ? end : main);
++}
++// The height the top had on the step the person just left, so the next one can start from it.
++let lastTopHeight: number | null = null;
++
 +const PREVIOUS: Record<number, string> = {
 +  2: '/onboarding/concept',
 +  3: '/onboarding/hook',
@@ -3225,11 +3247,30 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  // The real height of this screen (in a phone it equals the window; in a frame it does not).
 +  const windowHeight = useWindowDimensions().height;
 +  const [height, setHeight] = useState(windowHeight);
++  const [width, setWidth] = useState(0);
 +  const [pictureRoom, setPictureRoom] = useState(0);
 +  const density = densityFor(height);
 +  useEffect(() => publishDensity(density), [density]);
-+  const pictureMax = Math.round(Math.max(96, Math.min(190, height * 0.21)));
 +  const barAndInset = HEADER_HEIGHT + insets.top;
++  const kind = bannerKind(step);
++  const target = topHeight(kind, height) + insets.top;
++  const reduced = useReduceMotion();
++  const basis = useState(() => new Animated.Value(lastTopHeight ?? target))[0];
++  const grow = useState(() => new Animated.Value(0))[0];
++  useEffect(() => {
++    const fill = kind === 'tall' ? 1 : 0;
++    if (reduced) {
++      basis.setValue(target);
++      grow.setValue(fill);
++      return;
++    }
++    const ease = { duration: 420, easing: Easing.inOut(Easing.cubic), useNativeDriver: false };
++    const run = Animated.parallel([Animated.timing(basis, { toValue: target, ...ease }), Animated.timing(grow, { toValue: fill, ...ease })]);
++    run.start();
++    return () => run.stop();
++  }, [basis, grow, kind, reduced, target]);
++  const image = BANNER_IMAGES[step];
++  const pictureScale = Math.min(1.6, (pictureRoom - 12) / PICTURE_HEIGHT, width > 0 ? (width - 48) / PICTURE_WIDTH : 1.2);
  
    useEffect(() => {
 -    const message = allStepsComplete ? `Step ${TOTAL_STEPS} of ${TOTAL_STEPS}.` : `Step ${step} of ${TOTAL_STEPS}. ${headline}`;
@@ -3267,9 +3308,18 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +    <View style={[styles.root, { backgroundColor: t.color.bg }]} onLayout={(e) => {
 +      // A step left behind in the stack is hidden and reports 0: never let that set the density.
 +      const h = e.nativeEvent.layout.height;
-+      if (h > 0) setHeight(h);
++      if (h > 0) {
++        setHeight(h);
++        setWidth(e.nativeEvent.layout.width);
++      }
 +    }}>
-+      <View style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: barAndInset + pictureMax, minHeight: barAndInset }]}>
++      <Animated.View
++        style={[styles.top, { backgroundColor: t.accent.fill, paddingTop: insets.top, flexBasis: basis, flexGrow: grow, minHeight: barAndInset }]}
++        onLayout={(e) => {
++          const h = e.nativeEvent.layout.height;
++          if (h > 0) lastTopHeight = h;
++        }}
++      >
 +      <View style={styles.bar}>
 +        <View style={styles.side}>
 +          {step > 1 ? (
@@ -3302,10 +3352,14 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -        {Icon ? <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" /> : null}
 -        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
 +      <View style={styles.pictureRoom} onLayout={(e) => setPictureRoom(e.nativeEvent.layout.height)}>
-+        {pictureRoom >= 52 ? <OnboardingPicture step={step} scale={Math.min(1.2, (pictureRoom - 12) / PICTURE_HEIGHT)} /> : null}
++        {pictureRoom < 52 ? null : image ? (
++          <Image source={image} resizeMode="contain" accessibilityElementsHidden importantForAccessibility="no" style={styles.image} />
++        ) : (
++          <OnboardingPicture step={step} scale={pictureScale} />
++        )}
 +      </View>
-+      </View>
-+      <ScrollView style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++      </Animated.View>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.body} contentContainerStyle={[styles.content, density !== 'regular' && styles.contentCompact]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 +        <Text accessibilityRole="header" style={[styles.headline, density === 'compact' && styles.headlineCompact, density === 'tight' && styles.headlineTight, { color: t.color.text }]}>
            {headline}
          </Text>
@@ -3315,6 +3369,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +        <Text style={[styles.bodyText, density === 'tight' && styles.bodyTight, { color: t.color.textMuted }]}>{body}</Text>
 +        <View style={[styles.children, density !== 'regular' && styles.childrenCompact]}>{children}</View>
 +      </ScrollView>
++      {/* Whatever room the banner does not take sits here, above the button. */}
++      <Animated.View style={{ flexGrow: grow.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }} />
  
 -      <View style={styles.footer}>
 -        <Button label={nextLabel} onPress={onNext} disabled={nextDisabled} loading={nextLoading} accessibilityLabel={nextLabel} fullWidth />
@@ -3323,7 +3379,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
        </View>
      </View>
    );
-@@ -101,11 +152,28 @@
+@@ -101,11 +207,29 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },
@@ -3336,9 +3392,10 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 -  footer: { padding: SPACE.s3 },
 +  flex: { flex: 1 },
 +  // The top gives up its height before anything below has to scroll.
-+  top: { flexGrow: 0, flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  top: { flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
++  image: { width: '100%', height: '100%' },
 +  pictureRoom: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-+  body: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
++  body: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto' },
 +  bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s2 + 4 },
 +  round: { width: 40, height: 40, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
 +  side: { width: 72, flexDirection: 'row', alignItems: 'center' },
@@ -3361,7 +3418,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
  });
 diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboarding/PersonalizeScreen.tsx
 --- a/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 05:43:15.822463487 +0000
-+++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-17 04:23:45.578142239 +0000
++++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-17 04:49:24.839213321 +0000
 @@ -1,24 +1,21 @@
 -/** S06 — Onboarding: Make it yours. route: /onboarding/personalize. Features: F9, F8, F14. */
 +/** S06 — onboarding step 5. Accent swatches and one reminders row; no dead "Preview" button. */
@@ -3380,9 +3437,10 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -import { ACCENTS, DEFAULT_ACCENT, SPACE, useTheme } from '@/theme';
 -import { Button } from '@/ui';
 -import { Switch } from '@/ui';
+-import type { AccentKey } from '@/types';
 +import { DEFAULT_ACCENT, FONT_SIZE, RADIUS, SPACE, THEME_LABELS, THEME_ORDER, THEME_SEEDS, useTheme } from '@/theme';
-+import { SectionHeading } from '@/ui';
- import type { AccentKey } from '@/types';
++import { Radio, SectionHeading } from '@/ui';
++import type { AccentKey, ThemeMode } from '@/types';
  
  import { S06_COPY } from './copy';
  import { OnboardingShell } from './OnboardingShell';
@@ -3394,8 +3452,12 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
  
  export function PersonalizeScreen() {
    const t = useTheme();
-@@ -30,110 +27,59 @@
+@@ -28,112 +25,69 @@
+   const showToast = useToastStore((s) => s.show);
+   const accent = useThemeStore((s) => s.accent);
    const setAccent = useThemeStore((s) => s.setAccent);
++  const mode = useThemeStore((s) => s.mode);
++  const setMode = useThemeStore((s) => s.setMode);
    useOnboardingStepMarker('/onboarding/personalize');
  
 -  const [remindersOn, setRemindersOn] = useState(false);
@@ -3426,17 +3488,19 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -    const priorMaster = settingsQuery.data?.notifications.master ?? false;
 -    const baselinePrefs = settingsQuery.data?.notifications;
 -
++    const priorMode = settingsQuery.data?.theme ?? 'auto';
      setSaving(true);
 -    const result = await updateSettings.mutateAsync({
 -      accent,
 -      notifications: baselinePrefs ? { ...baselinePrefs, master: remindersOn } : undefined,
 -    });
-+    const result = await updateSettings.mutateAsync({ accent });
++    const result = await updateSettings.mutateAsync({ accent, theme: mode });
      setSaving(false);
 -
      if (!result.ok) {
        setAccent(priorAccent);
 -      setRemindersOn(priorMaster);
++      setMode(priorMode);
        showToast(S06_COPY.saveFailure, 'warning');
        return;
      }
@@ -3491,8 +3555,8 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -        </View>
 +        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.accentHelper}</Text>
        </View>
- 
--      <View style={styles.section}>
+-
+       <View style={styles.section}>
 -        <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S06_COPY.remindersSectionLabel}</Text>
 -        <View style={styles.switchRow}>
 -          <Text style={[styles.switchLabel, { color: t.color.text }]}>{S06_COPY.remindersRowLabel}</Text>
@@ -3503,7 +3567,10 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 -          />
 -        </View>
 -        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S06_COPY.remindersHelper}</Text>
--      </View>
++        <SectionHeading>{S06_COPY.appearanceSectionLabel}</SectionHeading>
++        <Radio label="" value={mode} options={S06_COPY.appearanceOptions} onChange={(v) => setMode(v as ThemeMode)} />
+       </View>
++
      </OnboardingShell>
    );
  }
@@ -3615,9 +3682,23 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 +  tileLabel: { fontSize: FONT_SIZE.base, fontWeight: '600', marginTop: SPACE.s1 },
 +  tileHelper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
+diff -ruN a/src/features/onboarding/bannerImages.ts b/src/features/onboarding/bannerImages.ts
+--- a/src/features/onboarding/bannerImages.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/onboarding/bannerImages.ts	2026-11-17 04:49:24.826067028 +0000
+@@ -0,0 +1,10 @@
++/**
++ * The picture each onboarding step shows in its banner. A step with no entry here falls back
++ * to its drawn stand-in (OnboardingPicture). Images are cut-outs on a transparent background,
++ * so the banner's theme colour shows around them.
++ */
++import type { ImageSourcePropType } from 'react-native';
++
++export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
++
++export const BANNER_IMAGES: Partial<Record<OnboardingStep, ImageSourcePropType>> = {};
 diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-17 03:17:31.668080299 +0000
++++ b/src/features/onboarding/copy.ts	2026-11-17 04:49:24.839577335 +0000
 @@ -12,16 +12,19 @@
  export const S02_COPY = {
    headline: 'Something beats nothing.',
@@ -3660,20 +3741,26 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    bigNumeral: '83%',
    subLabel: '5 of 6 days you showed up',
    legend: { ideal: 'Ideal', fallback: 'Fallback', off: 'Off' },
-@@ -49,9 +51,9 @@
+@@ -49,9 +51,15 @@
  
  export const S06_COPY = {
    headline: 'Make it yours.',
 -  body: 'Pick an accent color and decide if you want a gentle nudge now and then.',
 -  accentSectionLabel: 'Accent color',
 -  accentHelper: 'Only recolors buttons and progress — never the ideal, fallback, or off-day colors.',
-+  body: "Pick the colour you'll see every day.",
-+  accentSectionLabel: 'Theme',
-+  accentHelper: 'It recolours the whole app. Ideal green and fallback blue never change. More colours are in Settings.',
++  body: 'Pick a colour, then light or dark.',
++  accentSectionLabel: 'Colour',
++  accentHelper: 'Ideal green and fallback blue never change. More colours are in Settings.',
++  appearanceSectionLabel: 'Light or dark',
++  appearanceOptions: [
++    { value: 'light', label: 'Light' },
++    { value: 'dark', label: 'Dark' },
++    { value: 'auto', label: 'Match phone' },
++  ],
    previewLabel: 'Preview',
    remindersSectionLabel: 'Reminders',
    remindersRowLabel: 'Gentle nudges for due habits',
-@@ -72,7 +74,7 @@
+@@ -72,7 +80,7 @@
  
  export const S08_COPY = {
    headline: 'Add your first habit.',
@@ -3682,7 +3769,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    lastStep: 'Last step',
    tiles: [
      { label: 'Routines', enabled: true },
-@@ -89,7 +91,7 @@
+@@ -89,7 +97,7 @@
    fallbackLabel: 'Fallback',
    fallbackPlaceholder: '10 pushups',
    fallbackHelper: 'The low bar — still counts as showing up.',
@@ -5149,7 +5236,7 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-17 04:24:38.230760088 +0000
++++ b/src/features/today/TodayScreen.tsx	2026-11-17 04:57:26.430046356 +0000
 @@ -1,35 +1,52 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
@@ -5295,7 +5382,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +110,191 @@
+@@ -98,223 +110,193 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -5336,7 +5423,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +        }
 +      />
  
-+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, isBlankSlate && styles.blank]} showsVerticalScrollIndicator={false}>
          {isJustAdded ? (
 -          <Card accessibilityLabel="First habit set">
 -            <Text style={[styles.bannerText, { color: t.color.text }]}>
@@ -5646,7 +5733,9 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 -  taskName: { fontSize: 16, fontWeight: '600' },
 -  taskMeta: { fontSize: 13 },
 -  fabWrap: { position: 'absolute', right: SPACE.s3, bottom: SPACE.s4, borderRadius: 999 },
-+  scrollContent: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3, paddingBottom: FAB_CLEARANCE + SPACE.s4 },
++  // Nothing yet: no add button to clear, and the taller Today header is allowed for, so the message sits where it does on every other tab.
++  blank: { paddingTop: 0, paddingBottom: SPACE.s2 },
++  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3, paddingBottom: FAB_CLEARANCE + SPACE.s4 },
 +  bannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 + 4 },
 +  bannerTextCol: { flex: 1, gap: 2 },
 +  bannerTitle: { fontSize: FONT_SIZE.base, fontWeight: '700' },
@@ -7032,7 +7121,7 @@ diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
 +});
 diff -ruN a/src/ui/Dialog.tsx b/src/ui/Dialog.tsx
 --- a/src/ui/Dialog.tsx	2026-11-16 05:43:15.819573460 +0000
-+++ b/src/ui/Dialog.tsx	2026-11-16 05:48:00.589483524 +0000
++++ b/src/ui/Dialog.tsx	2026-11-17 04:52:30.395188184 +0000
 @@ -1,9 +1,14 @@
 -/** M0 kit — Verdant `Dialog`. In-app sheet/modal shell — scrim + soft-shadow surface, optional drag handle. */
 +/**
@@ -7097,7 +7186,7 @@ diff -ruN a/src/ui/Dialog.tsx b/src/ui/Dialog.tsx
            ) : null}
 -          {children}
 +          {isSheet ? (
-+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++            <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 +              {children}
 +            </ScrollView>
 +          ) : (
@@ -7176,12 +7265,14 @@ diff -ruN a/src/ui/EmptyArt.tsx b/src/ui/EmptyArt.tsx
 +}
 diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 --- a/src/ui/EmptyState.tsx	2026-11-16 05:43:15.819714553 +0000
-+++ b/src/ui/EmptyState.tsx	2026-11-16 16:49:01.526139967 +0000
-@@ -1,13 +1,21 @@
++++ b/src/ui/EmptyState.tsx	2026-11-17 04:57:26.428961401 +0000
+@@ -1,13 +1,23 @@
 -/** M0 kit — Fallback-custom `EmptyState`. Icon + headline + subcopy + optional primary action. */
 +/**
 + * EmptyState — a genuinely empty screen (D15): a small drawing in the theme's
 + * colours, title, one muted line, one button. The round add button stays hidden until there is content.
++ * It sits in the middle of whatever room it is given, and its parts keep fixed heights, so the
++ * drawing, the words and the button land in the same place on every empty screen.
 + * A section that is merely empty uses <EmptyLine> instead.
 + */
  import { StyleSheet, Text, View } from 'react-native';
@@ -7202,7 +7293,7 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
    readonly headline: string;
    readonly subcopy: string;
    readonly actionLabel?: string;
-@@ -16,24 +24,36 @@
+@@ -16,24 +26,40 @@
    readonly testID?: string;
  }
  
@@ -7212,12 +7303,16 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
    return (
 -    <View style={styles.root} accessibilityRole="text" testID={testID}>
 -      <Icon size={40} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
+-      <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
 +    <View style={[styles.root, compact && styles.compact]} accessibilityRole="text" testID={testID}>
 +      <EmptyArt kind={art} icon={icon} />
-       <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
++      <Text accessibilityRole="header" numberOfLines={compact ? undefined : 1} adjustsFontSizeToFit={!compact} style={[styles.headline, { color: t.color.text }]}>
          {headline}
        </Text>
-       <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{subcopy}</Text>
+-      <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{subcopy}</Text>
++      <View style={compact ? undefined : styles.subcopyRoom}>
++        <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{subcopy}</Text>
++      </View>
        {actionLabel && onAction ? (
 -        <Button label={actionLabel} onPress={onAction} variant={actionVariant} accessibilityLabel={actionLabel} />
 +        <View style={styles.action}>
@@ -7238,9 +7333,11 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 -  root: { alignItems: 'center', gap: SPACE.s2, padding: SPACE.s4 },
 -  headline: { fontSize: 20, fontWeight: '600', textAlign: 'center' },
 -  subcopy: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
-+  root: { alignItems: 'center', gap: SPACE.s2, paddingVertical: SPACE.s6, paddingHorizontal: SPACE.s4 },
++  root: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: SPACE.s2, paddingVertical: SPACE.s1, paddingHorizontal: SPACE.s4 },
++  // Room for three lines, so a two-line and a three-line message leave the button in the same place.
++  subcopyRoom: { minHeight: 72, justifyContent: 'center' },
 +  iconWrap: { width: 64, height: 64, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s1 },
-+  compact: { paddingVertical: SPACE.s3 },
++  compact: { flexGrow: 0, paddingVertical: SPACE.s3 },
 +  headline: { fontSize: FONT_SIZE.lg, fontWeight: '800', textAlign: 'center' },
 +  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
 +  action: { marginTop: SPACE.s2 },
@@ -7977,7 +8074,7 @@ diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
  });
 diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 --- a/src/ui/Screen.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/Screen.tsx	2026-11-16 07:14:30.442463808 +0000
++++ b/src/ui/Screen.tsx	2026-11-17 04:56:02.807647041 +0000
 @@ -0,0 +1,65 @@
 +/**
 + * Screen — header + scrolling body + optional pinned action bar (D4, D8).
@@ -8013,7 +8110,7 @@ diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 +      {headerless ? null : <ScreenHeader {...header} />}
 +      {subheader}
 +      {scroll ? (
-+        <ScrollView style={styles.flex} contentContainerStyle={[styles.content, contentStyle]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
++        <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.flex} contentContainerStyle={[styles.content, contentStyle]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 +          {children}
 +        </ScrollView>
 +      ) : (
@@ -8041,7 +8138,7 @@ diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 +const styles = StyleSheet.create({
 +  root: { flex: 1 },
 +  flex: { flex: 1 },
-+  content: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, paddingBottom: SPACE.s5, gap: SPACE.s3 },
++  content: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, paddingBottom: SPACE.s5, gap: SPACE.s3 },
 +  actionBar: { borderTopWidth: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, gap: SPACE.s2 },
 +});
 diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
@@ -8118,6 +8215,74 @@ diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 +  subtitle: { fontSize: FONT_SIZE.sm, lineHeight: 18 },
 +  right: { flexDirection: 'row', alignItems: 'center' },
 +});
+diff -ruN a/src/ui/ScreenStub.tsx b/src/ui/ScreenStub.tsx
+--- a/src/ui/ScreenStub.tsx	2026-11-16 05:43:15.819626256 +0000
++++ b/src/ui/ScreenStub.tsx	2026-11-17 04:52:48.075640077 +0000
+@@ -3,9 +3,9 @@
+  * Feature builders DELETE the <ScreenStub/> usage from their own route files as they
+  * implement each screen. This component itself stays in M0 and is never edited.
+  */
+-import { ScrollView, StyleSheet, Text, View } from 'react-native';
++import { ScrollView, StyleSheet, Text, View } from "react-native";
+ 
+-import { SPACE, useTheme } from '@/theme';
++import { SPACE, useTheme } from "@/theme";
+ 
+ export interface ScreenStubProps {
+   /** e.g. "S09" */
+@@ -20,19 +20,35 @@
+   features: string;
+ }
+ 
+-export function ScreenStub({ screen, title, route, module, features }: ScreenStubProps) {
++export function ScreenStub({
++  screen,
++  title,
++  route,
++  module,
++  features,
++}: ScreenStubProps) {
+   const t = useTheme();
+   return (
+     <ScrollView
++      alwaysBounceVertical={false}
++      overScrollMode="auto"
+       style={[styles.root, { backgroundColor: t.color.bg }]}
+       contentContainerStyle={styles.content}
+       accessibilityLabel={`${screen} ${title} placeholder`}
+     >
+       <Text style={[styles.eyebrow, { color: t.accent.base }]}>{screen}</Text>
+-      <Text accessibilityRole="header" style={[styles.title, { color: t.color.text }]}>
++      <Text
++        accessibilityRole="header"
++        style={[styles.title, { color: t.color.text }]}
++      >
+         {title}
+       </Text>
+-      <View style={[styles.card, { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}>
++      <View
++        style={[
++          styles.card,
++          { backgroundColor: t.color.bgAlt, borderColor: t.color.border },
++        ]}
++      >
+         <Row label="route" value={route} />
+         <Row label="module" value={module} />
+         <Row label="features" value={features} />
+@@ -57,10 +73,10 @@
+ const styles = StyleSheet.create({
+   root: { flex: 1 },
+   content: { padding: SPACE.s4, gap: SPACE.s3 },
+-  eyebrow: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+-  title: { fontSize: 32, fontWeight: '700' },
++  eyebrow: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5 },
++  title: { fontSize: 32, fontWeight: "700" },
+   card: { borderWidth: 1, borderRadius: 12, padding: SPACE.s3, gap: SPACE.s2 },
+-  row: { flexDirection: 'row', gap: SPACE.s2 },
++  row: { flexDirection: "row", gap: SPACE.s2 },
+   rowLabel: { fontSize: 12, width: 72 },
+   rowValue: { fontSize: 14, flexShrink: 1 },
+   note: { fontSize: 14, lineHeight: 22 },
 diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
 --- a/src/ui/Select.tsx	2026-11-16 05:43:15.819553716 +0000
 +++ b/src/ui/Select.tsx	2026-11-16 07:14:18.910213350 +0000
@@ -11123,7 +11288,7 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 -});
 diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
 --- a/app/assistant/chat.tsx	2026-11-16 05:43:15.826855234 +0000
-+++ b/app/assistant/chat.tsx	2026-11-16 06:15:24.669178831 +0000
++++ b/app/assistant/chat.tsx	2026-11-17 04:52:30.544665534 +0000
 @@ -6,11 +6,10 @@
  import { useEffect, useRef, useState } from 'react';
  import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11250,7 +11415,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
 +        )
 +      }
 +    >
-+      <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.transcript} accessibilityLiveRegion="polite" showsVerticalScrollIndicator={false}>
++      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" ref={scrollRef} style={styles.flex} contentContainerStyle={styles.transcript} accessibilityLiveRegion="polite" showsVerticalScrollIndicator={false}>
 +        {items.length === 0 && !isStreaming ? <Text style={[styles.hint, { color: t.color.textMuted }]}>{S32_COPY.emptyHint}</Text> : null}
          {items.map((item) => {
 -          if (item.kind === 'user' || item.kind === 'assistant') {

@@ -1,81 +1,39 @@
 # Sound effects for the prototype
 
-28 sounds to generate. Recorded here so the list survives the session; the copyable version is the *Fallback Sound List* artifact.
+Rule from the human (2026-11-17): **no musical instruments in the app.** Sounds are things hitting things (an iron rod on an iron bar, not a bell).
 
-## Settings for every sound
+Rule from the human: do not go overboard. Twelve short source sounds were generated; every sound the app plays is cut from one of them by editing (trim, level, pitch, repeats, echo where it helps).
 
-- Tool: any text-to-sound tool. Written for ElevenLabs Sound Effects (v2).
-- Duration: the seconds given per sound. Set it by hand; do not leave it on auto.
-- Prompt influence: high, about 75%.
-- Loop: off.
-- Takes: 3 or 4 per sound, so the best one can be picked.
-- No voices, no music bed, no long echo.
-- File names: `<name>_1.mp3`, `<name>_2.mp3` and so on (mp3, wav or ogg). Do not trim; trimming and levelling happen when they are wired in.
-- Send them as one zip.
+## How they are made
 
-## Logging a habit
+- Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. 48 clips, about 140 credits.
+- The human picks one take per job on the "Fallback Sound Picker" page and can leave a note per sound.
+- Each pick is then edited: levels matched across the set, tails trimmed, pitch and repeats used to make the variants, echo only where it suits.
+- AI-generated: credit as "ElevenLabs Sound Effects v2 (AI)". The account is on the Starter plan; confirm its licence covers a shipped app before release.
 
-The heart of the app. Fallback must sound like a win too, only calmer. Never a sad or lesser sound.
+## Source sounds and where each is used
 
-| File | Plays when | Seconds | Prompt |
+| Job in the app | Source sound | Seconds | Prompt |
 |---|---|---|---|
-| `log_ideal` | You tap Done (the ideal). | 1.0 | Wooden marimba, two quick rising notes in C major, bright and warm, single short phrase, close microphone, dry studio recording, no reverb |
-| `log_fallback` | You tap Fallback. | 1.0 | Wooden marimba, one soft warm middle note in C major with a short gentle ring, single note, close microphone, dry studio recording, no reverb |
-| `log_skip` | You tap Skip today. | 0.5 | Felt mallet on a wooden block, one soft low muted knock, single sound, close microphone, dry foley recording |
-| `undo` | You tap Undo on any toast, or clear a log. | 0.5 | Sheet of paper, one quick light backward swish, single sound, close microphone, dry foley recording |
-| `step_tick` | You tick one step of a routine. | 0.5 | Ballpoint pen, one small crisp click, single sound, close microphone, dry foley recording |
-| `todo_done` | You tick a to-do. | 0.7 | Pencil on paper, one quick short check mark scratch then a light tap, single sound, close microphone, dry foley recording |
-| `day_complete` | The last thing due today gets logged. | 2.0 | Wooden marimba, quick rising run of four notes in C major ending on a bright high note with a short ring, joyful, single phrase, close microphone, dry studio recording |
-| `day_off` | You mark today off. | 0.6 | Small soft pillow, one gentle muffled pat, single sound, close microphone, dry foley recording |
-| `snooze` | You move a task to tomorrow. | 0.7 | Paper desk calendar, one quick page flip, single sound, close microphone, dry foley recording |
+| The done sound | `iron_ting` (Iron rod on an iron bar) | 1.5 | Small iron rod striking a thick hanging iron bar once, clear bright ringing ting with a short ring, close-mic, dry |
+| The done sound | `glass_clink` (Spoon on a glass jar) | 1.0 | Metal teaspoon tapping the side of a thick glass jar once, bright short clink, close-mic, dry |
+| The done sound | `stone_click` (Two pebbles) | 0.6 | Two smooth river pebbles knocked together once, crisp bright click, close-mic, dry |
+| Skip, and something went wrong | `wood_knock` (Knuckle on a wooden table) | 0.6 | Knuckle knocking once on a thick wooden table, soft low muted knock, close-mic, dry |
+| Buttons and tabs | `tap` (Fingertip on a desk) | 0.5 | Fingertip tapping once on a wooden desk, very soft short muted tap, close-mic, dry |
+| Switches and step ticks | `switch_click` (Light switch) | 0.5 | Small plastic light switch flicked once, soft crisp click, close-mic, dry |
+| Ticking a to-do | `pencil_check` (Pencil check mark) | 0.7 | Pencil drawing one quick check mark on paper, short scratch, close-mic, dry |
+| Undo, menus, next step | `swish` (Paper through the air) | 0.6 | Sheet of paper swished quickly through the air once, short soft whoosh, close-mic, dry |
+| Moved to tomorrow | `page_flip` (Calendar page) | 0.8 | Single paper calendar page flipped over quickly, close-mic, dry |
+| Saved | `block_clunk` (Wooden block into a box) | 0.7 | Small wooden toy block dropped into a wooden box, one short solid clunk, close-mic, dry |
+| Badge earned and level up | `coin` (Coin settling on a table) | 1.5 | Single metal coin spinning and settling quickly on a wooden table, bright, close-mic, dry |
+| Fallback AI | `glass_flick` (Fingernail on a drinking glass) | 1.2 | Fingernail flicking the rim of a thin empty drinking glass once, soft high clear ping, close-mic, dry |
 
-## Rewards
+## Planned edits
 
-Short and happy. These play on top of a log sound, so they start a beat later.
+- Done: two hits of the chosen done sound, the second pitched up. Fallback: one softer hit. All done for today: a short rising run. Reminder: two calm hits.
+- Something went wrong: two quick knocks. Closing a menu: the swish reversed. Fallback AI start and stop: the glass flick pitched up and down.
+- Level up: the rising run with the coin under it.
 
-| File | Plays when | Seconds | Prompt |
-|---|---|---|---|
-| `level_up` | You reach a new level. | 2.5 | Wooden marimba with a small glockenspiel, bright rising fanfare of five notes in C major, joyful, short sparkle at the end, single phrase, close microphone, dry studio recording |
-| `badge_earned` | You earn a badge. | 1.5 | Metal coin, one bright coin spinning and settling quickly on a wooden table, single sound, close microphone, dry foley recording |
+## Still needed before builders touch it
 
-## Buttons and moving around
-
-Very quiet, very short. These play hundreds of times, so they must never be annoying.
-
-| File | Plays when | Seconds | Prompt |
-|---|---|---|---|
-| `tap` | Any main button press. | 0.5 | Small wooden button, one soft short muted tap, single sound, close microphone, dry foley recording |
-| `tab_switch` | You change tabs at the bottom. | 0.5 | Felt pad, one light quick soft pop, single sound, close microphone, dry foley recording |
-| `toggle_on` | A switch turns on. | 0.5 | Small plastic light switch, one soft click, higher pitched, single sound, close microphone, dry foley recording |
-| `toggle_off` | A switch turns off. | 0.5 | Small plastic light switch, one soft click, lower pitched and duller, single sound, close microphone, dry foley recording |
-| `sheet_open` | The add menu or a dialog opens, and the next onboarding step. | 0.5 | Soft air, one short quick upward swish, single sound, close microphone, dry foley recording |
-| `sheet_close` | A menu or dialog closes. | 0.5 | Soft air, one short quick downward swish, single sound, close microphone, dry foley recording |
-| `save_task` | A new routine, event, course or to-do is saved. | 0.6 | Wooden toy block dropped into a wooden slot, one short satisfying clunk, single sound, close microphone, dry foley recording |
-| `delete` | Something is deleted. | 0.7 | Sheet of paper, one quick crumple, single sound, close microphone, dry foley recording |
-| `reorder` | You move a priority up or down. | 0.5 | Wooden game tile, one short slide across a wooden table and stop, single sound, close microphone, dry foley recording |
-| `theme_change` | You pick a theme or colour. | 0.5 | Water, one single bright drop falling into a full glass, single plop, close microphone, dry recording |
-| `error` | Something could not be saved. | 0.6 | Low wooden block, two quick dull muted knocks, single sound, close microphone, dry foley recording |
-
-## Fallback AI
-
-A different material from the rest (glass, not wood) so the AI has its own voice.
-
-| File | Plays when | Seconds | Prompt |
-|---|---|---|---|
-| `ai_listen_start` | Fallback AI starts listening. | 0.8 | Small glass chime, two quick soft rising notes, airy, single phrase, close microphone, dry studio recording |
-| `ai_listen_stop` | Fallback AI stops listening. | 0.8 | Small glass chime, two quick soft falling notes, airy, single phrase, close microphone, dry studio recording |
-| `ai_send` | You send a typed message to Fallback AI. | 0.5 | Soap bubble, one light soft pop, single sound, close microphone, dry foley recording |
-| `ai_done` | Fallback AI finishes setting something up. | 1.5 | Small glass chimes, quick rising shimmer of three notes ending bright with a short ring, single phrase, close microphone, dry studio recording |
-
-## Reminders and first run
-
-| File | Plays when | Seconds | Prompt |
-|---|---|---|---|
-| `reminder` | A reminder arrives (you can also hear it by tapping a sample in Settings, Notifications). | 1.5 | Wooden marimba, two gentle calm notes in C major, the second a little higher, short soft ring, single phrase, close microphone, dry studio recording |
-| `welcome` | You finish onboarding and land on Today for the first time. | 2.0 | Wooden marimba, warm friendly rising phrase of three notes in C major with a soft ring, single phrase, close microphone, dry studio recording |
-
-## When the zip arrives
-
-- Trim, level and pick one take per sound; wire them into the preview behind one `play(name)` helper.
-- Add a Sounds switch in Settings (on by default in the preview) and keep silence when the phone is on silent.
-- This is a new feature: it needs a line in the PRD and the architect's choice of audio library (expo-audio) before builders touch it.
+- A line in the PRD (sound is a new feature), a Sounds switch in Settings, silence when the phone is on silent, and the architect's choice of audio library.

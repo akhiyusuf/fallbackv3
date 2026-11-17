@@ -19,6 +19,9 @@ html { height: 100%; box-sizing: border-box; background: var(--ground); display:
 /* body IS the phone screen: the transform makes in-app dialogs (position: fixed) stay inside it. */
 body { height: 100%; width: 100%; margin: 0; position: relative; transform: translateZ(0); display: flex; flex-direction: column; background: var(--screen); color: var(--panel-fg); font-family: var(--body); overflow: visible; }
 #root { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* A screen whose content fits must stay put: no rubber-banding of the page, and a list's bounce never drags the page with it. */
+html, body { overscroll-behavior: none; }
+#root * { overscroll-behavior: contain; }
 /* The app's typeface (rounded). On a device this is a bundled font; here it is a web font. */
 #root, #root *, body > div:not(#root):not(#panel):not(#bar):not(#boot):not(#statusbar):not(#homebar) * { font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif !important; }
 
