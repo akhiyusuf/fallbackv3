@@ -107,7 +107,8 @@ export function Tabs({ items, value, onChange, accessibilityLabel, disabled = fa
               width: slot,
               backgroundColor: t.color.bgAlt,
               borderColor: t.color.border,
-              transform: [{ translateX: Animated.multiply(position, step) }],
+              // Kept inside the bar: the spring may overshoot the last option, the highlight never does.
+              transform: [{ translateX: position.interpolate({ inputRange: [0, Math.max(1, count - 1)], outputRange: [0, Math.max(1, count - 1) * step], extrapolate: 'clamp' }) }],
             },
           ]}
         />

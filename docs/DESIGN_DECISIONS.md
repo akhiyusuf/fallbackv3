@@ -1077,6 +1077,31 @@ The human, after installing the APK:
   Android's quick fade and jump (main session's reading: the human named
   button presses in general).
 
+### Round 4, eighteenth pass (2026-11-17)
+
+The human:
+
+- **"Options that look like they can easily be slid through, like the to-do /
+  note switch ... I want that switch to move to the other one. Same thing when
+  I'm switching tabs."** Every segmented control (`src/ui/Tabs.tsx`) now has one
+  highlight that slides to the chosen option with a spring, kept inside its
+  track, and it can be dragged: slide a finger across and it follows, settling
+  on the option it is let go over. The bottom tab bar is now `SlidingTabBar`:
+  the tinted pill slides from tab to tab, the arriving icon lifts slightly, and
+  the tab screens shift as they change.
+- **"When a user hits the skip button, they should know that they are
+  affecting their consistency data."** Skip no longer logs straight away. It
+  opens one sheet ("Skip <name> today?") that shows the real change to the
+  last-30 number before committing, e.g. "78% → 75% if you skip"
+  (`useSkipPreview`, worked out with the same calculation as the Today ring).
+- **"There should also be an emergency skip button ... to avoid redundance ...
+  smooth and clean."** No second button on the card. The same sheet's second
+  choice, "Take today off" ("Something came up? Today won't count for or
+  against you."), marks that one habit off for the day, which the data model
+  already had (the "Off today" switch on a task's page). A toast offers Undo.
+  No limit on how often it can be used: main session's choice, flagged to the
+  human.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
