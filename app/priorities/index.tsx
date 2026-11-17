@@ -3,7 +3,7 @@
  * High, Medium and Low each hold a list in the person's own order. The arrows move a task up or
  * down inside its level; the order is saved as `task.priorityRank`.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { ArrowDown, ArrowUp, ListOrdered } from 'lucide-react-native';
@@ -38,8 +38,6 @@ export default function PrioritiesScreen() {
   const [pending, setPending] = useState<readonly Id[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => setPending(null), [level]);
-
   const saved = groups[level];
   const byId = new Map(saved.map((tk) => [tk.id, tk] as const));
   const list: readonly TaskWithSteps[] = pending ? pending.map((id) => byId.get(id)).filter((tk): tk is TaskWithSteps => !!tk) : saved;
@@ -59,9 +57,12 @@ export default function PrioritiesScreen() {
     for (let i = 0; i < next.length; i += 1) {
       const tk = next[i]!;
       if (tk.priorityRank === i) continue;
-      const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { priorityRank: i } });
+      // A write that throws counts as a failed save, so the arrows never stay locked.
+      const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { priorityRank: i } }).catch(() => ({ ok: false as const }));
       if (!result.ok) failed = true;
     }
+    // The writes refresh the list in the background. Load it before dropping the pending order, or the rows jump back for a moment.
+    await refetch();
     setSaving(false);
     setPending(null);
     if (failed) showToast("Couldn't save the new order. Try again.", 'warning');
@@ -73,7 +74,10 @@ export default function PrioritiesScreen() {
       <Tabs
         items={PRIORITY_LEVELS.map((l) => ({ value: l.value, label: groups[l.value].length > 0 ? `${l.label} · ${groups[l.value].length}` : l.label }))}
         value={level}
-        onChange={(v) => setLevel(v as Importance)}
+        onChange={(v) => {
+          setLevel(v as Importance);
+          setPending(null);
+        }}
         accessibilityLabel="Importance level"
       />
 

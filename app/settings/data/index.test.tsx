@@ -4,7 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
-jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, push: mockPush, canGoBack: () => false, back: jest.fn() }) }));
+const mockParams: { current: Record<string, string> } = { current: {} };
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ replace: mockReplace, push: mockPush, canGoBack: () => false, back: jest.fn() }),
+  useLocalSearchParams: () => mockParams.current,
+}));
 
 const mockSettingsData: { current: unknown } = { current: undefined };
 jest.mock('@/queries', () => ({
@@ -14,9 +18,11 @@ jest.mock('@/queries', () => ({
 
 const mockCreateBackup = jest.fn();
 const mockRestoreBackup = jest.fn();
+const mockEraseAllData = jest.fn();
 jest.mock('@/services/data', () => ({
   createBackup: () => mockCreateBackup(),
   restoreBackup: (uri: string) => mockRestoreBackup(uri),
+  eraseAllData: () => mockEraseAllData(),
 }));
 
 const mockGetDocumentAsync = jest.fn();
@@ -28,7 +34,7 @@ const mockShowToast = jest.fn();
 jest.mock('@/app-shell', () => ({ useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }) }));
 
 import S47Data from './index';
-import { S47_COPY } from '@/features/data/copy';
+import { S47_COPY, S48_COPY } from '@/features/data/copy';
 
 function renderScreen() {
   const client = new QueryClient();
@@ -43,6 +49,7 @@ describe('S47 — Data', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSettingsData.current = undefined;
+    mockParams.current = {};
   });
 
   it('default, no backup yet: shows "No backup yet."', async () => {
@@ -54,15 +61,60 @@ describe('S47 — Data', () => {
   it('default, has a backup: shows the "Last backup: <formatted>" subcopy', async () => {
     mockSettingsData.current = { lastBackupAt: '2026-07-14T13:12:00.000Z' };
     await renderScreen();
-    expect(screen.getByText(new RegExp(`^${S47_COPY.lastBackupPrefix}`))).toBeTruthy();
+    expect(screen.getByText(new RegExp(`^${S47_COPY.lastBackupPrefix} \\w{3} \\d{1,2}, 2026 at `))).toBeTruthy();
   });
 
-  it('the erase-all row navigates to S48 with origin=data', async () => {
+  it('the erase-all row opens the confirmation sheet and navigates nowhere', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     const user = userEvent.setup();
     await renderScreen();
-    await user.press(screen.getByLabelText(`${S47_COPY.eraseRow}. ${S47_COPY.eraseSubcopy}`));
-    expect(mockPush).toHaveBeenCalledWith('/settings/data/erase?from=data');
+    await user.press(screen.getByText(S47_COPY.eraseRow));
+    expect(screen.getByText(S48_COPY.headlineFromData)).toBeTruthy();
+    expect(screen.getByText(S48_COPY.bodyFromData)).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockEraseAllData).not.toHaveBeenCalled();
+  });
+
+  it('Cancel on the erase sheet erases nothing and leaves the screen unchanged', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.eraseRow));
+    await user.press(screen.getByText(S48_COPY.cancelButton));
+    expect(mockEraseAllData).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(screen.queryByText(S48_COPY.bodyFromData)).toBeNull();
+  });
+
+  it('"Erase everything" erases, then goes to S01 (/splash)', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockEraseAllData.mockResolvedValue({ ok: true, value: undefined });
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.eraseRow));
+    await user.press(screen.getByText(S48_COPY.eraseButton));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/splash'));
+    expect(mockEraseAllData).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed erase shows the calm retry banner, stays on the sheet and does not navigate', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockEraseAllData.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    const user = userEvent.setup();
+    await renderScreen();
+    await user.press(screen.getByText(S47_COPY.eraseRow));
+    await user.press(screen.getByText(S48_COPY.eraseButton));
+    await waitFor(() => expect(screen.getByText(S48_COPY.midWipeFailure)).toBeTruthy());
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('opening with confirmErase=1 (the erase route forwards here) shows the sheet straight away', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockParams.current = { confirmErase: '1' };
+    await renderScreen();
+    expect(screen.getByText(S48_COPY.headlineFromData)).toBeTruthy();
   });
 
   it('a successful backup shows the success toast', async () => {

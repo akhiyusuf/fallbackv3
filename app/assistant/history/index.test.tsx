@@ -45,9 +45,9 @@ describe('S34 — Assistant Conversation History', () => {
     ];
     await renderScreen();
     expect(await screen.findByText('Added a workout, a meditation course & a reminder to call mom')).toBeTruthy();
-    // The badge text ("3 tasks") and the modality ("Voice + text") are the two parts of the row's
+    // The badge text ("3 tasks") and the modality ("Voice and text") are the two parts of the row's
     // single meta line, in the order the spec gives them.
-    expect(screen.getByText(/Voice \+ text · 3 tasks/)).toBeTruthy();
+    expect(screen.getByText(/Voice and text · 3 tasks/)).toBeTruthy();
   });
 
   it('tapping a conversation row opens that conversation (S35)', async () => {

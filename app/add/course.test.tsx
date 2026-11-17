@@ -45,22 +45,21 @@ describe('S18 Create Course', () => {
     await userEvent.type(fallback, 'Take the dose');
 
     await userEvent.press(screen.getByLabelText('Save course'));
-    expect(await screen.findByText('Set an end date — a course always runs for a fixed span.')).toBeTruthy();
+    expect(await screen.findByText('Set an end date — a course runs for a fixed span.')).toBeTruthy();
   });
 
-  it('>1 doses/day shows the per-dose helper copy', async () => {
+  it('>1 doses/day shows the per-dose helper copy (stepper)', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
-    const doses = await screen.findByLabelText('Doses per day');
-    await userEvent.clear(doses);
-    await userEvent.type(doses, '2');
-    expect(await screen.findByText("Each dose completes on its own — the day counts once every dose is handled.")).toBeTruthy();
+    // The doses control is a stepper: the helper appears once there is more than one dose.
+    await userEvent.press(await screen.findByLabelText('Increase doses per day'));
+    expect(await screen.findByText('Each dose is logged on its own. The day counts once every dose is handled.')).toBeTruthy();
   });
 
-  it('happy path (Antibiotics fixture) saves and lands on Today', async () => {
+  it('happy path (Antibiotics fixture) saves, toasts "Course saved" and lands on Today', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
     const name = await screen.findByLabelText('Course name');
     await userEvent.type(name, 'Antibiotics');
-    const end = await screen.findByLabelText('End date');
+    const end = await screen.findByLabelText('Ends');
     await userEvent.type(end, '2026-07-26');
     const ideal = await screen.findByLabelText('Ideal step 1');
     await userEvent.type(ideal, 'Take with food, full glass of water');
@@ -69,16 +68,17 @@ describe('S18 Create Course', () => {
 
     await userEvent.press(screen.getByLabelText('Save course'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+    expect(useToastStore.getState().toast?.message).toBe('Course saved');
   });
 
   it('an unparseable free-typed Start date surfaces a visible inline error (REVIEW-M4.md item 7)', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
     const name = await screen.findByLabelText('Course name');
     await userEvent.type(name, 'Antibiotics');
-    const start = await screen.findByLabelText('Start date');
+    const start = await screen.findByLabelText('Starts');
     await userEvent.clear(start);
     await userEvent.type(start, 'not-a-date');
-    const end = await screen.findByLabelText('End date');
+    const end = await screen.findByLabelText('Ends');
     await userEvent.type(end, '2026-07-26');
     const ideal = await screen.findByLabelText('Ideal step 1');
     await userEvent.type(ideal, 'Take with food');
@@ -86,7 +86,7 @@ describe('S18 Create Course', () => {
     await userEvent.type(fallback, 'Take the dose');
 
     await userEvent.press(screen.getByLabelText('Save course'));
-    expect(await screen.findByText("That date doesn't look right — use YYYY-MM-DD.")).toBeTruthy();
+    expect(await screen.findByText('Pick a start date.')).toBeTruthy();
     expect(screen.queryByText('MARKER_TODAY')).toBeNull();
   });
 
@@ -97,7 +97,7 @@ describe('S18 Create Course', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/course', wrapper });
     const name = await screen.findByLabelText('Course name');
     await userEvent.type(name, 'Antibiotics');
-    const end = await screen.findByLabelText('End date');
+    const end = await screen.findByLabelText('Ends');
     await userEvent.type(end, '2026-07-26');
     const ideal = await screen.findByLabelText('Ideal step 1');
     await userEvent.type(ideal, 'Take with food');

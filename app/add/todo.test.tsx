@@ -38,25 +38,26 @@ beforeEach(() => {
 describe('S19 Create To-do/Note', () => {
   it('empty name blocks save with the verbatim inline error', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
-    await screen.findByText('New To-do / Note');
-    await userEvent.press(screen.getByLabelText('Save'));
+    await screen.findByText('New to-do');
+    await userEvent.press(screen.getByLabelText('Save to-do'));
     expect(await screen.findByText('Give this a name to save it.')).toBeTruthy();
   });
 
   it('no ideal/fallback fields and no cadence control are ever shown', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
-    await screen.findByText('New To-do / Note');
+    await screen.findByText('New to-do');
     expect(screen.queryByText(/Repeats/)).toBeNull();
-    expect(screen.queryByLabelText(/Ideal/)).toBeNull();
-    expect(screen.queryByLabelText(/Fallback/)).toBeNull();
+    expect(screen.queryByLabelText(/^Ideal/)).toBeNull();
+    expect(screen.queryByLabelText(/^Fallback/)).toBeNull();
   });
 
-  it('happy path (name only) saves and lands on Today', async () => {
+  it('happy path (name only) saves and lands on the to-do list', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
-    const name = await screen.findByLabelText('What is it?');
+    const name = await screen.findByLabelText('Name');
     await userEvent.type(name, 'Call the vet about refill');
-    await userEvent.press(screen.getByLabelText('Save'));
-    expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+    await userEvent.press(screen.getByLabelText('Save to-do'));
+    // To-dos have no due date, so a saved to-do lands on the to-dos list, not Today.
+    expect(await screen.findByText('MARKER_TODOS')).toBeTruthy();
   });
 
   it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {
@@ -64,13 +65,13 @@ describe('S19 Create To-do/Note', () => {
     useToastStore.setState({ toast: null });
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
-    const name = await screen.findByLabelText('What is it?');
+    const name = await screen.findByLabelText('Name');
     await userEvent.type(name, 'Call the vet about refill');
 
-    await userEvent.press(screen.getByLabelText('Save'));
+    await userEvent.press(screen.getByLabelText('Save to-do'));
 
     await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
-    expect(screen.queryByText('MARKER_TODAY')).toBeNull();
+    expect(screen.queryByText('MARKER_TODOS')).toBeNull();
     expect(await screen.findByDisplayValue('Call the vet about refill')).toBeTruthy();
   });
 });

@@ -36,13 +36,11 @@ beforeEach(() => {
 });
 
 describe('S17 Create Event', () => {
-  it('defaults to "Does not repeat" with no cadence control shown, and no tracking fields', async () => {
+  it('defaults to "One-time" with no cadence control shown, and no tracking fields', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
     await screen.findByText('New event');
-    // Only the Recurrence radio's own "Repeats" option exists yet — the CadencePicker's own
-    // "Repeats" Select (a second element with the same label) only appears once "Repeats" is
-    // selected.
-    expect(screen.getAllByLabelText('Repeats')).toHaveLength(1);
+    expect(screen.getByRole('tab', { name: 'One-time' }).props.accessibilityState?.selected).toBe(true);
+    expect(screen.queryByTestId('event-cadence-picker')).toBeNull();
     expect(screen.queryByLabelText(/Ideal step/)).toBeNull();
   });
 
@@ -59,13 +57,14 @@ describe('S17 Create Event', () => {
     await userEvent.type(name, 'Dentist visit');
     await userEvent.press(screen.getByLabelText('Save event'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
+    expect(useToastStore.getState().toast?.message).toBe('Event saved');
   });
 
   it('selecting Repeats reveals the shared CadencePicker', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
     await screen.findByText('New event');
-    await userEvent.press(screen.getByLabelText('Repeats'));
-    expect(await screen.findByText('Still an Event — just one that repeats.')).toBeTruthy();
+    await userEvent.press(screen.getByRole('tab', { name: 'Repeats' }));
+    expect(await screen.findByTestId('event-cadence-picker')).toBeTruthy();
   });
 
   it('an unparseable free-typed Date surfaces a visible inline error (REVIEW-M4.md item 7)', async () => {
@@ -77,7 +76,7 @@ describe('S17 Create Event', () => {
     await userEvent.type(dateInput, 'not-a-date');
 
     await userEvent.press(screen.getByLabelText('Save event'));
-    expect(await screen.findByText("That date doesn't look right — use YYYY-MM-DD.")).toBeTruthy();
+    expect(await screen.findByText('Pick a date for this event.')).toBeTruthy();
     expect(screen.queryByText('MARKER_TODAY')).toBeNull();
   });
 
