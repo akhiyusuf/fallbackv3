@@ -3118,8 +3118,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +});
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/OnboardingShell.tsx web/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 05:49:51.332906392 +0000
-@@ -1,99 +1,205 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 06:13:59.893971996 +0000
+@@ -1,99 +1,231 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -3131,15 +3131,14 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
  import type { ReactNode } from 'react';
 -import { useEffect } from 'react';
 -import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
--
--import { SPACE, useTheme } from '@/theme';
--import { Button } from '@/ui';
 +import { useEffect, useState, useSyncExternalStore } from 'react';
 +import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 +import { ChevronLeft } from 'lucide-react-native';
 +import { useRouter, type Href } from 'expo-router';
 +import { useSafeAreaInsets } from 'react-native-safe-area-context';
-+
+ 
+-import { SPACE, useTheme } from '@/theme';
+-import { Button } from '@/ui';
 +import { now } from '@/lib/date';
 +import { useUpdateSettings } from '@/queries';
 +import { FONT_SIZE, HEADER_HEIGHT, RADIUS, SPACE, useTheme } from '@/theme';
@@ -3177,7 +3176,13 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +    () => currentDensity,
 +  );
 +}
-+function densityFor(height: number): OnboardingDensity {
++/**
++ * How tightly a step is set. The last two steps carry the most below their words (a form, two
++ * buttons), so they tighten earlier: otherwise a mid-height screen leaves their banner no room
++ * for its picture.
++ */
++function densityFor(height: number, end = false): OnboardingDensity {
++  if (end) return height >= 800 ? 'regular' : height >= 730 ? 'compact' : 'tight';
 +  return height >= 760 ? 'regular' : height >= 650 ? 'compact' : 'tight';
 +}
 +/**
@@ -3190,12 +3195,29 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +function bannerKind(step: number): BannerKind {
 +  return step === 5 ? 'tall' : step >= 6 ? 'end' : 'main';
 +}
-+/** Height of the whole top (bar and banner) for a step, before the phone's top inset. */
-+function topHeight(kind: BannerKind, height: number): number {
-+  const density = densityFor(height);
-+  const main = density === 'regular' ? Math.min(240, height - 580) : density === 'compact' ? Math.min(210, height - 500) : height - 500;
-+  const end = density === 'regular' ? Math.min(240, height - 650) : density === 'compact' ? height - 590 : height - 515;
-+  return Math.max(HEADER_HEIGHT, kind === 'end' ? end : main);
++/**
++ * The height the words, the example and the button need below the banner: the tallest step of
++ * each group, measured in the built app at each width (docs/design-rebuild/preview-harness/obneed.js).
++ * Rows are [from this width, steps 1 to 4, steps 6 and 7]; a narrower screen wraps more, so it needs more.
++ */
++const NEEDS: Record<OnboardingDensity, readonly (readonly [number, number, number])[]> = {
++  tight: [[0, 487, 505], [360, 467, 485], [390, 447, 485]],
++  compact: [[0, 521, 620], [344, 521, 596], [360, 521, 576], [375, 501, 576], [390, 487, 576]],
++  regular: [[0, 587, 720], [344, 587, 696], [360, 587, 638], [390, 567, 638]],
++};
++const BANNER_MAX = 240;
++// Room kept spare so a slightly wider typeface on a real phone does not push the step into scrolling.
++const NEED_SLACK = 8;
++/**
++ * Height of the whole top (bar and banner) for a step, before the phone's top inset: everything
++ * the tallest step of its group does not need, up to BANNER_MAX. If a step still turns out
++ * taller than measured, the top gives up height before anything scrolls (flexShrink below).
++ */
++function topHeight(kind: BannerKind, height: number, width: number): number {
++  let need = 0;
++  for (const [from, main, end] of NEEDS[densityFor(height, kind === 'end')]) if (width >= from) need = kind === 'end' ? end : main;
++  need += NEED_SLACK;
++  return Math.max(HEADER_HEIGHT, Math.min(BANNER_MAX, height - need));
 +}
 +// The height the top had on the step the person just left, so the next one can start from it.
 +let lastTopHeight: number | null = null;
@@ -3259,11 +3281,14 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  const [height, setHeight] = useState(windowHeight);
 +  const [width, setWidth] = useState(0);
 +  const [pictureRoom, setPictureRoom] = useState(0);
-+  const density = densityFor(height);
++  const kind = bannerKind(step);
++  // Judged on the room inside the phone's insets, the same room topHeight works with.
++  const density = densityFor(height - insets.top - insets.bottom, kind === 'end');
 +  useEffect(() => publishDensity(density), [density]);
 +  const barAndInset = HEADER_HEIGHT + insets.top;
-+  const kind = bannerKind(step);
-+  const target = topHeight(kind, height) + insets.top;
++  const windowWidth = useWindowDimensions().width;
++  // The measured needs are for a screen with no insets; the phone's own insets come off the room first.
++  const target = topHeight(kind, height - insets.top - insets.bottom, width > 0 ? width : windowWidth) + insets.top;
 +  const reduced = useReduceMotion();
 +  const basis = useState(() => new Animated.Value(lastTopHeight ?? target))[0];
 +  const grow = useState(() => new Animated.Value(0))[0];
@@ -3362,7 +3387,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 -        {Icon ? <Icon size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" /> : null}
 -        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
 +      <View style={styles.pictureRoom} onLayout={(e) => setPictureRoom(e.nativeEvent.layout.height)}>
-+        {pictureRoom < 52 ? null : image ? (
++        {pictureRoom < 44 ? null : image ? (
 +          <Image source={image} resizeMode="contain" accessibilityElementsHidden importantForAccessibility="no" style={styles.image} />
 +        ) : (
 +          <OnboardingPicture step={step} scale={pictureScale} />
@@ -3389,7 +3414,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
        </View>
      </View>
    );
-@@ -101,11 +207,31 @@
+@@ -101,11 +233,31 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },

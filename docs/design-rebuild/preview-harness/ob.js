@@ -1,7 +1,7 @@
 // Onboarding fit check: for each screen size and step, does anything have to scroll?
 const { chromium } = require('playwright');
 const S = '/tmp/claude-0/-home-user-fallbackv3/4065cf9b-48bb-5876-bcc5-38bb70a7fbe9/scratchpad';
-const SIZES = [[320, 568], [360, 640], [375, 667], [390, 700], [390, 776], [390, 844], [412, 915], [430, 932]];
+const SIZES = [[320, 568], [360, 600], [360, 640], [375, 667], [390, 600], [390, 620], [390, 649], [390, 650], [390, 700], [390, 759], [390, 776], [390, 844], [412, 915], [430, 932]];  // full phones, and the shorter room an artifact viewer or a phone browser leaves
 const STEPS = ['concept', 'hook', 'types', 'consistency', 'personalize', 'notifications-primer', 'first-task'];
 (async () => {
   const shots = process.argv.slice(2);

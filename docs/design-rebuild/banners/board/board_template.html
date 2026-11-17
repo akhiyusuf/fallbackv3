@@ -47,7 +47,7 @@ textarea{width:100%;box-sizing:border-box;min-height:110px;font:13px ui-monospac
 <main>
 <header>
   <h1>Fallback Banner Board</h1>
-  <p class="lede">Two passes for each onboarding step, made one at a time. The one outlined in green is the one in the preview now. If it says "my pick", I chose it; tap "Use this one" on the other pass to overrule me, or "Redo this step" with a note if neither is right. Tap a picture to see it large.</p>
+  <p class="lede">Round two. You kept steps 1, 3, 5 and 6 and asked for steps 2, 4 and 7 to be redone. Each redo is on the right of its card and is in the preview now. The one outlined in green is the one in the preview. Tap "Use this one" on the other picture to switch, or "Redo this step" with a note. Tap a picture to see it large.</p>
 </header>
 <div id="cards" style="display:flex;flex-direction:column;gap:18px"></div>
 <section class="card">
@@ -80,7 +80,7 @@ async function save(id) {
   render();
   if (!db) { statusEl.textContent = 'Not saved online here. Use "Copy my choices" at the bottom when you are done.'; return; }
   statusEl.textContent = 'Saving…';
-  try { await db.doc('picks/' + id).set({ choice: picks[id].choice || '', note: picks[id].note || '' }); statusEl.textContent = 'Saved'; }
+  try { await db.doc('round2/' + id).set({ choice: picks[id].choice || '', note: picks[id].note || '' }); statusEl.textContent = 'Saved'; }
   catch (e) { statusEl.textContent = 'Could not save. Use "Copy my choices" at the bottom when you are done.'; }
 }
 function choose(n, choice) { const id = 'step_' + n; const p = picks[id] || (picks[id] = {}); p.choice = p.choice === choice ? '' : choice; save(id); }
@@ -95,7 +95,7 @@ STEPS.forEach((s) => {
   ['a', 'b'].forEach((k) => {
     const t = el('div', 'tile'); const shot = el('div', 'shot'); const img = el('img'); img.src = IMAGES[s.n + k]; img.alt = s[k]; shot.appendChild(img);
     shot.addEventListener('click', () => { document.getElementById('zoomimg').src = img.src; zoom.hidden = false; });
-    const cap = el('div', 'cap'); cap.appendChild(el('span', '', k === 'a' ? 'First pass' : 'Second pass')); if (s.pick === k) cap.appendChild(el('span', 'chip', 'my pick'));
+    const cap = el('div', 'cap'); cap.appendChild(el('span', '', (s.labels && s.labels[k]) || (k === 'a' ? 'First pass' : 'Second pass'))); if (s.chips && s.chips[k]) cap.appendChild(el('span', 'chip', s.chips[k]));
     const ub = el('button', 'use', 'Use this one'); ub.type = 'button'; ub.setAttribute('aria-pressed', 'false'); ub.setAttribute('aria-label', 'Use the ' + (k === 'a' ? 'first' : 'second') + ' pass for step ' + s.n);
     ub.addEventListener('click', () => choose(s.n, k));
     t.append(shot, cap, el('p', 'why', s[k]), ub); tiles[k] = t; uses[k] = ub; pair.appendChild(t);
@@ -119,7 +119,7 @@ render();
   if (!d) { statusEl.textContent = 'Choices stay on this page only. Use "Copy my choices" at the bottom when you are done.'; return; }
   db = d; statusEl.textContent = 'Your choices save by themselves.';
   const timer = setTimeout(() => { if (statusEl.textContent === 'Loading your choices…') statusEl.textContent = 'Your choices save by themselves.'; }, 10000);
-  db.collection('picks').onSnapshot((snap) => {
+  db.collection('round2').onSnapshot((snap) => {
     clearTimeout(timer);
     snap.docs.forEach((doc) => { const b = doc.data(); if (b && /^step_[1-7]$/.test(doc.id)) picks[doc.id] = { choice: b.choice || '', note: b.note || '' }; });
     render();

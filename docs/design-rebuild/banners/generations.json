@@ -1,22 +1,125 @@
 {
- "model": "gpt-image-2", "parameters": {"aspect_ratio": "3:2", "resolution": "1K", "quality": "medium"},
+ "model": "gpt-image-2",
+ "parameters": {
+  "aspect_ratio": "3:2",
+  "resolution": "1K",
+  "quality": "medium"
+ },
  "note": "One image per run. 260 credits each at 3:2; the one 1:1 image (2 a) cost 327. Step 1 a was made first with a 'transparent background' prompt and came back on a painted checkerboard (cutout.sh); every later prompt asks for a plain flat light grey background (cutout_flat.sh).",
  "flow_id": "0ZZWrR1PI9byQLlgxDL9",
  "passes": [
-  {"step": 1, "pass": "a", "node": "NlFuAtBIlhQXxqXTtTAi", "generation": "eogiVDc3npX2uj9cBDba"},
-  {"step": 1, "pass": "b", "node": "WUIsaNp7Xlux7x1JokfL", "generation": "a7ImNrQhm9rJa8cAzshG", "chosen": true},
-  {"step": 2, "pass": "a", "node": "UvFnHX6JR2EBUNYysauo", "generation": "yDqKYpGDlP1n761fVkFQ"},
-  {"step": 2, "pass": "b", "node": "M7vvQUqSaA9M3GZJ0XQ5", "generation": "WGmHmArfSgME47BEtAcX", "chosen": true},
-  {"step": 3, "pass": "a", "node": "fzuSzXBFU7kSyyN1gevo", "generation": "mm6BM0SzW9iQZ5EzS0zA"},
-  {"step": 3, "pass": "b", "node": "rey2yvMCKAkjHglfZ7Pt", "generation": "FvtaTU5woCaQDfrz8zc0", "chosen": true},
-  {"step": 4, "pass": "a", "node": "2PhshGsiuHgEAVxS10iQ", "generation": "SMasX4q4am2nkuWVQqVJ"},
-  {"step": 4, "pass": "b", "node": "G13wOho1Iub6JeF4mUUb", "generation": "MeZHpLIY6KGhrDaTUbO5", "chosen": true},
-  {"step": 5, "pass": "a", "node": "wYNm53StxU8ew6pPqGJQ", "generation": "fncITYNgt2xwgaLx2dKg"},
-  {"step": 5, "pass": "b", "node": "tDTlURnp8DL5GAiRAixc", "generation": "K49wCsNE72PcurWJMhZu", "chosen": true},
-  {"step": 6, "pass": "a", "node": "G6b2Xk9JvLn7dHIxFre4", "generation": "YCqf78AxfcZbOHprXwne"},
-  {"step": 6, "pass": "b", "node": "TbaGsFJp9uTVYLLaYROq", "generation": "VBubnxMhkEsntgmgg7pg", "chosen": true},
-  {"step": 7, "pass": "a", "node": "o0G6AAeqJfG42ViWLSjS", "generation": "BJZIlcSPrmb8G7Lylajg"},
-  {"step": 7, "pass": "b", "node": "hCBVt5ILB4krenSDdVSl", "generation": "nDLwBp2WXTIrk55Bggoc", "chosen": true}
+  {
+   "step": 1,
+   "pass": "a",
+   "node": "NlFuAtBIlhQXxqXTtTAi",
+   "generation": "eogiVDc3npX2uj9cBDba"
+  },
+  {
+   "step": 1,
+   "pass": "b",
+   "node": "WUIsaNp7Xlux7x1JokfL",
+   "generation": "a7ImNrQhm9rJa8cAzshG",
+   "chosen": true
+  },
+  {
+   "step": 2,
+   "pass": "a",
+   "node": "UvFnHX6JR2EBUNYysauo",
+   "generation": "yDqKYpGDlP1n761fVkFQ"
+  },
+  {
+   "step": 2,
+   "pass": "b",
+   "node": "M7vvQUqSaA9M3GZJ0XQ5",
+   "generation": "WGmHmArfSgME47BEtAcX"
+  },
+  {
+   "step": 2,
+   "pass": "c",
+   "node": "ZqS8FifraZyJ8gc6mIDY",
+   "generation": "63f3wewmUobUxl2pXK2M",
+   "chosen": true,
+   "why": "redo asked by the human: the idea of pass b with the look of pass a"
+  },
+  {
+   "step": 3,
+   "pass": "a",
+   "node": "fzuSzXBFU7kSyyN1gevo",
+   "generation": "mm6BM0SzW9iQZ5EzS0zA"
+  },
+  {
+   "step": 3,
+   "pass": "b",
+   "node": "rey2yvMCKAkjHglfZ7Pt",
+   "generation": "FvtaTU5woCaQDfrz8zc0",
+   "chosen": true
+  },
+  {
+   "step": 4,
+   "pass": "a",
+   "node": "2PhshGsiuHgEAVxS10iQ",
+   "generation": "SMasX4q4am2nkuWVQqVJ"
+  },
+  {
+   "step": 4,
+   "pass": "b",
+   "node": "G13wOho1Iub6JeF4mUUb",
+   "generation": "MeZHpLIY6KGhrDaTUbO5"
+  },
+  {
+   "step": 4,
+   "pass": "c",
+   "node": "KNW5lYc1gDISnHFUQWlo",
+   "generation": "rBldyrTtLqWegUwtqdv6",
+   "chosen": true,
+   "why": "redo asked by the human: the week idea of pass b with the marbles of pass a"
+  },
+  {
+   "step": 5,
+   "pass": "a",
+   "node": "wYNm53StxU8ew6pPqGJQ",
+   "generation": "fncITYNgt2xwgaLx2dKg"
+  },
+  {
+   "step": 5,
+   "pass": "b",
+   "node": "tDTlURnp8DL5GAiRAixc",
+   "generation": "K49wCsNE72PcurWJMhZu",
+   "chosen": true
+  },
+  {
+   "step": 6,
+   "pass": "a",
+   "node": "G6b2Xk9JvLn7dHIxFre4",
+   "generation": "YCqf78AxfcZbOHprXwne"
+  },
+  {
+   "step": 6,
+   "pass": "b",
+   "node": "TbaGsFJp9uTVYLLaYROq",
+   "generation": "VBubnxMhkEsntgmgg7pg",
+   "chosen": true
+  },
+  {
+   "step": 7,
+   "pass": "a",
+   "node": "o0G6AAeqJfG42ViWLSjS",
+   "generation": "BJZIlcSPrmb8G7Lylajg"
+  },
+  {
+   "step": 7,
+   "pass": "b",
+   "node": "hCBVt5ILB4krenSDdVSl",
+   "generation": "nDLwBp2WXTIrk55Bggoc"
+  },
+  {
+   "step": 7,
+   "pass": "c",
+   "node": "JwOXvENzxprW2D8qEanX",
+   "generation": "VTHN3L6kMxjLFTRO4Qs2",
+   "chosen": true,
+   "why": "redo asked by the human: a single sprout pot"
+  }
  ],
  "unused_node": "u0A93b4GgFTw7FYlMU0C (step 2 with banner 1 as a style reference; estimate was 562 credits, so it was never run)"
 }

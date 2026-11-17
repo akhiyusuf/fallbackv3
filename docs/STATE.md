@@ -699,6 +699,20 @@ twenty sound takes; the account stands at 15,446 of 40,000 for the month.
 Still awaiting the human's approval of the look; nothing routed to pipeline
 agents.
 
+**Round 4, eleventh pass (2026-11-17): Fallback Preview is at version 17.**
+The human answered the banner board: kept steps 1, 3, 5 and 6, asked for 2, 4
+and 7 to be redone. The three redos are made, vetted and in the preview; the
+board (https://claude.ai/artifact/EwgWnHvKpF5k14c57Vyizz) shows them. The
+human also reported seeing no banner pictures except in step 5: the banners
+were too short in a window shorter than a full phone. Fixed by sizing banners
+from measured content heights; checked at fourteen sizes. **Waiting for the
+human:** a look at the three redos, and "Fallback Sound Picker 3"
+(https://claude.ai/artifact/RanySU19mQXes9mdyq6oht), still unanswered, so
+Skip today and "could not save" still use the knock a phone cannot play.
+ElevenLabs credits this pass: 780 for three images; the account stands at
+about 16,226 of 40,000 for the month. Still awaiting the human's approval of
+the look; nothing routed to pipeline agents.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go

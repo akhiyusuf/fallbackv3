@@ -878,6 +878,39 @@ before builders work from them.
   measured before they are offered. Details in
   `docs/design-rebuild/SOUND_EFFECTS.md`.
 
+### Round 4, eleventh pass (2026-11-17, preview version 17)
+
+- **The human's answers on the banner board.** Kept: step 1 (dumbbells lying
+  down), 3 (the cluster), 5 (the palette), 6 (the bell on a cushion). Redo:
+  step 2 ("I agree with your second step but to be fair the first step looks
+  better"), step 4 (the same answer), step 7 ("A single sprout pot would've
+  done the job").
+- **The three redos.** Step 2: the bold pot, sprout and rain cloud of the
+  first pass, with the sun peeking out from behind the cloud. Step 4: a week
+  tray holding plump green and blue marbles, six in and the seventh about to
+  drop. Step 7: one sprout pot with a small plus. All three are in the
+  preview and on the board (answers for this round are stored in the board's
+  `round2` collection).
+- **The human could not see the pictures, except in step 5.** Cause: the
+  banner's height came from a rough formula that was only checked at full
+  phone heights. In a shorter window (an artifact viewer, a phone browser
+  with its bars) it left the banner about 120 px and the picture about 35 px,
+  or none. Fix: the banner now takes everything the tallest step of its group
+  does not need, from measurements of the built app at seven widths and three
+  densities (`NEEDS` in `OnboardingShell.tsx`, measured by
+  `preview-harness/obneed.js`), and the last two steps switch to the tighter
+  setting earlier. Steps 1 to 4 still share one height and 6 and 7 another.
+  At 390 by 620 the banner goes from 120 to 165; at 390 by 700 from 200 to
+  205 (and from 116 to 207 on the last two steps).
+- **The fit check now covers short windows:** fourteen sizes from 320 by 568
+  to 430 by 932, including 360 by 600, 390 by 600, 620, 649, 650 and 759.
+  Nothing scrolls at any of them.
+- **Lesson recorded for whoever builds this:** `NEEDS` is a table of measured
+  heights. Any change to the words or the example under a step's headline
+  means measuring again, or the banner will be wrong (too small is safe; too
+  big only shrinks, because the banner gives up height before anything
+  scrolls).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
