@@ -713,6 +713,17 @@ ElevenLabs credits this pass: 780 for three images; the account stands at
 about 16,226 of 40,000 for the month. Still awaiting the human's approval of
 the look; nothing routed to pipeline agents.
 
+**Round 4, twelfth pass (2026-11-17): Fallback Preview is at version 18.**
+The human accepted banner pictures 1 to 6 and asked for step 7 without the
+plus sign; done by erasing it from the same picture. The human answered Sound
+Picker 3 (tap `nail_tap_1`, saved `stamp_1`, skip `page_flip_2`); the four
+sounds that depended on it (`tap`, `saved`, `log_skip`, `error`) are edited
+and wired, and the inaudible wood knock is gone. Eighteen sounds now; only
+`ai_done` is unused. Waiting on the human: a look at step 7, a listen to the
+new sounds, and whether the tap should also be on icon buttons and list rows
+(left silent for now). Details: `docs/design-rebuild/SOUND_EFFECTS.md` and
+"Round 4, twelfth pass" in `docs/DESIGN_DECISIONS.md`.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go

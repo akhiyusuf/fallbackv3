@@ -58,8 +58,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/app-shell/store
 +}));
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/app-shell/stores/toast.ts web/src/app-shell/stores/toast.ts
 --- a/src/app-shell/stores/toast.ts	2026-11-16 05:43:15.822875572 +0000
-+++ b/src/app-shell/stores/toast.ts	2026-11-17 05:14:19.621312341 +0000
-@@ -1,25 +1,54 @@
++++ b/src/app-shell/stores/toast.ts	2026-11-17 14:12:38.826108590 +0000
+@@ -1,25 +1,56 @@
 -/** M0. Ephemeral global toast queue, consumed by `@/ui`'s `Toast`. */
 +import { play } from '@/services/sfx';
  import { create } from 'zustand';
@@ -107,8 +107,10 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/app-shell/store
 -  show: (message, tone = 'neutral') => set({ toast: { id: newId(), message, tone } }),
 +  actionBars: 0,
 +  show: (message, tone = 'neutral', options) => {
-+    // Every "could not do that" message arrives here, so the two knocks live here too.
++    // Every "could not do that" message arrives here, so its sound lives here too. A plain green
++    // message means something was saved or went through; log messages carry an icon and their own sound.
 +    if (tone === 'warning') play('error');
++    else if (tone === 'success' && !options?.icon) play('saved');
 +    set({ toast: { id: newId(), message, tone, icon: options?.icon ?? null, detail: options?.detail, action: options?.action } });
 +  },
    hide: () => set({ toast: null }),
@@ -6879,8 +6881,16 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/BottomTabs.t
  });
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Button.tsx web/src/ui/Button.tsx
 --- a/src/ui/Button.tsx	2026-11-16 05:43:15.819677365 +0000
-+++ b/src/ui/Button.tsx	2026-11-16 16:12:20.616545725 +0000
-@@ -42,9 +42,9 @@
++++ b/src/ui/Button.tsx	2026-11-17 14:12:38.823543840 +0000
+@@ -6,6 +6,7 @@
+ import type { ReactNode } from 'react';
+ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+ 
++import { play } from '@/services/sfx';
+ import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme } from '@/theme';
+ 
+ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+@@ -42,13 +43,20 @@
  
    const tactile = variant === 'primary' || variant === 'secondary' || variant === 'danger';
    const faceColor =
@@ -6893,6 +6903,18 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Button.tsx w
  
    return (
      <Pressable
+-      onPress={isInert ? undefined : onPress}
++      onPress={
++        isInert
++          ? undefined
++          : () => {
++              play('tap');
++              onPress();
++            }
++      }
+       disabled={isInert}
+       accessibilityRole="button"
+       accessibilityLabel={accessibilityLabel ?? label}
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/ButtonPair.tsx web/src/ui/ButtonPair.tsx
 --- a/src/ui/ButtonPair.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ButtonPair.tsx	2026-11-16 05:46:54.831855491 +0000
@@ -8907,8 +8929,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/TabSummary.t
 +});
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Tabs.tsx web/src/ui/Tabs.tsx
 --- a/src/ui/Tabs.tsx	2026-11-16 05:43:15.819659401 +0000
-+++ b/src/ui/Tabs.tsx	2026-11-16 07:14:18.909685843 +0000
-@@ -1,7 +1,10 @@
++++ b/src/ui/Tabs.tsx	2026-11-17 14:12:38.824440667 +0000
+@@ -1,7 +1,11 @@
 -/** M0 kit — Verdant `Tabs`. Segmented switcher (scope/window switchers, browse Active/Past, etc). */
 +/**
 + * Tabs — the segmented bar (D9). The one control for picking 1 of 2–4
@@ -8917,11 +8939,12 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Tabs.tsx web
  import { Pressable, StyleSheet, Text, View } from 'react-native';
  
 -import { RADIUS, SPACE, useTheme } from '@/theme';
++import { play } from '@/services/sfx';
 +import { FONT_SIZE, RADIUS, useTheme } from '@/theme';
  
  export interface TabItem {
    readonly value: string;
-@@ -10,33 +13,30 @@
+@@ -10,33 +14,37 @@
  
  export interface TabsProps {
    readonly items: readonly TabItem[];
@@ -8950,7 +8973,14 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Tabs.tsx web
            <Pressable
              key={item.value}
 -            onPress={() => onChange(item.value)}
-+            onPress={disabled ? undefined : () => onChange(item.value)}
++            onPress={
++              disabled
++                ? undefined
++                : () => {
++                    if (item.value !== value) play('tap');
++                    onChange(item.value);
++                  }
++            }
 +            disabled={disabled}
              accessibilityRole="tab"
 -            accessibilityState={{ selected }}
@@ -8964,7 +8994,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/Tabs.tsx web
                {item.label}
              </Text>
            </Pressable>
-@@ -47,7 +47,8 @@
+@@ -47,7 +55,8 @@
  }
  
  const styles = StyleSheet.create({
@@ -9880,14 +9910,15 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/ui/surface.ts w
 +export const pressedSurface: ViewStyle = { borderBottomWidth: EDGE.outline, marginTop: EDGE.bottom - EDGE.outline };
 diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
 --- a/app/(tabs)/_layout.tsx	2026-11-16 05:43:15.827117772 +0000
-+++ b/app/(tabs)/_layout.tsx	2026-11-16 16:16:16.973440611 +0000
-@@ -3,33 +3,47 @@
++++ b/app/(tabs)/_layout.tsx	2026-11-17 14:12:38.825030302 +0000
+@@ -3,33 +3,49 @@
   * M3 owns the five tab screens; this layout file stays M0's.
   */
  import { Tabs } from 'expo-router';
 -import type { ColorValue } from 'react-native';
 +import { StyleSheet, View, type ColorValue } from 'react-native';
  
++import { play } from '@/services/sfx';
  import { PRIMARY_NAV_ITEMS } from '@/ui/BottomTabs';
  import { useTheme } from '@/theme';
  
@@ -9916,6 +9947,7 @@ diff -ruN a/app/(tabs)/_layout.tsx b/app/(tabs)/_layout.tsx
    const t = useTheme();
    return (
      <Tabs
++      screenListeners={{ tabPress: () => play('tap') }}
        screenOptions={{
          headerShown: false,
 -        tabBarActiveTintColor: t.accent.base,

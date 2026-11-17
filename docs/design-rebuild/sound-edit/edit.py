@@ -13,11 +13,14 @@ def mean(path):
 # The picked takes: where the useful sound starts and ends, and the rumble to remove.
 SOURCES = {
     'ting':   dict(file='iron_ting_3',    start=0.0,   end=1.30, hp=180),
-    'knock':  dict(file='wood_knock_1',   start=0.0,   end=0.45, hp=50),
     'click':  dict(file='switch_click_1', start=0.045, end=0.30, hp=200),
     'pencil': dict(file='pencil_check_1', start=0.0,   end=0.62, hp=150),
     'swish':  dict(file='swish_4',        start=0.02,  end=0.42, hp=120),
     'flick':  dict(file='glass_flick_2',  start=0.0,   end=1.00, hp=140),
+    'nail':   dict(file='nail_tap_1',     start=0.015, end=0.15, hp=250),
+    'stamp':  dict(file='stamp_1',        start=0.0,   end=0.22, hp=120),
+    'flip':   dict(file='page_flip_2',    start=0.07,  end=0.50, hp=200),
+    'flip1':  dict(file='page_flip_2',    start=0.07,  end=0.30, hp=200),
 }
 os.makedirs(os.path.join(here, 'base'), exist_ok=True); os.makedirs(os.path.join(here, 'out'), exist_ok=True)
 for name, s in SOURCES.items():
@@ -33,12 +36,14 @@ ECHO_WIDE = 'aecho=0.9:0.6:120|250|390:0.30|0.16|0.08'
 SOUNDS = {
     'log_ideal':    dict(hits=[('ting', 0, 0, 0.8), ('ting', 5, 140, 1.0)], level=-5, length=1.15),
     'log_fallback': dict(hits=[('ting', 0, 0, 1.0)], level=-8, length=0.85, extra='lowpass=f=5200'),
-    'log_skip':     dict(hits=[('knock', 0, 0, 1.0)], level=-10, length=0.42),
+    'log_skip':     dict(hits=[('flip', 0, 0, 1.0)], level=-9, length=0.43),
     'day_complete': dict(hits=[('ting', 0, 0, 0.7), ('ting', 4, 110, 0.8), ('ting', 7, 220, 0.9), ('ting', 12, 330, 1.0)], level=-4, length=1.9, extra=ECHO_SOFT),
     'level_up':     dict(hits=[('ting', 0, 0, 0.7), ('ting', 4, 100, 0.75), ('ting', 7, 200, 0.85), ('ting', 12, 300, 0.95), ('ting', 16, 420, 1.0)], level=-3, length=2.3, extra=ECHO_WIDE),
     'badge_earned': dict(hits=[('ting', 0, 0, 0.75), ('ting', 0, 120, 0.8), ('ting', 7, 280, 1.0)], level=-4, length=2.0, extra=ECHO_WIDE),
     'reminder':     dict(hits=[('ting', 0, 0, 0.9), ('ting', 7, 320, 1.0)], level=-6, length=1.6, extra='lowpass=f=4800,' + ECHO_SOFT),
-    'error':        dict(hits=[('knock', 0, 0, 1.0), ('knock', -2, 150, 0.9)], level=-8, length=0.6),
+    'error':        dict(hits=[('flip1', 0, 0, 1.0), ('flip1', -4, 210, 0.8)], level=-8, length=0.5),
+    'tap':          dict(hits=[('nail', 0, 0, 1.0)], level=-16, length=0.135),
+    'saved':        dict(hits=[('stamp', 0, 0, 1.0)], level=-9, length=0.22),
     'toggle_on':    dict(hits=[('click', 3, 0, 1.0)], level=-14, length=0.22),
     'toggle_off':   dict(hits=[('click', -3, 0, 1.0)], level=-14, length=0.26),
     'step_tick':    dict(hits=[('click', 0, 0, 1.0)], level=-12, length=0.24),

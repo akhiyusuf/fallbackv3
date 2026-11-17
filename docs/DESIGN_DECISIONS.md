@@ -911,6 +911,36 @@ before builders work from them.
   big only shrinks, because the banner gives up height before anything
   scrolls).
 
+### Round 4, twelfth pass (2026-11-17, preview version 18)
+
+- **Banner board, round two.** The human accepted steps 1 to 6 as they
+  stand (1 b, 2 c, 3 b, 4 c, 5 b, 6 b). Step 7: "like I said just a single
+  sprout is enough here, no need for a plus sign". The plus is erased from
+  the same picture (no new generation); step 7 is now the sprout pot alone.
+- **Sound Picker 3 answered.** Buttons and tabs: `nail_tap_1`. Saved:
+  `stamp_1`. Skip today: `page_flip_2`.
+- **The edit.** `tap` is the nail hit alone, the quietest and shortest
+  sound in the set (peak -17 dBFS, 0.135 s), because it is heard most.
+  `saved` is one stamp (-9.6, 0.22 s). `log_skip` is one page flip with its
+  quiet lead-in cut so it starts on the press (-9.2, 0.43 s). `error` is the
+  first part of the same flip twice, the second 4 semitones lower and a
+  little quieter (-8.2, 0.5 s). All dry. All four keep their level above
+  500 Hz (they lose 0.1 to 2.7 dB), so the "cannot hear it" problem of the
+  wood knock is gone; the knock is no longer used.
+- **Where they play.** `tap`: every kit `Button`, the bottom tab bar, and
+  the segmented `Tabs` (only when the tab changes). `saved`: any success
+  toast without an icon, placed in the toast store beside the existing
+  warning sound, so every "… saved", backup, restore and copy confirmation
+  gets it and log toasts (which carry an icon and their own sound) do not.
+- **A choice made here, for the human to confirm:** icon buttons (back
+  arrows, the add button, close crosses), list rows, chips and pickers stay
+  silent, so the tap does not turn into constant noise. A save is therefore
+  two sounds: the button's tap, then the stamp.
+- **Checked:** type-check clean; `sfxcheck4.js` in a browser (tab → tap,
+  Skip today → flip, Save to-do → tap then stamp, no page errors); the
+  onboarding fit check passes at all 14 sizes. **Not checked:** by ear.
+  Levels are set by measurement.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

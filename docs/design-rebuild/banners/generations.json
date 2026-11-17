@@ -118,8 +118,18 @@
    "node": "JwOXvENzxprW2D8qEanX",
    "generation": "VTHN3L6kMxjLFTRO4Qs2",
    "chosen": true,
-   "why": "redo asked by the human: a single sprout pot"
+   "why": "redo asked by the human: a single sprout pot. It came back with a small plus beside the sprout; the human asked for the plus to go ('just a single sprout is enough here, no need for a plus sign'), so the plus was erased from this cut-out locally (no new generation). The placed picture is this pass without the plus; the version with the plus is other-pass/banner_7_c.webp."
   }
  ],
- "unused_node": "u0A93b4GgFTw7FYlMU0C (step 2 with banner 1 as a style reference; estimate was 562 credits, so it was never run)"
+ "unused_node": "u0A93b4GgFTw7FYlMU0C (step 2 with banner 1 as a style reference; estimate was 562 credits, so it was never run)",
+ "final": {
+  "1": "b",
+  "2": "c",
+  "3": "b",
+  "4": "c",
+  "5": "b",
+  "6": "b",
+  "7": "c, plus erased"
+ },
+ "accepted_by_human": "Steps 1 to 6 accepted on the board's round two (2026-11-17). Step 7 changed as asked in that round; not yet seen by the human."
 }
