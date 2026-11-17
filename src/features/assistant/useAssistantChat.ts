@@ -42,7 +42,8 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [offline, setOffline] = useState(false);
   const [clarification, setClarification] = useState<ClarificationState | null>(null);
-  const conversationIdRef = useRef<Id>(options?.conversationId ?? (newId() as Id));
+  // Fixed for the life of this hook instance; state rather than a ref so it can be returned.
+  const [conversationId] = useState<Id>(() => options?.conversationId ?? (newId() as Id));
   const startedAtRef = useRef(now());
   const touchedTaskIds = useRef<Set<Id>>(new Set());
   const lastUserTextRef = useRef<string | null>(null);
@@ -76,14 +77,14 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
 
   const finalizeConversation = useCallback(async (summary: string) => {
     await upsertConversation({
-      id: conversationIdRef.current,
+      id: conversationId,
       startedAt: startedAtRef.current,
       updatedAt: now(),
       modality: options?.initialModality ?? 'text',
       summary,
       taskIdsTouched: [...touchedTaskIds.current],
     });
-  }, [options?.initialModality]);
+  }, [conversationId, options?.initialModality]);
 
   const handleToolCall = useCallback(
     async (call: AssistantToolCall) => {
@@ -96,6 +97,10 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       if (result.taskId) touchedTaskIds.current.add(result.taskId);
       if (result.task && call.name === 'create_task') {
         appendItem({ id: newId(), kind: 'task-card', task: result.task });
+      } else if (call.name === 'create_task') {
+        // The created task is not in this turn's task list yet, so no card can be built;
+        // the applied write still gets its calm confirmation line, never silence.
+        appendItem({ id: newId(), kind: 'assistant', text: result.summary });
       } else if (call.name === 'update_task' && result.undo) {
         const entry = result.undo;
         session.pushUndo(entry);
@@ -133,7 +138,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       const provider = await getAssistantProvider();
       let assistantText = '';
       let lastSummary = '';
-      for await (const event of provider.streamChat({ conversationId: conversationIdRef.current, messages: historyRef.current, signal: undefined })) {
+      for await (const event of provider.streamChat({ conversationId: conversationId, messages: historyRef.current, signal: undefined })) {
         if (event.type === 'text-delta') {
           assistantText += event.delta;
         } else if (event.type === 'tool-call') {
@@ -156,7 +161,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
         appendItem({ id: newId(), kind: 'assistant', text: assistantText });
         const assistantMessage: AssistantMessage = {
           id: newId(),
-          conversationId: conversationIdRef.current,
+          conversationId: conversationId,
           role: 'assistant',
           text: assistantText,
           toolCalls: [],
@@ -182,7 +187,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       appendItem({ id: userItemId, kind: 'user', text });
       const userMessage: AssistantMessage = {
         id: newId(),
-        conversationId: conversationIdRef.current,
+        conversationId: conversationId,
         role: 'user',
         text,
         toolCalls: [],
@@ -206,7 +211,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       // any other turn — never a hand-written "logged" claim with no mutation behind it.
       const resolutionMessage: AssistantMessage = {
         id: newId(),
-        conversationId: conversationIdRef.current,
+        conversationId: conversationId,
         role: 'user',
         text: `Use "${option.label}" for the request that needed clarifying.`,
         toolCalls: [],
@@ -224,15 +229,19 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
     appendItem({ id: newId(), kind: 'assistant', text: "No worries — let me know which one whenever you're ready." });
   }, [appendItem]);
 
+  // The failed turn's user message is already in the transcript and in `historyRef`, so a retry
+  // re-runs the model over that history instead of appending the same text a second time.
   const retryLast = useCallback(() => {
-    if (lastUserTextRef.current) void sendMessage(lastUserTextRef.current);
-  }, [sendMessage]);
+    if (!lastUserTextRef.current) return;
+    setOffline(false);
+    void streamAndApply();
+  }, [streamAndApply]);
 
   const taskCards = items.filter((i): i is Extract<TranscriptItem, { kind: 'task-card' }> => i.kind === 'task-card');
   const editBanners = items.filter((i): i is Extract<TranscriptItem, { kind: 'edit-undo' }> => i.kind === 'edit-undo');
 
   return {
-    conversationId: conversationIdRef.current,
+    conversationId: conversationId,
     items,
     isStreaming,
     offline,

@@ -3,6 +3,9 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { useEntitlementStore } from '@/app-shell';
+import * as audio from 'expo-audio';
+import { useSoundStore } from '@/services/sfx';
+import { SOUND_FILES } from '@/services/sfx/sounds';
 
 const mockSettingsData: { current: unknown } = { current: undefined };
 const mockProgressData: { current: unknown } = { current: undefined };
@@ -17,6 +20,7 @@ const mockInitNotificationsBridge = jest.fn();
 jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
 const mockInitWidgetsBridge = jest.fn();
 jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidgetsBridge() }));
+
 
 import S41SettingsHome from './index';
 
@@ -39,11 +43,11 @@ describe('S41 — Settings Home', () => {
     mockProgressData.current = { lifetimeXp: 500, level: LEVEL7 };
     mockConsistencyData.current = { percent: 87 };
     await render(<S41SettingsHome />);
-    expect(screen.getByText('Maya')).toBeTruthy();
+    expect(screen.getByLabelText(/^Your progress\. Level 7/)).toBeTruthy();
     expect(screen.getByText('Level 7 · Consistent')).toBeTruthy();
-    expect(screen.getByText('87% showing up')).toBeTruthy();
+    expect(screen.getByText('87% showing up, last 30 days')).toBeTruthy();
     expect(screen.getByText('Badges')).toBeTruthy();
-    expect(screen.getByText('Help & about')).toBeTruthy();
+    expect(screen.getByText('Help and about')).toBeTruthy();
   });
 
   it('empty (new user): renders "Level 1 · Getting started" and "no data yet", never "0%"', async () => {
@@ -52,8 +56,8 @@ describe('S41 — Settings Home', () => {
     mockConsistencyData.current = { percent: null };
     await render(<S41SettingsHome />);
     expect(screen.getByText('Level 1 · Getting started')).toBeTruthy();
-    expect(screen.getByText('no data yet')).toBeTruthy();
-    expect(screen.queryByText('0% showing up')).toBeNull();
+    expect(screen.getByText('No data yet')).toBeTruthy();
+    expect(screen.queryByText(/^0%/)).toBeNull();
   });
 
   it('error: the stat line degrades to an inline retry, the rest of the list stays usable', async () => {
@@ -73,16 +77,55 @@ describe('S41 — Settings Home', () => {
     expect(screen.getByText('On')).toBeTruthy();
   });
 
-  it('tapping "Theme & accent" navigates to S43', async () => {
+  it('tapping "Theme" (the Theme & accent row) navigates to S43', async () => {
     mockSettingsData.current = { notifications: { master: true } };
     mockProgressData.current = { lifetimeXp: 500, level: LEVEL7 };
     mockConsistencyData.current = { percent: 87 };
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S41SettingsHome />);
-    await user.press(screen.getByText('Theme & accent'));
+    await user.press(screen.getByText('Theme'));
     expect(push).toHaveBeenCalledWith('/settings/theme');
     push.mockRestore();
+  });
+
+  describe('Sounds switch', () => {
+    // Record every player the real sound module creates, and which of them actually started.
+    const players: { src: unknown; play: jest.Mock }[] = [];
+    function startedSounds(): unknown[] {
+      return players.filter((p) => p.play.mock.calls.length > 0).map((p) => p.src);
+    }
+
+    beforeEach(() => {
+      (audio.createAudioPlayer as unknown as jest.Mock).mockImplementation((src: unknown) => {
+        const player = { src, play: jest.fn(), pause: jest.fn(), remove: jest.fn(), seekTo: jest.fn(() => Promise.resolve()), volume: 1 };
+        players.push(player);
+        return player;
+      });
+      useSoundStore.setState({ on: true });
+      mockSettingsData.current = { notifications: { master: true } };
+      mockProgressData.current = { lifetimeXp: 500, level: LEVEL7 };
+      mockConsistencyData.current = { percent: 87 };
+    });
+
+    it('starts on, and turning it off changes the store and is silent', async () => {
+      const user = userEvent.setup();
+      await render(<S41SettingsHome />);
+      expect(screen.getByLabelText('Sounds, on')).toBeTruthy();
+      await user.press(screen.getByLabelText('Sounds, on'));
+      expect(useSoundStore.getState().on).toBe(false);
+      expect(startedSounds()).toEqual([]);
+      expect(screen.getByLabelText('Sounds, off')).toBeTruthy();
+    });
+
+    it('turning it back on changes the store and answers with exactly one switch sound', async () => {
+      useSoundStore.setState({ on: false });
+      const user = userEvent.setup();
+      await render(<S41SettingsHome />);
+      await user.press(screen.getByLabelText('Sounds, off'));
+      expect(useSoundStore.getState().on).toBe(true);
+      expect(startedSounds()).toEqual([SOUND_FILES.toggle_on]);
+    });
   });
 
   it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {

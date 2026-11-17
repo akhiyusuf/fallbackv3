@@ -40,7 +40,10 @@ import { useConsistency, useTaskOccurrences, useTasks } from './reads';
 const { reconcileCycleBoundaries, finalizeCycleForCadenceChange } = __testing__;
 
 function makeWrapper(client: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client }, children);
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client }, children);
+  }
+  return Wrapper;
 }
 
 function freshClient(): QueryClient {

@@ -8,7 +8,7 @@ import { useConversations } from '@/queries';
 import { EmptyState, InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton } from '@/ui';
 
 function modalityLabel(m: 'voice' | 'text' | 'voice+text'): string {
-  return m === 'voice' ? 'Voice' : m === 'text' ? 'Text' : 'Voice and text';
+  return m === 'voice' ? 'Voice' : m === 'text' ? 'Text' : 'Voice + text';
 }
 
 export default function S34AssistantConversationHistory() {

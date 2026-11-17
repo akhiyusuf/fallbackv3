@@ -72,6 +72,21 @@ describe('S32 — Assistant Conversation', () => {
     replace.mockRestore();
   });
 
+  it('offline: "Try again" re-sends over the same transcript; the reply lands and the user line is not repeated', async () => {
+    mockGetAssistantProvider
+      .mockResolvedValueOnce({ id: 'managed', streamChat: () => offlineStream(), capabilities: async () => ({ chat: true, transcription: true }) })
+      .mockResolvedValueOnce({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
+    await render(<S32AssistantConversation />);
+    await userEvent.type(screen.getByLabelText('Type your request'), 'add a run');
+    await userEvent.press(screen.getByLabelText('Send'));
+    expect(await screen.findByText(S32_COPY.offline)).toBeTruthy();
+
+    await userEvent.press(screen.getByText(S32_COPY.tryAgain));
+    expect(await screen.findByText(/Done — created it/)).toBeTruthy();
+    expect(screen.queryByText(S32_COPY.offline)).toBeNull();
+    expect(screen.getAllByText('add a run')).toHaveLength(1);
+  });
+
   it('a successful reply renders in the transcript', async () => {
     mockGetAssistantProvider.mockResolvedValue({ id: 'managed', streamChat: () => okStream(), capabilities: async () => ({ chat: true, transcription: true }) });
     await render(<S32AssistantConversation />);
@@ -121,11 +136,9 @@ describe('S32 — Assistant Conversation', () => {
     mockSettings.current = { assistant: { language: 'en-US', voice: 'calm' } };
     await render(<S32AssistantConversation />);
     await userEvent.press(screen.getByLabelText('More options'));
-    await userEvent.press(await screen.findByText(S36_COPY.voiceAndLanguage));
-    expect(await screen.findByLabelText('Voice, Calm')).toBeTruthy();
+    expect(await screen.findByRole('tab', { name: 'Calm', selected: true })).toBeTruthy();
 
-    await userEvent.press(screen.getByLabelText('Voice, Calm'));
-    await userEvent.press(await screen.findByText('Direct'));
+    await userEvent.press(screen.getByRole('tab', { name: 'Direct' }));
     expect(mockUpdateSettings).toHaveBeenCalledWith({ assistant: { language: 'en-US', voice: 'direct' } });
   });
 });

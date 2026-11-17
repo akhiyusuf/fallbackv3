@@ -45,8 +45,9 @@ export function Switch({ value, onValueChange, disabled = false, accessibilityLa
     <Pressable
       onPress={() => {
         if (disabled) return;
-        play(value ? 'toggle_off' : 'toggle_on');
+        // Change the value first, then play: the Sounds switch turns sounds off here, so its own "off" press is silent.
         onValueChange(!value);
+        play(value ? 'toggle_off' : 'toggle_on');
       }}
       disabled={disabled}
       accessibilityRole="switch"

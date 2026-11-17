@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. Do NOT mock expo-router. */
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 const mockGetProducts = jest.fn();
@@ -10,7 +10,7 @@ const mockShowToast = jest.fn();
 jest.mock('@/app-shell', () => ({ useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }) }));
 
 import S38Paywall from './index';
-import { S38_COPY } from '@/features/assistant/copy';
+import { S38_COPY, S44_COPY } from '@/features/assistant/copy';
 
 describe('S38 — Paywall', () => {
   beforeEach(() => {
@@ -51,4 +51,39 @@ describe('S38 — Paywall', () => {
     await userEvent.press(await screen.findByText(S38_COPY.cardA.restorePurchases));
     expect(mockShowToast).toHaveBeenCalledWith(S38_COPY.restoreNoneFound, 'neutral');
   });
+
+  it('"Start free trial" goes to the plan screen (S39)', async () => {
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    await render(<S38Paywall />);
+    await userEvent.press(await screen.findByText(S38_COPY.cardA.cta));
+    expect(push).toHaveBeenCalledWith('/assistant/paywall/plan');
+    push.mockRestore();
+  });
+
+  it('"Use your own AI key" goes to the BYO key screen (S40)', async () => {
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    await render(<S38Paywall />);
+    await userEvent.press(await screen.findByTestId('s38-byo-cta'));
+    expect(push).toHaveBeenCalledWith('/assistant/paywall/byo');
+    push.mockRestore();
+  });
+
+  it('Restore purchases finds an active subscription and opens the chat', async () => {
+    mockRestore.mockResolvedValue({ ok: true, value: true });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    await render(<S38Paywall />);
+    await userEvent.press(await screen.findByText(S38_COPY.cardA.restorePurchases));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/assistant/chat'));
+    expect(mockShowToast).not.toHaveBeenCalled();
+    replace.mockRestore();
+  });
+
+  it('Restore purchases when the store cannot be reached says so, and does not claim there is no subscription', async () => {
+    mockRestore.mockResolvedValue({ ok: false, error: { code: 'STORE_UNAVAILABLE', message: 'x' } });
+    await render(<S38Paywall />);
+    await userEvent.press(await screen.findByText(S38_COPY.cardA.restorePurchases));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S44_COPY.errorStore, 'warning'));
+    expect(mockShowToast).not.toHaveBeenCalledWith(S38_COPY.restoreNoneFound, 'neutral');
+  });
 });
+

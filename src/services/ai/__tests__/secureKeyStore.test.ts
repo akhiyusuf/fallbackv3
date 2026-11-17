@@ -5,6 +5,7 @@
 const mockSecureStoreState = new Map<string, string>();
 
 jest.mock('expo-secure-store', () => ({
+  WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
   getItemAsync: jest.fn(async (key: string) => mockSecureStoreState.get(key) ?? null),
   setItemAsync: jest.fn(async (key: string, value: string) => {
     mockSecureStoreState.set(key, value);
@@ -27,7 +28,7 @@ describe('secureKeyStore — BYO key SecureStore-only boundary', () => {
 
   it('setByoConfig writes ONLY through expo-secure-store, never any other channel', async () => {
     await setByoConfig({ baseUrl: 'https://api.openai.com/v1', apiKey: SECRET_KEY, supportsTranscription: true });
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('byo.apiKey', SECRET_KEY);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('byo.apiKey', SECRET_KEY, { keychainAccessible: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY' });
     // Nothing else in this module has any other persistence import — proven structurally by
     // this file importing only `expo-secure-store` and asserting against it exclusively.
   });

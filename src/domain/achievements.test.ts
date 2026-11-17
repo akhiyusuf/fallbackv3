@@ -156,4 +156,17 @@ describe('reconcileAchievements — upsert-only, never revokes', () => {
     const r = reconcileAchievements({ occurrences: [], tenureAnchor: anchor, today: addDays(anchor, 400), alreadyUnlocked: already, now: NOW });
     expect(r.some((u) => u.key === 'tenure-1-year')).toBe(false); // already present, not re-emitted
   });
+
+  test('Comeback is dated by the earliest comeback across tasks, not by the first task listed', () => {
+    // Task A (created first) only comes back on Nov 2. Task B (created later) comes back on Oct 11,
+    // which is earlier. The badge's true condition date is the earlier one: Oct 11.
+    const taskA = 'a' as Occurrence['taskId'];
+    const taskB = 'b' as Occurrence['taskId'];
+    const occurrences: Occurrence[] = [
+      ...daily(taskA, d('2024-11-01'), ['missed', 'fallback']),
+      ...daily(taskB, d('2024-10-10'), ['missed', 'ideal']),
+    ];
+    const r = reconcileAchievements({ occurrences, tenureAnchor: d('2020-01-01'), today: d('2024-12-01'), alreadyUnlocked: [], now: NOW });
+    expect(r.find((u) => u.key === 'fallback-comeback')?.unlockedOn).toBe('2024-10-11');
+  });
 });

@@ -53,7 +53,8 @@ export function FirstTaskScreen() {
       idealSteps: [{ text: ideal.trim(), dueWeekdays: null }],
       fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
     };
-    const result = await createTask.mutateAsync(draft);
+    // A thrown write must reach the calm retry toast too, or the Save button would spin for ever.
+    const result = await createTask.mutateAsync(draft).catch(() => ({ ok: false as const }));
     if (!result.ok) {
       setSaving(false);
       showToast(S08_COPY.saveFailure, 'warning');

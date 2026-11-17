@@ -37,39 +37,42 @@ beforeEach(() => {
 });
 
 describe('S20 Manage Task Sheet', () => {
-  it('renders the task name, today card, and the two-slot action row (Duplicate + Snooze)', async () => {
+  it('renders the task name, today card, and the snooze row; Duplicate sits in the More menu', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
 
-    expect(await screen.findByDisplayValue('Morning workout')).toBeTruthy();
-    expect(screen.getByLabelText('Duplicate')).toBeTruthy();
-    // Exactly one snooze-slot control — "Snooze" enabled (daily task, snoozable, due today, never snoozed).
-    expect(screen.getByLabelText('Snooze')).toBeTruthy();
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
+    // "Snooze to tomorrow" row enabled (daily task, snoozable, due today, never snoozed).
+    expect(screen.getByTestId('s20-snooze')).toBeTruthy();
     expect(screen.queryByText('Move to another day')).toBeNull();
+
+    await userEvent.press(screen.getByLabelText('More actions'));
+    expect(await screen.findByLabelText('Duplicate')).toBeTruthy();
   });
 
-  it('snooze slot renders DISABLED (not hidden) when the task is not snoozable', async () => {
+  it('snooze row renders DISABLED (not hidden) when the task is not snoozable', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, snoozable: false }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    const snoozeButton = screen.getByLabelText(/Snooze, disabled/);
-    expect(snoozeButton).toBeTruthy();
+    expect(screen.getByTestId('s20-snooze')).toBeTruthy();
+    expect(screen.getByText('Snoozing is turned off for this task.')).toBeTruthy();
+    expect(screen.getByTestId('s20-snooze').props.accessibilityState?.disabled).toBe(true);
   });
 
   it('tapping Snooze vacates today (nothing left to snooze from THIS sheet — the documented reachability gap)', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Snooze'));
+    await userEvent.press(screen.getByTestId('s20-snooze'));
     // Today's own occurrence is now vacated (moved to tomorrow) — S20's occurrence card always
-    // shows TODAY, so the slot reads "nothing due today", disabled — never "Undo" from here.
+    // shows TODAY, so the row reads "nothing due today", disabled — never "Undo" from here.
     // This is PRD §7's documented open gap, not a defect: undo would be reachable only from
     // tomorrow's own sheet, and only if tomorrow itself isn't naturally due (see the next test).
-    expect(await screen.findByLabelText(/Snooze, disabled/)).toBeTruthy();
-    expect(screen.queryByLabelText('Snooze')).toBeNull();
-    expect(screen.queryByLabelText('Undo snooze')).toBeNull();
+    expect(await screen.findByText('Nothing is due today to snooze.')).toBeTruthy();
+    expect(screen.getByTestId('s20-snooze').props.accessibilityState?.disabled).toBe(true);
+    expect(screen.queryByTestId('s20-undo-snooze')).toBeNull();
   });
 
   it('renders "Snooze" enabled (not "Undo snooze") when yesterday was vacated by a snooze into today AND today is itself naturally due — the common day-after-a-daily-snooze case (REVIEW-M4.md item 1, acceptance test A)', async () => {
@@ -91,14 +94,15 @@ describe('S20 Manage Task Sheet', () => {
     });
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
     // Today is naturally due and unlogged — the displayed occurrence is TODAY's own, not the
     // dormant visitor, so rendering 1 ("Snooze" enabled) applies, never "Undo snooze".
-    expect(await screen.findByLabelText('Snooze')).toBeTruthy();
-    expect(screen.queryByLabelText('Undo snooze')).toBeNull();
+    expect(await screen.findByTestId('s20-snooze')).toBeTruthy();
+    expect(screen.getByTestId('s20-snooze').props.accessibilityState?.disabled).not.toBe(true);
+    expect(screen.queryByTestId('s20-undo-snooze')).toBeNull();
 
-    await userEvent.press(screen.getByLabelText('Snooze'));
+    await userEvent.press(screen.getByTestId('s20-snooze'));
     // Pressing writes ownLog(today).movedToDate = tomorrow (today's own occurrence vacates),
     // never calls useUndoSnooze against yesterday.
     await waitFor(() => {
@@ -126,54 +130,59 @@ describe('S20 Manage Task Sheet', () => {
     });
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    expect(await screen.findByLabelText('Undo snooze')).toBeTruthy();
-    expect(screen.queryByLabelText('Snooze')).toBeNull();
+    expect(await screen.findByTestId('s20-undo-snooze')).toBeTruthy();
+    expect(screen.queryByTestId('s20-snooze')).toBeNull();
 
-    await userEvent.press(screen.getByLabelText('Undo snooze'));
+    await userEvent.press(screen.getByTestId('s20-undo-snooze'));
     // Undo restores yesterday's data; today reverts to its genuine off-cadence not-due state
-    // (there is no longer a visitor to display), so the slot renders "Snooze" disabled again —
-    // never "Undo snooze" a second time.
-    expect(await screen.findByLabelText(/Snooze, disabled/)).toBeTruthy();
-    expect(screen.queryByLabelText('Undo snooze')).toBeNull();
+    // (there is no longer a visitor to display), so the row renders "Snooze to tomorrow" disabled
+    // again — never "Undo snooze" a second time.
+    expect(await screen.findByText('Nothing is due today to snooze.')).toBeTruthy();
+    expect(screen.queryByTestId('s20-undo-snooze')).toBeNull();
   });
 
   it('Duplicate copies the task, toasts, and opens the new task’s own S20', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Duplicate'));
+    await userEvent.press(screen.getByLabelText('More actions'));
+    await userEvent.press(await screen.findByLabelText('Duplicate'));
     // duplicate() in the fake repo produces id `${id}-copy`; S20 re-renders on the new id.
-    expect(await screen.findByDisplayValue('Morning workout')).toBeTruthy();
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
   });
 
-  it('off-day toggle marks the task off for today', async () => {
+  it('off-day switch marks the task off for today', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    const toggle = screen.getByLabelText('Off today (this task only)');
-    await userEvent.press(toggle);
-    expect(fake.currentSettings()).toBeTruthy(); // sanity: repos still respond
+    await userEvent.press(screen.getByLabelText('Off today, this task only'));
+    expect(await screen.findByText('Off today. Turn the switch below back off to log it.')).toBeTruthy();
   });
 
   it('inline name edit persists via the Save name affordance', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
+    await screen.findByText('Morning workout');
+
+    await userEvent.press(screen.getByLabelText('More actions'));
+    await userEvent.press(await screen.findByLabelText('Rename'));
     const input = await screen.findByLabelText('Task name');
     await userEvent.type(input, ' II');
-    await userEvent.press(screen.getByLabelText('Save name'));
-    await screen.findByDisplayValue('Morning workout II');
+    await userEvent.press(screen.getByTestId('s20-save-name'));
+    await screen.findByText('Morning workout II');
   });
 
   it('Delete routes to S22 carrying openedFrom=manage and the sheet’s own origin', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1?from=today', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await userEvent.press(screen.getByLabelText('More actions'));
+    await userEvent.press(await screen.findByLabelText('Delete routine'));
     expect(await screen.findByText('Delete this routine?')).toBeTruthy();
   });
 
@@ -221,11 +230,11 @@ describe('S20 Manage Task Sheet', () => {
     // July 10 is today — pending, excluded.
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
     // ideal(1,2,7,9)=4, fallback(5)=1 -> numerator 5; missed(4,8)=2; off(3,6) excluded from the
     // denominator entirely -> denominator 7 -> 5/7 = 71% (round-half-up).
-    expect(await screen.findByText('71% showed up — 5 of 7 days')).toBeTruthy();
+    expect(await screen.findByText('Showed up 5 of 7 days (71%)')).toBeTruthy();
   });
 
   it('keys empty-history on task-lifetime data, not the displayed month — a neglected month still shows its real missed fills (REVIEW-M4.md item 4)', async () => {
@@ -249,7 +258,7 @@ describe('S20 Manage Task Sheet', () => {
     });
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
     // August 1st is elapsed, due, and unlogged — a genuine missed fill, not a blanked
     // "empty history" cell (the task has real history, just not in this displayed month).
@@ -260,7 +269,7 @@ describe('S20 Manage Task Sheet', () => {
   it('heatmap past-cell tap opens the drill-down popover; editing the chip there persists via useLogState and re-renders the cell (REVIEW-M4.md item 3)', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
     // July 1 is a past, elapsed, unlogged day — resolves 'missed'.
     await userEvent.press(screen.getByLabelText('2026-07-01, missed'));
@@ -268,11 +277,10 @@ describe('S20 Manage Task Sheet', () => {
     const popover = await screen.findByTestId('s20-day-popover');
     expect(popover).toBeTruthy();
     // No snooze controls in the popover (PRD §3.7).
-    expect(within(popover).queryByLabelText('Snooze')).toBeNull();
-    expect(within(popover).queryByLabelText('Undo snooze')).toBeNull();
+    expect(within(popover).queryByText(/snooze/i)).toBeNull();
 
     const popoverChip = within(popover).getByTestId('s20-day-popover-chip');
-    await userEvent.press(within(popoverChip).getByLabelText('Done'));
+    await userEvent.press(within(popoverChip).getByLabelText(/: Done$/));
 
     await waitFor(() => {
       const log = fake.logsFor('task-1' as Id).find((l) => l.date === '2026-07-01');
@@ -283,31 +291,37 @@ describe('S20 Manage Task Sheet', () => {
   it('multi-dose card renders one full four-state StateChip per task.dosesPerDay, each independently loggable (REVIEW-M4.md item 5)', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, dosesPerDay: 3 }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
     expect(screen.getByTestId('s20-dose-chip-0')).toBeTruthy();
     expect(screen.getByTestId('s20-dose-chip-1')).toBeTruthy();
     expect(screen.getByTestId('s20-dose-chip-2')).toBeTruthy();
 
-    // Each dose row's own StateChip carries all four options.
-    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Done')).toBeTruthy();
-    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Fallback')).toBeTruthy();
-    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Skip')).toBeTruthy();
+    // Each dose row is labelled and carries its own Done control. Fallback and Skip are not
+    // offered per dose; the whole-day control below carries the full set of choices.
+    expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Dose 3 of 3: Done')).toBeTruthy();
+    expect(within(screen.getByTestId('s20-dose-chip-2')).queryByLabelText(/: Fallback$/)).toBeNull();
+    expect(screen.getByLabelText('Whole day: Fallback')).toBeTruthy();
+    expect(screen.getByLabelText('Whole day: Skip today')).toBeTruthy();
 
-    await userEvent.press(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Done'));
+    await userEvent.press(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Dose 3 of 3: Done'));
     await waitFor(() => {
       const log = fake.logsFor('task-1' as Id).find((l) => l.date === '2026-07-16');
       expect(log?.dosesCompleted).toBe(3);
     });
   });
 
-  it('pressing the Importance tag opens the inline Radio picker (REVIEW-M4.md item 6)', async () => {
+  it('the Importance options are shown inline; choosing one saves it (REVIEW-M4.md item 6)', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, importance: 'high' }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    expect(screen.queryByTestId('s20-importance-picker')).toBeNull();
-    await userEvent.press(screen.getByLabelText(/^Importance, High/));
-    expect(await screen.findByTestId('s20-importance-picker')).toBeTruthy();
+    // The picker is always on the sheet (no tag that opens it).
+    const picker = screen.getByTestId('s20-importance-picker');
+    expect(within(picker).getByLabelText('Low')).toBeTruthy();
+    await userEvent.press(within(picker).getByLabelText('Low'));
+    await waitFor(async () => {
+      expect((await fake.repos.tasks.get('task-1' as Id))?.importance).toBe('low');
+    });
   });
 });

@@ -7,7 +7,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
-import { now, today } from '@/lib/date';
+import { now, today, toLocalDate } from '@/lib/date';
 import { err, ok } from '@/types';
 import type { Instant, Result, StoreLifecycle, StoreStatus } from '@/types';
 
@@ -184,7 +184,8 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
     // eleven pinned tables, `entitlement` is not among them.
     async backup(): Promise<Result<{ uri: string; createdAt: Instant }>> {
       const envelope = await buildBackupEnvelope(proxy);
-      const filename = `fallback-backup-${envelope.createdAt.slice(0, 10)}.fallbackbak`;
+      // The file is named by the device-local day, not the UTC day the instant falls on.
+      const filename = `fallback-backup-${toLocalDate(new Date(envelope.createdAt))}.fallbackbak`;
       const uri = `${BACKUP_DIR}${filename}`;
       // Write to a temp name and move into place rather than writing the final name
       // directly: a mid-write failure then leaves nothing at `uri` — no partial/truncated

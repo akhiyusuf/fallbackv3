@@ -3,7 +3,11 @@ import { render, screen, userEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 const mockUseTasks = jest.fn();
-jest.mock('@/queries', () => ({ useTasks: () => mockUseTasks() }));
+jest.mock('@/queries', () => ({
+  useTasks: () => mockUseTasks(),
+  // TaskCard's week strip reads occurrences; none are needed for these assertions.
+  useTaskOccurrences: () => ({ data: [] }),
+}));
 
 import SearchScreen from './SearchScreen';
 
@@ -112,7 +116,7 @@ describe('S14 — Filter & Search', () => {
     mockUseTasks.mockReturnValue({ data: [task(), note], isLoading: false, isError: false });
     const user = userEvent.setup();
     await render(<SearchScreen />);
-    await user.press(screen.getAllByLabelText('To-do/Note')[0]!);
+    await user.press(screen.getAllByLabelText('To-do')[0]!);
     expect(screen.getByText('Renew passport')).toBeTruthy();
     expect(screen.queryByText('Movement')).toBeNull();
   });

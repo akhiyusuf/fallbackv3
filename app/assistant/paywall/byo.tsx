@@ -27,7 +27,14 @@ export default function S40ByoAiKeySetup() {
       setStatus('invalid');
       return;
     }
-    await setByoConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), supportsTranscription: probe.transcription, model: probe.model });
+    try {
+      await setByoConfig({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim(), supportsTranscription: probe.transcription, model: probe.model });
+    } catch {
+      // A failed secure write must not leave the button spinning forever. There is no separate
+      // copy for a storage failure, so the existing calm error banner is shown instead.
+      setStatus('invalid');
+      return;
+    }
     setStatus(probe.transcription ? 'success-full' : 'success-degraded');
     setTimeout(() => router.replace('/assistant/chat' as Href), 600);
   }

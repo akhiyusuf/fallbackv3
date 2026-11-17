@@ -38,14 +38,14 @@ beforeEach(() => {
 describe('S16 Create Routine', () => {
   it('empty name blocks save with the verbatim inline error', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/routine', wrapper });
-    await screen.findByText('New Routine');
+    await screen.findByText('New routine');
     await userEvent.press(screen.getByLabelText('Save routine'));
     expect(await screen.findByText('Give this routine a name to save it.')).toBeTruthy();
   });
 
   it('as-needed toggle hides the cadence + sub-step regions and relabels Ideal/Fallback as optional', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/routine', wrapper });
-    await screen.findByText('New Routine');
+    await screen.findByText('New routine');
     expect(screen.getByLabelText('Repeats')).toBeTruthy();
 
     await userEvent.press(screen.getByTestId('as-needed-switch'));

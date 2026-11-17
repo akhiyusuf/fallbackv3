@@ -6,7 +6,8 @@ const mockRefreshEntitlement = jest.fn();
 const mockHasByoConfig = jest.fn();
 jest.mock('@/services/billing', () => ({ billing: { refreshEntitlement: () => mockRefreshEntitlement() } }));
 jest.mock('@/services/ai', () => ({ hasByoConfig: () => mockHasByoConfig() }));
-jest.mock('expo-audio', () => ({ getRecordingPermissionsAsync: jest.fn(async () => ({ granted: false })) }));
+const mockGetRecordingPermissionsAsync = jest.fn(async () => ({ granted: false }));
+jest.mock('expo-audio', () => ({ getRecordingPermissionsAsync: () => mockGetRecordingPermissionsAsync() }));
 
 import { useEntitlementStore } from '@/app-shell';
 import S31AssistantHome from './index';
@@ -34,7 +35,7 @@ describe('S31 — Assistant Home', () => {
     expect(screen.getByText(S31_COPY.subcopy)).toBeTruthy();
     expect(screen.getByText(S31_COPY.micCaption)).toBeTruthy();
     for (const chip of S31_COPY.chips) {
-      expect(screen.getByLabelText(`Suggestion: ${chip}, button`)).toBeTruthy();
+      expect(screen.getByLabelText(`Suggestion: ${chip}`)).toBeTruthy();
     }
   });
 
@@ -52,6 +53,17 @@ describe('S31 — Assistant Home', () => {
     await screen.findByText(S31_COPY.headline);
     await userEvent.press(screen.getByTestId('s31-mic'));
     expect(push).toHaveBeenCalledWith('/assistant/paywall');
+    push.mockRestore();
+  });
+
+  it('mic tapped while entitled but without OS mic permission goes to the primer, never to the chat', async () => {
+    useEntitlementStore.getState().patchEntitlement({ status: 'active' });
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: false });
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    await render(<S31AssistantHome />);
+    await screen.findByText(S31_COPY.headline);
+    await userEvent.press(screen.getByTestId('s31-mic'));
+    expect(push).toHaveBeenCalledWith('/assistant/mic-primer?context=primer');
     push.mockRestore();
   });
 

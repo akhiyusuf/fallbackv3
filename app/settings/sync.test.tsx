@@ -32,9 +32,11 @@ describe('S45 — Account & Sync', () => {
   it('sync-off (default): renders the no-login explainer and the off-state helper copy', async () => {
     mockSettingsData.current = baseSettings;
     await render(<S45AccountAndSync />);
-    expect(screen.getByText(S45_COPY.noLoginHeadline)).toBeTruthy();
-    expect(screen.getByText(S45_COPY.noLoginBody)).toBeTruthy();
-    expect(screen.getByText(S45_COPY.onDeviceLabel)).toBeTruthy();
+    // The explainer is the group footer: headline and body in one line.
+    expect(screen.getByText(`${S45_COPY.noLoginHeadline} ${S45_COPY.noLoginBody}`)).toBeTruthy();
+    expect(screen.getByText('On this device')).toBeTruthy();
+    expect(screen.getByText('Always')).toBeTruthy();
+    expect(screen.getByText(S45_COPY.iCloudSyncLabel)).toBeTruthy();
     expect(screen.getByText(S45_COPY.offHelper)).toBeTruthy();
   });
 

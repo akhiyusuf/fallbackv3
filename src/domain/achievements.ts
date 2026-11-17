@@ -209,17 +209,20 @@ export function reconcileAchievements(input: {
     if (bucket) bucket.push(o);
     else byTask.set(o.taskId, [o]);
   }
-  outer: for (const taskOccs of byTask.values()) {
+  // The badge's date is the EARLIEST comeback across every task, not whichever task is listed first.
+  let comebackOn: LocalDate | null = null;
+  for (const taskOccs of byTask.values()) {
     const sorted = [...taskOccs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     for (let i = 0; i < sorted.length - 1; i++) {
       const cur = sorted[i] as Occurrence;
       const next = sorted[i + 1] as Occurrence;
       if (cur.outcome === 'missed' && SHOWN_UP.has(next.outcome) && addDays(cur.date, 1) === next.date) {
-        qualifying.set('fallback-comeback', next.date);
-        break outer;
+        if (comebackOn === null || next.date < comebackOn) comebackOn = next.date;
+        break;
       }
     }
   }
+  if (comebackOn !== null) qualifying.set('fallback-comeback', comebackOn);
 
   // ---- milestone-100-done: 100 completed occurrences (ideal or fallback), cumulative.
   const doneDatesAsc = occurrences
@@ -248,14 +251,15 @@ export function reconcileAchievements(input: {
     if (bucket) bucket.push(entry);
     else weekBuckets.set(week, [entry]);
   }
-  for (const [week, days] of weekBuckets) {
+  // Badge is binary, not stacking: dated by the EARLIEST qualifying week's last day.
+  let fullWeekOn: LocalDate | null = null;
+  for (const days of weekBuckets.values()) {
     if (days.length === 7 && days.every((d) => d.f === 1)) {
       const lastDay = days.reduce((a, b) => (a.date > b.date ? a : b));
-      qualifying.set('milestone-full-week', lastDay.date);
-      break; // first qualifying week is enough — badge is binary, not stacking
+      if (fullWeekOn === null || lastDay.date < fullWeekOn) fullWeekOn = lastDay.date;
     }
-    void week;
   }
+  if (fullWeekOn !== null) qualifying.set('milestone-full-week', fullWeekOn);
 
   // ---- tenure ladder: calendar-elapsed only, consistency-independent.
   for (const tier of TENURE_TIERS) {

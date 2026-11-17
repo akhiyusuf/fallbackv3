@@ -47,7 +47,7 @@ export default function S47Data() {
       return;
     }
     await qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-    showToast(`Backed up ${formatInstant(result.value.createdAt)}`, 'success');
+    showToast(`${S47_COPY.backupSuccessPrefix} ${formatInstant(result.value.createdAt)}`, 'success');
     try {
       await Share.share({ url: result.value.uri, message: result.value.uri });
     } catch {
@@ -71,7 +71,7 @@ export default function S47Data() {
   }
 
   const settings = settingsQuery.data;
-  const lastBackup = settings?.lastBackupAt ? `Last backup ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet;
+  const lastBackup = settings?.lastBackupAt ? `${S47_COPY.lastBackupPrefix} ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet;
 
   return (
     <Screen title={S47_COPY.title} onBack={handleBack}>

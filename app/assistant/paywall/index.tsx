@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { CalendarRange, Check, KeyRound, Mic, PencilLine, RotateCcw } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 
-import { S38_COPY } from '@/features/assistant/copy';
+import { S38_COPY, S44_COPY } from '@/features/assistant/copy';
 import { billing } from '@/services/billing';
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { Button, Card, InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton, tintedSurface, VoiceMark } from '@/ui';
@@ -39,6 +39,11 @@ export default function S38Paywall() {
     setRestoring(false);
     if (result.ok && result.value) {
       router.replace('/assistant/chat' as Href);
+      return;
+    }
+    // A store that cannot be reached is not the same as "nothing to restore".
+    if (!result.ok) {
+      showToast(S44_COPY.errorStore, 'warning');
       return;
     }
     showToast(S38_COPY.restoreNoneFound, 'neutral');

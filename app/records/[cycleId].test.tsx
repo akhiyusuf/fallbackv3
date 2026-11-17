@@ -41,9 +41,11 @@ describe('S30 — Cycle Record Detail', () => {
 
   it('renders the header, percent, breakdown legend and Cycling XP row for this cycle only', async () => {
     await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/records/r1' });
-    expect(await screen.findByText('June 2026 · Monthly')).toBeTruthy();
+    expect(await screen.findByText('June 2026')).toBeTruthy();
+    expect(screen.getByText('Monthly cycle · Archived')).toBeTruthy();
     expect(screen.getByText('91%')).toBeTruthy();
-    expect(screen.getByText('Cycling XP this cycle: 412')).toBeTruthy();
+    expect(screen.getByText('XP this cycle')).toBeTruthy();
+    expect(screen.getByText('412 XP')).toBeTruthy();
   });
 
   it('the breakdown bar is never fully filled when Missed > 0 — a real unfilled remainder', async () => {
@@ -62,12 +64,12 @@ describe('S30 — Cycle Record Detail', () => {
   it('a short cycle shows the cadence-change note', async () => {
     mockRecord.current = juneRecord({ isShortCycle: true });
     await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/records/r1' });
-    expect(await screen.findByText('Short cycle — cadence changed mid-month.')).toBeTruthy();
+    expect(await screen.findByText('Short cycle, cadence changed part-way.')).toBeTruthy();
   });
 
   it('this screen is read-only: back is the only interactive element, and always returns to S29', async () => {
     await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/records/r1' });
-    await screen.findByText('June 2026 · Monthly');
+    await screen.findByText('June 2026');
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Back'));
     expect(await screen.findByText('MARKER_RECORDS')).toBeTruthy();

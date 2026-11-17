@@ -19,6 +19,7 @@ import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { makeTask } from '@/features/task/testSupport/taskFixture';
 import { ROUTER_CONTEXT } from '@/features/task/testSupport/routerHarness';
+import { useToastStore } from '@/app-shell/stores/toast';
 import type { Id } from '@/types';
 
 let client: QueryClient;
@@ -52,10 +53,10 @@ describe('S23 As-Needed Routine Detail', () => {
   it('empty history renders the EmptyState, not a heatmap', async () => {
     fake.seedTask(asNeededTask());
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed', wrapper });
-    expect(await screen.findByText('Not used yet')).toBeTruthy();
     expect(
-      screen.getByText('This routine has no schedule and no consistency score — log it whenever the situation comes up.'),
+      await screen.findByText('Not used yet. There is no schedule and no consistency score — log it whenever the situation comes up.'),
     ).toBeTruthy();
+    expect(screen.queryByTestId('as-needed-heatmap')).toBeNull();
   });
 
   it('"Log used it" with ideal/fallback defined opens the chooser, then logs and toasts "Logged to history"', async () => {
@@ -65,10 +66,11 @@ describe('S23 As-Needed Routine Detail', () => {
 
     await userEvent.press(screen.getByLabelText('Log used it'));
     await screen.findByText('Which version did you do?');
-    await userEvent.press(screen.getByLabelText('Ideal'));
+    await userEvent.press(screen.getByLabelText('Emergency plan: Done'));
 
-    expect(await screen.findByText(/Used ·/)).toBeTruthy();
-    expect(fake.repos).toBeTruthy();
+    // The new history row reads "<date>, Ideal" and the calm toast confirms it.
+    expect((await screen.findAllByText('Ideal')).length).toBeGreaterThan(0);
+    expect(useToastStore.getState().toast?.message).toBe('Logged to history');
   });
 
   it('back is origin-aware: from=search returns to search (S14), not the Routines default', async () => {
@@ -85,7 +87,8 @@ describe('S23 As-Needed Routine Detail', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed', wrapper });
     await screen.findByText('Emergency plan');
 
-    await userEvent.press(screen.getByLabelText('Edit'));
+    await userEvent.press(screen.getByLabelText('More actions'));
+    await userEvent.press(await screen.findByLabelText('Edit'));
     const nameInput = await screen.findByLabelText('Name');
     await userEvent.clear(nameInput);
     await userEvent.type(nameInput, 'Emergency plan v2');

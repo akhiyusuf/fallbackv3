@@ -39,8 +39,8 @@ describe('S21 Icon & Color Picker', () => {
   it('Save starts disabled until a selection changes', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/icon', wrapper });
-    await screen.findByText('Choose icon & color');
-    const saveButtons = screen.getAllByLabelText('Save');
+    await screen.findByText('Icon and colour');
+    const saveButtons = await screen.findAllByLabelText('Save');
     for (const b of saveButtons) expect(b.props.accessibilityState?.disabled).toBe(true);
   });
 
@@ -49,37 +49,38 @@ describe('S21 Icon & Color Picker', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/icon', wrapper });
     const search = await screen.findByLabelText('Search icons');
     await userEvent.type(search, 'zzzznomatch');
-    expect(await screen.findByText('No icons match "zzzznomatch."')).toBeTruthy();
-    expect(screen.getByText('Try a different word.')).toBeTruthy();
+    expect(await screen.findByText('No icons match')).toBeTruthy();
+    expect(screen.getByText(/Nothing found for “zzzznomatch”\. Try a different word\./)).toBeTruthy();
   });
 
   it('selecting a color enables Save; Save persists and returns to S20', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     // Navigate from S20 so a real back-stack entry exists for Save/Cancel to return to.
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
-    await userEvent.press(screen.getByLabelText('Change icon and color'));
-    await screen.findByText('Choose icon & color');
+    await screen.findByText('Morning workout');
+    await userEvent.press(screen.getByLabelText('Change icon and colour'));
+    await screen.findByText('Icon and colour');
 
     await userEvent.press(screen.getByLabelText('Indigo'));
     const saveButtons = screen.getAllByLabelText('Save');
     expect(saveButtons[0]!.props.accessibilityState?.disabled).toBe(false);
     await userEvent.press(saveButtons[0]!);
 
-    expect(await screen.findByDisplayValue('Morning workout')).toBeTruthy();
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
   });
 
-  it('Cancel discards the in-progress selection and returns to S20 unchanged', async () => {
-    fake.seedTask(makeTask({ id: 'task-1' as Id }));
+  it('Close discards the in-progress selection and returns to S20 unchanged', async () => {
+    const task = makeTask({ id: 'task-1' as Id });
+    fake.seedTask(task);
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
-    await userEvent.press(screen.getByLabelText('Change icon and color'));
-    await screen.findByText('Choose icon & color');
+    await screen.findByText('Morning workout');
+    await userEvent.press(screen.getByLabelText('Change icon and colour'));
+    await screen.findByText('Icon and colour');
 
     await userEvent.press(screen.getByLabelText('Plum'));
-    const cancelButtons = screen.getAllByLabelText('Cancel');
-    await userEvent.press(cancelButtons[0]!);
+    await userEvent.press(screen.getByLabelText('Close'));
 
-    expect(await screen.findByDisplayValue('Morning workout')).toBeTruthy();
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
+    expect((await fake.repos.tasks.get(task.id))?.color).toBe(task.color);
   });
 });

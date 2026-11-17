@@ -3,7 +3,12 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import { router } from 'expo-router';
 
 const mockUseTasks = jest.fn();
-jest.mock('@/queries', () => ({ useTasks: () => mockUseTasks() }));
+jest.mock('@/queries', () => ({
+  useTasks: () => mockUseTasks(),
+  // The screen's "due today" strip reads today's occurrences; none are needed for these assertions.
+  useToday: () => ({ data: [] }),
+  useTaskOccurrences: () => ({ data: [] }),
+}));
 
 const mockUseAsNeededHistory = jest.fn();
 jest.mock('./useAsNeededHistory', () => ({ useAsNeededHistory: () => mockUseAsNeededHistory() }));
@@ -70,9 +75,10 @@ describe('S10 — Routines Browse', () => {
     await render(<RoutinesBrowseScreen />);
     expect(screen.getByText('Movement')).toBeTruthy();
     expect(screen.getByText('Due')).toBeTruthy();
-    expect(screen.getByText('Other routines')).toBeTruthy();
+    // As-needed routines sit in their own "As needed" section (the current layout), not under "Other routines".
+    expect(screen.getByText('As needed')).toBeTruthy();
     expect(screen.getByText('Emergency plan')).toBeTruthy();
-    expect(screen.getByLabelText('Log used it')).toBeTruthy();
+    expect(screen.getByText('As-needed')).toBeTruthy();
     // AsNeededCard never shows cadence text or a due badge for its own row.
     expect(screen.queryByText('daily')).toBeNull();
   });
@@ -96,7 +102,7 @@ describe('S10 — Routines Browse', () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<RoutinesBrowseScreen />);
-    await user.press(screen.getByLabelText('Log used it'));
+    await user.press(screen.getByText('Emergency plan'));
     expect(push).toHaveBeenCalledWith('/task/r2/as-needed?from=routines');
     push.mockRestore();
   });
@@ -125,8 +131,8 @@ describe('S10 — Routines Browse', () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<RoutinesBrowseScreen />);
-    await user.press(screen.getByLabelText('Add task'));
-    expect(push).toHaveBeenCalledWith('/add');
+    await user.press(screen.getByLabelText('New routine'));
+    expect(push).toHaveBeenCalledWith('/add/routine?from=routines');
     push.mockRestore();
   });
 

@@ -5,7 +5,7 @@ import { OptionsSheet } from '../OptionsSheet';
 import { S36_COPY } from '../copy';
 
 describe('S36 — Assistant Options Menu (sheet)', () => {
-  it('default: six rows collapsed, Voice & language accordion closed', async () => {
+  it('default: the voice choices and the language row are shown inline, no accordion', async () => {
     await render(
       <OptionsSheet
         visible
@@ -19,7 +19,10 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
       />,
     );
     expect(screen.getByText(S36_COPY.title)).toBeTruthy();
-    expect(screen.queryByText(S36_COPY.languageLabel)).toBeNull();
+    expect(screen.queryByText(S36_COPY.voiceAndLanguage)).toBeNull();
+    expect(screen.getByText(S36_COPY.voiceLabel)).toBeTruthy();
+    expect(screen.getByText(S36_COPY.languageLabel)).toBeTruthy();
+    expect(screen.getByText(S36_COPY.languageValue)).toBeTruthy();
   });
 
   it('tapping "New conversation" fires the callback', async () => {
@@ -40,7 +43,7 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
     expect(onNewConversation).toHaveBeenCalled();
   });
 
-  it('tapping "Voice & language" expands the accordion in place, no navigation', async () => {
+  it('the voice radio is inline: its choices are reachable without any expand step', async () => {
     await render(
       <OptionsSheet
         visible
@@ -53,9 +56,9 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
         subscriptionSubtitle="x"
       />,
     );
-    await userEvent.press(screen.getByText(S36_COPY.voiceAndLanguage));
-    expect(await screen.findByText(S36_COPY.languageLabel)).toBeTruthy();
-    expect(screen.getByText(S36_COPY.voiceLabel)).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Warm', selected: true })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Calm' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Direct' })).toBeTruthy();
   });
 
   it('subscriptionSubtitle === null renders a Skeleton, but the row is still tappable', async () => {
@@ -91,10 +94,7 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
         onSaveVoiceLanguage={onSaveVoiceLanguage}
       />,
     );
-    await userEvent.press(screen.getByText(S36_COPY.voiceAndLanguage));
-    await screen.findByText(S36_COPY.languageLabel);
-    await userEvent.press(screen.getByLabelText('Voice, Warm — default'));
-    await userEvent.press(await screen.findByText('Calm'));
+    await userEvent.press(screen.getByRole('tab', { name: 'Calm' }));
     expect(onSaveVoiceLanguage).toHaveBeenCalledWith('en-US', 'calm');
   });
 
@@ -116,14 +116,11 @@ describe('S36 — Assistant Options Menu (sheet)', () => {
         onSaveVoiceLanguage={onSaveVoiceLanguage}
       />,
     );
-    await userEvent.press(screen.getByText(S36_COPY.voiceAndLanguage));
-    await screen.findByText(S36_COPY.languageLabel);
-    await userEvent.press(screen.getByLabelText('Voice, Warm — default'));
-    await userEvent.press(await screen.findByText('Direct'));
+    await userEvent.press(screen.getByRole('tab', { name: 'Direct' }));
     expect(onSaveVoiceLanguage).toHaveBeenCalledWith('en-US', 'direct');
 
     // Back to the persisted 'warm', not stuck on the unsaved 'direct'.
-    expect(await screen.findByLabelText('Voice, Warm — default')).toBeTruthy();
-    expect(screen.queryByLabelText('Voice, Direct')).toBeNull();
+    expect(await screen.findByRole('tab', { name: 'Warm', selected: true })).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Direct', selected: true })).toBeNull();
   });
 });

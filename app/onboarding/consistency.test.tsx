@@ -20,12 +20,19 @@ describe('S05 — Onboarding: Consistency, not perfection', () => {
     expect(screen.getByText(S05_COPY.subLabel)).toBeTruthy();
   });
 
-  it('the sample legend names only Ideal, Fallback and Off — never "Missed"', async () => {
+  it('the sample legend names only Ideal and Fallback (no Off: the example has no off day) and never "Missed"', async () => {
     await render(<S05OnboardingConsistencyNotPerfection />);
     expect(screen.getByText(S05_COPY.legend.ideal)).toBeTruthy();
     expect(screen.getByText(S05_COPY.legend.fallback)).toBeTruthy();
-    expect(screen.getByText(S05_COPY.legend.off)).toBeTruthy();
+    expect(screen.queryByText(S05_COPY.legend.off)).toBeNull();
     expect(screen.queryByText(/missed/i)).toBeNull();
+  });
+
+  it('the example is 6 of 7 days (86%) and is the fourth step', async () => {
+    await render(<S05OnboardingConsistencyNotPerfection />);
+    expect(S05_COPY.bigNumeral).toBe('86%');
+    expect(S05_COPY.subLabel).toBe('6 of 7 days you showed up');
+    expect(screen.getByLabelText('Step 4 of 7')).toBeTruthy();
   });
 
   it('"Next" navigates to S06', async () => {

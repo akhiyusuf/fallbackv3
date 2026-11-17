@@ -37,7 +37,7 @@ describe('S15 Add Task: Pick Type', () => {
   it('tapping "Routine" navigates to S16 (/add/routine)', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add', wrapper });
     await userEvent.press(await screen.findByTestId('add-pick-type-routine'));
-    expect(await screen.findByText('New Routine')).toBeTruthy();
+    expect(await screen.findByText('New routine')).toBeTruthy();
   });
 
   it('tapping "To-do / Note" navigates to S19 (/add/todo)', async () => {

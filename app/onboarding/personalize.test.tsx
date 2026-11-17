@@ -51,31 +51,29 @@ describe('S06 — Onboarding: Make it yours', () => {
     mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: true });
   });
 
-  it('default: no Skip control, Forge Orange pre-selected, reminders off', async () => {
+  it('default: Skip is on the top bar (every step has one, D6), Forge Orange pre-selected, and no reminders row (reminders are asked on the next step)', async () => {
     await render(<S06OnboardingMakeItYours />);
-    expect(screen.queryByLabelText('Skip onboarding')).toBeNull();
-    expect(screen.getByLabelText('Forge Orange, selected')).toBeTruthy();
-    expect(screen.getByLabelText(`${S06_COPY.remindersRowLabel}, off`)).toBeTruthy();
+    expect(screen.getByLabelText('Skip onboarding')).toBeTruthy();
+    expect(screen.getByLabelText('Forge, selected')).toBeTruthy();
+    expect(screen.queryByLabelText(`${S06_COPY.remindersRowLabel}, off`)).toBeNull();
+    expect(screen.queryByText(S06_COPY.remindersRowLabel)).toBeNull();
   });
 
-  it('renders all 5 progress dots complete (the last step of the pitch tour), and the preview button is not in the disabled visual state', async () => {
+  it('shows one progress dot per step (seven), with step 5 as the current one, and no "Preview" button', async () => {
     await render(<S06OnboardingMakeItYours />);
     // The dots container is `accessibilityElementsHidden` (decorative — the shell's own
     // convention), so RNTL's default queries exclude it; opt back in explicitly.
-    for (let dot = 1; dot <= 5; dot++) {
+    for (let dot = 1; dot <= 7; dot++) {
       expect(screen.getByTestId(`onboarding-dot-${dot}`, { includeHiddenElements: true })).toBeTruthy();
     }
-    const preview = screen.getByLabelText('Preview, illustrative only');
-    expect(preview.props.accessibilityState?.disabled).not.toBe(true);
-    // The kit's inert (disabled/loading) treatment applies a 0.5-opacity style — asserting its
-    // absence proves `pointerEvents="none"` was used instead of `disabled` (blocking item 5).
-    expect(StyleSheet.flatten(preview.props.style).opacity).not.toBe(0.5);
+    expect(screen.getByLabelText('Step 5 of 7')).toBeTruthy();
+    expect(screen.queryByLabelText('Preview, illustrative only')).toBeNull();
   });
 
-  it('mounting arms both the notifications and widgets bridges (review pass 1, blocking item 1)', async () => {
+  it('does not arm the notification or widget bridges itself: the root layout arms them once at boot (app/_layout.test.tsx)', async () => {
     await render(<S06OnboardingMakeItYours />);
-    expect(mockInitNotificationsBridge).toHaveBeenCalled();
-    expect(mockInitWidgetsBridge).toHaveBeenCalled();
+    expect(mockInitNotificationsBridge).not.toHaveBeenCalled();
+    expect(mockInitWidgetsBridge).not.toHaveBeenCalled();
   });
 
   it('picking an accent updates the app-wide theme store immediately', async () => {
@@ -85,23 +83,27 @@ describe('S06 — Onboarding: Make it yours', () => {
     expect(useThemeStore.getState().accent).toBe('indigo');
   });
 
-  it('reminders off -> Next routes straight to S08, skipping the notification primer', async () => {
+  it('Next saves the colour and light/dark choice, then always routes to the notification primer (S07), whatever the colour', async () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S06OnboardingMakeItYours />);
+    await user.press(screen.getByLabelText('Indigo'));
     await user.press(screen.getByLabelText('Next'));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding/first-task'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding/notifications-primer'));
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ accent: 'indigo', theme: 'auto' });
+    expect(push).not.toHaveBeenCalledWith('/onboarding/first-task');
     push.mockRestore();
   });
 
-  it('reminders on -> Next routes to S07 (the OS permission primer)', async () => {
-    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+  it('a write that throws on Next also reverts and shows the retry toast, instead of leaving Next spinning', async () => {
+    mockUpdateSettingsMutateAsync.mockRejectedValue(new Error('database closed'));
     const user = userEvent.setup();
     await render(<S06OnboardingMakeItYours />);
-    await user.press(screen.getByLabelText(`${S06_COPY.remindersRowLabel}, off`));
+    await user.press(screen.getByLabelText('Indigo'));
     await user.press(screen.getByLabelText('Next'));
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding/notifications-primer'));
-    push.mockRestore();
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(S06_COPY.saveFailure));
+    expect(useThemeStore.getState().accent).toBe(DEFAULT_ACCENT);
+    expect(screen.getByLabelText('Next').props.accessibilityState?.disabled).not.toBe(true);
   });
 
   it('a persist failure on Next reverts the selection and shows the calm retry toast', async () => {

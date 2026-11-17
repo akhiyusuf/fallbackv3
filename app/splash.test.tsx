@@ -31,11 +31,11 @@ describe('S01 — Splash', () => {
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today'));
   });
 
-  it('routes to /onboarding/hook when onboarding is not complete', async () => {
+  it('routes to /onboarding/concept (the first onboarding step) when onboarding is not complete', async () => {
     mockOpen.mockResolvedValue({ ok: true, value: 'ready' });
     mockGetSettings.mockResolvedValue({ onboardingCompletedAt: null });
     await render(<S01Splash />);
-    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/onboarding/hook'));
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/onboarding/concept'));
   });
 
   it('routes to /recovery on a corrupt store — never a crash', async () => {

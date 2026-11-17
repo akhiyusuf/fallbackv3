@@ -43,9 +43,11 @@ describe('S26 — All-time Trend Graph', () => {
   it('is additive: never shows a percent as the sole surface — the a11y summary is present at all times', async () => {
     mockTrend.current = monthlyPoints();
     await render(<S26AllTimeTrendGraph />);
-    // TrendGraph's screen-reader-only summary text mentions "no data" for the null bucket, a
-    // break in the line rather than a fabricated 0% — present without touching the toggle.
-    expect(screen.getByText(/no data/i)).toBeTruthy();
+    // TrendGraph's screen-reader-only summary names every bucket and reads the null one as "no data",
+    // a break in the line rather than a fabricated 0% — present without touching the toggle.
+    expect(screen.getByText(/Your all-time consistency trend\./)).toBeTruthy();
+    expect(screen.getByText(/May 2026: 80 percent/)).toBeTruthy();
+    expect(screen.getByText(/June 2026: no data/)).toBeTruthy();
   });
 
   it('drops the in-progress trailing bucket — it never plots, and never appears in the SR summary or the table', async () => {
@@ -54,25 +56,27 @@ describe('S26 — All-time Trend Graph', () => {
     await render(<S26AllTimeTrendGraph />);
     expect(screen.queryByText(/Jul 2026/)).toBeNull();
 
-    await user.press(screen.getByText('View as table'));
-    expect(screen.queryByText('Jul 2026')).toBeNull();
-    expect(screen.getByText('Jun 2026')).toBeTruthy();
-    expect(screen.getByText('May 2026')).toBeTruthy();
+    await user.press(screen.getByLabelText('Table'));
+    expect(screen.queryByText('Jul')).toBeNull();
+    expect(screen.queryByText(/July 2026/)).toBeNull();
+    expect(screen.getByText('Jun')).toBeTruthy();
+    expect(screen.getByText('May')).toBeTruthy();
   });
 
   it('carries a real "View as table" alternative — a chart is never the only representation', async () => {
     mockTrend.current = monthlyPoints();
     const user = userEvent.setup();
     await render(<S26AllTimeTrendGraph />);
-    await user.press(screen.getByText('View as table'));
+    await user.press(screen.getByLabelText('Table'));
     expect(screen.getByLabelText('Trend data table')).toBeTruthy();
-    expect(screen.getByText('View as chart')).toBeTruthy();
+    await user.press(screen.getByLabelText('Chart'));
+    expect(screen.queryByLabelText('Trend data table')).toBeNull();
   });
 
   it('states the data-gap note verbatim', async () => {
     mockTrend.current = monthlyPoints();
     await render(<S26AllTimeTrendGraph />);
-    expect(screen.getByText('Long gaps with nothing due show as a break in the line, not a fabricated 0%.')).toBeTruthy();
+    expect(screen.getByText('Stretches with nothing due show as a break in the line, never as 0%.')).toBeTruthy();
   });
 
   it('empty state (history too short) never renders an empty axis or "0%"', async () => {

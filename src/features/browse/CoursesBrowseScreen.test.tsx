@@ -4,7 +4,11 @@ import { router } from 'expo-router';
 import { addDays, today } from '@/lib/date';
 
 const mockUseTasks = jest.fn();
-jest.mock('@/queries', () => ({ useTasks: () => mockUseTasks() }));
+jest.mock('@/queries', () => ({
+  useTasks: () => mockUseTasks(),
+  // TaskCard's week strip reads occurrences; none are needed for these assertions.
+  useTaskOccurrences: () => ({ data: [] }),
+}));
 
 import CoursesBrowseScreen from './CoursesBrowseScreen';
 
@@ -55,8 +59,9 @@ describe('S12 — Courses Browse', () => {
     mockUseTasks.mockReturnValue({ data: [course()], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<CoursesBrowseScreen />);
     expect(screen.getByText('Antibiotics')).toBeTruthy();
-    expect(screen.getByText('2×/day')).toBeTruthy();
-    expect(screen.getByText('2 days left')).toBeTruthy();
+    // Details are one muted meta line: "Day N of M · doses · importance · necessity".
+    expect(screen.getByText(/Day 8 of 10/)).toBeTruthy();
+    expect(screen.getByText(/2 doses a day/)).toBeTruthy();
   });
 
   it('Past tab: shows "Completed <date>" instead of days-left, and hides the live dose badge', async () => {
@@ -66,7 +71,7 @@ describe('S12 — Courses Browse', () => {
     await render(<CoursesBrowseScreen />);
     await user.press(screen.getByLabelText('Past'));
     expect(screen.getByText(/Completed/)).toBeTruthy();
-    expect(screen.queryByText('2×/day')).toBeNull();
+    expect(screen.queryByText(/doses a day/)).toBeNull();
   });
 
   it('tapping a course card navigates to S20 with origin=courses', async () => {
@@ -83,6 +88,6 @@ describe('S12 — Courses Browse', () => {
     const pastOnly = course({ id: 'c3', startDate: addDays(today(), -20), endDate: addDays(today(), -5) });
     mockUseTasks.mockReturnValue({ data: [pastOnly], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<CoursesBrowseScreen />);
-    expect(screen.getByText('No active courses right now.')).toBeTruthy();
+    expect(screen.getByText(/No active courses right now\./)).toBeTruthy();
   });
 });

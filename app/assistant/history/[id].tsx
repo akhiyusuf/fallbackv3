@@ -15,7 +15,7 @@ import { SPACE } from '@/theme';
 import { IconButton, InlineRetryBanner, Input, ListGroup, ListRow, Screen, Skeleton, TaskIcon } from '@/ui';
 
 function modalityLabel(m: 'voice' | 'text' | 'voice+text'): string {
-  return m === 'voice' ? 'Voice' : m === 'text' ? 'Text' : 'Voice and text';
+  return m === 'voice' ? 'Voice' : m === 'text' ? 'Text' : 'Voice + text';
 }
 
 export default function S35AssistantReopenedConversation() {

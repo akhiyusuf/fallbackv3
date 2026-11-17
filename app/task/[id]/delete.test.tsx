@@ -1,7 +1,7 @@
 /**
  * M4 — S22 Delete Confirmation. Asserts the TWO SEPARATE origin rules are actually wired
  * correctly through real navigation (not just the pure `deleteOrigin.ts` unit tests):
- * "Keep it" returns to whichever screen opened S22, and confirmed delete uses the two-level
+ * "Cancel" returns to whichever screen opened S22, and confirmed delete uses the two-level
  * origin lookup — a DIFFERENT destination computed a DIFFERENT way.
  */
 jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000000000000' }));
@@ -14,7 +14,7 @@ jest.mock('@/lib/date', () => {
 
 import React from 'react';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { userEvent } from '@testing-library/react-native';
+import { userEvent, within } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { fake } from '@/queries/testSupport/dbMock';
@@ -25,6 +25,12 @@ import { err } from '@/types';
 import type { Id } from '@/types';
 
 let client: QueryClient;
+
+/** Opens the S20/S23 More menu and chooses Delete. */
+async function openDeleteFromMenu() {
+  await userEvent.press(screen.getByLabelText('More actions'));
+  await userEvent.press(await screen.findByLabelText('Delete routine'));
+}
 function wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
@@ -39,28 +45,28 @@ beforeEach(() => {
 });
 
 describe('S22 Delete Confirmation — RULE 1 (Keep it / cancel, distinct from RULE 2)', () => {
-  it('opened from S20 -> "Keep it" returns to S20 unchanged', async () => {
+  it('opened from S20 -> "Cancel" returns to S20 unchanged', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
 
-    await userEvent.press(screen.getByLabelText('Keep it'));
-    expect(await screen.findByDisplayValue('Morning workout')).toBeTruthy();
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Cancel'));
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
   });
 
-  it('opened from S23 -> "Keep it" returns to S23 unchanged, never falls through to S20', async () => {
+  it('opened from S23 -> "Cancel" returns to S23 unchanged, never falls through to S20', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, isAsNeeded: true, cadence: null }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed', wrapper });
-    await screen.findByText('As-needed routine');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
 
-    await userEvent.press(screen.getByLabelText('Keep it'));
-    expect(await screen.findByText('As-needed routine')).toBeTruthy();
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Cancel'));
+    expect(await screen.findByText('Morning workout')).toBeTruthy();
   });
 });
 
@@ -68,11 +74,11 @@ describe('S22 Delete Confirmation — RULE 2 (confirmed delete, a DIFFERENT look
   it('the most common path: S09(today) -> S20 -> S22 -> confirm -> lands back on Today, never Routines', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1?from=today', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
 
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
   });
@@ -80,11 +86,11 @@ describe('S22 Delete Confirmation — RULE 2 (confirmed delete, a DIFFERENT look
   it('S20 opened from an unstable origin (search) falls back to the deleted task’s type tab', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, type: 'routine' }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1?from=search', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
 
     expect(await screen.findByText('MARKER_ROUTINES')).toBeTruthy();
   });
@@ -92,11 +98,11 @@ describe('S22 Delete Confirmation — RULE 2 (confirmed delete, a DIFFERENT look
   it('opened from S23 -> confirmed delete ALWAYS lands on Routines (S10), regardless of S23’s own origin', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id, isAsNeeded: true, cadence: null }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed?from=search', wrapper });
-    await screen.findByText('As-needed routine');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
 
     expect(await screen.findByText('MARKER_ROUTINES')).toBeTruthy();
   });
@@ -108,15 +114,15 @@ describe('S22 Delete Confirmation — persist-failure state (REVIEW-M4.md item 7
     fake.repos.tasks.softDelete = async () => err({ code: 'WRITE_FAILED', message: 'forced test failure' });
 
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
-    await screen.findByDisplayValue('Morning workout');
+    await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await openDeleteFromMenu();
     await screen.findByText('Delete this routine?');
-    await userEvent.press(screen.getByLabelText('Delete routine'));
+    await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
 
     expect(await screen.findByText("Couldn't delete — try again.")).toBeTruthy();
-    const deleteButton = await screen.findByLabelText('Delete routine');
-    const keepButton = await screen.findByLabelText('Keep it');
+    const deleteButton = within(await screen.findByTestId('delete-task-sheet')).getByLabelText('Delete routine');
+    const keepButton = await within(await screen.findByTestId('delete-task-sheet')).findByLabelText('Cancel');
     expect(deleteButton).toBeTruthy();
     expect(keepButton).toBeTruthy();
     expect(deleteButton.props.accessibilityState?.disabled).toBeFalsy();

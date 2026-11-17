@@ -46,12 +46,17 @@ export async function getByoConfig(): Promise<ByoConfig | null> {
   return { baseUrl, apiKey, supportsTranscription: supportsTranscription === '1', model: model ?? undefined };
 }
 
+// The default accessibility (WHEN_UNLOCKED) lets the keychain item migrate to a new device
+// through an encrypted device backup. The key must never end up in a backup, so pin the
+// THIS_DEVICE_ONLY variant on every write.
+const WRITE_OPTIONS = { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY } as const;
+
 export async function setByoConfig(config: ByoConfig): Promise<void> {
   await Promise.all([
-    SecureStore.setItemAsync(BASE_URL_KEY, config.baseUrl),
-    SecureStore.setItemAsync(API_KEY_KEY, config.apiKey),
-    SecureStore.setItemAsync(SUPPORTS_TRANSCRIPTION_KEY, config.supportsTranscription ? '1' : '0'),
-    config.model ? SecureStore.setItemAsync(MODEL_KEY, config.model) : SecureStore.deleteItemAsync(MODEL_KEY),
+    SecureStore.setItemAsync(BASE_URL_KEY, config.baseUrl, WRITE_OPTIONS),
+    SecureStore.setItemAsync(API_KEY_KEY, config.apiKey, WRITE_OPTIONS),
+    SecureStore.setItemAsync(SUPPORTS_TRANSCRIPTION_KEY, config.supportsTranscription ? '1' : '0', WRITE_OPTIONS),
+    config.model ? SecureStore.setItemAsync(MODEL_KEY, config.model, WRITE_OPTIONS) : SecureStore.deleteItemAsync(MODEL_KEY),
   ]);
 }
 

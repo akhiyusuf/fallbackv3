@@ -74,7 +74,8 @@ describe('S27 — Achievements', () => {
     const user = userEvent.setup();
     await render(<S27Achievements />);
     await user.press(screen.getByLabelText('1 Year, locked'));
-    expect(screen.getByText(/Locked — unlocks on .* \(1 year from your first day\)\./)).toBeTruthy();
+    // Calendar unlock condition: the date the tenure tier is reached, relative to the first day.
+    expect(screen.getByText(/Unlocks on Jan 12, 2027, 1 year from your first day\./)).toBeTruthy();
   });
 
   it('an earned badge never shows a celebratory confetti trigger — S28 is the only confetti surface (no confetti import/usage here)', async () => {
@@ -86,7 +87,7 @@ describe('S27 — Achievements', () => {
   it('changing the reset-cadence Select calls useUpdateSettings with the new cadence', async () => {
     const user = userEvent.setup();
     await render(<S27Achievements />);
-    await user.press(screen.getByLabelText('Reset cadence, Monthly'));
+    // The reset cadence is a two-option Radio (a tab list labelled "Resets").
     await user.press(screen.getByLabelText('Weekly'));
     expect(mockUpdateSettings.mutate).toHaveBeenCalledWith({ cycleCadence: 'weekly' });
   });
@@ -116,7 +117,7 @@ describe('S27 — Achievements', () => {
   it('new-user state shows the calm first-badge banner when no non-tenure badge is earned yet', async () => {
     mockProgress.current = progressState({ lifetimeXp: 0, level: { level: 1, title: 'Getting started', xpIntoLevel: 0, xpForLevel: 100 } });
     await render(<S27Achievements />);
-    expect(screen.getByText('Show up once — ideal or fallback — and your first badge is on its way. Small counts.')).toBeTruthy();
+    expect(screen.getByText('Show up once, ideal or fallback, and your first badge is on its way.')).toBeTruthy();
   });
 });
 

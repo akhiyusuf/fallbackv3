@@ -78,7 +78,20 @@ describe('S40 — BYO AI Key Setup', () => {
     await render(<S40ByoAiKeySetup />);
     const field = screen.getByTestId('s40-api-key');
     expect(field.props.secureTextEntry).toBe(true);
-    await userEvent.press(screen.getByLabelText('Reveal API key'));
+    await userEvent.press(screen.getByLabelText('Show API key'));
     expect(field.props.secureTextEntry).toBe(false);
+    await userEvent.press(screen.getByLabelText('Hide API key'));
+    expect(field.props.secureTextEntry).toBe(true);
+  });
+
+  it('a failed secure write shows the calm error banner and re-enables Save, never a stuck spinner', async () => {
+    mockProbe.mockResolvedValue({ ok: true, transcription: true, model: 'gpt-x' });
+    mockSetByoConfig.mockRejectedValueOnce(new Error('keychain locked'));
+    await render(<S40ByoAiKeySetup />);
+    await fillForm();
+    await userEvent.press(screen.getByTestId('s40-save'));
+    expect(await screen.findByText(S40_COPY.invalid)).toBeTruthy();
+    expect(screen.getByTestId('s40-save').props.accessibilityState?.disabled).not.toBe(true);
+    expect(screen.queryByText(S40_COPY.successFull)).toBeNull();
   });
 });

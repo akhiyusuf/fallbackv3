@@ -3,7 +3,7 @@
  * indeterminate bar." Degrades to a static opacity-pulsed block under reduced motion
  * (Rule 13), mirroring `Skeleton`'s reduced-motion handling.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { RADIUS, useTheme } from '@/theme';
@@ -12,14 +12,15 @@ const BAR_WIDTH_FRACTION = 0.35;
 
 export function IndeterminateBar() {
   const t = useTheme();
-  const progress = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(0.5)).current;
-  const reducedRef = useRef(false);
+  const [progress] = useState(() => new Animated.Value(0));
+  const [pulse] = useState(() => new Animated.Value(0.5));
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | undefined;
+    // The preference is read asynchronously: if the bar unmounts first, do not start a loop nobody can stop.
+    let cancelled = false;
     AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
-      reducedRef.current = reduced;
+      if (cancelled) return;
       if (reduced) {
         loop = Animated.loop(
           Animated.sequence([
@@ -35,7 +36,10 @@ export function IndeterminateBar() {
       );
       loop.start();
     });
-    return () => loop?.stop();
+    return () => {
+      cancelled = true;
+      loop?.stop();
+    };
   }, [progress, pulse]);
 
   const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [-1, 1] });

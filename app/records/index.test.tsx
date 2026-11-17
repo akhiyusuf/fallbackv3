@@ -51,15 +51,19 @@ describe('S29 — Cycle Records', () => {
 
   it('shows the in-progress strip (not tappable — not a finalized record) and the archived list', async () => {
     await render(<S29CycleRecords />);
-    expect(screen.getByText('In progress — July 2026')).toBeTruthy();
+    // The in-progress strip: its own cycle label, an "In progress" pill and XP so far (not a record card).
+    expect(screen.getByText('July 2026')).toBeTruthy();
+    expect(screen.getByText('In progress')).toBeTruthy();
+    expect(screen.getByText('128 XP so far')).toBeTruthy();
+    // The finalized record below it carries its own percent.
     expect(screen.getByText('91%')).toBeTruthy();
-    expect(screen.getByText('Archived')).toBeTruthy();
   });
 
   it('a short cycle carries the cadence-change note', async () => {
     mockRecords.current = [record({ isShortCycle: true, startDate: '2026-04-13', endDate: '2026-04-30' })];
     await render(<S29CycleRecords />);
-    expect(screen.getByText(/Short cycle — cadence changed mid-month\./)).toBeTruthy();
+    // The list shows the short-cycle flag in its one muted meta line; the full note is on S30.
+    expect(screen.getByText(/Short cycle/)).toBeTruthy();
   });
 
   it('empty state (no finalized cycles yet) reads the monthly-cadence copy', async () => {

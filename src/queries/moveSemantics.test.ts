@@ -41,7 +41,10 @@ import { useLogState, useSnoozeOccurrence, useUndoSnooze } from './mutations';
 import { useConsistency, useTaskOccurrences } from './reads';
 
 function makeWrapper(client: QueryClient) {
-  return ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client }, children);
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client }, children);
+  }
+  return Wrapper;
 }
 function freshClient(): QueryClient {
   return new QueryClient({

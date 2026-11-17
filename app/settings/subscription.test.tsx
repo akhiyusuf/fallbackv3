@@ -16,7 +16,7 @@ jest.mock('@/app-shell', () => {
 
 import { useEntitlementStore } from '@/app-shell';
 import S44ManageSubscription from './subscription';
-import { S44_COPY } from '@/features/assistant/copy';
+import { S39_COPY, S44_COPY } from '@/features/assistant/copy';
 
 describe('S44 — Manage Subscription', () => {
   beforeEach(() => {
@@ -35,11 +35,13 @@ describe('S44 — Manage Subscription', () => {
       byoSupportsTranscription: false,
     });
     await render(<S44ManageSubscription />);
-    expect(await screen.findByText(S44_COPY.freeFraming)).toBeTruthy();
-    expect(screen.getByText(S44_COPY.startFreeTrial)).toBeTruthy();
+    expect(await screen.findByText('Free plan')).toBeTruthy();
+    expect(screen.getByText('The free plan keeps every core feature. Fallback AI is optional.')).toBeTruthy();
+    expect(screen.getByLabelText(S44_COPY.startFreeTrial)).toBeTruthy();
+    expect(screen.queryByText(S44_COPY.confirmChange)).toBeNull();
   });
 
-  it('subscribed-active: shows the Active badge, plan line and Change plan card', async () => {
+  it('subscribed-active: shows the Active badge, plan line and Change plan card; Confirm appears only after a different plan is picked', async () => {
     useEntitlementStore.getState().setEntitlement({
       source: 'subscription',
       plan: 'monthly',
@@ -49,9 +51,15 @@ describe('S44 — Manage Subscription', () => {
       hasByoKey: false,
       byoSupportsTranscription: false,
     });
+    const user = userEvent.setup();
     await render(<S44ManageSubscription />);
-    expect(await screen.findByText(S44_COPY.planMonthly)).toBeTruthy();
-    expect(screen.getByText(S44_COPY.confirmChange)).toBeTruthy();
+    // "Monthly" is both the Plan row's value and the monthly plan card's title.
+    expect((await screen.findAllByText('Monthly')).length).toBeGreaterThan(1);
+    expect(screen.getByText('Active')).toBeTruthy();
+    expect(screen.getByText('Change plan')).toBeTruthy();
+    expect(screen.queryByText(S44_COPY.confirmChange)).toBeNull();
+    await user.press(screen.getByText(S39_COPY.annual.title));
+    expect(screen.getByLabelText(S44_COPY.confirmChange)).toBeTruthy();
   });
 
   it('error: calm warning-tone InlineRetryBanner, not a full-screen failure', async () => {
@@ -71,7 +79,8 @@ describe('S44 — Manage Subscription', () => {
       byoSupportsTranscription: false,
     });
     await render(<S44ManageSubscription />);
-    expect(await screen.findByText(/Renews Aug 20/)).toBeTruthy();
+    expect(await screen.findByText('Renews')).toBeTruthy();
+    expect(screen.getByText('Aug 20, 2026')).toBeTruthy();
     expect(screen.queryByText(/Trial ends in 3/)).toBeNull();
   });
 

@@ -11,7 +11,7 @@ import { useConsistency, useProgress, useSettings } from '@/queries';
 import { initNotificationsBridge } from '@/services/notifications';
 import { initWidgetsBridge } from '@/services/widgets';
 import { FONT_SIZE, RADIUS, useTheme } from '@/theme';
-import { play, useSoundStore } from '@/services/sfx';
+import { useSoundStore } from '@/services/sfx';
 import { ListGroup, ListRow, Screen, Skeleton, Switch } from '@/ui';
 import { Text } from '@/ui/AppText';
 
@@ -105,11 +105,8 @@ export default function S41SettingsHome() {
           right={
             <Switch
               value={soundsOn}
-              onValueChange={(v) => {
-                setSoundsOn(v);
-                // Turning sounds on answers with a sound; turning them off answers with silence.
-                if (v) play('toggle_on');
-              }}
+              // The switch plays its own click after the change, so turning sounds on answers with a sound and off with silence.
+              onValueChange={setSoundsOn}
               accessibilityLabel={`Sounds, ${soundsOn ? 'on' : 'off'}`}
             />
           }

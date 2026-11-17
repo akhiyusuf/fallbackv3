@@ -40,7 +40,8 @@ export function PersonalizeScreen() {
     const priorAccent = settingsQuery.data?.accent ?? DEFAULT_ACCENT;
     const priorMode = settingsQuery.data?.theme ?? 'auto';
     setSaving(true);
-    const result = await updateSettings.mutateAsync({ accent, theme: mode });
+    // A thrown write must reach the calm retry toast too, or the Next button would spin for ever.
+    const result = await updateSettings.mutateAsync({ accent, theme: mode }).catch(() => ({ ok: false as const }));
     setSaving(false);
     if (!result.ok) {
       setAccent(priorAccent);

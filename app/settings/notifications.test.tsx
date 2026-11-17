@@ -6,6 +6,7 @@ const mockSettingsData: { current: unknown } = { current: undefined };
 const mockUpdateSettingsMutateAsync = jest.fn();
 jest.mock('@/queries', () => ({
   useSettings: () => ({ data: mockSettingsData.current, isLoading: mockSettingsData.current === undefined }),
+  useTasks: () => ({ data: [] }),
   useUpdateSettings: () => ({ mutateAsync: mockUpdateSettingsMutateAsync }),
 }));
 
@@ -47,19 +48,21 @@ describe('S42 — Notifications Settings', () => {
     expect(screen.queryByText(S42_COPY.emptyHeadline)).toBeNull();
   });
 
-  it('Trigger A — master off: sections are replaced by the EmptyState, master row stays visible', async () => {
+  it('Trigger A — master off: the reminder sections are replaced by a sample, master row and explainer stay visible', async () => {
     mockSettingsData.current = { notifications: { ...ALL_ON, master: false } };
     await render(<S42NotificationsSettings />);
-    expect(screen.getByText(S42_COPY.emptyHeadline)).toBeTruthy();
+    expect(screen.getByText(S42_COPY.emptySubcopy)).toBeTruthy();
+    expect(screen.getByText('What a reminder looks like')).toBeTruthy();
+    expect(screen.queryByText(S42_COPY.emptyHeadline)).toBeNull();
     expect(screen.queryByText(S42_COPY.reminderRows.routineDue)).toBeNull();
-    expect(screen.getByLabelText(`${S42_COPY.masterLabel}, off, toggles all reminders`)).toBeTruthy();
+    expect(screen.getByLabelText('Allow notifications, off')).toBeTruthy();
   });
 
   it('Trigger B — master on, all subs off: sections STAY visible and switchable, plus the banner shows', async () => {
     const allSubsOff = { ...ALL_ON, routineDue: false, eventStarting: false, courseDose: false, courseEndingSoon: false, gentleReentry: false, milestoneReached: false, dailyDigest: false };
     mockSettingsData.current = { notifications: allSubsOff };
     await render(<S42NotificationsSettings />);
-    expect(screen.getByText(S42_COPY.emptyHeadline)).toBeTruthy();
+    expect(screen.getByText(`${S42_COPY.emptyHeadline}. ${S42_COPY.emptySubcopy}`)).toBeTruthy();
     // The controls a user needs to leave this state must still be present (never hidden).
     expect(screen.getByText(S42_COPY.reminderRows.routineDue)).toBeTruthy();
     expect(screen.getAllByRole('switch').length).toBeGreaterThan(1);
@@ -69,7 +72,7 @@ describe('S42 — Notifications Settings', () => {
     mockSettingsData.current = { notifications: ALL_ON };
     const user = userEvent.setup();
     await render(<S42NotificationsSettings />);
-    await user.press(screen.getByLabelText(`${S42_COPY.reminderRows.routineDue}, on, toggles ${S42_COPY.reminderRows.routineDue.toLowerCase()} reminders`));
+    await user.press(screen.getByLabelText(`${S42_COPY.reminderRows.routineDue}, on`));
     await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ notifications: { ...ALL_ON, routineDue: false } }));
   });
 
@@ -78,14 +81,20 @@ describe('S42 — Notifications Settings', () => {
     mockSettingsData.current = { notifications: ALL_ON };
     const user = userEvent.setup();
     await render(<S42NotificationsSettings />);
-    await user.press(screen.getByLabelText(`${S42_COPY.masterLabel}, on, toggles all reminders`));
+    await user.press(screen.getByLabelText('Allow notifications, on'));
     await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S42_COPY.errorToast, 'warning'));
   });
 
-  it('the daily digest time picker only appears once the digest switch is on', async () => {
+  it('the daily digest time picker is hidden while the digest switch is off', async () => {
+    mockSettingsData.current = { notifications: { ...ALL_ON, dailyDigest: false, dailyDigestTime: '08:00' } };
+    await render(<S42NotificationsSettings />);
+    expect(screen.queryByLabelText(/^Digest time,/)).toBeNull();
+  });
+
+  it('the daily digest time picker appears once the digest switch is on, showing the saved time', async () => {
     mockSettingsData.current = { notifications: { ...ALL_ON, dailyDigest: true, dailyDigestTime: '08:00' } };
     await render(<S42NotificationsSettings />);
-    expect(screen.getByText('8:00 AM')).toBeTruthy();
+    expect(screen.getByLabelText('Digest time, 8:00 AM')).toBeTruthy();
   });
 
   it('tap back chevron navigates to S41', async () => {

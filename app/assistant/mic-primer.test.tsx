@@ -24,26 +24,42 @@ describe('S37 — Microphone Permission Primer', () => {
   it('primer context: headline/body/actions match the primer framing', async () => {
     await render(<S37MicrophonePermissionPrimer />);
     expect(screen.getByText(S37_COPY.primer.headline)).toBeTruthy();
-    expect(screen.getByText(S37_COPY.reassurance)).toBeTruthy();
-    expect(screen.getByLabelText('Enable microphone access, button')).toBeTruthy();
+    expect(screen.getByText(S37_COPY.primer.body)).toBeTruthy();
+    expect(screen.getByText(S37_COPY.primer.secondaryLine)).toBeTruthy();
+    // The reassurance sentence already sits inside the body; the primer must not print it twice
+    // (docs/DESIGN_DECISIONS.md, review item 4).
+    expect(screen.queryByText(S37_COPY.reassurance)).toBeNull();
+    expect(screen.getByLabelText('Allow microphone access')).toBeTruthy();
+    expect(screen.getByLabelText(S37_COPY.primer.secondaryAction)).toBeTruthy();
   });
 
-  it('primer — tap Enable, granted -> navigates to S32 in listening state', async () => {
+  it('primer — tap Allow, granted -> navigates to S32 in listening state', async () => {
     mockRequestRecordingPermissionsAsync.mockResolvedValue({ granted: true });
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     await render(<S37MicrophonePermissionPrimer />);
-    await userEvent.press(screen.getByLabelText('Enable microphone access, button'));
+    await userEvent.press(screen.getByLabelText('Allow microphone access'));
     expect(replace).toHaveBeenCalledWith('/assistant/chat?listen=1');
     replace.mockRestore();
   });
 
-  it('primer — tap Enable, denied -> navigates to S32 in text-input state (never blocks the app)', async () => {
+  it('primer — tap Allow, denied -> navigates to S32 in text-input state (never blocks the app)', async () => {
     mockRequestRecordingPermissionsAsync.mockResolvedValue({ granted: false });
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     await render(<S37MicrophonePermissionPrimer />);
-    await userEvent.press(screen.getByLabelText('Enable microphone access, button'));
+    await userEvent.press(screen.getByLabelText('Allow microphone access'));
     expect(replace).toHaveBeenCalledWith('/assistant/chat?listen=');
     replace.mockRestore();
+  });
+
+  it('recovery — "Type instead" goes to the chat in text-input state', async () => {
+    mockGetRecordingPermissionsAsync.mockResolvedValue({ granted: false });
+    await renderRouter(
+      { 'mic-primer': S37MicrophonePermissionPrimer, 'assistant/chat': ChatMarker },
+      { initialUrl: '/mic-primer?context=recovery' },
+    );
+    await userEvent.press(routerScreen.getByLabelText(S37_COPY.recovery.secondaryAction));
+    await routerScreen.findByText('MARKER_ASSISTANT_CHAT');
+    expect(routerScreen.getByText('MARKER_ASSISTANT_CHAT')).toBeTruthy();
   });
 
   it('B11 — recovery: does NOT re-check permission immediately after openSettings (that read would still see the stale value)', async () => {
@@ -56,7 +72,7 @@ describe('S37 — Microphone Permission Primer', () => {
       { 'mic-primer': S37MicrophonePermissionPrimer, 'assistant/chat': ChatMarker },
       { initialUrl: '/mic-primer?context=recovery' },
     );
-    await userEvent.press(routerScreen.getByLabelText('Open system settings, button'));
+    await userEvent.press(routerScreen.getByLabelText('Open system settings'));
     // The old bug called `getRecordingPermissionsAsync()` right after `openSettings()`
     // resolves — while the user is still inside Settings. It must NOT be called here; the
     // recheck only happens once the app is foregrounded again (see the next test).

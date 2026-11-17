@@ -8,8 +8,7 @@ jest.mock('@/queries', () => ({
 }));
 
 // Local mock — expo-secure-store's automock behaviour is undocumented here; a deterministic
-// in-memory store is what the resume-redirect tests need (same "stays local" reasoning as
-// the house pattern's `expo-crypto` note).
+// in-memory store is what the resume-pointer tests need.
 const mockSecureStore = new Map<string, string>();
 jest.mock('expo-secure-store', () => ({
   getItemAsync: (key: string) => Promise.resolve(mockSecureStore.get(key) ?? null),
@@ -26,6 +25,8 @@ jest.mock('expo-secure-store', () => ({
 import S02OnboardingHook from './hook';
 import { S02_COPY } from '@/features/onboarding/copy';
 
+const PROGRESS_KEY = 'fallback.onboarding.progress';
+
 describe('S02 — Onboarding: Hook', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -38,35 +39,38 @@ describe('S02 — Onboarding: Hook', () => {
     expect(screen.getByText(S02_COPY.body)).toBeTruthy();
     expect(screen.getByLabelText('Skip onboarding')).toBeTruthy();
     expect(screen.getByLabelText('Next')).toBeTruthy();
+    expect(screen.getByLabelText('Step 2 of 7')).toBeTruthy();
   });
 
-  it('"Next" navigates to S03', async () => {
+  it('"Next" navigates to S04 (the four ways to plan), the third step', async () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S02OnboardingHook />);
     await waitFor(() => expect(screen.getByText(S02_COPY.headline)).toBeTruthy());
     await user.press(screen.getByLabelText('Next'));
-    expect(push).toHaveBeenCalledWith('/onboarding/concept');
+    expect(push).toHaveBeenCalledWith('/onboarding/types');
     push.mockRestore();
   });
 
-  it('"Skip" persists onboardingCompletedAt and routes straight to Today', async () => {
+  it('"Skip" persists onboardingCompletedAt, clears the resume pointer and routes straight to Today', async () => {
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S02OnboardingHook />);
-    await waitFor(() => expect(screen.getByText(S02_COPY.headline)).toBeTruthy());
+    await waitFor(() => expect(mockSecureStore.get(PROGRESS_KEY)).toBe('/onboarding/hook'));
     await user.press(screen.getByLabelText('Skip onboarding'));
     await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ onboardingCompletedAt: expect.any(String) }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/today'));
+    expect(mockSecureStore.has(PROGRESS_KEY)).toBe(false);
     replace.mockRestore();
   });
 
-  it('resume: a saved progress pointer past S02 silently redirects instead of rendering S02', async () => {
-    mockSecureStore.set('fallback.onboarding.progress', '/onboarding/personalize');
+  it('records itself as the saved place; it does not read the pointer back (the concept step does)', async () => {
+    mockSecureStore.set(PROGRESS_KEY, '/onboarding/personalize');
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     await render(<S02OnboardingHook />);
-    await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding/personalize'));
-    expect(screen.queryByText(S02_COPY.headline)).toBeNull();
+    await waitFor(() => expect(mockSecureStore.get(PROGRESS_KEY)).toBe('/onboarding/hook'));
+    expect(replace).not.toHaveBeenCalled();
+    expect(screen.getByText(S02_COPY.headline)).toBeTruthy();
     replace.mockRestore();
   });
 });

@@ -76,7 +76,7 @@ export default function AgentAccess() {
               />
             ))}
             <Text style={[styles.helper, { color: t.color.textMuted }]}>
-              "Ask me every time" shows you each change before it happens. Nothing is changed until you allow it. Deleting can never be allowed in advance.
+              &quot;Ask me every time&quot; shows you each change before it happens. Nothing is changed until you allow it. Deleting can never be allowed in advance.
             </Text>
           </View>
 

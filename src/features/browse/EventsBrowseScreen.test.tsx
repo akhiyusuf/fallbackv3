@@ -74,7 +74,8 @@ describe('S11 — Events Browse', () => {
     const upcoming = event({ id: 'e2', name: 'Team dinner', eventDate: '2099-01-01' });
     mockUseTasks.mockReturnValue({ data: [upcoming], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<EventsBrowseScreen />);
-    expect(screen.getByText('No events today.')).toBeTruthy();
+    // D15: an empty Today section is summed up in the header line, not an illustration; Upcoming still lists.
+    expect(screen.getByText(/Nothing on this \w+/)).toBeTruthy();
     expect(screen.getByText('Team dinner')).toBeTruthy();
   });
 
@@ -106,8 +107,8 @@ describe('S11 — Events Browse', () => {
     mockUseTaskOccurrences.mockReturnValue({ data: [occurrence(today(), { outcome: 'pending' })] });
     await render(<EventsBrowseScreen />);
     expect(screen.getByText('Team dinner')).toBeTruthy();
-    expect(screen.getByText('7:00 PM')).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText('No events today.')).toBeNull());
+    expect(screen.getByText(/7:00 PM/)).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText(/Nothing on this \w+/)).toBeNull());
   });
 
   it('Upcoming day-groups render in chronological order regardless of repo list order', async () => {
@@ -125,7 +126,7 @@ describe('S11 — Events Browse', () => {
     mockUseTaskOccurrences.mockReturnValue({ data: [] }); // nothing resolves inside the 90-day window
     await render(<EventsBrowseScreen />);
     expect(screen.getByText('Annual physical')).toBeTruthy();
-    expect(screen.getByText('Repeats · Yearly')).toBeTruthy();
+    expect(screen.getByText(/Repeats yearly/)).toBeTruthy();
   });
 
   it('a repeating row in Upcoming shows its time alongside the recurrence badge', async () => {

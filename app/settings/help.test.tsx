@@ -17,8 +17,10 @@ describe('S49 — Help & About', () => {
 
   it('renders every support/legal row, the privacy promise and the footer verbatim', async () => {
     await render(<S49HelpAndAbout />);
+    // Row labels are shown with "and" where the copy says "&" (the screen maps them for reading).
+    const shown: Record<string, string> = { 'FAQ & guides': 'FAQ and guides' };
     for (const row of [...S49_COPY.supportSection, ...S49_COPY.legalSection]) {
-      expect(screen.getByText(row.label)).toBeTruthy();
+      expect(screen.getByText(shown[row.label] ?? row.label)).toBeTruthy();
     }
     expect(screen.getByText(S49_COPY.privacy)).toBeTruthy();
     expect(screen.getByText(S49_COPY.version)).toBeTruthy();

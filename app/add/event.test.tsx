@@ -38,7 +38,7 @@ beforeEach(() => {
 describe('S17 Create Event', () => {
   it('defaults to "Does not repeat" with no cadence control shown, and no tracking fields', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
-    await screen.findByText('New Event');
+    await screen.findByText('New event');
     // Only the Recurrence radio's own "Repeats" option exists yet — the CadencePicker's own
     // "Repeats" Select (a second element with the same label) only appears once "Repeats" is
     // selected.
@@ -48,7 +48,7 @@ describe('S17 Create Event', () => {
 
   it('empty name blocks save with the verbatim inline error', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
-    await screen.findByText('New Event');
+    await screen.findByText('New event');
     await userEvent.press(screen.getByLabelText('Save event'));
     expect(await screen.findByText('Give this event a name to save it.')).toBeTruthy();
   });
@@ -63,7 +63,7 @@ describe('S17 Create Event', () => {
 
   it('selecting Repeats reveals the shared CadencePicker', async () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/event', wrapper });
-    await screen.findByText('New Event');
+    await screen.findByText('New event');
     await userEvent.press(screen.getByLabelText('Repeats'));
     expect(await screen.findByText('Still an Event — just one that repeats.')).toBeTruthy();
   });

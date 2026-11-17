@@ -90,6 +90,49 @@ describe('useAssistantChat', () => {
     await waitFor(() => expect(result.current.items.some((i) => i.kind === 'assistant' && /logged for Morning workout/i.test(i.text))).toBe(true));
   });
 
+  it('a create_task that is applied always leaves a confirmation line, even when the new task is not in the task list yet', async () => {
+    mockCreateTaskMutateAsync.mockResolvedValue({ ok: true, value: 'new-task' });
+    mockGetAssistantProvider.mockResolvedValue({
+      id: 'managed',
+      streamChat: () =>
+        stream([
+          { type: 'tool-call', call: { id: 'tc-1', name: 'create_task', args: { type: 'todo', name: 'Call mom', idealSteps: [], fallbackSteps: [] } } },
+          { type: 'done', summary: 'ok' },
+        ]),
+    });
+    const { result } = await renderHook(() => useAssistantChat(), { wrapper });
+    await act(async () => {
+      await result.current.sendMessage('add call mom');
+    });
+    expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
+    expect(result.current.items.some((i) => i.kind === 'assistant' && i.text.startsWith('Done — created Call mom'))).toBe(true);
+  });
+
+  it('retry after an offline failure re-runs the model over the same transcript, without repeating the user bubble', async () => {
+    let call = 0;
+    mockGetAssistantProvider.mockResolvedValue({
+      id: 'managed',
+      streamChat: () => {
+        call += 1;
+        if (call === 1) return stream([{ type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'x' }]);
+        return stream([{ type: 'text-delta', delta: 'Back online.' }, { type: 'done', summary: 'ok' }]);
+      },
+    });
+    const { result } = await renderHook(() => useAssistantChat(), { wrapper });
+    await act(async () => {
+      await result.current.sendMessage('add a run');
+    });
+    expect(result.current.offline).toBe(true);
+
+    await act(async () => {
+      result.current.retryLast();
+    });
+    await waitFor(() => expect(result.current.items.some((i) => i.kind === 'assistant' && i.text === 'Back online.')).toBe(true));
+    expect(result.current.offline).toBe(false);
+    expect(result.current.items.filter((i) => i.kind === 'user' && i.text === 'add a run')).toHaveLength(1);
+    expect(call).toBe(2);
+  });
+
   it('B9 — a conversationId seeds the transcript from listMessages and resumes the SAME thread', async () => {
     mockListMessages.mockResolvedValue([
       { id: 'm1', conversationId: 'conv-1', role: 'user', text: 'earlier turn', toolCalls: [], createdAt: 'x' },

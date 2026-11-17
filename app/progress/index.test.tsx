@@ -56,7 +56,7 @@ describe('S25 — Consistency Dashboard', () => {
     await render(<S25ConsistencyDashboard />);
     expect(screen.getByText('87%')).toBeTruthy();
     expect(screen.getByText('22 ideal + 4 fallback = 26 of 30 counted days')).toBeTruthy();
-    expect(screen.getByText('4 days were off — not counted either way')).toBeTruthy();
+    expect(screen.getByText(/4 days were off, not counted either way\./)).toBeTruthy();
   });
 
   it('never renders "0%" on the no-data empty state, and shows the calm empty copy instead', async () => {
@@ -70,9 +70,8 @@ describe('S25 — Consistency Dashboard', () => {
     mockConsistency.current = { scope: 'per-task', percent: 100, numerator: 26, denominator: 26, breakdown: breakdown(22, 4, 4, 0), countedDates: [] };
     await render(<S25ConsistencyDashboard />);
     await userEvent.setup().press(screen.getByLabelText('30 days'));
-    expect(
-      screen.getByText("22 ideal + 4 fallback = 26 of 26 counted days — this task's whole history so far is shorter than 30 days"),
-    ).toBeTruthy();
+    expect(screen.getByText('22 ideal + 4 fallback = 26 of 26 counted days')).toBeTruthy();
+    expect(screen.getByText(/This task's whole history so far is shorter than 30 days\./)).toBeTruthy();
   });
 
   it('a brand-new user (zero trackable tasks) sees the empty state, never the error banner, even though the underlying doomed per-task query errors', async () => {
@@ -87,8 +86,8 @@ describe('S25 — Consistency Dashboard', () => {
     mockConsistency.current = { scope: 'aggregate', percent: 92, numerator: 27.5, denominator: 30, breakdown: breakdown(24, 4, 3, 3), countedDates: [] };
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
-    await user.press(screen.getByLabelText('Aggregate'));
-    expect(screen.getByText('Ideal/Fallback are rounded credit sums; Off is a day count; Missed is the rounded remainder.')).toBeTruthy();
+    await user.press(screen.getByLabelText('All tasks'));
+    expect(screen.getByText('Ideal and fallback are rounded day credits. Off is a day count.')).toBeTruthy();
     expect(screen.getByText('≈27.5 of 30 counted days (weighted by that day\'s tasks)')).toBeTruthy();
   });
 
@@ -109,7 +108,7 @@ describe('S25 — Consistency Dashboard', () => {
     mockConsistency.current = { scope: 'aggregate', percent: 93, numerator: 6.5, denominator: 7, breakdown: breakdown(6, 1, 0, 1), countedDates: [] };
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
-    await user.press(screen.getByLabelText('Aggregate'));
+    await user.press(screen.getByLabelText('All tasks'));
     const bar = screen.getByLabelText(/Consistency breakdown: 93 percent/);
     expect(filledPercent(bar)).toBeLessThan(100);
   });
@@ -118,11 +117,11 @@ describe('S25 — Consistency Dashboard', () => {
     mockConsistency.current = { scope: 'aggregate', percent: 92, numerator: 27.5, denominator: 30, breakdown: breakdown(24, 4, 3, 3), countedDates: [] };
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
-    await user.press(screen.getByLabelText('Aggregate'));
-    await user.press(screen.getByLabelText('How the aggregate is calculated'));
-    expect(screen.getByText('Wed — 2 of 2 tasks shown up → counts as 1.0')).toBeTruthy();
-    expect(screen.getByText('Thu — 1 of 3 tasks shown up (2 missed) → counts as 0.33')).toBeTruthy();
-    expect(screen.getByText('Fri — every due task was off → not counted')).toBeTruthy();
+    await user.press(screen.getByLabelText('All tasks'));
+    await user.press(screen.getByLabelText('How the all-tasks number is calculated'));
+    expect(screen.getByText('Wed: 2 of 2 tasks shown up, counts as 1.0')).toBeTruthy();
+    expect(screen.getByText('Thu: 1 of 3 tasks shown up (2 missed), counts as 0.33')).toBeTruthy();
+    expect(screen.getByText('Fri: every due task was off, not counted')).toBeTruthy();
     expect(screen.getByText('Total: 1.33 ÷ 2 counted days = 67%')).toBeTruthy();
     // No live-history ISO date (e.g. "2026-07-16") ever appears in the disclosure.
     const tree = JSON.stringify(screen.toJSON());
@@ -163,7 +162,7 @@ describe('S25 — Consistency Dashboard', () => {
     const pushSpy = jest.spyOn(router, 'push').mockImplementation(() => undefined as never);
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
-    await user.press(screen.getByText('See full history →'));
+    await user.press(screen.getByText('Full history'));
     expect(pushSpy).toHaveBeenCalledWith('/progress/trend');
     pushSpy.mockRestore();
   });
