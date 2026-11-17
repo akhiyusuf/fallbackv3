@@ -48,7 +48,7 @@ function Fallback({ onRetry }: { onRetry: () => void }) {
         Something went wrong.
       </Text>
       <Text style={[styles.body, { color: t.color.textMuted }]}>
-        Your data is safe on this device. Try again — if it keeps happening, restart the app.
+        Your data is safe on this device. Try again. If it keeps happening, restart the app.
       </Text>
       <Button label="Try again" onPress={onRetry} variant="secondary" accessibilityLabel="Try again" />
     </View>

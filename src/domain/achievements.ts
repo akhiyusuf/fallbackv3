@@ -101,7 +101,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
     key: 'milestone-full-week',
     category: 'milestones',
     label: 'Full week',
-    description: 'A full 7/7 week — every due day resolved to shown up.',
+    description: 'A full 7/7 week: every due day resolved to shown up.',
     lockedHint: 'Show up on every due day for a full week.',
   },
   { key: 'tenure-first-day', category: 'tenure', label: 'First day', description: 'Day one.', lockedHint: 'Automatic on day one.' },

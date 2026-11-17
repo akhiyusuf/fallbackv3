@@ -18,4 +18,4 @@ export function parentDaysFor(cadence: Cadence): readonly Weekday[] {
   return [];
 }
 
-export const SAVE_FAILED = "Couldn't save that — try again.";
+export const SAVE_FAILED = "Couldn't save that. Try again.";

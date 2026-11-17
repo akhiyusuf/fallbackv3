@@ -120,7 +120,7 @@ describe('S22 Delete Confirmation — persist-failure state (REVIEW-M4.md item 7
     await screen.findByText('Delete this routine?');
     await userEvent.press(within(screen.getByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
 
-    expect(await screen.findByText("Couldn't delete — try again.")).toBeTruthy();
+    expect(await screen.findByText("Couldn't delete. Try again.")).toBeTruthy();
     const deleteButton = within(await screen.findByTestId('delete-task-sheet')).getByLabelText('Delete routine');
     const keepButton = await within(await screen.findByTestId('delete-task-sheet')).findByLabelText('Cancel');
     expect(deleteButton).toBeTruthy();

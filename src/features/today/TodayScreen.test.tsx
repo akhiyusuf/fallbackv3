@@ -116,7 +116,7 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen />);
     expect(screen.getByText('Nothing planned for today yet.')).toBeTruthy();
-    expect(screen.getByText('A blank slate. Add one small thing — something beats nothing.')).toBeTruthy();
+    expect(screen.getByText('A blank slate. Add one small thing. Something beats nothing.')).toBeTruthy();
     expect(screen.getByLabelText('Add your first task')).toBeTruthy();
   });
 
@@ -249,7 +249,7 @@ describe('S09 — Today', () => {
     const user = userEvent.setup();
     await render(withToastHost(<TodayScreen />));
     await user.press(screen.getByLabelText('Movement: Done'));
-    await waitFor(() => expect(screen.getByText("Couldn't save that — try again.")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Couldn't save that. Try again.")).toBeTruthy());
     expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
     expect(screen.queryByText('Ideal done')).toBeNull();
   });
@@ -263,7 +263,7 @@ describe('S09 — Today', () => {
     await render(withToastHost(<TodayScreen />));
     await user.press(screen.getByLabelText('Mark today off'));
     await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: null, mark: true }));
-    await waitFor(() => expect(screen.getByText('Today marked off — nothing due counts against your %.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Today marked off. Nothing due counts against your %.')).toBeTruthy());
   });
 
   it('whole-day off, currently off: every row reads "Off today" and its chip is disabled', async () => {
@@ -281,8 +281,8 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), chipState: 'todo' })], isLoading: false, isError: false });
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     await render(<TodayScreen reentryOverride reentryTaskIdOverride="t1" />);
-    expect(screen.getByText("No workout yesterday — that's okay.")).toBeTruthy();
-    expect(screen.getByText('Your consistency is intact — 84% · 26 of the last 30 days you showed up — ideal or fallback.')).toBeTruthy();
+    expect(screen.getByText("No workout yesterday. That's okay.")).toBeTruthy();
+    expect(screen.getByText('Your consistency is intact: 84% · 26 of the last 30 days you showed up, ideal or fallback.')).toBeTruthy();
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Even the fallback counts'));
     expect(push).toHaveBeenCalledWith('/task/t1?from=today');
@@ -294,7 +294,7 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen justAddedOverride />);
     expect(screen.getByText('Your first habit is set.')).toBeTruthy();
-    expect(screen.getByText('Do the ideal or the fallback today — either one counts.')).toBeTruthy();
+    expect(screen.getByText('Do the ideal or the fallback today. Either one counts.')).toBeTruthy();
   });
 
   it('tapping anywhere on the card row (not the chip) navigates to S20 with origin=today', async () => {

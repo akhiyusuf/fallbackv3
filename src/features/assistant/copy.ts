@@ -90,8 +90,8 @@ export const S37_COPY = {
 
 export const S38_COPY = {
   title: 'Fallback AI',
-  storeUnreachable: "Can't reach the App Store right now. Your own AI key still works — no store connection needed.",
-  storeUnavailableFinePrint: 'Store unavailable — try again shortly.',
+  storeUnreachable: "Can't reach the App Store right now. Your own AI key still works. No store connection needed.",
+  storeUnavailableFinePrint: 'Store unavailable. Try again shortly.',
   retry: 'Retry',
   headline: 'Just say it. AI builds it.',
   subcopy: 'Speak naturally. Fallback AI turns it into routines, events and courses, each with an ideal and a fallback.',
@@ -120,7 +120,7 @@ export const S38_COPY = {
     finePrint: "If your provider can't turn speech into text, you can still type.",
   },
   footerDisclosure:
-    'While subscribed, your conversation messages are processed by our AI provider to generate responses — separate from your habit data, which never leaves this device.',
+    'While subscribed, your conversation messages are processed by our AI provider to generate responses. That is separate from your habit data, which never leaves this device.',
   restoreNoneFound: 'No active subscription found.',
 } as const;
 
@@ -145,8 +145,8 @@ export const S39_COPY = {
   confirmAndroid: 'Confirm with fingerprint',
   verifying: 'Verifying…',
   success: 'Trial started. 7 days free.',
-  biometricFailed: "Face ID didn't recognize you — try again, or use your device passcode.",
-  purchaseError: "Couldn't complete the purchase. Nothing was charged — try again.",
+  biometricFailed: "Face ID didn't recognize you. Try again, or use your device passcode.",
+  purchaseError: "Couldn't complete the purchase. Nothing was charged. Try again.",
   retry: 'Retry',
   finePrint:
     'Payment will be charged to your Apple ID / Google Play account at confirmation. Auto-renews unless cancelled at least 24 hours before the trial ends. Manage or cancel anytime in App Store / Google Play Settings.',
@@ -155,20 +155,20 @@ export const S39_COPY = {
 export const S40_COPY = {
   title: 'Use your own AI key',
   intro:
-    'Connect any OpenAI-compatible endpoint — OpenAI, Groq, a local model server, or another provider. Your key is stored only on this device; requests go straight to your provider, never through Fallback\'s servers.',
+    'Connect any OpenAI-compatible endpoint: OpenAI, Groq, a local model server, or another provider. Your key is stored only on this device; requests go straight to your provider, never through Fallback\'s servers.',
   baseUrlLabel: 'API base URL',
   baseUrlPlaceholder: 'https://api.openai.com/v1',
   baseUrlHelper: 'The base URL of an OpenAI-compatible chat-completions API.',
   apiKeyLabel: 'API key',
   apiKeyPlaceholder: 'sk-…',
-  apiKeyHelper: 'Stored only on this device — never sent anywhere but your provider.',
+  apiKeyHelper: 'Stored only on this device. Never sent anywhere but your provider.',
   save: 'Save and connect',
   connecting: 'Connecting…',
   invalid: "Couldn't verify this endpoint. Double-check the URL and key, then try again.",
   successFull: "Connected. You're all set.",
   successFullSub: 'Taking you to Fallback AI…',
   successDegraded:
-    "Saved — this endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",
+    "Saved. This endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",
 } as const;
 
 export const S44_COPY = {
@@ -181,7 +181,7 @@ export const S44_COPY = {
   trialEndsPrefix: 'Trial ends in',
   trialSuffix: 'days, then $4.99/mo',
   trialActiveUnknown: 'Your free trial is active.',
-  freeFraming: "You're on the free plan. Free tier keeps every core feature — Fallback AI is optional.",
+  freeFraming: "You're on the free plan. Free tier keeps every core feature. Fallback AI is optional.",
   segmentMonthly: 'Monthly · $4.99/mo',
   segmentAnnual: 'Annual · $39.99/yr · Save 33%',
   confirmChange: 'Confirm change',
@@ -189,11 +189,11 @@ export const S44_COPY = {
   cancelHeading: 'Cancel subscription',
   manageIos: 'Manage in App Store',
   manageAndroid: 'Manage on Google Play',
-  manageHelper: 'Billing is handled by Apple/Google Play. Cancel anytime — access lasts through the paid period.',
+  manageHelper: 'Billing is handled by Apple/Google Play. Cancel anytime. Access lasts through the paid period.',
   restore: 'Restore purchases',
-  restoreHelper: 'Re-checks your store account for an active subscription — no sign-in needed.',
-  restoreSuccess: 'Restored — Fallback AI is active',
+  restoreHelper: 'Re-checks your store account for an active subscription. No sign-in needed.',
+  restoreSuccess: 'Restored. Fallback AI is active',
   restoreNone: 'No active subscription found on this account.',
-  errorStore: "Couldn't reach the store — try again.",
+  errorStore: "Couldn't reach the store. Try again.",
   opensAppStore: 'Opens the App Store',
 } as const;

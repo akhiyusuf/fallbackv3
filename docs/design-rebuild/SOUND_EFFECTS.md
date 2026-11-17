@@ -56,6 +56,16 @@ Round three offers: Skip today (playing card flicked onto a table, calendar page
 
 Measured after the edit, through the same 500 Hz high-pass: the tap loses 2.7 dB, the stamp 0.3, the page flip 0.1, the double flip 0.2. All four will come through a phone speaker.
 
+## Round-four answers (2026-11-17, after using the preview)
+
+- Tabs are silent (bottom bar and segmented tabs). Only buttons and switches sound.
+- The plus button, the add-menu rows and the "Tell Fallback AI" button play `tap`.
+- Switches play `tap` both ways; `toggle_on` and `toggle_off` are bundled but unused.
+- Rewards wait: `badge_earned`, `level_up` and `day_complete` start only after the sound
+  already playing has ended plus 500 ms, and never over each other. The milestone pop-up
+  appears with its sound. The rule and each sound's measured length are in
+  `src/services/sfx/timing.ts` (shared by the app and the preview).
+
 ## The edit (sound director pass)
 
 `sound-edit/edit.py` (needs ffmpeg) cuts all eighteen sounds from `sound-edit/raw/` into `sound-edit/out/` as 32 kHz mono 16-bit WAV, 966 KB in total, and writes `out/report.json` with the measured levels.

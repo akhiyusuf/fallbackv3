@@ -420,7 +420,7 @@ export default function S20ManageTask() {
         <View style={styles.block}>
           <SectionHeading>History</SectionHeading>
           {monthOccQuery.isError ? (
-            <InlineRetryBanner message="Couldn't load your history — try again." onRetry={() => monthOccQuery.refetch()} />
+            <InlineRetryBanner message="Couldn't load your history. Try again." onRetry={() => monthOccQuery.refetch()} />
           ) : (
             <Card>
               <CalendarHeatmap

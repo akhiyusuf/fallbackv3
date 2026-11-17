@@ -80,7 +80,7 @@ describe('S19 Create To-do/Note', () => {
 
     await userEvent.press(screen.getByLabelText('Save to-do'));
 
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that. Try again."));
     expect(screen.queryByText('MARKER_TODOS')).toBeNull();
     expect(await screen.findByDisplayValue('Call the vet about refill')).toBeTruthy();
   });

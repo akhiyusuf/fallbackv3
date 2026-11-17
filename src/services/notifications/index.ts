@@ -189,7 +189,7 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
         identifier: `${REMINDER_PREFIX}gentle-reentry:${yesterday}`,
         content: {
           title: 'A quiet invitation back',
-          body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.',
+          body: 'Yesterday slipped by. Today is a fresh one. Even the fallback counts.',
           data: { kind: 'gentle-reentry', taskId: task.id },
         },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -291,7 +291,7 @@ async function sendMilestoneNotification(): Promise<void> {
     if (!settings.notifications.master || !settings.notifications.milestoneReached) return;
     if (!(await hasPermission())) return;
     await Notifications.scheduleNotificationAsync({
-      content: { title: 'Milestone reached', body: "You've hit a new level or badge — nice work." },
+      content: { title: 'Milestone reached', body: "You've hit a new level or badge. Nice work." },
       trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
     });
   } catch {

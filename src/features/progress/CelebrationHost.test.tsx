@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 
 import { ACHIEVEMENTS } from '@/domain';
@@ -8,7 +8,16 @@ import { play } from '@/services/sfx';
 
 import { CelebrationHost } from './CelebrationHost';
 
-jest.mock('@/services/sfx', () => ({ play: jest.fn() }));
+// The real `play` starts a reward when nothing else is sounding and tells the pop-up through `onStart`.
+// Here it starts at once, unless a test holds it back through `mockHold`.
+const mockHold: { current: (() => void)[] | null } = { current: null };
+jest.mock('@/services/sfx', () => ({
+  play: jest.fn((_name: string, _delayMs?: number, onStart?: () => void) => {
+    if (mockHold.current) mockHold.current.push(() => onStart?.());
+    else onStart?.();
+    return () => undefined;
+  }),
+}));
 
 function labelOf(key: string): string {
   const def = ACHIEVEMENTS.find((a) => a.key === key);
@@ -19,6 +28,7 @@ function labelOf(key: string): string {
 describe('CelebrationHost (milestone pop-up)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockHold.current = null;
     useCelebrationStore.setState({ queue: [] });
     // Calm cross-fade confetti path, so the particle timers never run in these tests.
     jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
@@ -41,7 +51,7 @@ describe('CelebrationHost (milestone pop-up)', () => {
 
     expect(screen.getByText("You've reached 1 Year.")).toBeTruthy();
     expect(screen.queryByText(`Badge earned: ${labelOf('showing-up-7')}.`)).toBeNull();
-    expect(play).toHaveBeenCalledWith('badge_earned', 600);
+    expect(play).toHaveBeenCalledWith('badge_earned', 300, expect.any(Function));
 
     await user.press(screen.getByLabelText('Nice'));
 
@@ -52,6 +62,17 @@ describe('CelebrationHost (milestone pop-up)', () => {
     await user.press(screen.getByLabelText('Nice'));
     expect(useCelebrationStore.getState().queue).toEqual([]);
     expect(screen.queryByLabelText('Nice')).toBeNull();
+  });
+
+  it('a milestone stays hidden until its sound may start, then appears with it', async () => {
+    mockHold.current = [];
+    useCelebrationStore.setState({ queue: [{ kind: 'level-up', lifetimeXp: 150 }] });
+    await render(<CelebrationHost />);
+    expect(play).toHaveBeenCalledWith('level_up', 300, expect.any(Function));
+    expect(screen.queryByText("You're now Level 2.")).toBeNull();
+
+    await act(async () => mockHold.current?.forEach((start) => start()));
+    expect(screen.getByText("You're now Level 2.")).toBeTruthy();
   });
 
   it('a level-up shows the level title from levelFor(xp), never a hardcoded title', async () => {

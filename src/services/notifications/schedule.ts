@@ -106,7 +106,7 @@ export function buildRollingSchedule(input: {
             taskId: task.id,
             date,
             timeOfDay: task.timeOfDay ?? DEFAULT_TIME_OF_DAY,
-            title: `${task.name} — today's dose`,
+            title: `${task.name}: today's dose`,
             body: 'Log it when you take it.',
           });
         }

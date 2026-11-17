@@ -118,13 +118,13 @@ describe('S41 — Settings Home', () => {
       expect(screen.getByLabelText('Sounds, off')).toBeTruthy();
     });
 
-    it('turning it back on changes the store and answers with exactly one switch sound', async () => {
+    it('turning it back on changes the store and answers with exactly one press sound', async () => {
       useSoundStore.setState({ on: false });
       const user = userEvent.setup();
       await render(<S41SettingsHome />);
       await user.press(screen.getByLabelText('Sounds, off'));
       expect(useSoundStore.getState().on).toBe(true);
-      expect(startedSounds()).toEqual([SOUND_FILES.toggle_on]);
+      expect(startedSounds()).toEqual([SOUND_FILES.tap]);
     });
   });
 

@@ -52,7 +52,7 @@ describe('S18 Create Course', () => {
     await userEvent.type(fallback, 'Take the dose');
 
     await userEvent.press(screen.getByLabelText('Save course'));
-    expect(await screen.findByText('Set an end date — a course runs for a fixed span.')).toBeTruthy();
+    expect(await screen.findByText('Set an end date. A course runs for a fixed span.')).toBeTruthy();
   });
 
   it('>1 doses/day shows the per-dose helper copy (stepper)', async () => {
@@ -114,7 +114,7 @@ describe('S18 Create Course', () => {
 
     await userEvent.press(screen.getByLabelText('Save course'));
 
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that. Try again."));
     expect(screen.queryByText('MARKER_TODAY')).toBeNull();
     expect(await screen.findByDisplayValue('Antibiotics')).toBeTruthy();
   });

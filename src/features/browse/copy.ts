@@ -9,10 +9,10 @@ export const S10_COPY = {
   otherSection: 'Other routines',
   logUsedIt: 'Log used it',
   emptyNoRoutinesHeadline: 'Create your first routine',
-  emptyNoRoutinesSubcopy: 'Routines are the day-to-day habits you show up for — give one an ideal and a fallback.',
+  emptyNoRoutinesSubcopy: 'Routines are the day-to-day habits you show up for. Give one an ideal and a fallback.',
   emptyNoRoutinesAction: 'New routine',
   emptyNothingDueSubcopyPrefix: 'No routines on ',
-  emptyNothingDueSubcopySuffix: 's — enjoy the rest day, or add one to fill it.',
+  emptyNothingDueSubcopySuffix: 's. Enjoy the rest day, or add one to fill it.',
   emptyNothingDueHeadline: 'Nothing scheduled.',
   asNeededSection: 'As needed',
 } as const;
@@ -31,7 +31,7 @@ export const S11_COPY = {
   noEventsTodaySubcopyPrefix: 'Nothing on the calendar for ',
   noEventsTodaySubcopySuffix: '. Schedule a one-off whenever you need to.',
   noEventsAtAllHeadline: 'No events yet.',
-  noEventsAtAllSubcopy: 'Events are one-off or repeating plans at a set time — a dentist visit, a weekly dinner.',
+  noEventsAtAllSubcopy: 'Events are one-off or repeating plans at a set time, like a dentist visit or a weekly dinner.',
   newEvent: 'New event',
 } as const;
 
@@ -44,7 +44,7 @@ export const S12_COPY = {
   noActiveHeadline: 'No active courses right now.',
   noActiveSubcopy: "Start a new one whenever you're ready.",
   noCoursesAtAllHeadline: 'Start your first course',
-  noCoursesAtAllSubcopy: "Courses are habits with an end date — a medication, a 30-day challenge. Start one when you're ready.",
+  noCoursesAtAllSubcopy: "Courses are habits with an end date, like a medication or a 30-day challenge. Start one when you're ready.",
   newCourse: 'New course',
 } as const;
 
@@ -53,7 +53,7 @@ export const S13_COPY = {
   todosLens: 'To-dos',
   notesLens: 'Notes',
   emptyTodosHeadline: 'Nothing here yet.',
-  emptyTodosSubcopy: 'Jot down a to-do or note — no schedule required.',
+  emptyTodosSubcopy: 'Jot down a to-do or note. No schedule required.',
   emptyNotesHeadline: 'No notes yet.',
   emptyNotesSubcopy: "Loose thoughts, reminders, anything that doesn't need a schedule.",
   newTodoOrNote: 'New to-do or note',

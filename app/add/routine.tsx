@@ -68,7 +68,7 @@ export default function S16CreateRoutine() {
     );
     const idealEmpty = requiresIdeal && draft.idealSteps.length === 0;
     setIdealError(idealEmpty ? 'Add at least one ideal step to save this routine.' : undefined);
-    setFallbackError(requiresIdeal && draft.fallbackSteps.length === 0 ? 'Add a fallback — the smallest version for a hard day.' : undefined);
+    setFallbackError(requiresIdeal && draft.fallbackSteps.length === 0 ? 'Add a fallback: the smallest version for a hard day.' : undefined);
     const offending = requiresIdeal && !idealEmpty ? emptyRunOccurrences(draft) : [];
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));

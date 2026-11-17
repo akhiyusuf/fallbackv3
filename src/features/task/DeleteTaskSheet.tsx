@@ -50,7 +50,7 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin }: 
       loading={deleteTask.isPending}
       testID="delete-task-sheet"
     >
-      {failed ? <InlineRetryBanner message="Couldn't delete — try again." onRetry={confirmDelete} tone="warning" /> : null}
+      {failed ? <InlineRetryBanner message="Couldn't delete. Try again." onRetry={confirmDelete} tone="warning" /> : null}
     </ConfirmSheet>
   );
 }

@@ -72,7 +72,7 @@ export function useToolExecutor() {
           const created = tasksQuery.data?.find((t) => t.id === result.value) ?? null;
           return {
             applied: true,
-            summary: `Done — created ${call.args.name}, with a fallback for the days you're slammed 🌱`,
+            summary: `Done. Created ${call.args.name}, with a fallback for the days you're slammed 🌱`,
             taskId: result.value,
             task: created ?? undefined,
             undo: {
@@ -165,7 +165,7 @@ export function useToolExecutor() {
             chip: call.args.state,
           });
           if (!result.ok) return { applied: false, summary: '' };
-          return { applied: true, summary: `Got it — logged for ${existing.name}.`, taskId: existing.id };
+          return { applied: true, summary: `Got it. Logged for ${existing.name}.`, taskId: existing.id };
         }
 
         case 'ask_clarification':

@@ -6,10 +6,10 @@ import { EmptyState } from './EmptyState';
 describe('EmptyState', () => {
   it('renders headline and subcopy verbatim, with no action when none supplied', async () => {
     await render(
-      <EmptyState icon={Sprout} headline="Nothing planned for today yet." subcopy="A blank slate. Add one small thing — something beats nothing." />,
+      <EmptyState icon={Sprout} headline="Nothing planned for today yet." subcopy="A blank slate. Add one small thing. Something beats nothing." />,
     );
     expect(screen.getByRole('header', { name: 'Nothing planned for today yet.' })).toBeTruthy();
-    expect(screen.getByText('A blank slate. Add one small thing — something beats nothing.')).toBeTruthy();
+    expect(screen.getByText('A blank slate. Add one small thing. Something beats nothing.')).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
   });
 

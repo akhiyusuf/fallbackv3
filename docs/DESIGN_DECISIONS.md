@@ -1015,6 +1015,41 @@ we don't burn credits" (step 4).
   preview is checked on the published page under that policy, not only on
   the local build.
 
+### Round 4, sixteenth pass (2026-11-17, preview version 24)
+
+The human, after using the preview:
+
+- **"Switching tabs shouldn't have a ticking sound. It is only button presses
+  and switch presses that should have a sound."** The bottom tab bar and the
+  segmented tabs (`src/ui/Tabs.tsx`) are silent again.
+- **The plus button and the add-menu rows had no sound.** They now play the
+  press sound (`tap`), as does the "Tell Fallback AI" button.
+- **"The [sound] we are using for the tab should be used for the plus button
+  as well and for switches."** Switches now play `tap` both ways. The separate
+  `toggle_on` / `toggle_off` files stay in `assets/sfx/` but nothing plays
+  them (main session's reading of the sentence; one line in `src/ui/Switch.tsx`
+  to put them back).
+- **"Whenever an achievement is made, if a sound is currently being played,
+  that achievement should wait first ... timing is key."** Rule, in
+  `src/services/sfx/timing.ts`: a reward (`badge_earned`, `level_up`,
+  `day_complete`) starts only when whatever is sounding has finished plus
+  500 ms, and two rewards never overlap. The milestone pop-up now waits with
+  its sound and appears at the moment the sound starts
+  (`CelebrationHost`). Measured in the preview: done sound at 0.08 s, badge
+  sound and pop-up at 1.72 s.
+- **"The tell fallback AI button, it's not really looking like it's
+  pressable. It looks like it's just a notification."** It was a pale tinted
+  card. It is now built like the app's other buttons: solid accent face on a
+  darker edge that sinks when pressed, white mark, arrow on the right.
+- **"There's an M dash. Please do well to remove it because that makes it seem
+  as if this whole thing was built by an AI."** Every em dash in wording the
+  app shows (about 100 strings: toasts, empty states, onboarding, settings,
+  notifications, assistant replies written by the app) is replaced by a full
+  stop, comma, colon or brackets. Where a dash stood for "no value" it is now
+  the short dash already used on the Today ring. The assistant's instructions
+  (app and server copies) now tell it not to write em dashes either. This
+  departs from the dash-heavy wording in `design-input/`, on the human's word.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

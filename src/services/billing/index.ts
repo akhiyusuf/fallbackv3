@@ -172,7 +172,7 @@ export const billing: BillingProvider = {
       }
       return ok(false);
     } catch (cause) {
-      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store — try again.", cause });
+      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store. Try again.", cause });
     }
   },
 
@@ -199,7 +199,7 @@ export const billing: BillingProvider = {
       });
       return ok(undefined);
     } catch (cause) {
-      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store — try again.", cause });
+      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store. Try again.", cause });
     }
   },
 

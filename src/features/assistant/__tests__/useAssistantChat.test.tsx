@@ -105,7 +105,7 @@ describe('useAssistantChat', () => {
       await result.current.sendMessage('add call mom');
     });
     expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
-    expect(result.current.items.some((i) => i.kind === 'assistant' && i.text.startsWith('Done — created Call mom'))).toBe(true);
+    expect(result.current.items.some((i) => i.kind === 'assistant' && i.text.startsWith('Done. Created Call mom'))).toBe(true);
   });
 
   it('retry after an offline failure re-runs the model over the same transcript, without repeating the user bubble', async () => {

@@ -24,7 +24,7 @@ export const S25_COPY = {
   disclosureHeader: 'How the all-tasks number is calculated',
   disclosureColumns: ['Day', 'Due tasks', 'Shown up', 'Day fraction'] as const,
   emptyHeadline: 'No data yet',
-  emptySubcopy: 'Once a due day resolves — ideal, fallback, or missed — your consistency will show up here.',
+  emptySubcopy: 'Once a due day resolves (ideal, fallback, or missed), your consistency will show up here.',
   errorMessage: "Couldn't load your consistency right now.",
   retryLabel: 'Retry',
   offNotePerTask: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} off, not counted either way.`,
@@ -140,7 +140,7 @@ export const S28_COPY = {
    * nearly all of them (review pass 1, blocking item 5). Every level-up therefore gets this
    * tone-matched, non-pinned body instead (judgment call, same category as `OTHER_LOCKED_HINT`).
    */
-  levelUpBody: (level: number) => `Level ${level} — that's real consistency showing up, not luck.`,
+  levelUpBody: (level: number) => `Level ${level}. That's real consistency showing up, not luck.`,
   /** Not pinned by the design pass (the spec's "3 fresh badges" is that same worked example's
    *  count) — this module has no reachable-badges count to report, so this is generic,
    *  tone-matched forward copy (judgment call). */
@@ -150,11 +150,11 @@ export const S28_COPY = {
   /** Pinned verbatim ONLY for the 1-year tier — the design's own worked example (ALLSCREENS S28
    *  Copy). Rendering this sentence for any other tier is incoherent (a 1-week badge followed by
    *  "A full year with Fallback" — review pass 1, blocking item 5). */
-  tenureBodyPinned: "A full year with Fallback — however those days went. That's not a performance score, that's just time.",
+  tenureBodyPinned: "A full year with Fallback, however those days went. That's not a performance score, that's just time.",
   /** Not pinned by the design pass — tone-matched copy for every tenure tier other than 1-year,
    *  deliberately generic (never restates a specific duration the headline didn't earn) —
    *  judgment call, same category as `OTHER_LOCKED_HINT`. */
-  tenureBodyGeneric: "That's calendar time with Fallback — however those days went. Not a performance score, just time.",
+  tenureBodyGeneric: "That's calendar time with Fallback, however those days went. Not a performance score, just time.",
   dismissButton: 'Nice',
 } as const;
 

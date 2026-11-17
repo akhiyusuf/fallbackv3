@@ -19,8 +19,8 @@ describe('Toast', () => {
 
   it('renders the store message as an alert once shown', async () => {
     await render(<Toast />);
-    await act(async () => useToastStore.getState().show('Today marked off — nothing due counts against your %.'));
-    expect(alertFor('Today marked off — nothing due counts against your %.')).toBeTruthy();
+    await act(async () => useToastStore.getState().show('Today marked off. Nothing due counts against your %.'));
+    expect(alertFor('Today marked off. Nothing due counts against your %.')).toBeTruthy();
   });
 
   it('dismisses on tap', async () => {
@@ -41,8 +41,8 @@ describe('Toast', () => {
 
   it('a `success` toast sits on the inverse card surface, never a saturated ideal fill (Rule 4 intent)', async () => {
     await render(<Toast />);
-    await act(async () => useToastStore.getState().show('Restored — your data is back.', 'success'));
-    const alert = alertFor('Restored — your data is back.');
+    await act(async () => useToastStore.getState().show('Restored. Your data is back.', 'success'));
+    const alert = alertFor('Restored. Your data is back.');
     // The toast no longer tints by tone: every toast is the inverse-scheme card (light scheme -> dark palette).
     expect(flattenBg(alert.props.style)).toBe(PALETTES.dark.bgAlt);
     expect(flattenBg(alert.props.style)).not.toBe(PALETTES.light.ideal);

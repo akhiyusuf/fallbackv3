@@ -47,7 +47,7 @@ export function ConsistencyRing({ percent, size = 72, strokeWidth = 8, accessibi
           />
         ) : null}
       </Svg>
-      <Text style={[styles.label, { color: percent === null ? t.color.textDim : t.color.text }]}>{percent === null ? '—' : `${percent}%`}</Text>
+      <Text style={[styles.label, { color: percent === null ? t.color.textDim : t.color.text }]}>{percent === null ? '–' : `${percent}%`}</Text>
     </View>
   );
 }

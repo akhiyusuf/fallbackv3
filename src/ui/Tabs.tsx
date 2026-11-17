@@ -4,7 +4,6 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { play } from '@/services/sfx';
 import { FONT_SIZE, RADIUS, useTheme } from '@/theme';
 import { Text } from '@/ui/AppText';
 
@@ -34,10 +33,7 @@ export function Tabs({ items, value, onChange, accessibilityLabel, disabled = fa
             onPress={
               disabled
                 ? undefined
-                : () => {
-                    if (item.value !== value) play('tap');
-                    onChange(item.value);
-                  }
+                : () => onChange(item.value)
             }
             disabled={disabled}
             accessibilityRole="tab"

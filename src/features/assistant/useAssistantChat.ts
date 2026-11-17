@@ -114,7 +114,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
             setItems((prev) =>
               prev.map((it) => (it.id === entry.toolCallId && it.kind === 'edit-undo' ? { ...it, undone: true } : it)),
             );
-            appendItem({ id: newId(), kind: 'assistant', text: 'Reverted — changes moved back to their previous state.' });
+            appendItem({ id: newId(), kind: 'assistant', text: 'Reverted. Changes moved back to their previous state.' });
           },
         });
       } else if (call.name === 'log_state' || call.name === 'delete_task') {
@@ -226,7 +226,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
 
   const dismissClarification = useCallback(() => {
     setClarification(null);
-    appendItem({ id: newId(), kind: 'assistant', text: "No worries — let me know which one whenever you're ready." });
+    appendItem({ id: newId(), kind: 'assistant', text: "No worries. Let me know which one whenever you're ready." });
   }, [appendItem]);
 
   // The failed turn's user message is already in the transcript and in `historyRef`, so a retry

@@ -31,7 +31,7 @@ export const S42_COPY = {
   digestRow: 'Daily digest',
   emptyHeadline: 'No notifications set',
   emptySubcopy: "You won't get reminders or nudges. You can turn on just the ones you want, anytime.",
-  errorToast: "Couldn't save — try again.",
+  errorToast: "Couldn't save. Try again.",
 } as const;
 
 export const S43_COPY = {
@@ -55,7 +55,7 @@ export const S43_COPY = {
   previewStat: '3 of 5 done today',
   previewCaption: 'Ideal, fallback and off-day colours never change with your accent.',
   stateChipLabels: { done: 'Done', fallback: 'Fallback', skip: 'Skip', off: 'Off' },
-  errorToast: "Couldn't save — try again.",
+  errorToast: "Couldn't save. Try again.",
 } as const;
 
 export const S46_COPY = {
@@ -71,7 +71,7 @@ export const S46_COPY = {
   save: 'Save',
   footer: 'Widgets refresh automatically and always match your current theme and accent.',
   savedToast: 'Widget updated.',
-  errorToast: "Couldn't save — try again.",
+  errorToast: "Couldn't save. Try again.",
 } as const;
 
 export const S49_COPY = {
@@ -88,7 +88,7 @@ export const S49_COPY = {
     { label: 'Privacy policy', toast: 'Opening…' },
     { label: 'Terms of service', toast: 'Opening…' },
   ],
-  privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
+  privacy: 'No login. Your data lives on this device. No account to create or password to lose.',
   version: 'Fallback 1.0.0 (128)',
   tagline: 'Something beats nothing.',
 } as const;

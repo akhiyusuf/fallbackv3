@@ -15,15 +15,15 @@ export const S09_COPY = {
   statLabel: 'Showing up',
   statHelper: 'Share of due days you did the ideal or the fallback.',
   dueSection: 'Due today',
-  firstHabitBody: 'Do the ideal or the fallback today — either one counts.',
+  firstHabitBody: 'Do the ideal or the fallback today. Either one counts.',
   offToggleLabel: 'Mark today off',
-  offOnToast: 'Today marked off — nothing due counts against your %.',
-  offUnmarkToast: "Today's mark removed — your prior log is back.",
+  offOnToast: 'Today marked off. Nothing due counts against your %.',
+  offUnmarkToast: "Today's mark removed. Your prior log is back.",
   achievementsTeaser: 'Achievements',
   noDataStat: 'No data yet',
 
   blankSlateHeadline: 'Nothing planned for today yet.',
-  blankSlateSubcopy: 'A blank slate. Add one small thing — something beats nothing.',
+  blankSlateSubcopy: 'A blank slate. Add one small thing. Something beats nothing.',
   blankSlateAction: 'Add your first task',
 
   nothingDueHeadline: 'Nothing due right now.',
@@ -32,15 +32,15 @@ export const S09_COPY = {
 
   offTodayMeta: 'Off today',
 
-  reentryHeadline: "No workout yesterday — that's okay.",
+  reentryHeadline: "No workout yesterday. That's okay.",
   reentrySubcopy: "Rest is part of the rhythm. One off day doesn't undo anything.",
   reentryCta: 'Even the fallback counts',
-  reentryStatPrefix: 'Your consistency is intact — ',
-  reentryStatSuffix: ' you showed up — ideal or fallback.',
+  reentryStatPrefix: 'Your consistency is intact: ',
+  reentryStatSuffix: ' you showed up, ideal or fallback.',
 
   readFailure: "Couldn't load today's tasks. Your data is safe on this device.",
   retry: 'Retry',
-  chipRevertToast: "Couldn't save that — try again.",
+  chipRevertToast: "Couldn't save that. Try again.",
 
   assistantLabel: 'Fallback AI assistant',
   searchLabel: 'Search',

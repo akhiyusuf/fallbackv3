@@ -90,7 +90,7 @@ describe('S17 Create Event', () => {
 
     await userEvent.press(screen.getByLabelText('Save event'));
 
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that — try again."));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe("Couldn't save that. Try again."));
     expect(screen.queryByText('MARKER_TODAY')).toBeNull();
     expect(await screen.findByDisplayValue('Dentist visit')).toBeTruthy();
   });

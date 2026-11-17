@@ -14,6 +14,7 @@ import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 
 import { SOUND_FILES } from './sounds';
+import { schedule } from './timing';
 
 export type SoundName = keyof typeof SOUND_FILES;
 
@@ -64,7 +65,7 @@ function playerFor(name: SoundName): AudioPlayer | null {
 }
 
 // The sounds heard most are made ready the first time any sound plays, so they start on the press.
-const FREQUENT: readonly SoundName[] = ['tap', 'toggle_on', 'toggle_off', 'step_tick', 'log_ideal', 'log_fallback', 'log_skip', 'saved'];
+const FREQUENT: readonly SoundName[] = ['tap', 'step_tick', 'log_ideal', 'log_fallback', 'log_skip', 'saved'];
 let warmed = false;
 
 function start(name: SoundName): void {
@@ -83,9 +84,22 @@ function start(name: SoundName): void {
   }
 }
 
-/** Play a sound now, or after `delayMs` (so a reward can follow the tap that earned it). */
-export function play(name: SoundName, delayMs = 0): void {
-  if (!useSoundStore.getState().on) return;
-  if (delayMs > 0) setTimeout(() => start(name), delayMs);
-  else start(name);
+const NOTHING = (): void => undefined;
+
+/**
+ * Play a sound now, or after `delayMs`. A reward (badge, level, day finished) also waits for the
+ * sounds already playing to end (see `timing.ts`). `onStart` runs at the moment the sound starts,
+ * so a pop-up can arrive together with its sound; it still runs when sounds are switched off.
+ * Returns a function that calls the sound off if it has not started yet.
+ */
+export function play(name: SoundName, delayMs = 0, onStart?: () => void): () => void {
+  if (!useSoundStore.getState().on) {
+    if (!onStart) return NOTHING;
+    const timer = setTimeout(onStart, delayMs);
+    return () => clearTimeout(timer);
+  }
+  return schedule(name, delayMs, () => {
+    start(name);
+    onStart?.();
+  });
 }

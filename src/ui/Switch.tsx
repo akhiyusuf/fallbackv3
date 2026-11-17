@@ -47,7 +47,8 @@ export function Switch({ value, onValueChange, disabled = false, accessibilityLa
         if (disabled) return;
         // Change the value first, then play: the Sounds switch turns sounds off here, so its own "off" press is silent.
         onValueChange(!value);
-        play(value ? 'toggle_off' : 'toggle_on');
+        // The same press sound as a button, whichever way the switch goes.
+        play('tap');
       }}
       disabled={disabled}
       accessibilityRole="switch"

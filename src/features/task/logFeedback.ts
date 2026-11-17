@@ -17,7 +17,7 @@ export interface LogResultLike {
   readonly badgesUnlocked: readonly string[];
 }
 
-export const LOG_SAVE_FAILED = "Couldn't save that — try again.";
+export const LOG_SAVE_FAILED = "Couldn't save that. Try again.";
 
 export function useLogFeedback() {
   const showToast = useToastStore((s) => s.show);
@@ -29,7 +29,6 @@ export function useLogFeedback() {
       if (chip === 'done') play('log_ideal');
       else if (chip === 'fallback') play('log_fallback');
       else if (chip === 'skip') play('log_skip');
-      if (result.levelUp) play('level_up', 700);
       const detail = result.xpAwarded > 0 ? `+${result.xpAwarded} XP` : undefined;
       if (chip === 'done') showToast('Ideal done', 'success', { icon: 'ideal', detail, action });
       else if (chip === 'fallback') showToast('Fallback done', 'success', { icon: 'fallback', detail, action });

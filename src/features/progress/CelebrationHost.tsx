@@ -3,11 +3,11 @@
  * dismiss label for level-ups, badges and tenure marks. Mounted once in
  * app/_layout.tsx; shown over the dimmed current screen.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ACHIEVEMENTS, levelFor } from '@/domain';
-import { useCelebrationStore } from '@/app-shell/stores/celebration';
+import { useCelebrationStore, type Celebration } from '@/app-shell/stores/celebration';
 import { play } from '@/services/sfx';
 import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import { Button, Dialog, MilestoneBadge } from '@/ui';
@@ -17,16 +17,23 @@ import { Confetti } from './Confetti';
 import { S28_COPY, tenureBodyFor } from './copy';
 import { Text } from '@/ui/AppText';
 
+/** The shortest wait between earning a milestone and seeing it. */
+const POP_DELAY_MS = 300;
+
 export function CelebrationHost() {
   const t = useTheme();
   const current = useCelebrationStore((s) => s.queue[0]);
   const shift = useCelebrationStore((s) => s.shift);
-  // The badge sound belongs to the pop-up, so a queued badge sounds when it is shown, not when it is earned.
-  const badgeKey = current?.kind === 'badge' ? current.badgeKey : null;
+  // A milestone waits its turn. The press that earned it has its own sound (and its own toast);
+  // the pop-up and its sound arrive together once that sound has finished and a breath has
+  // passed (`play` holds a reward back while anything else is sounding). Two milestones earned
+  // at once are shown one after the other, each on the same terms.
+  const [arrived, setArrived] = useState<Celebration | null>(null);
   useEffect(() => {
-    if (badgeKey) play('badge_earned', 600);
-  }, [badgeKey]);
-  if (!current) return null;
+    if (!current) return;
+    return play(current.kind === 'badge' ? 'badge_earned' : 'level_up', POP_DELAY_MS, () => setArrived(current));
+  }, [current]);
+  if (!current || arrived !== current) return null;
 
   let badgeLabel: string;
   let Icon = LEVEL_UP_ICON;

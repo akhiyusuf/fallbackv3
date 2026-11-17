@@ -122,7 +122,7 @@ export default function S23AsNeededRoutineDetail() {
       <View style={styles.block}>
         <SectionHeading>History</SectionHeading>
         {history.length === 0 ? (
-          <EmptyLine>Not used yet. There is no schedule and no consistency score — log it whenever the situation comes up.</EmptyLine>
+          <EmptyLine>Not used yet. There is no schedule and no consistency score. Log it whenever the situation comes up.</EmptyLine>
         ) : (
           <ListGroup>
             {history.map((u) => (

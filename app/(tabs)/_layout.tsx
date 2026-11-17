@@ -5,7 +5,6 @@
 import { Tabs } from 'expo-router';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 
-import { play } from '@/services/sfx';
 import { PRIMARY_NAV_ITEMS } from '@/ui/BottomTabs';
 import { useTheme } from '@/theme';
 
@@ -34,7 +33,6 @@ export default function TabsLayout() {
   const t = useTheme();
   return (
     <Tabs
-      screenListeners={{ tabPress: () => play('tap') }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: t.accent.text,

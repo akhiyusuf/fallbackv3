@@ -6,12 +6,13 @@
  * is a coloured icon circle (D14) in one grouped list (D7).
  * Mounted once in app/_layout.tsx.
  */
-import { CalendarRange, ListTodo, Repeat, Timer } from 'lucide-react-native';
+import { CalendarRange, ChevronRight, ListTodo, Repeat, Timer } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useAddMenuStore } from '@/app-shell/stores/addMenu';
 import { ROUTES } from '@/navigation';
+import { play } from '@/services/sfx';
 import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { Dialog, ListGroup, ListRow, TaskIcon, VoiceMark } from '@/ui';
 import { Text } from '@/ui/AppText';
@@ -25,6 +26,8 @@ const ROWS = [
 
 const AI_TITLE = 'Tell Fallback AI';
 const AI_BODY = 'Say it or type it. It sets it up for you.';
+/** How far the button's face sits above its edge (the same lift as the round add button). */
+const AI_EDGE = 4;
 
 export function AddMenuHost() {
   const t = useTheme();
@@ -33,23 +36,29 @@ export function AddMenuHost() {
   const hide = useAddMenuStore((s) => s.hide);
   return (
     <Dialog visible={open} onClose={hide} title="What do you want to add?" accessibilityLabel="What do you want to add?" showClose>
+      {/* A real button, built like the app's other buttons: a solid face on a darker edge that
+          sinks when pressed, with an arrow. (As a pale tinted card it read as a notice.) */}
       <Pressable
         onPress={() => {
+          play('tap');
           hide();
           router.push(ROUTES.assistant as Href);
         }}
         accessibilityRole="button"
         accessibilityLabel={`${AI_TITLE}. ${AI_BODY}`}
         testID="add-pick-assistant"
-        style={({ pressed }) => [styles.ai, { backgroundColor: t.accent.soft, borderColor: pressed ? t.accent.text : t.accent.soft }]}
+        style={[styles.aiEdge, { backgroundColor: t.accent.fillEdge }]}
       >
-        <VoiceMark size={48} />
-        <View style={styles.aiText}>
-          <View style={styles.aiTitleRow}>
-            <Text style={[styles.aiTitle, { color: t.color.text }]}>{AI_TITLE}</Text>
+        {({ pressed }) => (
+          <View style={[styles.ai, { backgroundColor: t.accent.fill, marginBottom: pressed ? 0 : AI_EDGE }]}>
+            <VoiceMark size={44} fill={t.accent.onLarge} wave={t.accent.fill} />
+            <View style={styles.aiText}>
+              <Text style={[styles.aiTitle, { color: t.accent.on }]}>{AI_TITLE}</Text>
+              <Text style={[styles.aiBody, { color: t.accent.on }]}>{AI_BODY}</Text>
+            </View>
+            <ChevronRight size={22} color={t.accent.on} />
           </View>
-          <Text style={[styles.aiBody, { color: t.color.text }]}>{AI_BODY}</Text>
-        </View>
+        )}
       </Pressable>
       <ListGroup title="Or add it yourself">
         {ROWS.map((row) => (
@@ -60,6 +69,7 @@ export function AddMenuHost() {
             sublabel={row.descriptor}
             testID={`add-pick-type-${row.key}`}
             onPress={() => {
+              play('tap');
               hide();
               router.push(row.href as Href);
             }}
@@ -71,10 +81,9 @@ export function AddMenuHost() {
 }
 
 const styles = StyleSheet.create({
-  ai: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3, padding: SPACE.s3, borderRadius: RADIUS.lg, borderWidth: 1.5, minHeight: 76 },
-  aiIcon: { width: 48, height: 48, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
+  aiEdge: { borderRadius: RADIUS.lg },
+  ai: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3, paddingVertical: SPACE.s3, paddingHorizontal: SPACE.s3, borderRadius: RADIUS.lg, minHeight: 72 },
   aiText: { flex: 1, gap: 2 },
-  aiTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
-  aiTitle: { fontSize: FONT_SIZE.md, fontWeight: '700' },
-  aiBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  aiTitle: { fontSize: FONT_SIZE.md, fontWeight: '800' },
+  aiBody: { fontSize: FONT_SIZE.sm, lineHeight: 20, fontWeight: '600' },
 });

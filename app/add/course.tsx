@@ -56,11 +56,11 @@ export default function S18CreateCourse() {
     const endDateInvalid = endDate !== '' && !isValidLocalDateString(endDate);
     // Dates are stored as YYYY-MM-DD, so comparing the text compares the days.
     const endBeforeStart = !startDateInvalid && !endDateInvalid && endDate !== '' && endDate < startDate;
-    setEndDateError(!draft.endDate ? 'Set an end date — a course runs for a fixed span.' : endDateInvalid ? 'Pick an end date.' : endBeforeStart ? 'The end date is before the start date.' : undefined);
+    setEndDateError(!draft.endDate ? 'Set an end date. A course runs for a fixed span.' : endDateInvalid ? 'Pick an end date.' : endBeforeStart ? 'The end date is before the start date.' : undefined);
     setCadenceError(draft.cadence?.kind === 'specific-weekdays' && draft.cadence.weekdays.length === 0 ? 'Pick at least one day this course runs.' : undefined);
     const idealEmpty = idealSteps.length === 0;
     setIdealError(idealEmpty ? 'Add at least one ideal step to save this course.' : undefined);
-    setFallbackError(fallbackSteps.length === 0 ? 'Add a fallback — the smallest version for a hard day.' : undefined);
+    setFallbackError(fallbackSteps.length === 0 ? 'Add a fallback: the smallest version for a hard day.' : undefined);
     const offending = !idealEmpty ? emptyRunOccurrences(draft) : [];
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));

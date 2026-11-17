@@ -54,7 +54,7 @@ describe('S23 As-Needed Routine Detail', () => {
     fake.seedTask(asNeededTask());
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/as-needed', wrapper });
     expect(
-      await screen.findByText('Not used yet. There is no schedule and no consistency score — log it whenever the situation comes up.'),
+      await screen.findByText('Not used yet. There is no schedule and no consistency score. Log it whenever the situation comes up.'),
     ).toBeTruthy();
     expect(screen.queryByTestId('as-needed-heatmap')).toBeNull();
   });

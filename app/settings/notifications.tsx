@@ -79,10 +79,10 @@ export default function S42NotificationsSettings() {
   const samples: Record<string, { title: string; body: string; when: string }> = {
     routineDue: { title: `Time for your ${routineName}`, body: 'Too tired? The fallback still counts.', when: routine?.timeOfDay ? formatTimeOfDay(routine.timeOfDay) : 'now' },
     eventStarting: { title: `${eventName} is coming up`, body: 'Starting today.', when: event?.timeOfDay ? formatTimeOfDay(event.timeOfDay) : 'now' },
-    courseDose: { title: `${courseName} — today's dose`, body: 'Log it when you take it.', when: 'now' },
+    courseDose: { title: `${courseName}: today's dose`, body: 'Log it when you take it.', when: 'now' },
     courseEndingSoon: { title: `${courseName} is ending soon`, body: `Runs through ${course?.endDate ? shortDate(course.endDate) : 'Friday'}.`, when: 'now' },
-    gentleReentry: { title: 'A quiet invitation back', body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.', when: 'now' },
-    milestoneReached: { title: 'Milestone reached', body: "You've hit a new level or badge — nice work.", when: 'now' },
+    gentleReentry: { title: 'A quiet invitation back', body: 'Yesterday slipped by. Today is a fresh one. Even the fallback counts.', when: 'now' },
+    milestoneReached: { title: 'Milestone reached', body: "You've hit a new level or badge. Nice work.", when: 'now' },
     dailyDigest: { title: 'Your day, at a glance', body: "Check in on today's habits.", when: formatTimeOfDay(prefs.dailyDigestTime) },
   };
 
