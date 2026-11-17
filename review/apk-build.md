@@ -67,3 +67,20 @@ The APK was never installed or launched on a device or emulator (no emulator is 
 2. On the phone, open the file from the Files or Downloads app. If Android says installs from this source are blocked, tap Settings and allow "Install unknown apps" for that app (Files, Chrome, etc.), then go back.
 3. Tap Install, then Open. If Play Protect warns about an unknown developer (the app is signed with a test key), choose "Install anyway".
 4. When asked, allow notifications so reminders can work. To remove later: long-press the app icon, then Uninstall.
+
+## 9. Rebuild by the main session (after the report above)
+
+The APK was rebuilt at commit `5501822` (21:34 to 21:40 UTC, 2026-11-17, full build 6m10s, same command) so that it
+contains the changes made after the first build: tabs silent, press sound on the plus button, add-menu rows and
+switches, rewards waiting for the sound before them, the raised "Tell Fallback AI" button, and no em dashes in
+the app's wording. No prebuild was needed (no config change since the second prebuild).
+
+Checks on the rebuilt file (54,813,108 bytes, sha256 starts `864fa831ce4efcc9`): package `com.fallback.app` 1.0.0,
+target SDK 36; `AD_ID` permission absent; `allowBackup=false`; `apksigner` verifies (v2); 18 wav files;
+`arm64-v8a` only; the Hermes bundle contains "Tell Fallback AI", "Reminders" and "Couldn't save that. Try again"
+and no "— try again".
+
+`expo-asset` (the doctor's missing peer dependency): it is already linked into the Android build through the
+`expo` package (checked with `expo-modules-autolinking resolve`). Adding it as a direct dependency made npm move
+`expo-asset` and `expo-constants` to newer patch versions than this Expo release was built with, so that change
+was undone. Left as it is.
