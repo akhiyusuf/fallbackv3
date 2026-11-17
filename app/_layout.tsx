@@ -17,6 +17,8 @@ import { initNotificationsBridge } from '@/services/notifications';
 import { initWidgetsBridge } from '@/services/widgets';
 import { ThemeContext, buildTheme, resolveScheme } from '@/theme';
 import { Toast } from '@/ui/Toast';
+import { CelebrationHost } from '@/features/progress/CelebrationHost';
+import { AddMenuHost } from '@/features/task/AddMenuHost';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -76,6 +78,8 @@ function AppShell() {
       <ErrorBoundary>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.color.bg } }} />
       </ErrorBoundary>
+      <AddMenuHost />
+      <CelebrationHost />
       <Toast />
     </ThemeContext.Provider>
   );

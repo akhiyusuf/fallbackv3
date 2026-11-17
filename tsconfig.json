@@ -19,5 +19,5 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ],
-  "exclude": ["node_modules", ".expo-export-check", "server/dist"]
+  "exclude": ["node_modules", ".expo-export-check", "server/dist", "docs", "android", "ios"]
 }

@@ -1,20 +1,22 @@
 /** S14 — Filter & Search. F15. */
 import { useMemo, useState, type ReactNode } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { ChevronLeft, Search as SearchIcon } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Search as SearchIcon } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useOriginAwareBack, withOrigin, type ScreenOrigin } from '@/navigation';
 import { useTasks } from '@/queries';
 import { SPACE, useTheme } from '@/theme';
-import { Button, Card, EmptyState, IconButton, InlineRetryBanner, Input, Skeleton, Tag } from '@/ui';
+import { Button, EmptyState, InlineRetryBanner, Input, Screen, Skeleton } from '@/ui';
 import type { Importance, Necessity, TaskType, TaskWithSteps } from '@/types';
 
 import { BROWSE_SHARED_COPY } from '@/features/browse/copy';
-import { importanceLabel, necessityLabel, taskTypeLabel } from '@/features/browse/format';
-import { resolveTaskIcon } from '@/features/browse/resolveIcon';
+import { taskTypeLabel } from '@/features/browse/format';
+import { TaskCard } from '@/features/task/TaskCard';
+import { StatusPill, metaParts } from '@/features/task/TaskDetails';
 import { FilterChip } from './FilterChip';
 import { resultsCountLabel, S14_COPY } from './copy';
+import { Text } from '@/ui/AppText';
 
 const TYPE_OPTIONS: readonly { value: TaskType; label: string }[] = [
   { value: 'routine', label: S14_COPY.typeRoutine },
@@ -84,17 +86,23 @@ export default function SearchScreen() {
   const backLabel = S14_COPY.backLabels[origin as keyof typeof S14_COPY.backLabels] ?? S14_COPY.backLabels.today;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <View style={styles.header}>
-        <IconButton icon={ChevronLeft} accessibilityLabel={backLabel} onPress={goBack} />
-        <Text accessibilityRole="header" style={[styles.title, { color: t.color.text }]}>
-          {S14_COPY.title}
-        </Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Input label="" accessibilityLabel={S14_COPY.searchPlaceholder} placeholder={S14_COPY.searchPlaceholder} value={query} onChangeText={setQuery} />
-
+    <Screen
+      title={S14_COPY.title}
+      onBack={goBack}
+      backLabel={backLabel}
+      subheader={
+        <View style={styles.searchBar}>
+          <Input
+            label=""
+            accessibilityLabel={S14_COPY.searchPlaceholder}
+            placeholder={S14_COPY.searchPlaceholder}
+            value={query}
+            onChangeText={setQuery}
+            right={<View style={styles.searchIcon}><SearchIcon size={18} color={t.color.textDim} /></View>}
+          />
+        </View>
+      }
+    >
         <FilterGroup label={S14_COPY.typeGroupLabel}>
           {TYPE_OPTIONS.map((o) => (
             <FilterChip key={o.value} label={o.label} selected={types.includes(o.value)} onToggle={() => toggle(types, setTypes, o.value)} />
@@ -121,7 +129,7 @@ export default function SearchScreen() {
           ))}
         </FilterGroup>
 
-        {hasActiveFilters ? <Button label={S14_COPY.clearAll} variant="ghost" onPress={clearAll} accessibilityLabel={S14_COPY.clearAll} /> : null}
+        
 
         {tasksQuery.isLoading ? (
           <View style={styles.list}>
@@ -142,7 +150,10 @@ export default function SearchScreen() {
           />
         ) : (
           <>
-            <Text style={[styles.resultsCount, { color: t.color.textMuted }]}>{resultsCountLabel(results.length)}</Text>
+            <View style={styles.resultsHead}>
+              <Text style={[styles.resultsCount, { color: t.color.textMuted }]}>{resultsCountLabel(results.length)}</Text>
+              {hasActiveFilters ? <Button label={S14_COPY.clearAll} variant="ghost" onPress={clearAll} accessibilityLabel={S14_COPY.clearAll} /> : null}
+            </View>
             <View style={styles.list}>
               {results.map((tk) => (
                 <ResultRow key={tk.id} task={tk} onPress={() => openResult(tk)} />
@@ -150,8 +161,7 @@ export default function SearchScreen() {
             </View>
           </>
         )}
-      </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -166,35 +176,24 @@ function FilterGroup({ label, children }: { label: string; children: ReactNode }
 }
 
 function ResultRow({ task: tk, onPress }: { task: TaskWithSteps; onPress: () => void }) {
-  const t = useTheme();
-  const Icon = resolveTaskIcon(tk.icon);
   return (
-    <Card onPress={onPress} accessibilityLabel={`${tk.name}, ${taskTypeLabel(tk.type)}`}>
-      <View style={styles.rowHeader}>
-        <Icon size={22} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-        <Text style={[styles.name, { color: t.color.text }]}>{tk.name}</Text>
-      </View>
-      <View style={styles.tagRow}>
-        <Tag label={taskTypeLabel(tk.type)} />
-        {tk.isAsNeeded ? <Tag label={S14_COPY.asNeededTag} /> : null}
-        {tk.importance ? <Tag label={importanceLabel(tk.importance)} /> : null}
-        {tk.necessity ? <Tag label={necessityLabel(tk.necessity)} /> : null}
-      </View>
-    </Card>
+    <TaskCard
+      task={tk}
+      meta={metaParts({ schedule: tk.type === 'todo' && tk.isNote ? 'Note' : taskTypeLabel(tk.type), importance: tk.importance, necessity: tk.necessity, compact: true })}
+      status={tk.isAsNeeded ? <StatusPill label={S14_COPY.asNeededTag} /> : undefined}
+      showPlan={false}
+      onPress={onPress}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 },
-  title: { fontSize: 20, fontWeight: '700' },
-  scrollContent: { padding: SPACE.s3, gap: SPACE.s3 },
-  filterGroup: { gap: SPACE.s1 },
+  searchBar: { paddingHorizontal: SPACE.s3, paddingBottom: SPACE.s2 },
+  searchIcon: { paddingHorizontal: SPACE.s2 + 4 },
+  filterGroup: { gap: SPACE.s1 + 2 },
   filterGroupLabel: { fontSize: 14, fontWeight: '600' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-  list: { gap: SPACE.s2 },
-  resultsCount: { fontSize: 13 },
-  rowHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-  name: { fontSize: 16, fontWeight: '600', flex: 1 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
+  list: { gap: SPACE.s2 + 4 },
+  resultsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  resultsCount: { fontSize: 14 },
 });

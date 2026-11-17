@@ -4,13 +4,14 @@
  * of what a caller passes, by construction, matching the design's "simplified detail"
  * framing (S10's "Other routines" section, S23's reference card).
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SPACE, useTheme } from '@/theme';
 
 import { Button } from './Button';
 import { Card } from './Card';
 import type { IconComponent } from './icon';
+import { Text } from '@/ui/AppText';
 
 export interface AsNeededCardProps {
   readonly name: string;
@@ -59,5 +60,5 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   reference: { fontSize: 14, lineHeight: 20 },
   footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2, marginTop: SPACE.s1 },
-  lastUsed: { fontSize: 13 },
+  lastUsed: { fontSize: 12 },
 });

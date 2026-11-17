@@ -1,23 +1,60 @@
 /**
- * S43 — Theme & Accent    route: /settings/theme
- * Owner: M7. Features: F8.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S43)
+ * S43 — Theme. Appearance (D9), named themes with a small preview of each, and a strict set of
+ * extra colours. Every theme, named or not, is derived from one seed colour by `@/theme/engine`,
+ * so all of them pass the same contrast checks. The preview is the real Today card.
  */
+import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { Check } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Check, Dumbbell } from 'lucide-react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useThemeStore, useToastStore } from '@/app-shell';
 import { S43_COPY } from '@/features/settings/copy';
-import { SettingsHeader } from '@/features/settings/SettingsHeader';
+import { TodayTaskCard } from '@/features/today/TodayTaskCard';
 import { useSettings, useUpdateSettings } from '@/queries';
-import { ACCENTS, SPACE, useTheme } from '@/theme';
-import { Button, Card, OffDayToggle, ProgressRing, Skeleton, StateChip } from '@/ui';
-import type { AccentKey, ThemeMode } from '@/types';
+import { buildTheme, FONT_SIZE, RADIUS, seedForHue, SPACE, THEME_HUES, THEME_LABELS, THEME_ORDER, themeSeed, useTheme } from '@/theme';
+import { Radio, Screen, SectionHeading, Skeleton } from '@/ui';
+import type { AccentKey, ChipState, ThemeMode } from '@/types';
+import { Text } from '@/ui/AppText';
 
-const ACCENT_ORDER: readonly AccentKey[] = ['forge-orange', 'indigo', 'berry', 'plum'];
+function hueName(hue: number): string {
+  if (hue >= 40 && hue < 100) return 'Amber';
+  if (hue >= 170 && hue < 230) return 'Teal';
+  if (hue >= 270 && hue < 306) return 'Violet';
+  if (hue >= 306 && hue < 342) return 'Magenta';
+  return 'Rose';
+}
 
-export default function S43ThemeAndAccent() {
+function ThemeCard({ themeKey, label, selected, onPress }: { themeKey: AccentKey; label: string; selected: boolean; onPress: () => void }) {
+  const t = useTheme();
+  const d = buildTheme(t.scheme, themeKey);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ checked: selected }}
+      accessibilityLabel={`${label}${selected ? ', selected' : ''}`}
+      style={[styles.themeCard, { backgroundColor: t.color.bgAlt, borderColor: selected ? t.accent.text : t.color.border, borderWidth: selected ? 2 : 1, margin: selected ? 0 : 1 }]}
+    >
+      <View style={[styles.themeTop, { backgroundColor: d.accent.fill }]}>
+        <View style={[styles.themeRing, { borderColor: d.accent.onLarge }]} />
+        <View style={[styles.themeBar, { backgroundColor: d.accent.onLarge }]} />
+      </View>
+      <View style={[styles.themeMid, { backgroundColor: d.color.bg }]}>
+        <View style={[styles.themePill, { backgroundColor: d.color.idealSoft }]} />
+        <View style={[styles.themePill, { backgroundColor: d.color.fallbackSoft }]} />
+      </View>
+      <View style={styles.themeName}>
+        <Text numberOfLines={1} style={[styles.themeLabel, { color: t.color.text }]}>
+          {label}
+        </Text>
+        {selected ? <Check size={16} color={t.accent.text} /> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+export default function S43Theme() {
   const t = useTheme();
   const router = useRouter();
   const settingsQuery = useSettings();
@@ -27,6 +64,8 @@ export default function S43ThemeAndAccent() {
   const accent = useThemeStore((s) => s.accent);
   const setMode = useThemeStore((s) => s.setMode);
   const setAccent = useThemeStore((s) => s.setAccent);
+  const [previewChip, setPreviewChip] = useState<ChipState>('todo');
+  const [previewReopened, setPreviewReopened] = useState(false);
 
   function handleBack() {
     router.push('/settings' as Href);
@@ -54,120 +93,91 @@ export default function S43ThemeAndAccent() {
 
   if (settingsQuery.isLoading) {
     return (
-      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-        <SettingsHeader title={S43_COPY.title} onBack={handleBack} />
-        <View style={styles.content}>
-          <Skeleton height={80} />
-          <Skeleton height={80} />
-        </View>
-      </View>
+      <Screen title="Theme" onBack={handleBack}>
+        <Skeleton height={80} radius={16} />
+        <Skeleton height={80} radius={16} />
+      </Screen>
     );
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <SettingsHeader title={S43_COPY.title} onBack={handleBack} />
-      <View style={styles.content}>
-        <Card accessibilityLabel={S43_COPY.appearanceLabel}>
-          <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S43_COPY.appearanceLabel}</Text>
-          <View style={styles.optionRow} accessibilityRole="radiogroup" accessibilityLabel={S43_COPY.appearanceLabel}>
-            {S43_COPY.appearanceOptions.map((option) => {
-              const selected = mode === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => handleModeChange(option.value as ThemeMode)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={`${S43_COPY.appearanceLabel}, ${option.label}${selected ? ' selected' : ''}`}
-                  style={[styles.optionChip, { borderColor: selected ? t.accent.base : t.color.border, backgroundColor: selected ? t.accent.soft : t.color.bg }]}
-                >
-                  {selected ? <Check size={16} color={t.accent.deep} /> : null}
-                  <Text style={[styles.optionLabel, { color: selected ? t.accent.deep : t.color.text }]}>{option.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Card>
-
-        <Card accessibilityLabel={S43_COPY.accentLabel}>
-          <Text style={[styles.sectionLabel, { color: t.color.text }]}>{S43_COPY.accentLabel}</Text>
-          <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.accentHelper}</Text>
-          <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel={S43_COPY.accentLabel}>
-            {ACCENT_ORDER.map((key) => {
-              const selected = accent === key;
-              const swatch = ACCENTS[key];
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => handleAccentChange(key)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
-                  accessibilityLabel={`${S43_COPY.accentLabel}, ${swatch.label}${selected ? ' selected' : ''}`}
-                  style={[styles.swatch, { backgroundColor: swatch.base }]}
-                >
-                  {selected ? <Check size={18} color={t.color.textOnAccent} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </Card>
-
-        <Card
-          testID="theme-preview"
-          accessibilityLabel="Live preview, a non-interactive illustrative example"
-          accessibilityRole="summary"
-        >
-          <Text style={[styles.previewTaskName, { color: t.color.text }]}>{S43_COPY.previewTaskName}</Text>
-          <Text style={[styles.previewTaskMeta, { color: t.color.textMuted }]}>{S43_COPY.previewTaskMeta}</Text>
-
-          <View style={styles.chipRow} pointerEvents="none">
-            <PreviewChip caption={S43_COPY.stateChipLabels.done} value="done" />
-            <PreviewChip caption={S43_COPY.stateChipLabels.fallback} value="fallback" />
-            <PreviewChip caption={S43_COPY.stateChipLabels.skip} value="skip" />
-            <View style={styles.previewChipCol}>
-              <OffDayToggle value onValueChange={() => {}} label="" accessibilityLabel={S43_COPY.stateChipLabels.off} />
-              <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{S43_COPY.stateChipLabels.off}</Text>
-            </View>
-          </View>
-
-          <View style={styles.previewCtaRow} pointerEvents="none">
-            <Button label={S43_COPY.previewCta} onPress={() => {}} accessibilityLabel={S43_COPY.previewCta} />
-            <ProgressRing percent={60} size={48} label="3/5" accessibilityLabel={S43_COPY.previewStat} />
-          </View>
-
-          <Text style={[styles.previewFootnote, { color: t.color.textDim }]}>{S43_COPY.previewCaption}</Text>
-        </Card>
+    <Screen title="Theme" onBack={handleBack}>
+      <View style={styles.block}>
+        <SectionHeading>{S43_COPY.appearanceLabel}</SectionHeading>
+        <Radio label="" value={mode} options={S43_COPY.appearanceOptions} onChange={(v) => void handleModeChange(v as ThemeMode)} />
       </View>
-    </View>
-  );
-}
 
-function PreviewChip({ caption, value }: { caption: string; value: 'done' | 'fallback' | 'skip' }) {
-  const t = useTheme();
-  return (
-    <View style={styles.previewChipCol}>
-      <StateChip value={value} onChange={() => {}} disabled variant="compact" accessibilityLabel={caption} testID={`preview-chip-${value}`} />
-      <Text style={[styles.previewCaption, { color: t.color.textMuted }]}>{caption}</Text>
-    </View>
+      <View style={styles.block}>
+        <SectionHeading>Theme</SectionHeading>
+        <View style={styles.themeGrid} accessibilityRole="radiogroup" accessibilityLabel="Theme">
+          {THEME_ORDER.map((key) => (
+            <ThemeCard key={key} themeKey={key} label={THEME_LABELS[key]} selected={accent === key} onPress={() => void handleAccentChange(key)} />
+          ))}
+        </View>
+        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.accentHelper}</Text>
+      </View>
+
+      <View style={styles.block}>
+        <SectionHeading>{S43_COPY.moreColoursLabel}</SectionHeading>
+        <View style={styles.swatchRow} accessibilityRole="radiogroup" accessibilityLabel={S43_COPY.moreColoursLabel}>
+          {THEME_HUES.map((hue, i) => {
+            const key: AccentKey = `hue-${hue}`;
+            const selected = accent === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => void handleAccentChange(key)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                accessibilityLabel={`${hueName(hue)}, colour ${i + 1} of ${THEME_HUES.length}${selected ? ', selected' : ''}`}
+                style={[styles.swatch, { backgroundColor: seedForHue(hue), borderColor: selected ? t.color.text : t.color.bg }]}
+              >
+                {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.moreColoursHelper}</Text>
+      </View>
+
+      <View style={styles.block}>
+        <SectionHeading>Preview</SectionHeading>
+        <View testID="theme-preview" accessibilityLabel="Preview, an example only" style={styles.preview}>
+          <TodayTaskCard
+            name={S43_COPY.previewTaskName}
+            icon={Dumbbell}
+            color={accent === 'mono' ? undefined : themeSeed(accent)}
+            meta={['Routine', 'Daily']}
+            chip={previewChip}
+            reopened={previewReopened}
+            idealHint={S43_COPY.previewIdeal}
+            fallbackHint={S43_COPY.previewFallback}
+            onLog={(chip) => {
+              setPreviewChip(chip);
+              setPreviewReopened(false);
+            }}
+            onToggleReopen={() => setPreviewReopened((v) => !v)}
+          />
+          <Text style={[styles.helper, { color: t.color.textMuted }]}>{S43_COPY.previewNote}</Text>
+        </View>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  sectionLabel: { fontSize: 16, fontWeight: '600' },
-  helper: { fontSize: 14, lineHeight: 20 },
-  optionRow: { flexDirection: 'row', gap: SPACE.s2, flexWrap: 'wrap' },
-  optionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingVertical: SPACE.s1, paddingHorizontal: SPACE.s2, minHeight: 44 },
-  optionLabel: { fontSize: 14, fontWeight: '600' },
-  swatchRow: { flexDirection: 'row', gap: SPACE.s2 },
-  swatch: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  previewTaskName: { fontSize: 16, fontWeight: '700' },
-  previewTaskMeta: { fontSize: 13 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2, marginVertical: SPACE.s2 },
-  previewChipCol: { alignItems: 'center', gap: 4 },
-  previewCaption: { fontSize: 12 },
-  previewCtaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-  previewFootnote: { fontSize: 12, lineHeight: 18, marginTop: SPACE.s2 },
+  block: { gap: SPACE.s2 + 4 },
+  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  themeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
+  themeCard: { flexBasis: '30%', flexGrow: 1, maxWidth: '32%', borderRadius: RADIUS.md, overflow: 'hidden' },
+  themeTop: { height: 34, flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, paddingHorizontal: SPACE.s2 },
+  themeRing: { width: 16, height: 16, borderRadius: RADIUS.pill, borderWidth: 3 },
+  themeBar: { flex: 1, height: 5, borderRadius: 3 },
+  themeMid: { flexDirection: 'row', gap: SPACE.s1, padding: SPACE.s1 + 2 },
+  themePill: { flex: 1, height: 12, borderRadius: 6 },
+  themeName: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s1, paddingHorizontal: SPACE.s2, minHeight: 36 },
+  themeLabel: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: '600' },
+  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
+  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  preview: { gap: SPACE.s2 },
 });

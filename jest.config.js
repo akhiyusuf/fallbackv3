@@ -38,7 +38,8 @@ module.exports = {
         '<rootDir>/app/**/*.test.tsx',
       ],
       testPathIgnorePatterns: ['<rootDir>/src/domain/'],
-      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1', ...lucideCjs },
+      // Sound files are not JavaScript: a test gets a number, as Metro would give it an asset id.
+      moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1', '\\.wav$': '<rootDir>/__mocks__/soundFile.js', ...lucideCjs },
       transform: {
         // Reuse the preset's own babel-jest config so it cannot drift, extended to .mjs
         // for any future ESM-only dependency not covered by a name mapping above.

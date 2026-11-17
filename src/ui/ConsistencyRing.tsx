@@ -4,10 +4,11 @@
  * rendered in the neutral text colour, never the accent, since it is not something to
  * "complete." `percent === null` renders the no-data dash, never a fabricated 0%.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export interface ConsistencyRingProps {
   readonly percent: number | null;

@@ -1,35 +1,54 @@
 /**
- * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
- * (re-entry banner landing state).
+ * M3 — S09 Today (design/DESIGN_DECISIONS.md).
+ * Tab header (D4), grouped summary list (D7), task cards with the shared log
+ * control (D1) and toast feedback (D2). The add button hides while the app is
+ * empty (D15).
  */
+import { play } from '@/services/sfx';
 import { useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { Bell, ChevronRight, Mic, Plus, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Bell, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { roundHalfUp } from '@/lib/number';
-import { useConsistency, useLogState, useMarkOffDay } from '@/queries';
+import { useConsistency, useLogState, useMarkOffDay, useProgress } from '@/queries';
 import { ROUTES, withOrigin } from '@/navigation';
-import { SPACE, useTheme } from '@/theme';
-import { Button, Card, EmptyState, IconButton, InlineRetryBanner, OffDayToggle, Skeleton, StateChip } from '@/ui';
-import { useToastStore } from '@/app-shell';
+import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
+import {
+  Button,
+  Card,
+  EmptyLine,
+  EmptyState,
+  IconButton,
+  InlineRetryBanner,
+  ListGroup,
+  ListRow,
+  LogButtons,
+  LogStateChip,
+  ScreenHeader,
+  SectionHeading,
+  Skeleton,
+  Switch,
+  TaskIcon,
+  isLogged,
+} from '@/ui';
+import { useAddMenuStore, useToastStore } from '@/app-shell';
 import type { ChipState } from '@/types';
 
 import { cadenceHintLower, formatHeaderDate, formatTimeOfDay, taskTypeLabel } from '@/features/browse/format';
-import { resolveTaskIcon } from '@/features/browse/resolveIcon';
+import { Fab, FAB_CLEARANCE } from '@/features/browse/Fab';
+import { taskIconProps } from '@/features/browse/resolveIcon';
+import { MetaLine, StatusPill, planSummary } from '@/features/task/TaskDetails';
+import { LOG_SAVE_FAILED, useLogFeedback } from '@/features/task/logFeedback';
 import { reentryStatLine, S09_COPY, statLine } from './copy';
+import { usePriorityGroups } from '@/features/priorities/order';
+import { StatHero } from './StatHero';
+import { TodayTaskCard } from './TodayTaskCard';
 import { useTodayRows, type TodayRow } from './useTodayRows';
+import { Text } from '@/ui/AppText';
 
 const STAT_WINDOW_DAYS = 30;
-const FAB_SIZE = 56;
 
-/**
- * `reentryOverride`/`justAddedOverride`/`reentryTaskIdOverride` exist ONLY so a component test
- * can exercise the F14/first-task landing states without a real `expo-router` navigation
- * context to carry `?reentry=1`/`?justAdded=1`/`?taskId=` search params (the house pattern's
- * `useLocalSearchParams` returns empty params outside a navigator, by design). The real route
- * (`app/(tabs)/today.tsx`) never passes these — production behaviour is driven by the params.
- */
 export interface TodayScreenProps {
   readonly reentryOverride?: boolean;
   readonly justAddedOverride?: boolean;
@@ -39,54 +58,53 @@ export interface TodayScreenProps {
 export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
   const t = useTheme();
   const router = useRouter();
+  const openAddMenu = useAddMenuStore((st) => st.show);
   const showToast = useToastStore((s) => s.show);
+  const logFeedback = useLogFeedback();
   const params = useLocalSearchParams<{ justAdded?: string; reentry?: string; taskId?: string }>();
-
   const { date, rows, isLoading, isError, hasAnyTaskEver, refetch } = useTodayRows();
   const consistency = useConsistency({ scope: 'aggregate', window: 'last-30' });
+  const progress = useProgress();
+  const priorities = usePriorityGroups();
   const logState = useLogState();
   const markOffDay = useMarkOffDay();
-
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [reopenedTaskId, setReopenedTaskId] = useState<string | null>(null);
   const [reentryDismissed, setReentryDismissed] = useState(false);
+  const [justAddedDismissed, setJustAddedDismissed] = useState(false);
 
   const reentryTaskId = reentryTaskIdOverride ?? params.taskId;
   const isReentry = (reentryOverride ?? params.reentry === '1') && !reentryDismissed;
-  const isJustAdded = justAddedOverride ?? params.justAdded === '1';
-
+  const isJustAdded = (justAddedOverride ?? params.justAdded === '1') && !justAddedDismissed;
   const allDueOff = rows.length > 0 && rows.every((r) => r.occurrence.outcome === 'off');
+  const doneCount = rows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback').length;
 
-  async function handleToggleOff(next: boolean) {
+  async function handleToggleOff(next: boolean, isUndo = false) {
     const result = await markOffDay.mutateAsync({ date, taskId: null, mark: next });
     if (!result.ok) {
-      showToast(S09_COPY.chipRevertToast, 'warning');
+      showToast(LOG_SAVE_FAILED, 'warning');
       return;
     }
-    showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'success');
+    if (isUndo) return showToast('Undone', 'neutral');
+    showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral', { action: { label: 'Undo', onPress: () => void handleToggleOff(!next, true) } });
   }
 
-  async function handleLogChip(row: TodayRow, chip: ChipState) {
-    setExpandedTaskId(null);
+  async function handleLog(row: TodayRow, chip: ChipState, isUndo = false) {
+    setReopenedTaskId(null);
+    const previous: ChipState = row.occurrence.chipState ?? 'todo';
     const result = await logState.mutateAsync({ taskId: row.task.id, date, chip });
     if (!result.ok) {
-      showToast(S09_COPY.chipRevertToast, 'warning');
+      showToast(LOG_SAVE_FAILED, 'warning');
       return;
     }
-    if (result.value.celebrate !== 'none') {
-      // S24's route contract (M4-owned, `app/task/[id]/celebrate.tsx`): `variant`, `xp`,
-      // `levelUp`, `from` — the caller supplies these; `from=today` lets S24 (and, on a
-      // level-up, S28) return here afterward via `useOriginAwareBack`.
-      const q = new URLSearchParams({
-        variant: result.value.celebrate,
-        xp: String(result.value.xpAwarded),
-        levelUp: result.value.levelUp ? '1' : '0',
-        from: 'today',
-      });
-      if (!result.value.levelUp && result.value.badgesUnlocked.length > 0) {
-        q.set('badgeKey', result.value.badgesUnlocked[0] as string);
-      }
-      router.push(`/task/${row.task.id}/celebrate?${q.toString()}` as Href);
+    if (isUndo) {
+      showToast('Undone', 'neutral');
+      return;
     }
+    // The last thing due today just got done: the day's own sound follows the log sound.
+    const wasOpen = previous === 'todo';
+    const othersLogged = rows.every((r) => r.task.id === row.task.id || isLogged(r.occurrence.chipState));
+    if (wasOpen && (chip === 'done' || chip === 'fallback') && rows.length > 1 && othersLogged) play('day_complete', 650);
+    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void handleLog({ ...row, occurrence: { ...row.occurrence, chipState: chip } }, previous, true));
   }
 
   function openTask(taskId: string) {
@@ -98,223 +116,193 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
     return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
   }, [isReentry, rows, reentryTaskId]);
 
+  const percent = consistency.data?.percent ?? null;
+  const isBlankSlate = !isLoading && !isError && rows.length === 0 && !hasAnyTaskEver;
+
   return (
     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <View style={styles.header}>
-        <View>
-          <Text accessibilityRole="header" style={[styles.title, { color: t.color.text }]}>
-            {S09_COPY.title}
-          </Text>
-          <Text style={[styles.dateSubline, { color: t.color.textMuted }]}>{formatHeaderDate(date)}</Text>
-        </View>
-        <View style={styles.headerIcons}>
-          <IconButton icon={Mic} accessibilityLabel={S09_COPY.assistantLabel} onPress={() => router.push(ROUTES.assistant as Href)} />
-          <IconButton
-            icon={SearchIcon}
-            accessibilityLabel={S09_COPY.searchLabel}
-            onPress={() => router.push(withOrigin(ROUTES.search, 'today') as Href)}
-          />
-          <IconButton icon={SettingsIcon} accessibilityLabel={S09_COPY.settingsLabel} onPress={() => router.push(ROUTES.settings as Href)} />
-        </View>
-      </View>
+      <ScreenHeader
+        level="tab"
+        title={S09_COPY.title}
+        subtitle={formatHeaderDate(date)}
+        right={
+          <>
+            <IconButton icon={SearchIcon} accessibilityLabel={S09_COPY.searchLabel} onPress={() => router.push(withOrigin(ROUTES.search, 'today') as Href)} />
+            <IconButton icon={SettingsIcon} accessibilityLabel={S09_COPY.settingsLabel} onPress={() => router.push(ROUTES.settings as Href)} />
+          </>
+        }
+      />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <OffDayToggle value={allDueOff} onValueChange={handleToggleOff} label={S09_COPY.offToggleLabel} />
-
+      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, isBlankSlate && styles.blank]} showsVerticalScrollIndicator={false}>
         {isJustAdded ? (
-          <Card accessibilityLabel="First habit set">
-            <Text style={[styles.bannerText, { color: t.color.text }]}>
-              {`${S09_COPY.firstHabitBannerPrefix}${formatHeaderDate(date)}${S09_COPY.firstHabitBannerSuffix}`}
-            </Text>
+          <Card accessibilityLabel={S09_COPY.firstHabitBannerPrefix}>
+            <View style={styles.bannerRow}>
+              <Sprout size={20} color={t.color.idealDeep} accessibilityElementsHidden importantForAccessibility="no" />
+              <View style={styles.bannerTextCol}>
+                <Text style={[styles.bannerTitle, { color: t.color.text }]}>{S09_COPY.firstHabitBannerPrefix}</Text>
+                <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>{S09_COPY.firstHabitBody}</Text>
+              </View>
+              <IconButton icon={X} accessibilityLabel="Dismiss" size={18} onPress={() => setJustAddedDismissed(true)} />
+            </View>
           </Card>
         ) : null}
 
         {isReentry ? (
           <Card accessibilityLabel={`${S09_COPY.reentryHeadline} ${S09_COPY.reentrySubcopy}`}>
-            <View style={styles.reentryHeaderRow}>
-              <Bell size={18} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-              <View style={styles.reentryTextCol}>
-                <Text style={[styles.reentryHeadline, { color: t.color.text }]}>{S09_COPY.reentryHeadline}</Text>
-                <Text style={[styles.reentrySubcopy, { color: t.color.textMuted }]}>{S09_COPY.reentrySubcopy}</Text>
+            <View style={styles.bannerRow}>
+              <Bell size={20} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
+              <View style={styles.bannerTextCol}>
+                <Text style={[styles.bannerTitle, { color: t.color.text }]}>{S09_COPY.reentryHeadline}</Text>
+                <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>{S09_COPY.reentrySubcopy}</Text>
+                {percent !== null && consistency.data ? (
+                  <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>
+                    {reentryStatLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
+                  </Text>
+                ) : null}
               </View>
-              <IconButton icon={X} accessibilityLabel="Dismiss" variant="ghost" size={16} onPress={() => setReentryDismissed(true)} />
+              <IconButton icon={X} accessibilityLabel="Dismiss" size={18} onPress={() => setReentryDismissed(true)} />
             </View>
-            {consistency.data?.percent !== null && consistency.data !== undefined ? (
-              <Text style={[styles.reentryStat, { color: t.color.textMuted }]}>
-                {reentryStatLine(consistency.data.percent as number, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
-              </Text>
-            ) : null}
             {reentryTarget ? (
-              <Button
-                label={S09_COPY.reentryCta}
-                variant="ghost"
-                onPress={() => setExpandedTaskId(reentryTarget.task.id)}
-                accessibilityLabel={S09_COPY.reentryCta}
-              />
+              <Button label={S09_COPY.reentryCta} variant="secondary" onPress={() => openTask(reentryTarget.task.id)} accessibilityLabel={S09_COPY.reentryCta} fullWidth />
             ) : null}
           </Card>
         ) : null}
 
-        <Card onPress={() => router.push(ROUTES.progress as Href)} accessibilityLabel="See your consistency">
-          {consistency.isLoading ? (
-            <Skeleton width="60%" height={28} />
-          ) : (
-            <View style={styles.statRow}>
-              <Text style={[styles.statNumeral, { color: t.color.text }]}>
-                {consistency.data?.percent === null || consistency.data === undefined
-                  ? S09_COPY.noDataStat
-                  : statLine(consistency.data.percent as number, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
-              </Text>
-              <ChevronRight size={20} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
-            </View>
-          )}
-        </Card>
-
-        <Card onPress={() => router.push(ROUTES.achievements as Href)} accessibilityLabel={S09_COPY.achievementsTeaser}>
-          <View style={styles.statRow}>
-            <Trophy size={18} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-            <Text style={[styles.achievementsLabel, { color: t.color.text }]}>{S09_COPY.achievementsTeaser}</Text>
-            <ChevronRight size={20} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
-          </View>
-        </Card>
+        {isBlankSlate ? null : (
+          <StatHero
+            percent={percent}
+            loading={consistency.isLoading}
+            label={S09_COPY.statLabel}
+            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
+            onPress={() => router.push(ROUTES.progress as Href)}
+            accessibilityLabel={`${S09_COPY.statLabel}: ${percent === null ? S09_COPY.noDataStat : `${percent} percent`}. ${S09_COPY.statHelper}`}
+          />
+        )}
+        {isBlankSlate ? null : (
+          <ListGroup>
+            <ListRow
+              icon={Trophy}
+              label={S09_COPY.achievementsTeaser}
+              value={progress.data ? `Level ${progress.data.level.level}` : undefined}
+              onPress={() => router.push(ROUTES.achievements as Href)}
+            />
+            <ListRow
+              icon={ListOrdered}
+              label="Priorities"
+              value={priorities.groups.high.length > 0 ? `${priorities.groups.high.length} high` : undefined}
+              onPress={() => router.push(ROUTES.priorities as Href)}
+            />
+            <ListRow
+              label={S09_COPY.offToggleLabel}
+              sublabel="Nothing due counts against you."
+              right={<Switch value={allDueOff} onValueChange={handleToggleOff} accessibilityLabel={S09_COPY.offToggleLabel} />}
+            />
+          </ListGroup>
+        )}
 
         {isLoading ? (
           <View style={styles.list}>
-            <Skeleton height={72} />
-            <Skeleton height={72} />
-            <Skeleton height={72} />
+            <Skeleton height={120} radius={20} />
+            <Skeleton height={120} radius={20} />
+            <Skeleton height={120} radius={20} />
           </View>
         ) : isError ? (
           <InlineRetryBanner message={S09_COPY.readFailure} retryLabel={S09_COPY.retry} onRetry={refetch} />
-        ) : rows.length === 0 ? (
-          !hasAnyTaskEver ? (
-            <EmptyState
-              icon={Sprout}
-              headline={S09_COPY.blankSlateHeadline}
-              subcopy={S09_COPY.blankSlateSubcopy}
-              actionLabel={S09_COPY.blankSlateAction}
-              onAction={() => router.push(ROUTES.addPickType as Href)}
-            />
-          ) : (
-            <EmptyState
-              icon={Sprout}
-              headline={S09_COPY.nothingDueHeadline}
-              subcopy={S09_COPY.nothingDueSubcopy}
-              actionLabel={S09_COPY.nothingDueAction}
-              actionVariant="secondary"
-              onAction={() => router.push(ROUTES.addPickType as Href)}
-            />
-          )
+        ) : isBlankSlate ? (
+          <EmptyState
+            icon={Sprout}
+            headline={S09_COPY.blankSlateHeadline}
+            subcopy={S09_COPY.blankSlateSubcopy}
+            actionLabel={S09_COPY.blankSlateAction}
+            onAction={openAddMenu}
+          />
         ) : (
           <View style={styles.list}>
-            {rows.map((row) => (
-              <TaskRow
-                key={row.task.id}
-                row={row}
-                expanded={expandedTaskId === row.task.id}
-                onToggleExpand={() => setExpandedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
-                onSelectChip={(chip) => handleLogChip(row, chip)}
-                onOpen={() => openTask(row.task.id)}
-              />
-            ))}
+            <SectionHeading
+              right={rows.length > 0 ? <Text style={[styles.count, { color: t.color.textMuted }]}>{`${doneCount} of ${rows.length} done`}</Text> : undefined}
+            >
+              {S09_COPY.dueSection}
+            </SectionHeading>
+            {rows.length === 0 ? (
+              <EmptyLine>{`${S09_COPY.nothingDueHeadline} ${S09_COPY.nothingDueSubcopy}`}</EmptyLine>
+            ) : (
+              rows.map((row) => (
+                <TaskRow
+                  key={row.task.id}
+                  row={row}
+                  reopened={reopenedTaskId === row.task.id}
+                  onToggleReopen={() => setReopenedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
+                  onLog={(chip) => void handleLog(row, chip)}
+                  onOpen={() => openTask(row.task.id)}
+                />
+              ))
+            )}
           </View>
         )}
       </ScrollView>
 
-      <View style={[styles.fabWrap, { backgroundColor: t.accent.deep }]}>
-        <IconButton
-          icon={Plus}
-          variant="accent"
-          size={FAB_SIZE * 0.4}
-          accessibilityLabel={S09_COPY.addTaskLabel}
-          onPress={() => router.push(ROUTES.addPickType as Href)}
-        />
-      </View>
+      {isBlankSlate ? null : <Fab accessibilityLabel={S09_COPY.addTaskLabel} onPress={openAddMenu} />}
     </View>
   );
 }
 
-function metaLine(row: TodayRow): string {
+function scheduleParts(row: TodayRow, logged = false): string[] {
   const { task, occurrence } = row;
-  if (occurrence.outcome === 'off') return S09_COPY.offTodayMeta;
-  const parts = [taskTypeLabel(task.type)];
-  if (task.timeOfDay) parts.push(formatTimeOfDay(task.timeOfDay));
+  // The time leads, so the list reads as a day: 7:00 AM, then what it is.
+  const parts = task.timeOfDay ? [formatTimeOfDay(task.timeOfDay), taskTypeLabel(task.type)] : [taskTypeLabel(task.type)];
   if (task.type === 'course' && task.dosesPerDay > 1) {
-    parts.push(`dose ${occurrence.dosesCompleted}/${occurrence.dosesRequired} today`);
+    if (!logged) parts.push(`Dose ${occurrence.dosesCompleted} of ${occurrence.dosesRequired}`);
   } else if (task.cadence) {
-    parts.push(cadenceHintLower(task.cadence));
+    const hint = cadenceHintLower(task.cadence);
+    parts.push(hint.charAt(0).toUpperCase() + hint.slice(1));
   }
-  return parts.join(' · ');
+  return parts;
 }
 
 function TaskRow({
   row,
-  expanded,
-  onToggleExpand,
-  onSelectChip,
+  reopened,
+  onToggleReopen,
+  onLog,
   onOpen,
 }: {
   row: TodayRow;
-  expanded: boolean;
-  onToggleExpand: () => void;
-  onSelectChip: (chip: ChipState) => void;
+  reopened: boolean;
+  onToggleReopen: () => void;
+  onLog: (chip: ChipState) => void;
   onOpen: () => void;
 }) {
-  const t = useTheme();
-  const Icon = resolveTaskIcon(row.task.icon);
-  const isOff = row.occurrence.outcome === 'off';
-
+  const chip = row.occurrence.chipState;
+  const icon = taskIconProps(row.task);
   return (
-    <Card onPress={onOpen} accessibilityLabel={`${row.task.name}, ${metaLine(row)}`}>
-      <View style={styles.taskRow}>
-        <Icon size={22} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-        <View style={styles.taskTextCol}>
-          <Text style={[styles.taskName, { color: t.color.text }]}>{row.task.name}</Text>
-          <Text style={[styles.taskMeta, { color: t.color.textMuted }]}>{metaLine(row)}</Text>
-        </View>
-        <StateChip
-          variant="compact"
-          value={row.occurrence.chipState}
-          disabled={isOff}
-          accessibilityLabel={`${row.task.name} state`}
-          onChange={() => undefined}
-          onPressCompact={onToggleExpand}
-        />
-      </View>
-      {expanded ? (
-        <StateChip value={row.occurrence.chipState} accessibilityLabel={`Set state for ${row.task.name}`} onChange={onSelectChip} />
-      ) : null}
-    </Card>
+    <TodayTaskCard
+      name={row.task.name}
+      icon={icon.icon}
+      color={icon.color}
+      meta={scheduleParts(row, isLogged(chip))}
+      chip={chip}
+      reopened={reopened}
+      isOff={row.occurrence.outcome === 'off'}
+      offLabel={S09_COPY.offTodayMeta}
+      idealHint={planSummary(row.task.idealSteps)}
+      fallbackHint={planSummary(row.task.fallbackSteps)}
+      onLog={onLog}
+      onToggleReopen={onToggleReopen}
+      onOpen={onOpen}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: SPACE.s3,
-    paddingTop: SPACE.s3,
-    paddingBottom: SPACE.s2,
-  },
-  title: { fontSize: 24, fontWeight: '700' },
-  dateSubline: { fontSize: 14 },
-  headerIcons: { flexDirection: 'row', gap: SPACE.s1 },
-  scrollContent: { padding: SPACE.s3, gap: SPACE.s3, paddingBottom: SPACE.s8 + FAB_SIZE },
-  bannerText: { fontSize: 16, fontWeight: '600' },
-  reentryHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 },
-  reentryTextCol: { flex: 1, gap: 2 },
-  reentryHeadline: { fontSize: 16, fontWeight: '600' },
-  reentrySubcopy: { fontSize: 14, lineHeight: 20 },
-  reentryStat: { fontSize: 14, lineHeight: 20 },
-  statRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-  statNumeral: { fontSize: 20, fontWeight: '700', flexShrink: 1 },
-  achievementsLabel: { fontSize: 16, fontWeight: '600', flex: 1 },
-  list: { gap: SPACE.s2 },
-  taskRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-  taskTextCol: { flex: 1, gap: 2 },
-  taskName: { fontSize: 16, fontWeight: '600' },
-  taskMeta: { fontSize: 13 },
-  fabWrap: { position: 'absolute', right: SPACE.s3, bottom: SPACE.s4, borderRadius: 999 },
+  // Nothing yet: no add button to clear, and the taller Today header is allowed for, so the message sits where it does on every other tab.
+  blank: { paddingTop: 0, paddingBottom: SPACE.s2 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3, paddingBottom: FAB_CLEARANCE + SPACE.s4 },
+  bannerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 + 4 },
+  bannerTextCol: { flex: 1, gap: 2 },
+  bannerTitle: { fontSize: FONT_SIZE.base, fontWeight: '700' },
+  bannerBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  statNumeral: { fontSize: FONT_SIZE.xl, fontWeight: '700', minWidth: 56, fontVariant: ['tabular-nums'] },
+  count: { fontSize: FONT_SIZE.sm },
+  list: { gap: SPACE.s2 + 4 },
 });

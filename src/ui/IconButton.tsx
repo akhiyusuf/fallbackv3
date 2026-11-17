@@ -16,9 +16,9 @@ export interface IconButtonProps {
 
 export function IconButton({ icon: Icon, onPress, accessibilityLabel, variant = 'ghost', disabled = false, size = 22, testID }: IconButtonProps) {
   const t = useTheme();
-  const bg = variant === 'accent' ? t.accent.base : variant === 'danger' ? t.color.danger : 'transparent';
-  const shadow = variant === 'accent' ? t.accent.deep : variant === 'danger' ? t.color.dangerDeep : undefined;
-  const iconColor = variant === 'ghost' ? t.color.textMuted : t.color.iconOnSignal;
+  const bg = variant === 'accent' ? t.accent.fill : variant === 'danger' ? t.color.danger : 'transparent';
+  const shadow = variant === 'accent' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : undefined;
+  const iconColor = variant === 'ghost' ? t.color.textMuted : variant === 'accent' ? t.accent.onLarge : t.color.textOnAccent;
 
   return (
     <Pressable

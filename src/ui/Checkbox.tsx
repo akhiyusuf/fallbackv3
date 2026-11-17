@@ -1,8 +1,10 @@
 /** M0 kit — Verdant `Checkbox`. Plain binary control (S13 To-dos, S20 ideal-step rows). */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { play } from '@/services/sfx';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 
 import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export interface CheckboxProps {
   readonly checked: boolean;
@@ -19,7 +21,14 @@ export function Checkbox({ checked, onToggle, label, disabled = false, strikethr
   const t = useTheme();
   return (
     <Pressable
-      onPress={disabled ? undefined : onToggle}
+      onPress={
+        disabled
+          ? undefined
+          : () => {
+              if (!checked) play('step_tick');
+              onToggle();
+            }
+      }
       disabled={disabled}
       accessibilityRole="checkbox"
       accessibilityState={{ checked, disabled }}
@@ -31,10 +40,10 @@ export function Checkbox({ checked, onToggle, label, disabled = false, strikethr
       <View
         style={[
           styles.box,
-          { borderColor: checked ? t.accent.base : t.color.border, backgroundColor: checked ? t.accent.base : 'transparent' },
+          { borderColor: checked ? t.accent.fill : t.color.borderStrong, backgroundColor: checked ? t.accent.fill : 'transparent' },
         ]}
       >
-        {checked ? <Check size={14} color={t.color.textOnAccent} /> : null}
+        {checked ? <Check size={14} color={t.accent.on} /> : null}
       </View>
       <View style={styles.textCol}>
         <Text style={[styles.label, { color: t.color.text, textDecorationLine: strikethrough && checked ? 'line-through' : 'none' }]}>

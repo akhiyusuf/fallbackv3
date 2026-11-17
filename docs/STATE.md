@@ -4,6 +4,28 @@ _Updated after landing the human-supplied `docs/` bundle._
 
 ## Current position
 
+**2026-11-17 — THE PIPELINE IS RETIRED BY THE HUMAN (see the box at the top of
+`CLAUDE.md`).** New process: the main session owns the app code; Haiku
+subagents run tests and hunt bugs, fixing and reporting in `review/haiku/`;
+a Sonnet subagent builds the Android APK; the main session does the final
+review.
+
+Done so far under the new process:
+- The approved preview work (`docs/design-rebuild/design-rebuild.patch`, all
+  fifteen passes) is applied to `src/` and `app/`. The preview-only bridge is
+  left out.
+- What the browser preview faked is now real for a phone: sounds play through
+  `expo-audio` from `assets/sfx/` with the on/off choice kept on the device
+  (`src/services/sfx/`); the onboarding pictures are bundled from
+  `assets/onboarding/`; the Nunito typeface is bundled (`assets/fonts/`,
+  `expo-font` in `app.config.ts`) and every screen's `Text`/`TextInput` comes
+  from `src/ui/AppText.tsx`; the app has an icon and splash (placeholder: the
+  sprout pot on orange).
+- Non-test code type-checks. Tests and lint have NOT been brought up to date
+  with the design work: that is the Haiku agents' first job.
+
+Everything below this point describes the old pipeline's state and is history.
+
 **Phase 3 (BUILD) — WAVE 1 + F7 RESCOPE COMPLETE AND FROZEN. WAVE 2 BUILT —
 all five modules (M3–M7) report done, full repo green (97 suites / 613 tests,
 `tsc` clean). NONE YET CODE-REVIEWED — see "Wave 2" section near the end of

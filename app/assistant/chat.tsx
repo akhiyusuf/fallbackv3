@@ -3,14 +3,14 @@
  * Owner: M6. Features: F16.
  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S32)
  */
+import { play } from '@/services/sfx';
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { format } from 'date-fns';
-import { ArrowUp, Keyboard, Mic, MoreHorizontal, Sparkles, X } from 'lucide-react-native';
+import { ArrowUp, Keyboard, Mic, MoreHorizontal } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { getRecordingPermissionsAsync } from 'expo-audio';
 
-import { AssistantHeader } from '@/features/assistant/AssistantHeader';
 import { ClarificationModal } from '@/features/assistant/ClarificationModal';
 import { OptionsSheet } from '@/features/assistant/OptionsSheet';
 import { EditUndoBanner } from '@/features/assistant/EditUndoBanner';
@@ -23,8 +23,9 @@ import { useEntitlementStore, useToastStore } from '@/app-shell';
 import { billing } from '@/services/billing';
 import { parseLocalDate } from '@/lib/date';
 import type { Id } from '@/types';
-import { SPACE, useTheme } from '@/theme';
-import { Button, Card, IconButton, Input, InlineRetryBanner, Skeleton } from '@/ui';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
+import { Button, Dialog, IconButton, Input, InlineRetryBanner, Screen, Skeleton } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 export default function S32AssistantConversation() {
   const t = useTheme();
@@ -86,7 +87,7 @@ export default function S32AssistantConversation() {
     // caller (docs/API.md §3: a mutation never reports success on a failed write). The
     // returned flag also tells `OptionsSheet` whether to keep its optimistic override.
     const saved = await voiceLanguage.save({ language, voice });
-    showToast(saved ? S36_COPY.savedToast : 'Could not save that — try again.', saved ? 'success' : 'warning');
+    showToast(saved ? S36_COPY.savedToast : 'Could not save that. Try again.', saved ? 'success' : 'warning');
     return saved;
   }
 
@@ -102,10 +103,6 @@ export default function S32AssistantConversation() {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [items.length, isStreaming]);
 
-  function handleClose() {
-    setShowRecap(true);
-  }
-
   function handleDoneRecap() {
     if (router.canGoBack()) router.back();
     else router.replace('/assistant' as Href);
@@ -119,6 +116,7 @@ export default function S32AssistantConversation() {
 
   async function handleMicToggle() {
     if (modality === 'voice') {
+      play('ai_stop');
       setModality('text');
       return;
     }
@@ -129,6 +127,7 @@ export default function S32AssistantConversation() {
       router.push('/assistant/mic-primer?context=recovery' as Href);
       return;
     }
+    play('ai_start');
     setModality('voice');
     // Honest disclosure of what's still stubbed: the native record → transcribe → send loop
     // itself (driving `expo-audio`'s recorder against real hardware) is legitimately
@@ -136,53 +135,52 @@ export default function S32AssistantConversation() {
     // visual modality state. That capture loop is the one seam left behind this comment.
   }
 
-  if (showRecap) {
-    return (
-      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-        <View style={styles.recap}>
-          <Text accessibilityRole="header" style={[styles.recapHeadline, { color: t.color.text }]}>
-            {S32_COPY.recapHeadline}
-          </Text>
-          <ScrollView contentContainerStyle={styles.recapList}>
-            {recap.taskCards.map((c) => (
-              <TaskCreatedCard key={c.id} task={c.task} />
-            ))}
-            {recap.editBanners.map((b) => (
-              <Card key={b.id} accessibilityLabel={b.label}>
-                <Text style={{ color: t.color.text }}>{b.label}</Text>
-              </Card>
-            ))}
-            {recap.taskCards.length === 0 && recap.editBanners.length === 0 ? (
-              <Text style={{ color: t.color.textMuted }}>Nothing changed in this chat.</Text>
-            ) : null}
-          </ScrollView>
-          <Text style={[styles.recapFooter, { color: t.color.textMuted }]}>{S32_COPY.recapFooter}</Text>
-          <Button label={S32_COPY.recapDone} onPress={handleDoneRecap} accessibilityLabel={S32_COPY.recapDone} fullWidth />
-        </View>
-      </View>
-    );
+  const recapEmpty = recap.taskCards.length === 0 && recap.editBanners.length === 0;
+
+  function handleBack() {
+    if (recapEmpty) handleDoneRecap();
+    else setShowRecap(true);
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <View style={styles.header}>
-        <IconButton icon={X} onPress={handleClose} accessibilityLabel="Close" />
-        <View style={styles.modalityIndicator}>
-          {modality === 'voice' ? <Mic size={16} color={t.color.textMuted} /> : <Keyboard size={16} color={t.color.textMuted} />}
-          <Sparkles size={14} color={t.accent.base} />
-          <Text style={[styles.wordmark, { color: t.color.textMuted }]}>Fallback AI</Text>
-        </View>
-        <IconButton icon={MoreHorizontal} onPress={() => setShowOptions(true)} accessibilityLabel="More options" />
-      </View>
-
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.transcript} accessibilityLiveRegion="polite">
+    <Screen
+      title="Fallback AI"
+      subtitle={modality === 'voice' ? 'Voice' : 'Typing'}
+      level="page"
+      onBack={handleBack}
+      right={<IconButton icon={MoreHorizontal} onPress={() => setShowOptions(true)} accessibilityLabel="More options" />}
+      scroll={false}
+      contentStyle={styles.noPad}
+      footer={
+        offline ? (
+          <>
+            <InlineRetryBanner message={S32_COPY.offline} onRetry={retryLast} retryLabel={S32_COPY.tryAgain} tone="warning" />
+            <Button label={S32_COPY.addTaskManually} onPress={() => router.replace('/add' as Href)} variant="secondary" accessibilityLabel={S32_COPY.addTaskManually} fullWidth />
+          </>
+        ) : (
+          <View style={styles.footerRow}>
+            <IconButton icon={modality === 'voice' ? Keyboard : Mic} onPress={handleMicToggle} accessibilityLabel={modality === 'voice' ? 'Switch to typing' : 'Switch to voice'} />
+            {modality === 'voice' ? (
+              <Text style={[styles.listeningLabel, { color: t.color.textMuted }]} accessibilityLiveRegion="polite">
+                {S32_COPY.listening}
+              </Text>
+            ) : (
+              <>
+                <View style={styles.flex}>
+                  <Input label="" value={text} onChangeText={setText} placeholder={S32_COPY.inputPlaceholder} accessibilityLabel="Type your request" onSubmitEditing={handleSend} />
+                </View>
+                <IconButton icon={ArrowUp} onPress={handleSend} disabled={text.trim().length === 0} variant="accent" accessibilityLabel="Send" />
+              </>
+            )}
+          </View>
+        )
+      }
+    >
+      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" ref={scrollRef} style={styles.flex} contentContainerStyle={styles.transcript} accessibilityLiveRegion="polite" showsVerticalScrollIndicator={false}>
+        {items.length === 0 && !isStreaming ? <Text style={[styles.hint, { color: t.color.textMuted }]}>{S32_COPY.emptyHint}</Text> : null}
         {items.map((item) => {
-          if (item.kind === 'user' || item.kind === 'assistant') {
-            return <TranscriptBubble key={item.id} role={item.kind} text={item.text} />;
-          }
-          if (item.kind === 'task-card') {
-            return <TaskCreatedCard key={item.id} task={item.task} />;
-          }
+          if (item.kind === 'user' || item.kind === 'assistant') return <TranscriptBubble key={item.id} role={item.kind} text={item.text} />;
+          if (item.kind === 'task-card') return <TaskCreatedCard key={item.id} task={item.task} />;
           return <EditUndoBanner key={item.id} label={item.label} onUndo={item.onUndo} undone={item.undone} />;
         })}
         {isStreaming ? (
@@ -192,37 +190,16 @@ export default function S32AssistantConversation() {
         ) : null}
       </ScrollView>
 
-      {offline ? (
-        <View style={styles.offlineFooter}>
-          <InlineRetryBanner message={S32_COPY.offline} onRetry={retryLast} retryLabel={S32_COPY.tryAgain} tone="warning" />
-          <Button
-            label={S32_COPY.addTaskManually}
-            onPress={() => router.replace('/add' as Href)}
-            variant="secondary"
-            accessibilityLabel={S32_COPY.addTaskManually}
-          />
-        </View>
-      ) : (
-        <View style={[styles.footer, { borderTopColor: t.color.border }]}>
-          <IconButton
-            icon={modality === 'voice' ? Keyboard : Mic}
-            onPress={handleMicToggle}
-            accessibilityLabel={modality === 'voice' ? 'Switch to typing' : 'Switch to voice'}
-          />
-          {modality === 'voice' ? (
-            <Text style={[styles.listeningLabel, { color: t.color.textMuted }]} accessibilityLiveRegion="polite">
-              {S32_COPY.listening}
-            </Text>
-          ) : (
-            <>
-              <View style={styles.inputWrap}>
-                <Input label="" value={text} onChangeText={setText} placeholder={S32_COPY.inputPlaceholder} accessibilityLabel="Type your request" />
-              </View>
-              <IconButton icon={ArrowUp} onPress={handleSend} disabled={text.trim().length === 0} variant="accent" accessibilityLabel="Send" />
-            </>
-          )}
-        </View>
-      )}
+      <Dialog visible={showRecap} onClose={() => setShowRecap(false)} title={S32_COPY.recapHeadline} accessibilityLabel={S32_COPY.recapHeadline}>
+        {recap.taskCards.map((c) => (
+          <TaskCreatedCard key={c.id} task={c.task} />
+        ))}
+        {recap.editBanners.map((b) => (
+          <EditUndoBanner key={b.id} label={b.label} onUndo={() => undefined} undone />
+        ))}
+        <Text style={[styles.hint, { color: t.color.textMuted }]}>{S32_COPY.recapFooter}</Text>
+        <Button label={S32_COPY.recapDone} onPress={handleDoneRecap} accessibilityLabel={S32_COPY.recapDone} fullWidth />
+      </Dialog>
 
       <ClarificationModal
         visible={!!clarification}
@@ -259,22 +236,15 @@ export default function S32AssistantConversation() {
         voiceLanguage={voiceLanguage.prefs}
         onSaveVoiceLanguage={handleSaveVoiceLanguage}
       />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: SPACE.s2 },
-  modalityIndicator: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 },
-  wordmark: { fontSize: 13, fontWeight: '600' },
-  transcript: { padding: SPACE.s3, gap: SPACE.s2 },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1, borderTopWidth: 1, padding: SPACE.s2 },
-  inputWrap: { flex: 1 },
-  listeningLabel: { fontSize: 15, flex: 1 },
-  offlineFooter: { padding: SPACE.s2, gap: SPACE.s2 },
-  recap: { flex: 1, padding: SPACE.s3, gap: SPACE.s3 },
-  recapHeadline: { fontSize: 22, fontWeight: '800' },
-  recapList: { gap: SPACE.s2 },
-  recapFooter: { fontSize: 14, lineHeight: 20 },
+  flex: { flex: 1 },
+  noPad: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
+  transcript: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, paddingBottom: SPACE.s4, gap: SPACE.s2 + 4 },
+  hint: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
+  listeningLabel: { fontSize: FONT_SIZE.base, flex: 1 },
 });

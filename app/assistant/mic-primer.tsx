@@ -1,18 +1,14 @@
-/**
- * S37 — Microphone Permission Primer    route: /assistant/mic-primer
- * Owner: M6. Features: F16, F9.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S37)
- */
+/** S37 — Microphone permission primer    route: /assistant/mic-primer */
 import { useEffect, useState } from 'react';
-import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
+import { AppState, Linking, StyleSheet, View } from 'react-native';
 import { Mic } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 
-import { AssistantHeader } from '@/features/assistant/AssistantHeader';
 import { S37_COPY } from '@/features/assistant/copy';
-import { SPACE, useTheme } from '@/theme';
-import { Button } from '@/ui';
+import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
+import { ButtonPair, Screen } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 export default function S37MicrophonePermissionPrimer() {
   const t = useTheme();
@@ -26,12 +22,7 @@ export default function S37MicrophonePermissionPrimer() {
     router.replace(`/assistant/chat?listen=${listen ? '1' : ''}` as Href);
   }
 
-  function handleBack() {
-    if (router.canGoBack()) router.back();
-    else router.replace('/assistant' as Href);
-  }
-
-  async function handlePrimaryPrimer() {
+  async function handleAllow() {
     setRequesting(true);
     try {
       const result = await requestRecordingPermissionsAsync();
@@ -41,14 +32,6 @@ export default function S37MicrophonePermissionPrimer() {
     }
   }
 
-  async function handlePrimaryRecovery() {
-    // B11 — `Linking.openSettings()` resolves as soon as Settings LAUNCHES, while the user is
-    // still inside Settings, not after they've actually toggled the permission and come back.
-    // Checking permission immediately here can never see the change. The real recheck happens
-    // in the `AppState` effect below, on the app's next foreground.
-    await Linking.openSettings();
-  }
-
   useEffect(() => {
     if (!isRecovery) return;
     const subscription = AppState.addEventListener('change', (state) => {
@@ -56,63 +39,56 @@ export default function S37MicrophonePermissionPrimer() {
       void (async () => {
         const status = await getRecordingPermissionsAsync();
         if (status.granted) goToChat(true);
-        // else: stays on this same recovery framing — no navigation needed, we're already here.
       })();
     });
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecovery]);
 
-  function handleSecondary() {
-    goToChat(false);
-  }
-
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <AssistantHeader onBack={handleBack} />
-      <View style={styles.content}>
-        <Mic size={40} color={t.accent.base} accessibilityElementsHidden importantForAccessibility="no" />
-        <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
-          {copy.headline}
-        </Text>
-        <Text style={[styles.body, { color: t.color.textMuted }]}>{copy.body}</Text>
-        {!isRecovery ? <Text style={[styles.secondaryLine, { color: t.color.textDim }]}>{S37_COPY.primer.secondaryLine}</Text> : null}
-        <Text style={[styles.reassurance, { color: t.color.textDim }]}>{S37_COPY.reassurance}</Text>
-
-        {requesting ? (
-          <Text style={[styles.waiting, { color: t.color.textMuted }]} accessibilityLiveRegion="polite">
-            {S37_COPY.waitingForPermission}
-          </Text>
-        ) : (
-          <View style={styles.actions}>
-            <Button
-              label={copy.primaryAction}
-              onPress={isRecovery ? handlePrimaryRecovery : handlePrimaryPrimer}
-              variant="primary"
-              accessibilityLabel={isRecovery ? 'Open system settings, button' : 'Enable microphone access, button'}
-              fullWidth
-            />
-            <Button
-              label={copy.secondaryAction}
-              onPress={handleSecondary}
-              variant="secondary"
-              accessibilityLabel={`${copy.secondaryAction}, button`}
-              fullWidth
-            />
-          </View>
-        )}
+    <Screen
+      title="Microphone"
+      level="page"
+      onBack={() => (router.canGoBack() ? router.back() : router.replace('/assistant' as Href))}
+      scroll={false}
+      contentStyle={styles.content}
+      footer={
+        <ButtonPair
+          primary={{
+            label: copy.primaryAction,
+            onPress: isRecovery ? () => void Linking.openSettings() : () => void handleAllow(),
+            loading: requesting,
+            accessibilityLabel: isRecovery ? 'Open system settings' : 'Allow microphone access',
+          }}
+          secondary={{ label: copy.secondaryAction, onPress: () => goToChat(false), disabled: requesting }}
+        />
+      }
+    >
+      <View style={[styles.iconWrap, { backgroundColor: t.accent.soft }]}>
+        <Mic size={32} color={t.accent.text} accessibilityElementsHidden importantForAccessibility="no" />
       </View>
-    </View>
+      <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
+        {copy.headline}
+      </Text>
+      <Text style={[styles.body, { color: t.color.textMuted }]}>{copy.body}</Text>
+      {isRecovery ? (
+        <Text style={[styles.note, { color: t.color.textMuted }]}>{S37_COPY.reassurance}</Text>
+      ) : (
+        <Text style={[styles.note, { color: t.color.textMuted }]}>{S37_COPY.primer.secondaryLine}</Text>
+      )}
+      {requesting ? (
+        <Text style={[styles.note, { color: t.color.textMuted }]} accessibilityLiveRegion="polite">
+          {S37_COPY.waitingForPermission}
+        </Text>
+      ) : null}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { flex: 1, padding: SPACE.s3, gap: SPACE.s2, alignItems: 'center', justifyContent: 'center' },
-  headline: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
-  body: { fontSize: 15, lineHeight: 22, textAlign: 'center' },
-  secondaryLine: { fontSize: 13, textAlign: 'center' },
-  reassurance: { fontSize: 13, textAlign: 'center' },
-  waiting: { fontSize: 15 },
-  actions: { gap: SPACE.s2, alignSelf: 'stretch', paddingTop: SPACE.s3 },
+  content: { alignItems: 'center', justifyContent: 'center', gap: SPACE.s2 + 4 },
+  iconWrap: { width: 72, height: 72, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s2 },
+  headline: { fontSize: FONT_SIZE.xl, fontWeight: '700', textAlign: 'center' },
+  body: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
+  note: { fontSize: FONT_SIZE.sm, lineHeight: 20, textAlign: 'center' },
 });

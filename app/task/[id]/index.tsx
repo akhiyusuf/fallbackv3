@@ -1,38 +1,43 @@
 /**
- * S20 — Manage Task Sheet    route: /task/:id
- * Owner: M4. Features: F3, F4, F7, F12, F23, F24.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S20)
- *
- * F7 snooze — see `src/features/task/snoozeSlot.ts` for the full non-negotiable contract
- * (SCHEMA.md §4.2, PRD §3.7): the action row has exactly two slots ("Duplicate" and ONE
- * snooze slot with three renderings), snooze takes no input, and there is no "Move to
- * another day" and no date picker anywhere on this screen.
+ * S20 — the task screen (DESIGN_DECISIONS D5).
+ * A pushed page: back chevron, coloured icon circle, the name as a title, and a
+ * "···" menu with Rename / Change icon / Duplicate / Delete. Logging uses the
+ * shared log control (D1); every confirmation and editor is a bottom sheet (D3).
+ * To-dos and untracked events only show what applies to them.
  */
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { play } from '@/services/sfx';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlarmClock, Copy, Undo2, X } from 'lucide-react-native';
+import { AlarmClock, CalendarDays, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
 
-import { ACCENTS, SPACE, useTheme } from '@/theme';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import {
-  Button,
+  ButtonPair,
   CalendarHeatmap,
   Card,
   Checkbox,
   Dialog,
+  EmptyLine,
   IconButton,
   InlineRetryBanner,
   Input,
-  OffDayToggle,
+  ListGroup,
+  ListRow,
+  LogButtons,
+  LogControl,
+  MenuSheet,
   Radio,
+  Screen,
+  SectionHeading,
   Skeleton,
-  StateChip,
   Switch,
-  Tag,
+  TaskIcon,
   WeekdayPicker,
+  TimeField,
 } from '@/ui';
 import { ROUTES, useOriginAwareBack } from '@/navigation';
-import { addDays, endOfMonth, startOfMonth, today as todayFn } from '@/lib/date';
+import { addDays, endOfMonth, now, startOfMonth, today as todayFn } from '@/lib/date';
 import { isDue, perTaskConsistency } from '@/domain';
 import {
   useConsistency,
@@ -48,38 +53,33 @@ import {
   useUpdateTask,
 } from '@/queries';
 import { useToastStore } from '@/app-shell/stores/toast';
+import { formatTimeOfDay } from '@/features/browse/format';
+import { taskColor } from '@/features/browse/resolveIcon';
 import { cadenceSummary } from '@/features/task/cadenceLabel';
-import { dayLongLabel, todayLongLabel } from '@/features/task/dateLabel';
-import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
+import { dayLongLabel } from '@/features/task/dateLabel';
+import { DeleteTaskSheet, TYPE_NOUN } from '@/features/task/DeleteTaskSheet';
+import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
 import { iconByName } from '@/features/task/iconCatalog';
-import type { ChipState, Id, Importance, Necessity, LocalDate, Occurrence, Weekday } from '@/types';
+import { useLogFeedback } from '@/features/task/logFeedback';
+import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
+import { PlanTiles, metaParts } from '@/features/task/TaskDetails';
+import { TaskHero } from '@/features/task/TaskHero';
+import { PriorityPlaceRow } from '@/features/priorities/PriorityPlaceRow';
+import { formatDateValue } from '@/ui';
+import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
+import { Text } from '@/ui/AppText';
 
-const IMPORTANCE_OPTIONS = [
-  { value: 'high', label: 'High' },
-  { value: 'med', label: 'Med' },
-  { value: 'low', label: 'Low' },
-];
-const NECESSITY_OPTIONS = [
-  { value: 'must-do', label: 'Must-do' },
-  { value: 'recommended', label: 'Recommended' },
-  { value: 'optional', label: 'Optional' },
-];
+const ALL_DAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
+const TYPE_TITLE = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' } as const;
 
-// SCHEMA §2 pins `doses_per_day` unbounded — the spec fixture's "Morning dose · 9:00a" /
-// "Evening dose · 9:00p" copy is the 2-dose fixture's own labels, not a cap (REVIEW-M4.md item
-// 5); any other dose count falls back to a generic ordinal label.
-function doseLabel(index: number, total: number): string {
-  if (total === 2) return index === 0 ? 'Morning dose · 9:00a' : 'Evening dose · 9:00p';
-  return `Dose ${index + 1}`;
-}
-
-export default function S20ManageTaskSheet() {
+export default function S20ManageTask() {
   const t = useTheme();
   const router = useRouter();
-  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
+  const { id, from, confirmDelete } = useLocalSearchParams<{ id: string; from?: string; confirmDelete?: string }>();
   const taskId = id as Id;
   const goBack = useOriginAwareBack(ROUTES.today);
   const showToast = useToastStore((s) => s.show);
+  const logFeedback = useLogFeedback();
 
   const taskQuery = useTask(taskId);
   const today = todayFn();
@@ -90,12 +90,7 @@ export default function S20ManageTaskSheet() {
   const monthFrom = startOfMonth(monthAnchor);
   const monthTo = endOfMonth(monthAnchor);
   const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
-  // Item 4 fix: emptiness is keyed on TASK-LIFETIME history (any log/off-mark ever), never the
-  // displayed month alone — a task neglected in just this month, but logged in others, must
-  // still show its real missed fills. `useConsistency`'s all-time per-task scope is the cheap
-  // existing read for this (M2's one pinned algorithm — no new query hook needed).
   const lifetimeConsistencyQuery = useConsistency({ scope: 'per-task', window: 'all-time', taskId });
-
   const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
 
   const updateTask = useUpdateTask();
@@ -107,100 +102,78 @@ export default function S20ManageTaskSheet() {
   const snoozeOccurrence = useSnoozeOccurrence();
   const undoSnooze = useUndoSnooze();
 
-  const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [editingImportance, setEditingImportance] = useState(false);
-  const [editingNecessity, setEditingNecessity] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState(false);
-  const [scheduleDraft, setScheduleDraft] = useState<Record<string, readonly Weekday[] | null> | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDraft, setScheduleDraft] = useState<Record<string, readonly Weekday[] | null>>({});
   const [scheduleError, setScheduleError] = useState<string | undefined>();
 
-  const task = taskQuery.data;
+  useEffect(() => {
+    if (confirmDelete === '1') setDeleteOpen(true);
+  }, [confirmDelete]);
 
+  const task = taskQuery.data;
   const todayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === today);
   const yesterdayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === yesterday);
   const isDueYesterday = task ? isDue(task, yesterday) : false;
   const isDueToday = task ? isDue(task, today) : false;
 
-  function goCelebrate(outcome: 'ideal' | 'fallback', xpAwarded: number, levelUp: boolean, badgesUnlocked: readonly string[]) {
-    const badgeParam = !levelUp && badgesUnlocked.length > 0 ? `&badgeKey=${badgesUnlocked[0]}` : '';
-    router.push(`/task/${taskId}/celebrate?variant=${outcome}&xp=${xpAwarded}&levelUp=${levelUp ? '1' : '0'}${badgeParam}&from=manage` as never);
+  function fail() {
+    showToast(SAVE_FAILED, 'warning');
   }
 
-  async function onChipChange(chip: ChipState) {
+  async function onChipChange(chip: ChipState, isUndo = false) {
+    const previous: ChipState = todayOccurrence?.chipState ?? 'todo';
     const result = await logState.mutateAsync({ taskId, date: today, chip });
-    if (!result.ok) {
-      showToast("Couldn't save that — try again.", 'warning');
-      return;
-    }
-    if (result.value.celebrate === 'ideal' || result.value.celebrate === 'fallback') {
-      goCelebrate(result.value.celebrate, result.value.xpAwarded, !!result.value.levelUp, result.value.badgesUnlocked);
-    }
+    if (!result.ok) return fail();
+    if (isUndo) return showToast('Undone', 'neutral');
+    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
   }
 
-  // Item 5 fix: each dose row carries its own full four-state StateChip. The persisted model
-  // (`dosesCompleted: number`, SCHEMA §2) is a contiguous handled-count, not a per-dose
-  // bitmap — Done/Fallback/Skip all "handle" a dose (advance the count to at least index+1,
-  // matching the day-level rule line's "once both are handled"); To-do un-handles it (and
-  // every dose after it, since the count is contiguous by construction).
-  async function onDoseChipChange(index: number, chip: ChipState) {
+  async function onDoseChange(index: number, chip: ChipState) {
     const current = todayOccurrence?.dosesCompleted ?? 0;
     const dosesCompleted = chip === 'todo' ? Math.min(current, index) : Math.max(current, index + 1);
     const result = await logDose.mutateAsync({ taskId, date: today, dosesCompleted });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+    if (!result.ok) fail();
   }
 
   async function onToggleStep(stepId: Id) {
     const prevOutcome = todayOccurrence?.outcome;
     const result = await toggleStep.mutateAsync({ taskId, date: today, stepId });
-    if (!result.ok) {
-      showToast("Couldn't save that — try again.", 'warning');
-      return;
-    }
+    if (!result.ok) return fail();
     const outcome = result.value.occurrence?.outcome;
     if ((outcome === 'ideal' || outcome === 'fallback') && outcome !== prevOutcome) {
-      goCelebrate(outcome, result.value.xpAwarded, !!result.value.levelUp, result.value.badgesUnlocked);
+      logFeedback(outcome === 'ideal' ? 'done' : 'fallback', result.value);
     }
   }
 
-  async function onNameBlur() {
-    if (nameDraft === null || !task || nameDraft === task.name) {
-      setNameDraft(null);
-      return;
-    }
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { name: nameDraft } });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
-    setNameDraft(null);
+  async function saveName() {
+    if (!task) return;
+    const next = nameDraft.trim();
+    if (next.length === 0 || next === task.name) return setRenameOpen(false);
+    const result = await updateTask.mutateAsync({ id: taskId, patch: { name: next } });
+    if (!result.ok) return fail();
+    setRenameOpen(false);
   }
 
-  async function onPickImportance(v: string) {
-    setEditingImportance(false);
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { importance: v as Importance } });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
-  }
-  async function onPickNecessity(v: string) {
-    setEditingNecessity(false);
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { necessity: v as Necessity } });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
-  }
-
-  async function onToggleSnoozable(value: boolean) {
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { snoozable: value } });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+  async function patch(p: Parameters<typeof updateTask.mutateAsync>[0]['patch']) {
+    const result = await updateTask.mutateAsync({ id: taskId, patch: p });
+    if (!result.ok) fail();
   }
 
   async function onToggleOffDay(value: boolean) {
     const result = await markOffDay.mutateAsync({ date: today, taskId, mark: value });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+    if (!result.ok) fail();
   }
 
   async function onDuplicate() {
     const result = await duplicateTask.mutateAsync(taskId);
     if (result.ok) {
-      showToast('Duplicated — edit & save as new.', 'success');
+      showToast('Duplicated. You are now on the copy.', 'success');
       router.replace(`/task/${result.value}` as never);
-    } else {
-      showToast("Couldn't save that — try again.", 'warning');
-    }
+    } else fail();
   }
 
   const snoozeSlot = task
@@ -210,380 +183,375 @@ export default function S20ManageTaskSheet() {
   async function onSnoozeSlotPress() {
     if (snoozeSlot.kind === 'undo') {
       const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
-      if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+      if (!result.ok) fail();
+      else showToast('Snooze undone', 'neutral');
       return;
     }
     if (!snoozeSlot.enabled) return;
     const result = await snoozeOccurrence.mutateAsync({ taskId, date: today });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+    if (!result.ok) fail();
+    else {
+      play('snooze');
+      showToast('Moved to tomorrow', 'neutral', {
+        action: {
+          label: 'Undo',
+          onPress: () =>
+            void (async () => {
+              const undone = await undoSnooze.mutateAsync({ taskId, date: today });
+              if (!undone.ok) fail();
+              else showToast('Back on today', 'neutral');
+            })(),
+        },
+      });
+    }
   }
 
-  function onDelete() {
-    router.push(`/task/${taskId}/delete?openedFrom=manage&origin=${from ?? ''}` as never);
-  }
-
-  function startScheduleEdit() {
+  function openSchedule() {
     if (!task) return;
     const draft: Record<string, readonly Weekday[] | null> = {};
     for (const s of task.idealSteps) draft[s.id] = s.dueWeekdays;
     setScheduleDraft(draft);
-    setEditingSchedule(true);
-  }
-
-  async function saveSchedule() {
-    if (!task || !scheduleDraft) return;
-    const parentDays: readonly Weekday[] =
-      task.cadence?.kind === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
-    const offending = parentDays.filter((d) => !task.idealSteps.some((s) => (scheduleDraft[s.id] ?? null) === null || scheduleDraft[s.id]!.includes(d)));
-    if (offending.length > 0) {
-      setScheduleError(`No ideal step is due on the highlighted day${offending.length > 1 ? 's' : ''}. Turn at least one back on.`);
-      return;
-    }
     setScheduleError(undefined);
-    const newSteps = [...task.idealSteps.map((s) => ({ ...s, dueWeekdays: scheduleDraft[s.id] ?? null })), ...task.fallbackSteps];
-    const result = await updateTask.mutateAsync({ id: taskId, patch: {}, steps: newSteps });
-    if (result.ok) setEditingSchedule(false);
-    else showToast("Couldn't save that — try again.", 'warning');
+    setScheduleOpen(true);
   }
 
   if (taskQuery.isLoading || !task) {
     return (
-      <ScrollView style={[styles.root, { backgroundColor: t.color.bg }]} contentContainerStyle={styles.content} testID="s20-loading">
+      <Screen onBack={goBack} testID="s20-loading">
         <Skeleton height={32} />
-        <Skeleton height={120} />
-        <Skeleton height={200} />
-      </ScrollView>
+        <Skeleton height={160} radius={16} />
+        <Skeleton height={200} radius={16} />
+      </Screen>
     );
   }
 
   const Icon = iconByName(task.icon);
+  const isTodo = task.type === 'todo';
+  const isNote = isTodo && task.isNote;
+  const noun = isNote ? 'note' : TYPE_NOUN[task.type];
+  const isTrackedTask = !isTodo && (task.idealSteps.length > 0 || task.fallbackSteps.length > 0);
   const isMultiDose = task.dosesPerDay > 1;
+  const parentDays: readonly Weekday[] =
+    task.cadence?.kind === 'daily' ? ALL_DAYS : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
+  const showScheduleEditor = isTrackedTask && parentDays.length > 1 && task.idealSteps.length > 1;
 
-  const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
+  async function saveSchedule() {
+    if (!task) return;
+    const offending = parentDays.filter((d) => !task.idealSteps.some((s) => (scheduleDraft[s.id] ?? null) === null || scheduleDraft[s.id]!.includes(d)));
+    if (offending.length > 0) {
+      setScheduleError('At least one step has to be due on every day this runs.');
+      return;
+    }
+    const newSteps = [...task.idealSteps.map((s) => ({ ...s, dueWeekdays: scheduleDraft[s.id] ?? null })), ...task.fallbackSteps];
+    const result = await updateTask.mutateAsync({ id: taskId, patch: {}, steps: newSteps });
+    if (result.ok) setScheduleOpen(false);
+    else fail();
+  }
 
-  // Item 4 fix: keyed on TASK-LIFETIME emptiness (any log/off-mark ever, via the all-time
-  // per-task consistency read), never the displayed month alone — a task with real history in
-  // OTHER months whose displayed month was simply neglected must show its genuine missed
-  // fills, not a blanked grid. `undefined` while the lifetime read is still loading — never
-  // flash the empty state.
+  const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const isEmptyHistory =
-    lifetimeConsistencyQuery.data !== undefined &&
-    lifetimeConsistencyQuery.data.denominator === 0 &&
-    lifetimeConsistencyQuery.data.breakdown.off === 0;
+    lifetimeConsistencyQuery.data !== undefined && lifetimeConsistencyQuery.data.denominator === 0 && lifetimeConsistencyQuery.data.breakdown.off === 0;
   const heatmapDays = (monthOccQuery.data ?? []).map((o) => ({
     date: o.date,
     dayOfMonth: Number(o.date.slice(8, 10)),
     outcome: isEmptyHistory && o.outcome === 'missed' ? ('not-due' as const) : o.outcome,
   }));
-
-  // Item 2 fix: derive the stat line from M2's ONE pinned `perTaskConsistency` implementation
-  // over the displayed month, never a local hand-rolled count (which wrongly included `off`
-  // days in the denominator and omitted the percent).
-  const monthConsistency = perTaskConsistency({
-    taskId,
-    occurrences: monthOccQuery.data ?? [],
-    window: { from: monthFrom, to: monthTo },
-    today,
-  });
+  const monthConsistency = perTaskConsistency({ taskId, occurrences: monthOccQuery.data ?? [], window: { from: monthFrom, to: monthTo }, today });
   const statLine =
     isEmptyHistory || monthConsistency.percent === null
       ? undefined
-      : `${monthConsistency.percent}% showed up — ${monthConsistency.numerator} of ${monthConsistency.denominator} days`;
+      : `Showed up ${monthConsistency.numerator} of ${monthConsistency.denominator} days (${monthConsistency.percent}%)`;
 
-  const parentDays: readonly Weekday[] =
-    task.cadence?.kind === 'daily' ? [1, 2, 3, 4, 5, 6, 7] : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
-  const showScheduleEditor = (task.cadence?.kind === 'daily' || task.cadence?.kind === 'specific-weekdays') && task.idealSteps.length > 0;
+  const when = [
+    task.eventDate ? formatDateValue(task.eventDate) : null,
+    task.timeOfDay ? formatTimeOfDay(task.timeOfDay) : null,
+    task.type === 'course' && task.startDate && task.endDate ? `${formatDateValue(task.startDate)} to ${formatDateValue(task.endDate)}` : null,
+  ];
+  const dosesDone = todayOccurrence?.dosesCompleted ?? 0;
+  const dueNow = !!todayOccurrence && todayOccurrence.outcome !== 'not-due';
+  const isOffToday = todayOccurrence?.outcome === 'off';
 
   return (
-    <ScrollView style={[styles.root, { backgroundColor: t.color.bg }]} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <IconButton icon={X} onPress={goBack} accessibilityLabel="Close" />
-        <Pressable
-          onPress={() => router.push(`/task/${taskId}/icon` as never)}
-          accessibilityRole="button"
-          accessibilityLabel="Change icon and color"
-          testID="s20-icon-avatar"
-          style={[styles.avatar, { backgroundColor: ACCENTS[task.color].base }]}
-        >
-          <Icon size={22} color={t.color.textOnAccent} />
-        </Pressable>
-        <View style={styles.nameCol}>
-          <Input label="Task name" value={nameDraft ?? task.name} onChangeText={setNameDraft} accessibilityLabel="Task name" testID="s20-name-input" />
-          {nameDraft !== null && nameDraft !== task.name ? (
-            <Button label="Save name" onPress={onNameBlur} variant="ghost" accessibilityLabel="Save name" testID="s20-save-name" />
-          ) : null}
-          <View style={styles.tagRow}>
-            <Tag label={cadenceSummary(task)} />
-            {editingImportance ? (
-              <Radio
-                label="Importance"
-                value={task.importance}
-                options={IMPORTANCE_OPTIONS}
-                onChange={onPickImportance}
-                testID="s20-importance-picker"
-              />
-            ) : (
-              <Pressable
-                onPress={() => setEditingImportance(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Importance, ${task.importance ? IMPORTANCE_OPTIONS.find((o) => o.value === task.importance)?.label : 'not set'}. Opens picker.`}
-                testID="s20-importance-tag"
-              >
-                <Tag label={task.importance ? IMPORTANCE_OPTIONS.find((o) => o.value === task.importance)?.label ?? '' : 'Importance'} />
-              </Pressable>
-            )}
-            {editingNecessity ? (
-              <Radio
-                label="Necessity"
-                value={task.necessity}
-                options={NECESSITY_OPTIONS}
-                onChange={onPickNecessity}
-                testID="s20-necessity-picker"
-              />
-            ) : (
-              <Pressable
-                onPress={() => setEditingNecessity(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Necessity, ${task.necessity ? NECESSITY_OPTIONS.find((o) => o.value === task.necessity)?.label : 'not set'}. Opens picker.`}
-                testID="s20-necessity-tag"
-              >
-                <Tag label={task.necessity ? NECESSITY_OPTIONS.find((o) => o.value === task.necessity)?.label ?? '' : 'Necessity'} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </View>
-
-      {!task.isAsNeeded ? (
-        <Card accessibilityLabel="Today's occurrence">
-          <Text style={[styles.dateLabel, { color: t.color.text }]}>{todayLongLabel(today)}</Text>
-          <Text style={[styles.ruleLine, { color: t.color.textMuted }]}>Steps set the state automatically — tap a state to override.</Text>
-
-          {isMultiDose ? (
-            <>
-              <StateChip
-                value={todayOccurrence?.chipState ?? null}
-                onChange={onChipChange}
-                accessibilityLabel="Whole day"
-                testID="s20-day-chip"
-              />
-              <Text style={[styles.ruleLine, { color: t.color.textMuted }]}>
-                Doses set the day's state automatically once both are handled — tap the day chip to override (Fallback/Skip), the same F3 mechanic
-                as any other task.
-              </Text>
-              <Text style={[styles.ruleLine, { color: t.color.textMuted }]}>
-                {todayOccurrence?.dosesCompleted ?? 0} of {task.dosesPerDay} doses done — the day isn&apos;t logged until both are handled, unless
-                you override it with the day chip above.
-              </Text>
-              <View style={styles.doseRow}>
-                {Array.from({ length: task.dosesPerDay }, (_, i) => i).map((i) => {
-                  const dosesCompleted = todayOccurrence?.dosesCompleted ?? 0;
-                  const doseDone = dosesCompleted >= i + 1;
-                  return (
-                    <StateChip
-                      key={i}
-                      value={doseDone ? 'done' : 'todo'}
-                      onChange={(chip) => onDoseChipChange(i, chip)}
-                      accessibilityLabel={doseLabel(i, task.dosesPerDay)}
-                      testID={`s20-dose-chip-${i}`}
-                    />
-                  );
-                })}
-              </View>
-            </>
-          ) : (
-            <>
-              <StateChip value={todayOccurrence?.chipState ?? null} onChange={onChipChange} accessibilityLabel="Today's state" testID="s20-chip" />
-              {task.idealSteps.map((step) => {
-                const dueToday = todayOccurrence?.dueIdealStepIds.includes(step.id) ?? false;
-                return (
-                  <Checkbox
-                    key={step.id}
-                    checked={todayOccurrence?.completedStepIds.includes(step.id) ?? false}
-                    onToggle={() => onToggleStep(step.id)}
-                    label={step.text}
-                    disabled={!dueToday}
-                    caption={dueToday ? undefined : 'Not due today'}
-                  />
-                );
-              })}
-              {task.fallbackSteps[0] ? (
-                <View style={styles.fallbackCard}>
-                  <Text style={{ color: t.color.textMuted }}>Fallback — {task.fallbackSteps[0].text}. The low bar on a hard day.</Text>
-                  <Button label="Log fallback" onPress={() => onChipChange('fallback')} variant="secondary" accessibilityLabel="Log fallback" />
-                </View>
-              ) : null}
-            </>
-          )}
-        </Card>
-      ) : null}
-
-      <OffDayToggle
-        value={todayOccurrence?.outcome === 'off'}
-        onValueChange={onToggleOffDay}
-        label="Off today (this task only)"
-        helper="Marks just this task's day off — your other tasks, and the whole-day toggle on Today, are unaffected. Turn it off to restore what was logged."
+    <Screen
+      title={isNote ? 'Note' : TYPE_TITLE[task.type]}
+      onBack={goBack}
+      right={<IconButton icon={MoreHorizontal} onPress={() => setMenuOpen(true)} accessibilityLabel="More actions" testID="s20-more" />}
+    >
+      <TaskHero
+        taskId={taskId}
+        name={task.name}
+        icon={Icon}
+        color={taskColor(task.color)}
+        meta={metaParts({ schedule: cadenceSummary(task), extra: when, importance: task.importance, necessity: task.necessity })}
+        showWeek={isTrackedTask && !task.isAsNeeded && (task.type === 'routine' || task.type === 'course')}
+        onIconPress={() => router.push(`/task/${taskId}/icon` as never)}
       />
 
-      <View style={styles.switchRow}>
-        <Text style={{ color: t.color.text, fontWeight: '600' }}>Snoozable</Text>
-        <Switch value={task.snoozable} onValueChange={onToggleSnoozable} accessibilityLabel="Snoozable" testID="s20-snoozable-switch" />
-      </View>
-
-      {showScheduleEditor ? (
-        <View style={styles.subStepRegion}>
-          <Button
-            label="Edit step schedule"
-            onPress={() => (editingSchedule ? setEditingSchedule(false) : startScheduleEdit())}
-            variant="secondary"
-            accessibilityLabel="Edit step schedule"
-          />
-          {editingSchedule && scheduleDraft ? (
-            <View style={styles.scheduleEditor}>
-              {task.idealSteps.map((step) => (
-                <View key={step.id} style={styles.scheduleRow}>
-                  <Text style={{ color: t.color.text }}>{step.text}</Text>
-                  <WeekdayPicker
-                    selected={scheduleDraft[step.id] ?? parentDays}
-                    onChange={(sel) => setScheduleDraft((prev) => ({ ...(prev ?? {}), [step.id]: sel }))}
-                    disabledDays={([1, 2, 3, 4, 5, 6, 7] as Weekday[]).filter((d) => !parentDays.includes(d))}
-                    accessibilityLabel={`${step.text} schedule`}
-                  />
-                </View>
-              ))}
-              {scheduleError ? (
-                <Text accessibilityRole="alert" style={{ color: t.color.danger }}>
-                  {scheduleError}
-                </Text>
-              ) : null}
-              <Button label="Save schedule" onPress={saveSchedule} accessibilityLabel="Save schedule" />
+      {isTodo ? (
+        <>
+          {isNote ? null : (
+          <ListGroup>
+            <ListRow
+              label="Done"
+              right={
+                <Switch
+                  value={!!task.todoDoneAt}
+                  onValueChange={(v) => void patch({ todoDoneAt: v ? now() : null })}
+                  accessibilityLabel="Mark as done"
+                  testID="s20-todo-done"
+                />
+              }
+            />
+          </ListGroup>
+          )}
+          {task.note ? (
+            <View style={styles.block}>
+              <SectionHeading>{isNote ? 'Note' : 'Details'}</SectionHeading>
+              <Card>
+                <Text style={[styles.note, { color: t.color.text }]}>{task.note}</Text>
+              </Card>
             </View>
           ) : null}
+        </>
+      ) : null}
+
+      {isTrackedTask ? (
+        <View style={styles.block}>
+          <SectionHeading right={<Text style={[styles.headingAside, { color: t.color.textMuted }]}>{dayLongLabel(today)}</Text>}>Today</SectionHeading>
+          <Card style={styles.todayCard}>
+            <PlanTiles ideal={task.idealSteps.map((s) => s.text).join(', ') || null} fallback={task.fallbackSteps.map((s) => s.text).join(', ') || null} numberOfLines={3} />
+            {!dueNow ? (
+              <EmptyLine>Not due today.</EmptyLine>
+            ) : isOffToday ? (
+              <EmptyLine>Off today. Turn the switch below back off to log it.</EmptyLine>
+            ) : isMultiDose ? (
+              <>
+                {Array.from({ length: task.dosesPerDay }, (_, i) => i).map((i) => (
+                  <LogControl
+                    key={i}
+                    label={`Dose ${i + 1}`}
+                    value={dosesDone >= i + 1 ? 'done' : 'todo'}
+                    onChange={(chip) => void onDoseChange(i, chip)}
+                    accessibilityLabel={`Dose ${i + 1} of ${task.dosesPerDay}`}
+                    loggedLabel="Taken"
+                    hideFallback
+                    hideSkip
+                    testID={`s20-dose-chip-${i}`}
+                  />
+                ))}
+                <View style={[styles.rule, { backgroundColor: t.color.border }]} />
+                <LogControl
+                  label="Whole day"
+                  caption={`${dosesDone} of ${task.dosesPerDay} doses taken. The day logs itself once every dose is handled, or you can set it here.`}
+                  value={todayOccurrence?.chipState ?? null}
+                  onChange={(chip) => void onChipChange(chip)}
+                  accessibilityLabel="Whole day"
+                  testID="s20-day-chip"
+                />
+              </>
+            ) : (
+              <>
+                <LogControl value={todayOccurrence?.chipState ?? null} onChange={(chip) => void onChipChange(chip)} accessibilityLabel={task.name} testID="s20-chip" />
+                {task.idealSteps.length > 1 ? (
+                  <View>
+                    <Text style={[styles.caption, { color: t.color.textMuted }]}>Ticking every step logs the day as ideal.</Text>
+                    {task.idealSteps.map((step) => {
+                      const dueToday = todayOccurrence?.dueIdealStepIds.includes(step.id) ?? false;
+                      return (
+                        <Checkbox
+                          key={step.id}
+                          checked={todayOccurrence?.completedStepIds.includes(step.id) ?? false}
+                          onToggle={() => void onToggleStep(step.id)}
+                          label={step.text}
+                          disabled={!dueToday}
+                          caption={dueToday ? undefined : 'Not due today'}
+                        />
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </>
+            )}
+          </Card>
+
+          <ListGroup>
+            <ListRow
+              label="Off today"
+              sublabel="Just this task. Doesn't count for or against you."
+              right={<Switch value={isOffToday} onValueChange={onToggleOffDay} accessibilityLabel="Off today, this task only" />}
+            />
+            {snoozeSlot.kind === 'undo' ? (
+              <ListRow icon={Undo2} label="Undo snooze" sublabel="Move it back to yesterday" onPress={onSnoozeSlotPress} chevron={false} testID="s20-undo-snooze" />
+            ) : (
+              <ListRow
+                icon={AlarmClock}
+                label="Snooze to tomorrow"
+                sublabel={snoozeSlot.enabled ? undefined : snoozeSlot.disabledReason}
+                onPress={onSnoozeSlotPress}
+                disabled={!snoozeSlot.enabled}
+                chevron={false}
+                testID="s20-snooze"
+              />
+            )}
+            <ListRow
+              label="Can be moved to tomorrow"
+              right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Can be moved to tomorrow" testID="s20-snoozable-switch" />}
+            />
+            {showScheduleEditor ? <ListRow icon={CalendarDays} label="Step schedule" sublabel="Which days each step applies" onPress={openSchedule} chevron={false} /> : null}
+          </ListGroup>
         </View>
       ) : null}
 
-      <View style={styles.actionsRow}>
-        <Button
-          label="Duplicate"
-          onPress={onDuplicate}
-          variant="secondary"
-          icon={<Copy size={16} color={t.color.text} />}
-          accessibilityLabel="Duplicate"
-          testID="s20-duplicate"
-        />
-        {snoozeSlot.kind === 'undo' ? (
-          <Button
-            label="Undo snooze"
-            onPress={onSnoozeSlotPress}
-            variant="secondary"
-            icon={<Undo2 size={16} color={t.color.text} />}
-            accessibilityLabel="Undo snooze"
-            testID="s20-undo-snooze"
-          />
-        ) : (
-          <Button
-            label="Snooze"
-            onPress={onSnoozeSlotPress}
-            variant="secondary"
-            disabled={!snoozeSlot.enabled}
-            icon={<AlarmClock size={16} color={t.color.text} />}
-            accessibilityLabel={snoozeSlot.enabled ? 'Snooze' : `Snooze, disabled. ${snoozeSlot.disabledReason ?? ''}`}
-            testID="s20-snooze"
-          />
-        )}
+      {task.type === 'routine' && !task.isAsNeeded ? (
+        <View style={styles.block}>
+          <SectionHeading>Time</SectionHeading>
+          <TimeField label="Time of day" value={task.timeOfDay ?? ''} onChange={(v) => void patch({ timeOfDay: v || null })} placeholder="Any time" />
+        </View>
+      ) : null}
+
+      <View style={styles.block}>
+        <SectionHeading>Priority</SectionHeading>
+        <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance, priorityRank: null })} testID="s20-importance-picker" />
+        {task.importance ? <PriorityPlaceRow taskId={taskId} importance={task.importance} /> : null}
+        <Radio label="Necessity" value={task.necessity} options={NECESSITY_OPTIONS} onChange={(v) => void patch({ necessity: v as Necessity })} testID="s20-necessity-picker" />
       </View>
 
-      <Text accessibilityRole="header" style={[styles.sectionHeading, { color: t.color.text }]}>
-        Calendar
-      </Text>
-      {monthOccQuery.isError ? (
-        <InlineRetryBanner message="Couldn't load your history — try again." onRetry={() => monthOccQuery.refetch()} />
-      ) : (
-        <CalendarHeatmap
-          days={heatmapDays}
-          monthLabel={monthLabel}
-          onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
-          onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
-          onCellPress={(date) => {
-            // Item 3 fix: past-day drill-down (PRD §3.7 preserves this; today/future have
-            // nothing settled yet to view/edit, so only a genuinely past day opens the popover).
-            if (date < today) setPopoverDate(date);
-          }}
-          statLine={statLine}
-          emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : undefined}
-          accessibilityLabel={`Calendar, ${monthLabel}`}
-        />
-      )}
+      {isTrackedTask ? (
+        <View style={styles.block}>
+          <SectionHeading>History</SectionHeading>
+          {monthOccQuery.isError ? (
+            <InlineRetryBanner message="Couldn't load your history — try again." onRetry={() => monthOccQuery.refetch()} />
+          ) : (
+            <Card>
+              <CalendarHeatmap
+                days={heatmapDays}
+                monthLabel={monthLabel}
+                onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
+                onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
+                onCellPress={(date) => {
+                  if (date < today) setPopoverDate(date);
+                }}
+                statLine={statLine}
+                emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : 'Tap a past day to change its log.'}
+                accessibilityLabel={`Calendar, ${monthLabel}`}
+              />
+            </Card>
+          )}
+        </View>
+      ) : null}
 
-      <Button label="Delete routine" onPress={onDelete} variant="danger" accessibilityLabel="Delete routine" testID="s20-delete" />
+      <MenuSheet
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        title={task.name}
+        items={[
+          {
+            key: 'rename',
+            icon: PencilLine,
+            label: 'Rename',
+            onPress: () => {
+              setNameDraft(task.name);
+              setRenameOpen(true);
+            },
+          },
+          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
+          ...(isTodo
+            ? [
+                {
+                  key: 'kind',
+                  icon: isNote ? ListTodo : StickyNote,
+                  label: isNote ? 'Change to a to-do' : 'Change to a note',
+                  onPress: () => void patch({ isNote: !isNote }),
+                },
+              ]
+            : []),
+          { key: 'duplicate', icon: Copy, label: 'Duplicate', onPress: () => void onDuplicate() },
+          { key: 'delete', icon: Trash2, label: `Delete ${noun}`, danger: true, onPress: () => setDeleteOpen(true) },
+        ]}
+      />
+
+      <Dialog visible={renameOpen} onClose={() => setRenameOpen(false)} title={`Rename ${noun}`} accessibilityLabel={`Rename ${noun}`}>
+        <Input label="Name" value={nameDraft} onChangeText={setNameDraft} autoFocus accessibilityLabel="Task name" testID="s20-name-input" onSubmitEditing={() => void saveName()} />
+        <ButtonPair
+          primary={{ label: 'Save', onPress: () => void saveName(), loading: updateTask.isPending, testID: 's20-save-name' }}
+          secondary={{ label: 'Cancel', onPress: () => setRenameOpen(false) }}
+        />
+      </Dialog>
+
+      <Dialog visible={scheduleOpen} onClose={() => setScheduleOpen(false)} title="Step schedule" accessibilityLabel="Step schedule">
+        <Text style={[styles.caption, { color: t.color.textMuted }]}>Choose the days each ideal step applies. Locked days are days this {noun} doesn't run.</Text>
+        {task.idealSteps.map((step) => (
+          <WeekdayPicker
+            key={step.id}
+            label={step.text}
+            selected={(scheduleDraft[step.id] ?? parentDays).filter((d) => parentDays.includes(d))}
+            onChange={(sel) => setScheduleDraft((prev) => ({ ...prev, [step.id]: parentDays.every((d) => sel.includes(d)) ? null : sel }))}
+            disabledDays={ALL_DAYS.filter((d) => !parentDays.includes(d))}
+            accessibilityLabel={`${step.text} schedule`}
+          />
+        ))}
+        {scheduleError ? (
+          <Text accessibilityRole="alert" style={[styles.caption, { color: t.color.danger }]}>
+            {scheduleError}
+          </Text>
+        ) : null}
+        <ButtonPair
+          primary={{ label: 'Save schedule', onPress: () => void saveSchedule(), loading: updateTask.isPending }}
+          secondary={{ label: 'Cancel', onPress: () => setScheduleOpen(false) }}
+        />
+      </Dialog>
+
+      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="manage" origin={from} />
 
       {popoverDate ? (
-        <DayLogPopover
+        <DayLogSheet
           taskId={taskId}
           date={popoverDate}
           occurrence={monthOccQuery.data?.find((o) => o.date === popoverDate)}
           onClose={() => setPopoverDate(null)}
           logState={logState}
-          showToast={showToast}
+          onFail={fail}
         />
       ) : null}
-    </ScrollView>
+    </Screen>
   );
 }
 
-/**
- * S20 heatmap past-day drill-down (item 3, PRD §3.7 "keeps its existing view/edit-that-day's-
- * log behavior"). Every write routes through M2's `useLogState` (the same mutation the
- * today-card chip uses) with the TAPPED date, never a hand-addressed row (SCHEMA §4.2 watch
- * site). No snooze controls here — snooze is exclusively today's action row.
- */
-function DayLogPopover({
+function DayLogSheet({
   taskId,
   date,
   occurrence,
   onClose,
   logState,
-  showToast,
+  onFail,
 }: {
   readonly taskId: Id;
   readonly date: LocalDate;
   readonly occurrence: Occurrence | undefined;
   readonly onClose: () => void;
   readonly logState: ReturnType<typeof useLogState>;
-  readonly showToast: (message: string, tone?: 'success' | 'warning') => void;
+  readonly onFail: () => void;
 }) {
+  const t = useTheme();
   async function onChange(chip: ChipState) {
     const result = await logState.mutateAsync({ taskId, date, chip });
-    if (!result.ok) showToast("Couldn't save that — try again.", 'warning');
+    if (!result.ok) onFail();
+    else onClose();
   }
-
   const label = dayLongLabel(date);
   return (
-    <Dialog visible onClose={onClose} title={label} presentation="center" accessibilityLabel={`Log for ${label}`} testID="s20-day-popover">
-      <StateChip value={occurrence?.chipState ?? null} onChange={onChange} accessibilityLabel="Day state" testID="s20-day-popover-chip" />
+    <Dialog visible onClose={onClose} title={label} accessibilityLabel={`Log for ${label}`} testID="s20-day-popover">
+      <Text style={[styles.caption, { color: t.color.textMuted }]}>Set how this day went.</Text>
+      <LogButtons value={occurrence?.chipState ?? null} onChange={(chip) => void onChange(chip)} accessibilityLabel={label} testID="s20-day-popover-chip" />
     </Dialog>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 },
-  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  nameCol: { flex: 1, gap: SPACE.s1 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-  tagEditButtons: { flexDirection: 'row', flexWrap: 'wrap' },
-  dateLabel: { fontSize: 16, fontWeight: '600' },
-  ruleLine: { fontSize: 13, lineHeight: 18 },
-  doseRow: { gap: SPACE.s1 },
-  fallbackCard: { gap: SPACE.s1, marginTop: SPACE.s1 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  subStepRegion: { gap: SPACE.s2 },
-  scheduleEditor: { gap: SPACE.s2 },
-  scheduleRow: { gap: SPACE.s1 },
-  actionsRow: { flexDirection: 'row', gap: SPACE.s2 },
-  sectionHeading: { fontSize: 16, fontWeight: '700' },
+  block: { gap: SPACE.s2 + 4 },
+  todayCard: { gap: SPACE.s3 },
+  headingAside: { fontSize: FONT_SIZE.sm },
+  caption: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  note: { fontSize: FONT_SIZE.base, lineHeight: 24 },
+  rule: { height: 1 },
 });

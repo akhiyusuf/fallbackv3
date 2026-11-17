@@ -1,10 +1,16 @@
-/** M0 kit — Verdant `Dialog`. In-app sheet/modal shell — scrim + soft-shadow surface, optional drag handle. */
+/**
+ * Dialog — the bottom sheet (D3). Slides over the dimmed current screen:
+ * handle, title, content. Used by confirmations, dropdown lists and menus.
+ * `presentation="center"` is reserved for the milestone pop-up (D2).
+ */
 import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { RADIUS, SCRIM, SPACE, useTheme } from '@/theme';
+import { FONT_SIZE, RADIUS, SCRIM, SPACE, useTheme } from '@/theme';
 import { IconButton } from './IconButton';
+import { Text } from '@/ui/AppText';
 
 export interface DialogProps {
   readonly visible: boolean;
@@ -12,37 +18,41 @@ export interface DialogProps {
   readonly title?: string;
   readonly children: ReactNode;
   readonly presentation?: 'sheet' | 'center';
+  /** Show a cross in the title row. Off by default — a sheet is dismissed by its buttons or the scrim. */
+  readonly showClose?: boolean;
   readonly accessibilityLabel: string;
   readonly testID?: string;
 }
 
-export function Dialog({ visible, onClose, title, children, presentation = 'sheet', accessibilityLabel, testID }: DialogProps) {
+export function Dialog({ visible, onClose, title, children, presentation = 'sheet', showClose = false, accessibilityLabel, testID }: DialogProps) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const isSheet = presentation === 'sheet';
   return (
-    <Modal visible={visible} transparent animationType={presentation === 'sheet' ? 'slide' : 'fade'} onRequestClose={onClose} testID={testID}>
-      <View
-        style={[styles.scrim, { backgroundColor: SCRIM, justifyContent: presentation === 'sheet' ? 'flex-end' : 'center' }]}
-        accessibilityViewIsModal
-      >
+    <Modal visible={visible} transparent animationType={isSheet && Platform.OS !== 'web' ? 'slide' : 'fade'} onRequestClose={onClose} testID={testID}>
+      <View style={[styles.scrim, { backgroundColor: SCRIM, justifyContent: isSheet ? 'flex-end' : 'center' }]} accessibilityViewIsModal>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Dismiss" accessibilityRole="button" />
         <View
-          style={[
-            presentation === 'sheet' ? styles.sheet : styles.center,
-            { backgroundColor: t.color.bg },
-          ]}
+          style={[isSheet ? styles.sheet : styles.center, { backgroundColor: t.color.bg }, isSheet && { paddingBottom: SPACE.s4 + insets.bottom }]}
           accessibilityRole="none"
           accessibilityLabel={accessibilityLabel}
         >
-          {presentation === 'sheet' ? <View style={[styles.handle, { backgroundColor: t.color.border }]} /> : null}
+          {isSheet ? <View style={[styles.handle, { backgroundColor: t.color.borderStrong }]} /> : null}
           {title ? (
             <View style={styles.header}>
               <Text accessibilityRole="header" style={[styles.title, { color: t.color.text }]}>
                 {title}
               </Text>
-              <IconButton icon={X} onPress={onClose} accessibilityLabel="Close" />
+              {showClose ? <IconButton icon={X} onPress={onClose} accessibilityLabel="Close" /> : null}
             </View>
           ) : null}
-          {children}
+          {isSheet ? (
+            <ScrollView alwaysBounceVertical={false} overScrollMode="auto" style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
         </View>
       </View>
     </Modal>
@@ -51,9 +61,11 @@ export function Dialog({ visible, onClose, title, children, presentation = 'shee
 
 const styles = StyleSheet.create({
   scrim: { flex: 1 },
-  sheet: { borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, padding: SPACE.s3, maxHeight: '90%', gap: SPACE.s2 },
-  center: { margin: SPACE.s4, borderRadius: RADIUS.lg, padding: SPACE.s3, gap: SPACE.s2 },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: SPACE.s2 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { fontSize: 20, fontWeight: '700', flexShrink: 1 },
+  sheet: { borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, maxHeight: '88%', gap: SPACE.s2 },
+  center: { marginHorizontal: SPACE.s4, borderRadius: RADIUS.lg, padding: SPACE.s4, gap: SPACE.s2, alignSelf: 'center', width: '86%', maxWidth: 380 },
+  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: RADIUS.pill, marginBottom: SPACE.s2 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 32 },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: '700', flexShrink: 1 },
+  scroll: { flexGrow: 0 },
+  scrollContent: { gap: SPACE.s3, paddingBottom: SPACE.s1 },
 });

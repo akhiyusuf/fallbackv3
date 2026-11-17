@@ -3,11 +3,12 @@
  * read of a region (list, heatmap, chart, stat) replaces just that region; the rest of the
  * screen keeps working. Calm — never the danger token, never a full-screen red treatment.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RADIUS, SPACE, useTheme } from '@/theme';
 
 import { Button } from './Button';
+import { Text } from '@/ui/AppText';
 
 export interface InlineRetryBannerProps {
   readonly message: string;

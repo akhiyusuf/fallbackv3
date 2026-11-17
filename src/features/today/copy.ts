@@ -12,11 +12,15 @@
 
 export const S09_COPY = {
   title: 'Today',
+  statLabel: 'Showing up',
+  statHelper: 'Share of due days you did the ideal or the fallback.',
+  dueSection: 'Due today',
+  firstHabitBody: 'Do the ideal or the fallback today — either one counts.',
   offToggleLabel: 'Mark today off',
   offOnToast: 'Today marked off — nothing due counts against your %.',
   offUnmarkToast: "Today's mark removed — your prior log is back.",
-  achievementsTeaser: 'See your achievements',
-  noDataStat: 'No data yet · see your dashboard →',
+  achievementsTeaser: 'Achievements',
+  noDataStat: 'No data yet',
 
   blankSlateHeadline: 'Nothing planned for today yet.',
   blankSlateSubcopy: 'A blank slate. Add one small thing — something beats nothing.',
@@ -24,13 +28,13 @@ export const S09_COPY = {
 
   nothingDueHeadline: 'Nothing due right now.',
   nothingDueSubcopy: 'Enjoy the open day, or add something new.',
-  nothingDueAction: '+ Add a task',
+  nothingDueAction: 'Add a task',
 
   offTodayMeta: 'Off today',
 
   reentryHeadline: "No workout yesterday — that's okay.",
   reentrySubcopy: "Rest is part of the rhythm. One off day doesn't undo anything.",
-  reentryCta: 'Even 10 pushups counts →',
+  reentryCta: 'Even the fallback counts',
   reentryStatPrefix: 'Your consistency is intact — ',
   reentryStatSuffix: ' you showed up — ideal or fallback.',
 
@@ -43,13 +47,13 @@ export const S09_COPY = {
   settingsLabel: 'Settings',
   addTaskLabel: 'Add task',
 
-  firstHabitBannerPrefix: 'Today, ',
-  firstHabitBannerSuffix: ' · your first habit is set 🌱',
+  firstHabitBannerPrefix: 'Your first habit is set.',
+  firstHabitBannerSuffix: '',
 } as const;
 
 /** Builds the stat-chip primary display: "{pct}% · {x} of the last {n} days →". */
 export function statLine(percent: number, x: number, windowDays: number): string {
-  return `${percent}% · ${x} of the last ${windowDays} days →`;
+  return `${x} of the last ${windowDays} days`;
 }
 
 /** Builds the re-entry-state re-worded stat line — see this file's header note. */

@@ -25,7 +25,7 @@ import { resolveOccurrence } from '@/domain';
 import { repos } from '@/db';
 import { on } from '@/lib/events';
 import { addDays, now, today } from '@/lib/date';
-import { ACCENTS, PALETTES, resolveScheme } from '@/theme';
+import { PALETTES, resolveScheme, themeSeed } from '@/theme';
 import { err, ok } from '@/types';
 import type { Result, WidgetBridge } from '@/types';
 
@@ -83,7 +83,7 @@ async function publishSnapshot(): Promise<Result<void>> {
       date: todayDate,
       scheme,
       accent: settings.accent,
-      accentHex: ACCENTS[settings.accent].base,
+      accentHex: themeSeed(settings.accent),
       palette: PALETTES[scheme],
       widgetConfigs: settings.widgets,
       generatedAt: now(),

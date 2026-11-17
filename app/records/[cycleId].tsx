@@ -1,25 +1,18 @@
-/**
- * S30 — Cycle Record Detail    route: /records/:cycleId
- * Owner: M5. Features: F30.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S30)
- *
- * Back always → S29 (not origin-aware — this screen has exactly one origin). Read-only: no
- * other interactive element exists here (SITEMAP).
- */
+/** S30 — Cycle detail    route: /records/[cycleId] */
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ACHIEVEMENTS } from '@/domain';
 import { ROUTES } from '@/navigation';
 import { useCycleRecord } from '@/queries';
 import type { Id } from '@/types';
-import { SPACE, useTheme } from '@/theme';
-import { Badge, ConsistencyBreakdownBar, InlineRetryBanner, MilestoneBadge, Skeleton } from '@/ui';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
+import { Card, ConsistencyBreakdownBar, EmptyLine, InlineRetryBanner, ListGroup, ListRow, MilestoneBadge, Screen, SectionHeading, Skeleton } from '@/ui';
 
 import { BADGE_ICONS } from '@/features/progress/badgeIcons';
 import { S30_COPY } from '@/features/progress/copy';
 import { cadenceLabel, formatCycleLabel } from '@/features/progress/format';
-import { ProgressHeader } from '@/features/progress/ProgressHeader';
+import { Text } from '@/ui/AppText';
 
 export default function S30CycleRecordDetail() {
   const t = useTheme();
@@ -27,89 +20,80 @@ export default function S30CycleRecordDetail() {
   const { cycleId } = useLocalSearchParams<{ cycleId: string }>();
   const recordQuery = useCycleRecord(cycleId as Id);
 
-  function goBack() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace(ROUTES.records);
-    }
-  }
-
   const record = recordQuery.data;
   const denominator = record ? record.breakdown.ideal + record.breakdown.fallback + record.breakdown.missed : 0;
   const shownUp = record ? record.breakdown.ideal + record.breakdown.fallback : 0;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <ProgressHeader title={S30_COPY.title} onBack={goBack} />
-      <View style={styles.content}>
-        {recordQuery.isLoading ? (
-          <View style={styles.skeletonBlock}>
-            <Skeleton height={24} width="60%" />
-            <Skeleton height={48} />
-            <Skeleton height={16} />
-            <Skeleton height={80} />
-          </View>
-        ) : recordQuery.isError || !record ? (
-          <InlineRetryBanner message={S30_COPY.errorMessage} onRetry={() => recordQuery.refetch()} tone="warning" />
-        ) : (
-          <>
-            <View style={styles.headerRow}>
-              <Text style={[styles.header, { color: t.color.text }]}>
-                {formatCycleLabel(record)} · {cadenceLabel(record.cadence)}
+    <Screen
+      title={record ? formatCycleLabel(record) : S30_COPY.title}
+      subtitle={record ? `${cadenceLabel(record.cadence)} cycle · ${S30_COPY.archivedSuffix}` : undefined}
+      level="page"
+      onBack={() => (router.canGoBack() ? router.back() : router.replace(ROUTES.records))}
+    >
+      {recordQuery.isLoading ? (
+        <View style={styles.block}>
+          <Skeleton height={24} width="60%" />
+          <Skeleton height={48} />
+          <Skeleton height={80} />
+        </View>
+      ) : recordQuery.isError || !record ? (
+        <InlineRetryBanner message={S30_COPY.errorMessage} onRetry={() => recordQuery.refetch()} tone="warning" />
+      ) : (
+        <>
+          <Card style={styles.card}>
+            <View style={styles.numeralRow}>
+              <Text accessibilityRole="header" style={[styles.percent, { color: t.color.text }]}>
+                {record.consistencyPercent === null ? '—' : `${record.consistencyPercent}%`}
               </Text>
-              <Badge label={S30_COPY.archivedSuffix} />
+              <Text style={[styles.numeralLabel, { color: t.color.textMuted }]}>showed up</Text>
             </View>
-
-            {record.isShortCycle ? <Text style={[styles.shortCycle, { color: t.color.textDim }]}>{S30_COPY.shortCycleNote}</Text> : null}
-
-            <Text accessibilityRole="header" style={[styles.percent, { color: t.color.text }]}>
-              {record.consistencyPercent === null ? '—' : `${record.consistencyPercent}%`}
-            </Text>
-            <Text style={[styles.subline, { color: t.color.textMuted }]}>{S30_COPY.subline(shownUp, denominator)}</Text>
-
+            <Text style={[styles.subline, { color: t.color.text }]}>{S30_COPY.subline(shownUp, denominator)}</Text>
             <ConsistencyBreakdownBar
               breakdown={record.breakdown}
               total={record.breakdown.ideal + record.breakdown.fallback + record.breakdown.missed + record.breakdown.off}
               accessibilityLabel={`Cycle breakdown: ${record.consistencyPercent === null ? 'no data' : `${record.consistencyPercent} percent`}`}
             />
+            {record.isShortCycle ? <Text style={[styles.note, { color: t.color.textMuted }]}>{S30_COPY.shortCycleNote}</Text> : null}
+          </Card>
 
-            <Text style={[styles.xpRow, { color: t.color.xp }]}>
-              {S30_COPY.cyclingXpRowPrefix} {record.cyclingXpFinal}
-            </Text>
+          <ListGroup>
+            <ListRow label={S30_COPY.cyclingXpRowPrefix} right={<Text style={[styles.xp, { color: t.color.xp }]}>{record.cyclingXpFinal} XP</Text>} />
+          </ListGroup>
 
-            <Text accessibilityRole="header" style={[styles.badgesHeader, { color: t.color.text }]}>
-              {S30_COPY.badgesHeader}
-            </Text>
+          <View style={styles.block}>
+            <SectionHeading>{S30_COPY.badgesHeader}</SectionHeading>
             {record.badgeKeysUnlocked.length === 0 ? (
-              <Text style={[styles.noBadges, { color: t.color.textMuted }]}>{S30_COPY.noBadges}</Text>
+              <EmptyLine>{S30_COPY.noBadges}</EmptyLine>
             ) : (
-              <View style={styles.badgeRow}>
+              <View style={styles.badgeGrid}>
                 {record.badgeKeysUnlocked.map((key) => {
                   const Icon = BADGE_ICONS[key];
                   const label = ACHIEVEMENTS.find((a) => a.key === key)?.label ?? key;
-                  return Icon ? <MilestoneBadge key={key} label={label} earned icon={Icon} /> : null;
+                  return Icon ? (
+                    <View key={key} style={styles.badgeCell}>
+                      <MilestoneBadge label={label} earned icon={Icon} />
+                    </View>
+                  ) : null;
                 })}
               </View>
             )}
-          </>
-        )}
-      </View>
-    </View>
+          </View>
+        </>
+      )}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  skeletonBlock: { gap: SPACE.s2 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  header: { fontSize: 18, fontWeight: '700', flexShrink: 1 },
-  shortCycle: { fontSize: 13 },
-  percent: { fontSize: 40, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  subline: { fontSize: 15, lineHeight: 22 },
-  xpRow: { fontSize: 16, fontWeight: '700' },
-  badgesHeader: { fontSize: 16, fontWeight: '700', marginTop: SPACE.s2 },
-  noBadges: { fontSize: 14 },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s3 },
+  block: { gap: SPACE.s2 + 4 },
+  card: { gap: SPACE.s2 + 4 },
+  numeralRow: { flexDirection: 'row', alignItems: 'baseline', gap: SPACE.s2 },
+  percent: { fontSize: FONT_SIZE.xxxl, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  numeralLabel: { fontSize: FONT_SIZE.base },
+  subline: { fontSize: FONT_SIZE.base, lineHeight: 24 },
+  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  xp: { fontSize: FONT_SIZE.base, fontWeight: '700' },
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: SPACE.s3 },
+  badgeCell: { width: '25%', alignItems: 'center', paddingHorizontal: 2 },
 });

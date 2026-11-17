@@ -1,7 +1,8 @@
 /** M0 kit — Verdant `Badge`. Text-only status pill (e.g. "Due", "One-time", "Completed Jul 5"). */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RADIUS, SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export interface BadgeProps {
   readonly label: string;
@@ -12,7 +13,7 @@ export interface BadgeProps {
 export function Badge({ label, tone = 'neutral', accessibilityLabel }: BadgeProps) {
   const t = useTheme();
   const bg = tone === 'accent' ? t.accent.soft : t.color.surface;
-  const fg = tone === 'accent' ? t.accent.deep : t.color.textMuted;
+  const fg = tone === 'accent' ? t.accent.text : t.color.textMuted;
   return (
     <View
       style={[styles.root, { backgroundColor: bg }]}

@@ -86,9 +86,14 @@ export interface Task {
 
   readonly importance: Importance | null;
   readonly necessity: Necessity | null;
+  /** The person's own order inside its importance level; lower comes first. Null = not placed yet. */
+  readonly priorityRank: number | null;
 
   /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
   readonly todoDoneAt: Instant | null;
+
+  /** `type: 'todo'` only: true for a Note (no checkbox), false for a To-do. Explicit, never inferred from `note` text. */
+  readonly isNote: boolean;
 
   /**
    * CR-4 (MODULES.md), PRD §3.7. Per-task gate on whether F7 Snooze is offered at all —
@@ -126,6 +131,8 @@ export interface TaskDraft {
   readonly necessity?: Necessity | null;
   /** CR-4. Defaults to `true` when omitted (M2's `validateTaskDraft`). */
   readonly snoozable?: boolean;
+  /** `type: 'todo'` only. Defaults to `false` (a To-do). */
+  readonly isNote?: boolean;
   readonly idealSteps: readonly StepDraft[];
   readonly fallbackSteps: readonly StepDraft[];
 }

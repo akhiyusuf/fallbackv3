@@ -1,4 +1,5 @@
 /** M0 kit — Verdant `Switch`. Pill track + knob, `--ease-tactile` overshoot on toggle. */
+import { play } from '@/services/sfx';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 
@@ -34,7 +35,7 @@ export function Switch({ value, onValueChange, disabled = false, accessibilityLa
     return () => animation.stop();
   }, [value, progress]);
 
-  const trackColor = progress.interpolate({ inputRange: [0, 1], outputRange: [t.color.border, t.accent.base] });
+  const trackColor = progress.interpolate({ inputRange: [0, 1], outputRange: [t.color.off, t.accent.fill] });
   const knobTranslate = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [KNOB_INSET, TRACK_WIDTH - KNOB_SIZE - KNOB_INSET],
@@ -42,7 +43,11 @@ export function Switch({ value, onValueChange, disabled = false, accessibilityLa
 
   return (
     <Pressable
-      onPress={() => !disabled && onValueChange(!value)}
+      onPress={() => {
+        if (disabled) return;
+        play(value ? 'toggle_off' : 'toggle_on');
+        onValueChange(!value);
+      }}
       disabled={disabled}
       accessibilityRole="switch"
       accessibilityLabel={accessibilityLabel}

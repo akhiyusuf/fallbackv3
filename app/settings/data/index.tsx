@@ -1,43 +1,38 @@
-/**
- * S47 — Data    route: /settings/data
- * Owner: M1. Features: F19, F25.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S47)
- */
-import { useState } from 'react';
+/** S47 — Data. Backup and restore as list rows (D7); erase is a clear red row that opens a confirm sheet (D3). */
+import { useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
-import { useRouter, type Href } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { format } from 'date-fns';
-import { Share, StyleSheet, Text, View } from 'react-native';
-
+import { DownloadCloud, Trash2, UploadCloud } from 'lucide-react-native';
+import { Share } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { withOrigin } from '@/navigation';
 import { S47_COPY } from '@/features/data/copy';
-import { SettingsHeader } from '@/features/data/SettingsHeader';
+import { EraseDataSheet } from '@/features/data/EraseDataSheet';
 import { createBackup, restoreBackup } from '@/services/data';
 import { QUERY_KEYS, useSettings } from '@/queries';
-import { SPACE, useTheme } from '@/theme';
-import { Button, Card, InlineRetryBanner, Skeleton } from '@/ui';
+import { InlineRetryBanner, ListGroup, ListRow, Screen } from '@/ui';
 import { useToastStore } from '@/app-shell';
 
-// Display-only formatting of an already-known Instant — not a "today()" business-logic
-// clock read (ARCHITECTURE §7's rule governs determining THE date, not rendering a stored
-// past timestamp).
 function formatInstant(iso: string): string {
   return format(new Date(iso), "MMM d, yyyy 'at' h:mm a");
 }
 
 export default function S47Data() {
-  const t = useTheme();
   const router = useRouter();
   const qc = useQueryClient();
+  const { confirmErase } = useLocalSearchParams<{ confirmErase?: string }>();
   const showToast = useToastStore((s) => s.show);
-
   const settingsQuery = useSettings();
 
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreFailed, setRestoreFailed] = useState(false);
+  const [eraseOpen, setEraseOpen] = useState(false);
+
+  useEffect(() => {
+    if (confirmErase === '1') setEraseOpen(true);
+  }, [confirmErase]);
 
   function handleBack() {
     router.replace('/settings' as Href);
@@ -52,13 +47,11 @@ export default function S47Data() {
       return;
     }
     await qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-    showToast(`${S47_COPY.backupSuccessPrefix} ${formatInstant(result.value.createdAt)}`, 'success');
-    // Hand the written file to the OS share sheet so the user can actually move it off-device.
+    showToast(`Backed up ${formatInstant(result.value.createdAt)}`, 'success');
     try {
       await Share.share({ url: result.value.uri, message: result.value.uri });
     } catch {
-      // Sharing is a convenience on top of a backup that already succeeded — never fail the
-      // backup flow over a cancelled/unavailable share sheet.
+      /* sharing is optional */
     }
   }
 
@@ -77,62 +70,36 @@ export default function S47Data() {
     showToast(S47_COPY.restoreSuccessToast, 'success');
   }
 
-  function handleEraseRow() {
-    router.push(withOrigin('/settings/data/erase', 'data') as Href);
-  }
-
   const settings = settingsQuery.data;
+  const lastBackup = settings?.lastBackupAt ? `Last backup ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <SettingsHeader title={S47_COPY.title} onBack={handleBack} />
-      <View style={styles.content}>
-        <Card accessibilityLabel="Back up your data">
-          <Button
-            label={S47_COPY.backUpNow}
-            onPress={handleBackUpNow}
-            loading={backingUp}
-            variant="primary"
-            accessibilityLabel={S47_COPY.backUpNow}
-          />
-          {settingsQuery.isLoading ? (
-            <Skeleton width="70%" height={16} />
-          ) : (
-            <Text style={[styles.subcopy, { color: t.color.textMuted }]}>
-              {settings?.lastBackupAt ? `${S47_COPY.lastBackupPrefix} ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet}
-            </Text>
-          )}
-        </Card>
+    <Screen title={S47_COPY.title} onBack={handleBack}>
+      <ListGroup title="Backup">
+        <ListRow
+          icon={UploadCloud}
+          label={backingUp ? 'Backing up…' : S47_COPY.backUpNow}
+          sublabel={settingsQuery.isLoading ? undefined : lastBackup}
+          onPress={() => void handleBackUpNow()}
+          disabled={backingUp}
+          chevron={false}
+        />
+        <ListRow
+          icon={DownloadCloud}
+          label={restoring ? 'Restoring…' : S47_COPY.restoreFromBackup}
+          sublabel={S47_COPY.restoreSubcopy}
+          onPress={() => void pickAndRestore()}
+          disabled={restoring}
+          chevron={false}
+        />
+      </ListGroup>
+      {restoreFailed ? <InlineRetryBanner message={S47_COPY.restoreFailure} onRetry={pickAndRestore} retryLabel={S47_COPY.tryDifferentFile} tone="warning" /> : null}
 
-        <Card accessibilityLabel="Restore from a backup file">
-          <Button
-            label={S47_COPY.restoreFromBackup}
-            onPress={pickAndRestore}
-            loading={restoring}
-            variant="secondary"
-            accessibilityLabel={S47_COPY.restoreFromBackup}
-          />
-          <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S47_COPY.restoreSubcopy}</Text>
-          {restoreFailed ? (
-            <View style={styles.restoreFailure}>
-              <InlineRetryBanner message={S47_COPY.restoreFailure} onRetry={pickAndRestore} retryLabel={S47_COPY.tryDifferentFile} tone="warning" />
-            </View>
-          ) : null}
-        </Card>
+      <ListGroup title="Erase">
+        <ListRow icon={Trash2} label={S47_COPY.eraseRow} sublabel={S47_COPY.eraseSubcopy} danger onPress={() => setEraseOpen(true)} chevron={false} />
+      </ListGroup>
 
-        <Card onPress={handleEraseRow} accessibilityLabel={`${S47_COPY.eraseRow}. ${S47_COPY.eraseSubcopy}`}>
-          <Text style={[styles.eraseRow, { color: t.color.text }]}>{S47_COPY.eraseRow}</Text>
-          <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S47_COPY.eraseSubcopy}</Text>
-        </Card>
-      </View>
-    </View>
+      <EraseDataSheet visible={eraseOpen} onClose={() => setEraseOpen(false)} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  subcopy: { fontSize: 14, lineHeight: 20 },
-  eraseRow: { fontSize: 16, fontWeight: '600' },
-  restoreFailure: { marginTop: SPACE.s1 },
-});

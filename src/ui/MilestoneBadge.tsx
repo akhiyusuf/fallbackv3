@@ -13,11 +13,12 @@
  * single hardcoded glyph, hence the required `icon` prop. Locked = `--surface` + 2px
  * `--border` + `lock` in `--text-dim`.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Lock } from 'lucide-react-native';
 
-import { RADIUS, SPACE, useTheme } from '@/theme';
+import { INK, mix, RADIUS, SPACE, useTheme } from '@/theme';
 import type { IconComponent } from './icon';
+import { Text } from '@/ui/AppText';
 
 export interface MilestoneBadgeProps {
   readonly label: string;
@@ -36,12 +37,14 @@ export function MilestoneBadge({ label, earned, icon: Icon, onPress, accessibili
       <View
         style={[
           styles.pill,
-          { backgroundColor: earned ? t.color.goldSoft : t.color.surface, borderColor: earned ? t.color.celebrationGold : t.color.border },
+          earned
+            ? { backgroundColor: t.color.celebrationGold, borderColor: t.color.celebrationGold, borderBottomColor: mix(t.color.celebrationGold, INK, 0.28), borderBottomWidth: 5 }
+            : { backgroundColor: t.color.surface, borderColor: t.color.border, marginTop: 3 },
         ]}
       >
-        {earned ? <Icon size={24} color={t.color.goldDeep} /> : <Lock size={20} color={t.color.textDim} />}
+        {earned ? <Icon size={26} color={INK} /> : <Lock size={20} color={t.color.textMuted} />}
       </View>
-      <Text style={[styles.label, { color: earned ? t.color.text : t.color.textMuted }]}>{label}</Text>
+      <Text numberOfLines={2} style={[styles.label, { color: earned ? t.color.text : t.color.textMuted }]}>{label}</Text>
     </View>
   );
 
@@ -66,7 +69,7 @@ export function MilestoneBadge({ label, earned, icon: Icon, onPress, accessibili
 }
 
 const styles = StyleSheet.create({
-  column: { alignItems: 'center', gap: SPACE.s1, minWidth: 84 },
-  pill: { width: 54, height: 54, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  column: { alignItems: 'center', gap: SPACE.s1 },
+  pill: { width: 60, height: 60, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
 });

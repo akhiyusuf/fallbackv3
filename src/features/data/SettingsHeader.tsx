@@ -1,9 +1,10 @@
 /** M1. Shared back-chevron + title header for S45/S47 — both "back always returns to S41". */
 import { ChevronLeft } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SPACE, useTheme } from '@/theme';
 import { IconButton } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 export interface SettingsHeaderProps {
   readonly title: string;

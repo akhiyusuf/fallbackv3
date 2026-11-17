@@ -1,18 +1,15 @@
-/**
- * S31 — Assistant Home    route: /assistant
- * Owner: M6. Features: F16.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S31)
- */
+/** S31 — Assistant home    route: /assistant */
+import { play } from '@/services/sfx';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ArrowUp, Mic } from 'lucide-react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { ArrowUp } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 
-import { AssistantHeader } from '@/features/assistant/AssistantHeader';
 import { S31_COPY } from '@/features/assistant/copy';
 import { useEntitlementAndMic } from '@/features/assistant/useEntitlementAndMic';
-import { SPACE, useTheme } from '@/theme';
-import { Input, IconButton, InlineRetryBanner, Skeleton } from '@/ui';
+import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
+import { IconButton, InlineRetryBanner, Input, Screen, SectionHeading, Skeleton, VoiceMark } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 export default function S31AssistantHome() {
   const t = useTheme();
@@ -26,149 +23,98 @@ export default function S31AssistantHome() {
   }
 
   function handleMicPress() {
-    if (!isEntitled) {
-      router.push('/assistant/paywall' as Href);
-      return;
-    }
-    if (!micGranted) {
-      router.push('/assistant/mic-primer?context=primer' as Href);
-      return;
-    }
+    if (!isEntitled) return router.push('/assistant/paywall' as Href);
+    if (!micGranted) return router.push('/assistant/mic-primer?context=primer' as Href);
+    play('ai_start');
     goToConversation(undefined, true);
   }
 
-  function handleChipPress(chip: string) {
-    if (!isEntitled) {
-      router.push('/assistant/paywall' as Href);
-      return;
-    }
+  function handleSuggestion(chip: string) {
+    if (!isEntitled) return router.push('/assistant/paywall' as Href);
     goToConversation(chip, false);
   }
 
   function handleSend() {
     if (!text.trim()) return;
-    if (!isEntitled) {
-      router.push('/assistant/paywall' as Href);
-      return;
-    }
+    if (!isEntitled) return router.push('/assistant/paywall' as Href);
     goToConversation(text, false);
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <AssistantHeader onBack={() => router.replace('/today' as Href)} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {error ? (
-          <InlineRetryBanner message={S31_COPY.error} onRetry={retry} retryLabel={S31_COPY.retry} />
-        ) : (
-          <>
-            <Text style={[styles.eyebrow, { color: t.color.textMuted }]}>{S31_COPY.eyebrow}</Text>
-            {loading ? (
-              <>
-                <Skeleton width="80%" height={28} />
-                <Skeleton width="60%" height={18} style={styles.gapTop} />
-              </>
-            ) : (
-              <>
-                <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
-                  {S31_COPY.headline}
-                </Text>
-                <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S31_COPY.subcopy}</Text>
-              </>
-            )}
-
-            <View style={styles.micWrap}>
-              {loading ? (
-                <Skeleton width={72} height={72} radius={36} />
-              ) : (
-                <IconButton
-                  icon={Mic}
-                  onPress={handleMicPress}
-                  variant="accent"
-                  size={30}
-                  accessibilityLabel="Speak to Fallback AI, button"
-                  testID="s31-mic"
-                />
-              )}
-              <Text style={[styles.micCaption, { color: t.color.textDim }]}>{S31_COPY.micCaption}</Text>
+    <Screen
+      title={S31_COPY.title}
+      level="page"
+      onBack={() => router.replace('/today' as Href)}
+      footer={
+        !error && !loading ? (
+          <View style={styles.footerRow}>
+            <View style={styles.flex}>
+              <Input label="" value={text} onChangeText={setText} placeholder={S31_COPY.inputPlaceholder} accessibilityLabel="Type your request" onSubmitEditing={handleSend} testID="s31-input" />
             </View>
-
-            <View style={styles.chips}>
-              {loading
-                ? [0, 1, 2, 3, 4].map((i) => <Skeleton key={i} width="45%" height={36} radius={18} />)
-                : S31_COPY.chips.map((chip) => (
-                    <ChipButton key={chip} label={chip} onPress={() => handleChipPress(chip)} />
-                  ))}
-            </View>
-          </>
-        )}
-      </ScrollView>
-
-      {!error && !loading ? (
-        <View style={[styles.footer, { borderTopColor: t.color.border }]}>
-          <View style={styles.footerInputWrap}>
-            <Input
-              label=""
-              value={text}
-              onChangeText={setText}
-              placeholder={S31_COPY.inputPlaceholder}
-              accessibilityLabel="Type your request"
-              testID="s31-input"
-            />
+            <IconButton icon={ArrowUp} onPress={handleSend} disabled={text.trim().length === 0} variant="accent" accessibilityLabel="Send" testID="s31-send" />
           </View>
-          <IconButton
-            icon={ArrowUp}
-            onPress={handleSend}
-            disabled={text.trim().length === 0}
-            variant="accent"
-            accessibilityLabel="Send"
-            testID="s31-send"
-          />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function ChipButton({ label, onPress }: { readonly label: string; readonly onPress: () => void }) {
-  const t = useTheme();
-  return (
-    <Text
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Suggestion: ${label}, button`}
-      style={[styles.chip, { backgroundColor: t.color.surface, color: t.color.text, borderColor: t.color.border }]}
+        ) : undefined
+      }
     >
-      {label}
-    </Text>
+      {error ? (
+        <InlineRetryBanner message={S31_COPY.error} onRetry={retry} retryLabel={S31_COPY.retry} />
+      ) : loading ? (
+        <>
+          <Skeleton width="80%" height={28} />
+          <Skeleton width="60%" height={18} />
+          <Skeleton height={200} />
+        </>
+      ) : (
+        <>
+          <View style={styles.hero}>
+            <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
+              {S31_COPY.headline}
+            </Text>
+            <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S31_COPY.subcopy}</Text>
+            <Pressable
+              onPress={handleMicPress}
+              accessibilityRole="button"
+              accessibilityLabel="Speak to Fallback AI"
+              testID="s31-mic"
+              style={({ pressed }) => [styles.orb, { backgroundColor: t.accent.soft, transform: [{ scale: pressed ? 0.96 : 1 }] }]}
+            >
+              <VoiceMark size={128} live />
+            </Pressable>
+            <Text style={[styles.caption, { color: t.color.textMuted }]}>{S31_COPY.micCaption}</Text>
+          </View>
+
+          <View style={styles.suggest}>
+            <SectionHeading>{S31_COPY.suggestionsHeading}</SectionHeading>
+            <View style={styles.chips}>
+              {S31_COPY.chips.map((chip) => (
+                <Pressable
+                  key={chip}
+                  onPress={() => handleSuggestion(chip)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Suggestion: ${chip}`}
+                  style={({ pressed }) => [styles.chip, { backgroundColor: t.color.bgAlt, borderColor: pressed ? t.accent.text : t.color.border }]}
+                >
+                  <Text style={[styles.chipLabel, { color: t.color.text }]}>{chip}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </>
+      )}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s2 },
-  eyebrow: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  headline: { fontSize: 26, fontWeight: '800', lineHeight: 32 },
-  subcopy: { fontSize: 16, lineHeight: 22 },
-  gapTop: { marginTop: SPACE.s1 },
-  micWrap: { alignItems: 'center', gap: SPACE.s1, paddingVertical: SPACE.s4 },
-  micCaption: { fontSize: 13 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-  chip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingVertical: SPACE.s1,
-    paddingHorizontal: SPACE.s2,
-    fontSize: 14,
-    fontWeight: '600',
-    overflow: 'hidden',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACE.s1,
-    borderTopWidth: 1,
-    padding: SPACE.s2,
-  },
-  footerInputWrap: { flex: 1 },
+  flex: { flex: 1 },
+  hero: { alignItems: 'center', gap: SPACE.s2, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 },
+  headline: { fontSize: FONT_SIZE.xl, fontWeight: '800', lineHeight: 30, textAlign: 'center' },
+  subcopy: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
+  orb: { width: 176, height: 176, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginTop: SPACE.s3 },
+  suggest: { gap: SPACE.s2 + 4 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
+  chip: { minHeight: 44, justifyContent: 'center', borderRadius: RADIUS.pill, borderWidth: 2, borderBottomWidth: 4, paddingHorizontal: SPACE.s3 },
+  chipLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
+  caption: { fontSize: FONT_SIZE.sm, textAlign: 'center' },
+  footerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
 });

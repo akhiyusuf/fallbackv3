@@ -4,23 +4,27 @@
  */
 
 export const S31_COPY = {
-  eyebrow: 'Fallback AI',
+  title: 'Fallback AI',
   headline: 'What should I set up for you?',
-  subcopy: 'Tap & speak — or type below.',
+  subcopy: 'Tap and speak, or type below.',
+  suggestionsHeading: 'Try one of these',
   micCaption: 'Audio is only processed when you tap.',
-  chips: ['Add a morning run', 'Water plants Mon & Thu', '10-day meditation', 'Plan my week', 'Add a medication'] as const,
+  chips: ['Add a morning run', 'Water plants Mon and Thu', '10-day meditation', 'Plan my week', 'Add a medication'] as const,
   inputPlaceholder: 'Or type what you need…',
   error: "Couldn't load the assistant right now.",
   retry: 'Retry',
 } as const;
 
 export const S32_COPY = {
-  followUpPrompt: 'Want to add anything else — a course, an event, a reminder?',
+  followUpPrompt: 'Want to add anything else? A course, an event, a reminder?',
   undoCaption: "Say 'undo' to put it back.",
-  recapHeadline: 'All set — here\'s everything from this chat 👇',
-  recapFooter: "Close anytime — I'll save this conversation so you can pick it back up. 🌱",
+  recapTitle: 'All set',
+  recapHeadline: "Here's everything from this chat",
+  recapEmpty: 'Nothing changed in this chat.',
+  recapFooter: "I'll save this conversation so you can pick it back up anytime.",
   recapDone: 'Done',
-  offline: "Can't reach the assistant. You're offline. Everything you've made is safe on this device — try again in a moment.",
+  emptyHint: 'Say or type what you want to set up. I can add routines, events, courses and to-dos, or change the ones you have.',
+  offline: "Can't reach the assistant. You're offline. Everything you've made is safe on this device. Try again in a moment.",
   tryAgain: 'Try again',
   addTaskManually: 'Add a task manually',
   listening: 'Listening…',
@@ -32,8 +36,8 @@ export const S33_COPY = {
   headerLabel: 'Quick check',
   voiceCaption: 'Or just say which one.',
   listening: 'Listening for your answer…',
-  reAsk: 'Sorry — which one did you mean?',
-  dismissedTurn: 'No worries — let me know which one whenever you\'re ready.',
+  reAsk: 'Sorry, which one did you mean?',
+  dismissedTurn: "No worries. Let me know which one whenever you're ready.",
 } as const;
 
 export const S34_COPY = {
@@ -52,17 +56,17 @@ export const S35_COPY = {
 } as const;
 
 export const S36_COPY = {
-  title: 'Fallback AI options',
+  title: 'Options',
   newConversation: 'New conversation',
   conversationHistory: 'Conversation history',
-  voiceAndLanguage: 'Voice & language',
+  voiceAndLanguage: 'Voice and language',
   manageSubscription: 'Manage subscription',
-  accountAndSync: 'Account & sync',
+  accountAndSync: 'Account and sync',
   help: 'Help',
   languageLabel: 'Language',
   languageValue: 'English (US)',
   voiceLabel: 'Voice',
-  voiceValue: 'Warm — default',
+  voiceValue: 'Warm (default)',
   savedToast: 'Saved',
 } as const;
 
@@ -72,45 +76,48 @@ export const S37_COPY = {
   primer: {
     headline: 'Just say what you need.',
     body: 'The microphone powers the voice assistant. Audio is processed only when you tap the mic.',
-    secondaryLine: 'Prefer typing? You can skip — the assistant takes text too.',
-    primaryAction: 'Enable',
+    secondaryLine: 'Prefer typing? You can skip this. The assistant takes text too.',
+    primaryAction: 'Allow',
     secondaryAction: 'Not now',
   },
   recovery: {
     headline: 'Turn on the mic to talk.',
-    body: 'Enable the microphone in Settings — or just type instead.',
-    primaryAction: 'Open Settings',
+    body: 'Allow the microphone in Settings, or just type instead.',
+    primaryAction: 'Open settings',
     secondaryAction: 'Type instead',
   },
 } as const;
 
 export const S38_COPY = {
-  eyebrow: 'FALLBACK AI',
+  title: 'Fallback AI',
   storeUnreachable: "Can't reach the App Store right now. Your own AI key still works — no store connection needed.",
   storeUnavailableFinePrint: 'Store unavailable — try again shortly.',
   retry: 'Retry',
   headline: 'Just say it. AI builds it.',
-  subcopy: 'Speak naturally — Fallback AI turns it into routines, events & courses, each with an ideal and a fallback.',
-  bullets: ['Voice-first — talk, no typing', 'Drafts ideal + fallback for you', 'Bulk-create a whole week at once'] as const,
+  subcopy: 'Speak naturally. Fallback AI turns it into routines, events and courses, each with an ideal and a fallback.',
+  benefits: [
+    { title: "Talk, don't type", body: 'Say what you want in your own words.' },
+    { title: 'Ideal and fallback, written for you', body: 'Every habit comes with both.' },
+    { title: 'A whole week in one go', body: 'Routines, events and courses together.' },
+  ] as const,
   cardA: {
-    eyebrow: 'SUBSCRIBE',
-    heading: 'Fallback AI Subscription',
+    heading: 'Fallback AI subscription',
     price: '$4.99/mo',
-    priceSecondary: 'or $39.99/yr — save 33%',
+    priceSecondary: 'or $39.99/yr, save 33%',
     badge: '7-day free trial',
     cta: 'Start free trial',
-    finePrint: 'then $4.99/mo · cancel anytime · Restore Purchases',
-    restorePurchases: 'Restore Purchases',
+    finePrint: 'Then $4.99/mo. Cancel anytime.',
+    restorePurchases: 'Restore purchases',
+    restoreSub: 'Already subscribed? Check your store account.',
   },
   divider: 'or',
   cardB: {
-    eyebrow: 'BRING YOUR OWN KEY',
-    heading: 'Use Your Own AI Key',
+    heading: 'Use your own AI key',
     description:
-      'Already have an OpenAI-compatible API key? Connect it directly — free, no subscription. Your key stays on this device; calls go straight to your provider, never through Fallback\'s servers.',
-    bullets: ['Free — no subscription required', 'Works with OpenAI, Groq, local models & more'] as const,
-    cta: 'Use Your Own AI Key',
-    finePrint: "If your endpoint can't transcribe audio, voice degrades gracefully to text.",
+      'Have an OpenAI-compatible API key? Connect it for free. The key stays on this device and calls go straight to your provider.',
+    bullets: ['Free, no subscription', 'Works with OpenAI, Groq, local models and more'] as const,
+    cta: 'Use your own AI key',
+    finePrint: "If your provider can't turn speech into text, you can still type.",
   },
   footerDisclosure:
     'While subscribed, your conversation messages are processed by our AI provider to generate responses — separate from your habit data, which never leaves this device.',
@@ -120,7 +127,8 @@ export const S38_COPY = {
 export const S39_COPY = {
   title: 'Choose your plan',
   annual: {
-    badge: 'SAVE 33%',
+    badge: 'Save 33%',
+    note: '$39.99 a year instead of $59.88',
     title: 'Annual',
     price: '$3.33/mo',
     billed: 'billed yearly',
@@ -136,7 +144,7 @@ export const S39_COPY = {
   confirmIos: 'Confirm with Face ID',
   confirmAndroid: 'Confirm with fingerprint',
   verifying: 'Verifying…',
-  success: 'Trial started — 7 days free 🎉',
+  success: 'Trial started. 7 days free.',
   biometricFailed: "Face ID didn't recognize you — try again, or use your device passcode.",
   purchaseError: "Couldn't complete the purchase. Nothing was charged — try again.",
   retry: 'Retry',
@@ -145,7 +153,7 @@ export const S39_COPY = {
 } as const;
 
 export const S40_COPY = {
-  title: 'Use Your Own AI Key',
+  title: 'Use your own AI key',
   intro:
     'Connect any OpenAI-compatible endpoint — OpenAI, Groq, a local model server, or another provider. Your key is stored only on this device; requests go straight to your provider, never through Fallback\'s servers.',
   baseUrlLabel: 'API base URL',
@@ -154,10 +162,10 @@ export const S40_COPY = {
   apiKeyLabel: 'API key',
   apiKeyPlaceholder: 'sk-…',
   apiKeyHelper: 'Stored only on this device — never sent anywhere but your provider.',
-  save: 'Save & Connect',
+  save: 'Save and connect',
   connecting: 'Connecting…',
   invalid: "Couldn't verify this endpoint. Double-check the URL and key, then try again.",
-  successFull: 'Connected — you\'re all set.',
+  successFull: "Connected. You're all set.",
   successFullSub: 'Taking you to Fallback AI…',
   successDegraded:
     "Saved — this endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",

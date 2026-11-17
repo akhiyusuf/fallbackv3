@@ -1,9 +1,10 @@
 /** M0 kit — Fallback-custom `OffDayToggle`. F4 whole-day or task-day off mark. Two independent instances per S09/S20. */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SPACE, useTheme } from '@/theme';
 
 import { Switch } from './Switch';
+import { Text } from '@/ui/AppText';
 
 export interface OffDayToggleProps {
   readonly value: boolean;

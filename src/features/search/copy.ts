@@ -14,7 +14,7 @@ export const S14_COPY = {
   typeRoutine: 'Routine',
   typeEvent: 'Event',
   typeCourse: 'Course',
-  typeTodo: 'To-do/Note',
+  typeTodo: 'To-do',
 
   importanceHigh: 'High',
   importanceMed: 'Med',
@@ -32,11 +32,11 @@ export const S14_COPY = {
   nothingToSearchSubcopy: "Once you add a task, it'll show up here.",
 
   backLabels: {
-    today: '‹ Today',
-    routines: '‹ Routines',
-    events: '‹ Events',
-    courses: '‹ Courses',
-    todos: '‹ To-dos',
+    today: 'Back to Today',
+    routines: 'Back to Routines',
+    events: 'Back to Events',
+    courses: 'Back to Courses',
+    todos: 'Back to To-dos',
   },
 } as const;
 

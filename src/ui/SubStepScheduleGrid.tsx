@@ -1,22 +1,20 @@
 /**
- * M0 kit — Fallback-custom `SubStepScheduleGrid` (F23/F24). Rows = ideal steps, columns =
- * the parent's own due weekdays. `dueWeekdays === null` on a step reads as "on" for every
- * column (the default for a new step) — see `src/types/task.ts`'s `Step.dueWeekdays`.
- * Save-time no-empty-run-occurrence validation is `@/domain`'s; this component only
- * highlights the columns the caller names as invalid.
+ * SubStepScheduleGrid — which days each step applies (F23/F24).
+ * One row of the shared weekday circles per step (D10); days the parent task
+ * does not run on are locked.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme } from '@/theme';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import type { Weekday } from '@/types';
+import { WeekdayPicker } from './WeekdayPicker';
+import { Text } from '@/ui/AppText';
 
-const WEEKDAY_ABBR: Record<Weekday, string> = { 1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F', 6: 'S', 7: 'S' };
+const ALL: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 
 export interface SubStepScheduleGridStep {
   readonly id: string;
   readonly text: string;
-  /** `null` == due every parent day. */
   readonly dueWeekdays: readonly Weekday[] | null;
 }
 
@@ -29,64 +27,36 @@ export interface SubStepScheduleGridProps {
   readonly testID?: string;
 }
 
-export function SubStepScheduleGrid({ steps, parentDays, onToggle, errorDays = [], accessibilityLabel, testID }: SubStepScheduleGridProps) {
+export function SubStepScheduleGrid({ steps, parentDays, onToggle, accessibilityLabel, testID }: SubStepScheduleGridProps) {
   const t = useTheme();
-  const sortedDays = [...parentDays].sort((a, b) => a - b);
-
+  const locked = ALL.filter((d) => !parentDays.includes(d));
   return (
-    <View testID={testID} accessibilityLabel={accessibilityLabel}>
-      <View style={styles.headerRow}>
-        <View style={styles.stepLabelCol} />
-        {sortedDays.map((day) => (
-          <Text
-            key={day}
-            style={[styles.dayHeader, { color: errorDays.includes(day) ? t.color.danger : t.color.textDim }]}
-          >
-            {WEEKDAY_ABBR[day]}
-          </Text>
-        ))}
-      </View>
-
-      {steps.map((step) => (
-        <View key={step.id} style={styles.row}>
-          <Text style={[styles.stepLabel, { color: t.color.text }]}>{step.text}</Text>
-          {sortedDays.map((day) => {
-            const on = step.dueWeekdays === null || step.dueWeekdays.includes(day);
-            return (
-              <Pressable
-                key={day}
-                onPress={() => onToggle(step.id, day)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: on }}
-                accessibilityLabel={`${step.text}, ${WEEKDAY_ABBR[day]}`}
-                style={[
-                  styles.cell,
-                  { backgroundColor: on ? t.accent.base : t.color.bg, borderColor: on ? t.accent.base : t.color.border },
-                ]}
-              >
-                {on ? <Check size={12} color={t.color.textOnAccent} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
+    <View testID={testID} accessibilityLabel={accessibilityLabel} style={styles.root}>
+      {steps.map((step) => {
+        const on = (step.dueWeekdays ?? parentDays).filter((d) => parentDays.includes(d));
+        return (
+          <View key={step.id} style={styles.step}>
+            <Text numberOfLines={1} style={[styles.stepLabel, { color: t.color.text }]}>
+              {step.text}
+            </Text>
+            <WeekdayPicker
+              selected={on}
+              disabledDays={locked}
+              onChange={(next) => {
+                const changed = [...next.filter((d) => !on.includes(d)), ...on.filter((d) => !next.includes(d))][0];
+                if (changed) onToggle(step.id, changed);
+              }}
+              accessibilityLabel={`Days for ${step.text}`}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: 'row', alignItems: 'center' },
-  stepLabelCol: { flex: 1 },
-  dayHeader: { width: MIN_TAP_TARGET, textAlign: 'center', fontSize: 12, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACE.s1 },
-  stepLabel: { flex: 1, fontSize: 14, paddingRight: SPACE.s1 },
-  cell: {
-    width: MIN_TAP_TARGET - 10,
-    height: MIN_TAP_TARGET - 10,
-    marginHorizontal: 5,
-    borderRadius: RADIUS.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  root: { gap: SPACE.s3 },
+  step: { gap: SPACE.s1 + 2 },
+  stepLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
 });

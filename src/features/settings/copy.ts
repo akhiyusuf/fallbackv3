@@ -5,19 +5,19 @@
 
 export const S41_COPY = {
   title: 'Settings',
-  profileName: 'Maya',
+  profileName: 'Your progress',
   levelPrefix: 'Level',
-  statSuffix: '% showing up',
+  statSuffix: '% showing up, last 30 days',
   statLoadError: "Couldn't load your stats",
   retry: 'Retry',
   sections: [
-    { label: 'Progress & Achievements', rows: ['Badges', 'Records'] },
+    { label: 'Progress and achievements', rows: ['Badges', 'Records'] },
     { label: 'Preferences', rows: ['Notifications', 'Theme & accent', 'Widgets'] },
-    { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history'] },
-    { label: 'Account & Data', rows: ['Account & sync', 'Data'] },
+    { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history', 'AI agent access'] },
+    { label: 'Account and data', rows: ['Account & sync', 'Data'] },
     { label: 'Support', rows: ['Help & about'] },
   ],
-  rowSubcopy: { Records: 'Weekly & monthly recaps' } as Record<string, string>,
+  rowSubcopy: { Records: 'Weekly and monthly recaps', 'AI agent access': 'Let an AI app you use help, with your permission' } as Record<string, string>,
 } as const;
 
 export const S42_COPY = {
@@ -43,25 +43,30 @@ export const S43_COPY = {
     { value: 'auto', label: 'Auto' },
   ],
   accentLabel: 'Accent color',
-  accentHelper: 'Accent only recolors CTAs & progress — never the signal colors.',
+  accentHelper: 'A theme recolours the whole app. Ideal green and fallback blue never change.',
+  moreColoursLabel: 'More colours',
+  moreColoursHelper: "Greens, sky blues, golds and reds aren't offered. Those colours already mean ideal, fallback, XP and errors.",
   previewTaskName: 'Morning workout',
+  previewIdeal: 'Full workout',
+  previewFallback: '10 push-ups',
+  previewNote: 'This is the same card you see on Today. Tap it to try the colours.',
   previewTaskMeta: 'Full workout · 7:00 AM',
   previewCta: 'Log fallback',
   previewStat: '3 of 5 done today',
-  previewCaption: 'Signal colors (ideal, fallback, off, missed) never change with your accent.',
-  stateChipLabels: { done: 'Done/Ideal', fallback: 'Fallback', skip: 'Skip', off: 'Off' },
+  previewCaption: 'Ideal, fallback and off-day colours never change with your accent.',
+  stateChipLabels: { done: 'Done', fallback: 'Fallback', skip: 'Skip', off: 'Off' },
   errorToast: "Couldn't save — try again.",
 } as const;
 
 export const S46_COPY = {
   title: 'Widgets',
   gallery: [
-    { size: 'small-today' as const, label: 'Small · Today', preview: '3/5 done' },
-    { size: 'small-one-task' as const, label: 'Small · One task', preview: 'Morning workout' },
-    { size: 'medium-up-next' as const, label: 'Medium · Up next', preview: 'Next 2 tasks' },
+    { size: 'small-today' as const, label: 'Small: today', preview: '3/5 done' },
+    { size: 'small-one-task' as const, label: 'Small: one task', preview: 'Morning workout' },
+    { size: 'medium-up-next' as const, label: 'Medium: up next', preview: 'Next 2 tasks' },
   ],
   fixedTask: 'Fixed task',
-  smartNextDue: 'Smart — next due',
+  smartNextDue: 'Next due',
   smartHelper: 'Always shows whichever task is due soonest.',
   save: 'Save',
   footer: 'Widgets refresh automatically and always match your current theme and accent.',
@@ -84,6 +89,6 @@ export const S49_COPY = {
     { label: 'Terms of service', toast: 'Opening…' },
   ],
   privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
-  version: 'Fallback · version 1.0.0 (build 128)',
-  tagline: 'Made with care · Something beats nothing.',
+  version: 'Fallback 1.0.0 (128)',
+  tagline: 'Something beats nothing.',
 } as const;

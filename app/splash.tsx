@@ -9,12 +9,13 @@
  */
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { store, repos } from '@/db';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
 import { SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 // "If the store read resolves in under ~400ms, the splash still holds for a brief minimum
 // so the wordmark isn't a single-frame flash" — calm pacing, not a loading-state variant.
@@ -51,7 +52,7 @@ export default function S01Splash() {
         if (settings.onboardingCompletedAt) {
           router.replace('/today');
         } else {
-          router.replace('/onboarding/hook');
+          router.replace('/onboarding/concept');
         }
       } catch {
         // `repos.settings.get()` throws (by design) if the singleton is somehow missing

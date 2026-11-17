@@ -13,7 +13,6 @@
  * trivial marker screen — tests assert BY NAVIGATION (which marker screen is now on screen),
  * never by importing another module's real implementation.
  */
-import { Text } from 'react-native';
 
 import S20 from '../../../../app/task/[id]/index';
 import S21 from '../../../../app/task/[id]/icon';
@@ -25,6 +24,7 @@ import S16 from '../../../../app/add/routine';
 import S17 from '../../../../app/add/event';
 import S18 from '../../../../app/add/course';
 import S19 from '../../../../app/add/todo';
+import { Text } from '@/ui/AppText';
 
 function marker(label: string) {
   return function Marker() {

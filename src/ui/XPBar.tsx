@@ -3,9 +3,10 @@
  * hue (`tokens.ts` `xp`), distinct from the accent — the accent is reserved for CTAs,
  * generic progress, the active tab and the add button (ARCHITECTURE §5), not this signal.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RADIUS, SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export interface XPBarProps {
   readonly title: string;
@@ -34,7 +35,7 @@ export function XPBar({ title, valueLabel, current, max, subline, accessibilityL
       </Text>
       {percent !== null ? (
         <View style={[styles.track, { backgroundColor: t.color.surface }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
-          <View style={[styles.fill, { width: `${percent}%`, backgroundColor: t.color.xp }]} />
+          <View style={[styles.fill, { width: `${percent}%`, backgroundColor: t.color.xpFill }]} />
         </View>
       ) : null}
       {subline ? <Text style={[styles.subline, { color: t.color.textMuted }]}>{subline}</Text> : null}
@@ -45,8 +46,8 @@ export function XPBar({ title, valueLabel, current, max, subline, accessibilityL
 const styles = StyleSheet.create({
   root: { gap: SPACE.s1 },
   title: { fontSize: 14, fontWeight: '600' },
-  value: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  track: { height: 10, borderRadius: RADIUS.pill, overflow: 'hidden' },
+  value: { fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  track: { height: 14, borderRadius: RADIUS.pill, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: RADIUS.pill },
-  subline: { fontSize: 13 },
+  subline: { fontSize: 14 },
 });

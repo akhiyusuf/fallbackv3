@@ -12,16 +12,19 @@ export const ONBOARDING_SHELL_COPY = {
 export const S02_COPY = {
   headline: 'Something beats nothing.',
   body: 'Build habits that survive your worst days — not just your best ones.',
+  compareTitle: 'The same week, twice',
+  withoutLabel: 'The full version or nothing',
+  withoutCount: '3 of 7 days',
+  withLabel: 'With a fallback',
+  withCount: '7 of 7 days',
 } as const;
 
 export const S03_COPY = {
-  headline: 'A plan A and a plan B for every habit.',
+  headline: 'a plan A and a plan B for every habit.',
   body: 'Too tired for the full thing? Do the fallback. You still showed up.',
-  eyebrow: 'MORNING WORKOUT',
-  idealLabel: 'Ideal — Full workout',
-  idealHelper: '30 min, all 3 steps.',
-  fallbackLabel: 'Fallback — 10 pushups',
-  fallbackHelper: 'The low bar on a hard day.',
+  exampleName: 'Morning workout',
+  idealText: 'Full workout, 30 minutes',
+  fallbackText: '10 pushups on a hard day',
   privacy: 'No login. Your data lives on this device — no account to create or password to lose.',
 } as const;
 
@@ -32,26 +35,33 @@ export const S04_COPY = {
     { label: 'Routines', helper: 'Recurring, day to day.' },
     { label: 'Events', helper: 'One-off, at a set time.' },
     { label: 'Courses', helper: 'A run with an end date.' },
-    { label: 'To-dos & Notes', helper: 'Loose tasks, no schedule.', tag: 'NEW' },
+    { label: 'To-dos and notes', helper: 'Loose tasks, no schedule.' },
   ],
 } as const;
 
 export const S05_COPY = {
   headline: 'Every day counts — ideal or fallback.',
   body: 'Nothing to lose here. We count how often you show up — a fallback still counts.',
-  eyebrow: 'EXAMPLE',
-  bigNumeral: '83%',
-  subLabel: '5 of 6 days you showed up',
+  bigNumeral: '86%',
+  subLabel: '6 of 7 days you showed up',
   legend: { ideal: 'Ideal', fallback: 'Fallback', off: 'Off' },
-  // 7-day sample composition, spec-pinned: 3 ideal + 2 fallback + 1 off + 1 missed (unfilled).
-  sample: { ideal: 3, fallback: 2, off: 1, missed: 1, total: 7 },
+  // The week in the banner picture: a tray of seven with four green marbles and two blue in it
+  // and the seventh place still empty. (The design said 3 ideal + 2 fallback + 1 off + 1 missed;
+  // the human asked for the example to match the picture.)
+  sample: { ideal: 4, fallback: 2, off: 0, missed: 1, total: 7 },
 } as const;
 
 export const S06_COPY = {
   headline: 'Make it yours.',
-  body: 'Pick an accent color and decide if you want a gentle nudge now and then.',
-  accentSectionLabel: 'Accent color',
-  accentHelper: 'Only recolors buttons and progress — never the ideal, fallback, or off-day colors.',
+  body: 'Pick a colour, then light or dark.',
+  accentSectionLabel: 'Colour',
+  accentHelper: 'Ideal green and fallback blue never change. More colours are in Settings.',
+  appearanceSectionLabel: 'Light or dark',
+  appearanceOptions: [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'auto', label: 'Match phone' },
+  ],
   previewLabel: 'Preview',
   remindersSectionLabel: 'Reminders',
   remindersRowLabel: 'Gentle nudges for due habits',
@@ -72,7 +82,7 @@ export const S07_COPY = {
 
 export const S08_COPY = {
   headline: 'Add your first habit.',
-  body: "We'll start with a routine — pick a type, then give it an ideal and a fallback.",
+  body: "We'll start with a daily routine. Give it an ideal and a fallback — you can add events, courses and to-dos after setup.",
   lastStep: 'Last step',
   tiles: [
     { label: 'Routines', enabled: true },
@@ -89,7 +99,7 @@ export const S08_COPY = {
   fallbackLabel: 'Fallback',
   fallbackPlaceholder: '10 pushups',
   fallbackHelper: 'The low bar — still counts as showing up.',
-  cadenceNote: 'Runs every day — you can change that anytime.',
+  cadenceNote: 'It runs every day. You can change that anytime.',
   save: 'Save routine',
   nameError: 'Add a name to continue',
   idealError: 'Add an ideal version to continue',

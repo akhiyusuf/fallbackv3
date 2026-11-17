@@ -12,7 +12,7 @@
  * icon (still colour-free — ARCHITECTURE §5 — just not literally transparent); not-due is
  * transparent with a faint 1px `--border` rather than no border at all.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Check, CheckCheck, ChevronLeft, ChevronRight, Moon } from 'lucide-react-native';
 
 import { MIN_TAP_TARGET, SPACE, useTheme, type Theme } from '@/theme';
@@ -21,6 +21,7 @@ import type { LocalDate, OccurrenceOutcome } from '@/types';
 
 import { SR_ONLY_PROPS, SR_ONLY_STYLE } from './a11y';
 import { IconButton } from './IconButton';
+import { Text } from '@/ui/AppText';
 
 export interface CalendarHeatmapDay {
   readonly date: LocalDate;

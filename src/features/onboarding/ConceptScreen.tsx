@@ -1,68 +1,52 @@
-/** S03 — Onboarding: Concept (ideal + fallback). route: /onboarding/concept. Features: F9, F2. */
+/** S03 — onboarding step 1 (it leads the tour: the idea first, then the reason for it). The example uses the real task-card pieces so it matches the app. */
 import { useRouter, type Href } from 'expo-router';
-import { CheckCircle2, CircleDashed, GitBranch, Lock } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Dumbbell, GitBranch, Lock } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { now } from '@/lib/date';
-import { useUpdateSettings } from '@/queries';
-import { SPACE, useTheme } from '@/theme';
-import { Card } from '@/ui';
+import { MetaLine, PlanTiles } from '@/features/task/TaskDetails';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
+import { Card, TaskIcon } from '@/ui';
 
 import { S03_COPY } from './copy';
-import { OnboardingShell } from './OnboardingShell';
-import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
+import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
+import { useOnboardingResumeRedirect } from './useOnboardingResume';
+import { Text } from '@/ui/AppText';
 
 export function ConceptScreen() {
   const t = useTheme();
   const router = useRouter();
-  const updateSettings = useUpdateSettings();
-  useOnboardingStepMarker('/onboarding/concept');
-
-  async function handleSkip() {
-    void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
-    await finishOnboardingProgress();
-    router.replace('/today' as Href);
-  }
-
-  function handleNext() {
-    router.push('/onboarding/types' as Href);
-  }
+  const tight = useOnboardingDensity() === 'tight';
+  // The first step is the one that reads the saved place back and forwards a returning person.
+  const { resuming } = useOnboardingResumeRedirect('/onboarding/concept');
+  if (resuming) return <View accessibilityLabel="Loading" />;
 
   return (
-    <OnboardingShell step={2} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={handleNext} onSkip={handleSkip}>
-      <Card
-        accessibilityLabel={`Example: Morning workout. Ideal: Full workout, 30 minutes, all 3 steps. Fallback: 10 pushups, the low bar on a hard day.`}
-      >
-        <Text style={[styles.eyebrow, { color: t.color.textDim }]}>{S03_COPY.eyebrow}</Text>
-        <View style={styles.row}>
-          <CheckCircle2 size={20} color={t.color.ideal} accessibilityElementsHidden importantForAccessibility="no" />
-          <View style={styles.rowText}>
-            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S03_COPY.idealLabel}</Text>
-            <Text style={[styles.rowHelper, { color: t.color.textMuted }]}>{S03_COPY.idealHelper}</Text>
+    <OnboardingShell step={1} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={() => router.push('/onboarding/hook' as Href)}>
+      <Card accessibilityLabel="Example: Morning workout. Ideal: full workout, 30 minutes. Fallback: 10 pushups." style={[styles.card, tight && styles.cardTight]}>
+        <View style={styles.head}>
+          <TaskIcon icon={Dumbbell} />
+          <View style={styles.text}>
+            <Text style={[styles.name, { color: t.color.text }]}>{S03_COPY.exampleName}</Text>
+            <MetaLine parts={['Daily', 'High importance']} />
           </View>
         </View>
-        <View style={styles.row}>
-          <CircleDashed size={20} color={t.color.fallback} accessibilityElementsHidden importantForAccessibility="no" />
-          <View style={styles.rowText}>
-            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S03_COPY.fallbackLabel}</Text>
-            <Text style={[styles.rowHelper, { color: t.color.textMuted }]}>{S03_COPY.fallbackHelper}</Text>
-          </View>
-        </View>
+        <PlanTiles ideal={S03_COPY.idealText} fallback={S03_COPY.fallbackText} numberOfLines={2} />
       </Card>
       <View style={styles.privacyRow} accessibilityLabel={S03_COPY.privacy}>
         <Lock size={16} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-        <Text style={[styles.privacyText, { color: t.color.textMuted }]}>{S03_COPY.privacy}</Text>
+        <Text style={[styles.privacyText, tight && styles.privacyTight, { color: t.color.textMuted }]}>{S03_COPY.privacy}</Text>
       </View>
     </OnboardingShell>
   );
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 },
-  rowText: { flexShrink: 1, gap: 2 },
-  rowLabel: { fontSize: 15, fontWeight: '600' },
-  rowHelper: { fontSize: 13, lineHeight: 18 },
-  privacyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2, marginTop: SPACE.s2 },
-  privacyText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+  card: { gap: SPACE.s2 + 4 },
+  cardTight: { gap: SPACE.s2, padding: SPACE.s2 + 4 },
+  privacyTight: { fontSize: 13, lineHeight: 18 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4 },
+  text: { flex: 1, gap: 2 },
+  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
+  privacyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 },
+  privacyText: { fontSize: FONT_SIZE.sm, lineHeight: 20, flexShrink: 1 },
 });

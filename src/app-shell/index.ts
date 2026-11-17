@@ -15,7 +15,9 @@ import type { LocalDate } from '@/types';
 
 export { ErrorBoundary } from './ErrorBoundary';
 export { useThemeStore } from './stores/theme';
-export { useToastStore, type ToastEntry, type ToastTone } from './stores/toast';
+export { useToastStore, type ToastEntry, type ToastTone, type ToastOptions } from './stores/toast';
+export { useCelebrationStore, type Celebration } from './stores/celebration';
+export { useAddMenuStore } from './stores/addMenu';
 export { useEntitlementStore } from './stores/entitlement';
 export { useAssistantSessionStore } from './stores/assistantSession';
 

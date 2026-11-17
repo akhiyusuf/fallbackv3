@@ -1,22 +1,22 @@
 /**
- * S44 — Manage Subscription    route: /settings/subscription
- * Owner: M6. Features: F17.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S44)
+ * S44 — Subscription. Status as a grouped list (D7); plans use the shared plan
+ * cards (D9). "Manage in the store" only appears when there is a subscription.
  */
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { deepLinkToSubscriptions } from 'expo-iap';
 import { format } from 'date-fns';
+import { ExternalLink, RotateCcw } from 'lucide-react-native';
 
-import { AssistantHeader } from '@/features/assistant/AssistantHeader';
-import { S44_COPY } from '@/features/assistant/copy';
+import { S39_COPY, S44_COPY } from '@/features/assistant/copy';
+import { PlanCard } from '@/features/assistant/PlanCard';
 import { billing } from '@/services/billing';
-import { useEntitlementStore } from '@/app-shell';
-import { useToastStore } from '@/app-shell';
+import { useEntitlementStore, useToastStore } from '@/app-shell';
 import { parseLocalDate, diffDays, today } from '@/lib/date';
-import { SPACE, useTheme } from '@/theme';
-import { Badge, Button, Card, InlineRetryBanner, Skeleton } from '@/ui';
+import { FONT_SIZE, SPACE, useTheme } from '@/theme';
+import { Button, InlineRetryBanner, ListGroup, ListRow, Screen, SectionHeading, Skeleton } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 type Plan = 'monthly' | 'annual';
 
@@ -27,7 +27,7 @@ export default function S44ManageSubscription() {
   const entitlement = useEntitlementStore((s) => s.entitlement);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<Plan>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<Plan>('annual');
   const [restoring, setRestoring] = useState(false);
 
   async function load() {
@@ -40,7 +40,6 @@ export default function S44ManageSubscription() {
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -51,22 +50,13 @@ export default function S44ManageSubscription() {
     router.replace('/settings' as Href);
   }
 
-  function handleConfirmChange() {
-    router.push('/assistant/paywall/plan?origin=manage' as Href);
-  }
-
-  function handleStartTrial() {
+  function goToPlan() {
     router.push('/assistant/paywall/plan?origin=manage' as Href);
   }
 
   function handleManageInStore() {
-    // B3: cancellation must hand off to the platform's own subscription-management surface —
-    // a toast alone leaves the user with no way to actually cancel in the shipped app.
-    showToast(S44_COPY.opensAppStore, 'neutral');
-    void deepLinkToSubscriptions().catch(() => {
-      // Calm, non-blocking — the toast above already told the user what's supposed to
-      // happen; a platform-side failure to deep-link isn't a Fallback error to surface.
-    });
+    showToast(Platform.OS === 'ios' ? 'Opening the App Store…' : 'Opening Google Play…', 'neutral');
+    void deepLinkToSubscriptions().catch(() => undefined);
   }
 
   async function handleRestore() {
@@ -82,112 +72,76 @@ export default function S44ManageSubscription() {
 
   const isSubscribed = entitlement.status === 'active' || entitlement.status === 'trial';
   const manageLabel = Platform.OS === 'ios' ? S44_COPY.manageIos : S44_COPY.manageAndroid;
+  const planName = !isSubscribed ? 'Free plan' : entitlement.plan === 'annual' ? 'Annual' : 'Monthly';
+
+  if (loading || error) {
+    return (
+      <Screen title="Subscription" onBack={handleBack}>
+        {loading ? <Skeleton height={120} radius={16} /> : <InlineRetryBanner message={S44_COPY.errorStore} onRetry={load} retryLabel="Retry" tone="warning" />}
+      </Screen>
+    );
+  }
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <AssistantHeader onBack={handleBack} title={S44_COPY.title} />
-      <View style={styles.content}>
-        {loading ? (
-          <Skeleton height={100} />
-        ) : error ? (
-          <InlineRetryBanner message={S44_COPY.errorStore} onRetry={load} retryLabel="Retry" tone="warning" />
+    <Screen
+      title="Subscription"
+      onBack={handleBack}
+      footer={
+        isSubscribed ? (
+          selectedPlan !== entitlement.plan ? <Button label={S44_COPY.confirmChange} onPress={goToPlan} accessibilityLabel={S44_COPY.confirmChange} fullWidth /> : undefined
         ) : (
-          <>
-            <Card accessibilityLabel="Plan status">
-              <Badge label={isSubscribed ? S44_COPY.activeBadge : S44_COPY.freeBadge} tone={isSubscribed ? 'accent' : 'neutral'} />
-              {isSubscribed ? (
-                <>
-                  <Text style={[styles.planLine, { color: t.color.text }]}>
-                    {entitlement.plan === 'annual' ? S44_COPY.planAnnual : S44_COPY.planMonthly}
-                  </Text>
-                  <Text style={[styles.renewLine, { color: t.color.textMuted }]}>
-                    {entitlement.status === 'trial'
-                      ? trialLine(entitlement.trialEndsOn)
-                      : renewLine(entitlement.renewsOn)}
-                  </Text>
-                </>
-              ) : (
-                <Text style={[styles.renewLine, { color: t.color.textMuted }]}>{S44_COPY.freeFraming}</Text>
-              )}
-            </Card>
+          <Button label={S44_COPY.startFreeTrial} onPress={goToPlan} accessibilityLabel={S44_COPY.startFreeTrial} fullWidth />
+        )
+      }
+    >
+      <ListGroup footer={isSubscribed ? undefined : 'The free plan keeps every core feature. Fallback AI is optional.'}>
+        <ListRow label="Fallback AI" value={isSubscribed ? (entitlement.status === 'trial' ? 'Free trial' : 'Active') : 'Not subscribed'} />
+        <ListRow label="Plan" value={planName} />
+        {isSubscribed ? (
+          <ListRow
+            label={entitlement.status === 'trial' ? 'Trial ends' : 'Renews'}
+            value={entitlement.status === 'trial' ? trialLine(entitlement.trialEndsOn) : renewLine(entitlement.renewsOn)}
+          />
+        ) : null}
+      </ListGroup>
 
-            {isSubscribed ? (
-              <Card accessibilityLabel="Change plan">
-                <View style={styles.segmentRow}>
-                  <SegmentOption
-                    label={S44_COPY.segmentMonthly}
-                    selected={selectedPlan === 'monthly'}
-                    onPress={() => setSelectedPlan('monthly')}
-                  />
-                  <SegmentOption
-                    label={S44_COPY.segmentAnnual}
-                    selected={selectedPlan === 'annual'}
-                    onPress={() => setSelectedPlan('annual')}
-                  />
-                </View>
-                <Button label={S44_COPY.confirmChange} onPress={handleConfirmChange} accessibilityLabel={S44_COPY.confirmChange} fullWidth />
-              </Card>
-            ) : (
-              <Button label={S44_COPY.startFreeTrial} onPress={handleStartTrial} accessibilityLabel={S44_COPY.startFreeTrial} fullWidth />
-            )}
-
-            <Card accessibilityLabel="Cancel subscription">
-              <Text style={[styles.cancelHeading, { color: t.color.text }]}>{S44_COPY.cancelHeading}</Text>
-              <Button label={manageLabel} onPress={handleManageInStore} variant="secondary" accessibilityLabel={manageLabel} fullWidth />
-              <Text style={[styles.helper, { color: t.color.textMuted }]}>{S44_COPY.manageHelper}</Text>
-            </Card>
-
-            <Card accessibilityLabel="Restore purchases">
-              <Button label={S44_COPY.restore} onPress={handleRestore} loading={restoring} variant="ghost" accessibilityLabel={S44_COPY.restore} fullWidth />
-              <Text style={[styles.helper, { color: t.color.textMuted }]}>{S44_COPY.restoreHelper}</Text>
-            </Card>
-          </>
-        )}
+      <View style={styles.block}>
+        <SectionHeading>{isSubscribed ? 'Change plan' : 'Plans'}</SectionHeading>
+        <PlanCard
+          selected={selectedPlan === 'annual'}
+          onPress={() => setSelectedPlan('annual')}
+          title={S39_COPY.annual.title}
+          price={S39_COPY.annual.price}
+          billed={S39_COPY.annual.billed}
+          badge="Save 33%"
+          note={`${S39_COPY.annual.strikeTo}, instead of ${S39_COPY.annual.strikeFrom}`}
+        />
+        <PlanCard selected={selectedPlan === 'monthly'} onPress={() => setSelectedPlan('monthly')} title={S39_COPY.monthly.title} price={S39_COPY.monthly.price} billed={S39_COPY.monthly.billed} />
+        {isSubscribed ? null : <Text style={[styles.helper, { color: t.color.textMuted }]}>{S39_COPY.subcopy}</Text>}
       </View>
-    </View>
+
+      <ListGroup title="Billing" footer={isSubscribed ? S44_COPY.manageHelper : S44_COPY.restoreHelper}>
+        {isSubscribed ? (
+          <ListRow icon={ExternalLink} label={manageLabel} sublabel="Cancel or change billing there" onPress={handleManageInStore} chevron={false} />
+        ) : null}
+        <ListRow icon={RotateCcw} label={restoring ? 'Checking…' : S44_COPY.restore} onPress={() => void handleRestore()} disabled={restoring} chevron={false} />
+      </ListGroup>
+    </Screen>
   );
 }
 
-// B2: these two derive display text from REAL entitlement data only — never a hardcoded
-// sample number (the spec's "Trial ends in 3 days" is illustrative copy, not a constant).
-// When the store hasn't told us a date yet, render an honest "unknown" framing instead of
-// fabricating one.
 function trialLine(trialEndsOn: string | null): string {
-  if (!trialEndsOn) return S44_COPY.trialActiveUnknown;
+  if (!trialEndsOn) return 'Active';
   const days = Math.max(0, diffDays(trialEndsOn as never, today()));
-  return `${S44_COPY.trialEndsPrefix} ${days} ${S44_COPY.trialSuffix}`;
+  return `In ${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 function renewLine(renewsOn: string | null): string {
-  if (!renewsOn) return `${S44_COPY.renewsPrefix} —`;
-  return `${S44_COPY.renewsPrefix} ${format(parseLocalDate(renewsOn as never), 'MMM d')}`;
-}
-
-function SegmentOption({ label, selected, onPress }: { readonly label: string; readonly selected: boolean; readonly onPress: () => void }) {
-  const t = useTheme();
-  return (
-    <Text
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: selected }}
-      accessibilityLabel={label}
-      style={[
-        styles.segment,
-        { borderColor: selected ? t.accent.base : t.color.border, backgroundColor: selected ? t.accent.soft : t.color.bg, color: selected ? t.accent.deep : t.color.text },
-      ]}
-    >
-      {label}
-    </Text>
-  );
+  if (!renewsOn) return '–';
+  return format(parseLocalDate(renewsOn as never), 'MMM d, yyyy');
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s2 },
-  planLine: { fontSize: 16, fontWeight: '700' },
-  renewLine: { fontSize: 14 },
-  segmentRow: { flexDirection: 'row', gap: SPACE.s1 },
-  segment: { flex: 1, borderWidth: 1, borderRadius: 10, paddingVertical: SPACE.s1, paddingHorizontal: SPACE.s1, fontSize: 13, fontWeight: '600', textAlign: 'center', overflow: 'hidden' },
-  cancelHeading: { fontSize: 16, fontWeight: '700' },
-  helper: { fontSize: 13, lineHeight: 18 },
+  block: { gap: SPACE.s2 + 4 },
+  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 });

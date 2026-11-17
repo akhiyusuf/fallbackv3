@@ -1,29 +1,24 @@
 /**
  * S27 — Achievements    route: /achievements
- * Owner: M5. Features: F13, F29, F31.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S27)
- *
- * Origin-aware back: opened from S09 (Today) or S41 (Settings) — SITEMAP Decision 19.
- * Cycling XP label follows the ACTUAL active cadence (never a hardcoded "Monthly"). Tenure
- * badges show a calendar unlock condition only, are never gated on Cycling XP, and never
- * celebrate while locked.
+ * Level and cycle XP, cycle records, and the badge grid — four across (D16),
+ * with the badge detail in a bottom sheet (D3).
  */
 import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { History } from 'lucide-react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ACHIEVEMENTS } from '@/domain';
 import { ROUTES, useOriginAwareBack, withOrigin } from '@/navigation';
 import { useAchievements, useProgress, useSettings, useUpdateSettings } from '@/queries';
-import type { AchievementCategory, CycleCadence } from '@/types';
-import { SPACE, useTheme } from '@/theme';
-import { Card, InlineRetryBanner, MilestoneBadge, Select, Skeleton, Tabs, XPBar } from '@/ui';
+import type { AchievementCategory, CycleCadence, LocalDate } from '@/types';
+import { FONT_SIZE, INK, mix, RADIUS, SPACE, useTheme } from '@/theme';
+import { Card, Dialog, EmptyLine, InlineRetryBanner, ListGroup, ListRow, MilestoneBadge, Radio, Screen, SectionHeading, Skeleton, Tabs, XPBar } from '@/ui';
 
 import { BADGE_ICONS } from '@/features/progress/badgeIcons';
 import { OTHER_LOCKED_HINT, S27_COPY, SHOWING_UP_LOCKED_HINT, TENURE_OFFSETS } from '@/features/progress/copy';
 import { formatDate, tenureUnlockDate } from '@/features/progress/format';
-import { ProgressHeader } from '@/features/progress/ProgressHeader';
-import type { LocalDate } from '@/types';
+import { Text } from '@/ui/AppText';
 
 const CATEGORY_ORDER: readonly AchievementCategory[] = ['showing-up', 'fallback-wins', 'milestones', 'tenure'];
 
@@ -37,13 +32,19 @@ function lockedHintFor(key: string): string {
   return SHOWING_UP_LOCKED_HINT[key] ?? OTHER_LOCKED_HINT[key] ?? 'Locked.';
 }
 
+function tenureLockedLine(key: string, anchor: LocalDate): string {
+  const date = tenureUnlockDate(key, anchor);
+  const relative = TENURE_OFFSETS[key]?.relative ?? 'day one';
+  return date ? S27_COPY.tenureLockedDetail(formatDate(date), relative) : 'Locked.';
+}
+
 export default function S27Achievements() {
   const t = useTheme();
   const router = useRouter();
   const goBack = useOriginAwareBack(ROUTES.today);
 
   const [filter, setFilter] = useState<'all' | 'earned' | 'locked'>('all');
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   const progressQuery = useProgress();
   const achievementsQuery = useAchievements();
@@ -55,33 +56,27 @@ export default function S27Achievements() {
 
   if (isLoading) {
     return (
-      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-        <ProgressHeader title={S27_COPY.title} onBack={goBack} />
-        <View style={styles.content}>
-          <Skeleton height={90} />
-          <Skeleton height={90} />
-          <Skeleton height={200} />
-        </View>
-      </View>
+      <Screen title={S27_COPY.title} level="page" onBack={goBack}>
+        <Skeleton height={90} />
+        <Skeleton height={90} />
+        <Skeleton height={200} />
+      </Screen>
     );
   }
 
   if (isError || !progressQuery.data || !settingsQuery.data) {
     return (
-      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-        <ProgressHeader title={S27_COPY.title} onBack={goBack} />
-        <View style={styles.content}>
-          <InlineRetryBanner
-            message={S27_COPY.errorMessage}
-            onRetry={() => {
-              progressQuery.refetch();
-              achievementsQuery.refetch();
-              settingsQuery.refetch();
-            }}
-            tone="warning"
-          />
-        </View>
-      </View>
+      <Screen title={S27_COPY.title} level="page" onBack={goBack}>
+        <InlineRetryBanner
+          message={S27_COPY.errorMessage}
+          onRetry={() => {
+            progressQuery.refetch();
+            achievementsQuery.refetch();
+            settingsQuery.refetch();
+          }}
+          tone="warning"
+        />
+      </Screen>
     );
   }
 
@@ -91,110 +86,117 @@ export default function S27Achievements() {
   const unlockedKeys = new Set(unlocked.map((u) => u.key));
   const nonTenureEarned = unlocked.some((u) => !u.key.startsWith('tenure-'));
 
-  function badgeVisible(earned: boolean): boolean {
-    if (filter === 'earned') return earned;
-    if (filter === 'locked') return !earned;
-    return true;
-  }
+  const openDef = openKey ? ACHIEVEMENTS.find((a) => a.key === openKey) : undefined;
+  const openEarned = openKey ? unlockedKeys.has(openKey) : false;
+  const OpenIcon = openKey ? BADGE_ICONS[openKey] : undefined;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <ProgressHeader title={S27_COPY.title} onBack={goBack} />
-      <View style={styles.content}>
-        <Card accessibilityLabel="Lifetime XP">
-          <XPBar
-            title="Lifetime XP"
-            valueLabel={`Level ${progress.level.level} · ${progress.level.title} · ${progress.level.xpIntoLevel}/${progress.level.xpForLevel} XP`}
-            current={progress.level.xpIntoLevel}
-            max={progress.level.xpForLevel}
-          />
-        </Card>
+    <Screen title={S27_COPY.title} level="page" onBack={goBack}>
+      <Card accessibilityLabel={`Level ${progress.level.level}, ${progress.level.title}. ${progress.level.xpIntoLevel} of ${progress.level.xpForLevel} XP`} style={styles.card}>
+        <View style={styles.levelRow}>
+          <View style={[styles.medal, { backgroundColor: t.color.celebrationGold, borderColor: t.color.celebrationGold, borderBottomColor: mix(t.color.celebrationGold, INK, 0.28) }]}>
+            <Text style={styles.medalNumber}>{progress.level.level}</Text>
+          </View>
+          <View style={styles.levelText}>
+            <Text style={[styles.levelKicker, { color: t.color.textMuted }]}>{`Level ${progress.level.level}`}</Text>
+            <Text numberOfLines={1} style={[styles.levelTitle, { color: t.color.text }]}>
+              {progress.level.title}
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.xpTrack, { backgroundColor: t.color.surface }]} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: progress.level.xpForLevel, now: progress.level.xpIntoLevel }}>
+          <View style={[styles.xpFill, { backgroundColor: t.color.xpFill, width: `${Math.max(4, Math.min(100, (progress.level.xpIntoLevel / Math.max(1, progress.level.xpForLevel)) * 100))}%` }]} />
+        </View>
+        <View style={styles.xpRow}>
+          <Text style={[styles.xpStrong, { color: t.color.text }]}>{`${Math.max(0, progress.level.xpForLevel - progress.level.xpIntoLevel)} XP to level ${progress.level.level + 1}`}</Text>
+          <Text style={[styles.note, { color: t.color.textMuted }]}>{S27_COPY.lifetimeSubline(progress.lifetimeXp)}</Text>
+        </View>
+      </Card>
 
-        <Card accessibilityLabel="Cycling XP">
-          <XPBar
-            title={S27_COPY.cadenceLabel[progress.cycleCadence]}
-            valueLabel={`${progress.cyclingXp} XP`}
-            current={progress.cyclingXp}
-            max={null}
-            subline={`${S27_COPY.resetsOnPrefix} ${formatDate(progress.currentCycle.endDate, progress.cycleCadence === 'weekly' ? 'EEE, MMM d' : 'MMM d')}`}
-          />
-          <Select
-            label={S27_COPY.resetCadenceLabel}
-            value={settings.cycleCadence}
-            options={S27_COPY.cadenceOptions}
-            onChange={(v) => updateSettings.mutate({ cycleCadence: v as CycleCadence })}
-          />
-        </Card>
+      <Card accessibilityLabel={S27_COPY.cadenceLabel[progress.cycleCadence]} style={styles.card}>
+        <XPBar
+          title={S27_COPY.cadenceLabel[progress.cycleCadence]}
+          valueLabel={`${progress.cyclingXp} XP`}
+          current={progress.cyclingXp}
+          max={null}
+          subline={`${S27_COPY.resetsOnPrefix} ${formatDate(progress.currentCycle.endDate, progress.cycleCadence === 'weekly' ? 'EEE, MMM d' : 'MMM d')}`}
+        />
+        <Radio label={S27_COPY.resetCadenceLabel} value={settings.cycleCadence} options={S27_COPY.cadenceOptions} onChange={(v) => updateSettings.mutate({ cycleCadence: v as CycleCadence })} />
+      </Card>
 
-        <Card onPress={() => router.push(withOrigin(ROUTES.records, 'achievements') as Href)} accessibilityLabel={S27_COPY.recordsLink}>
-          <Text style={[styles.linkRow, { color: t.color.text }]}>{S27_COPY.recordsLink}</Text>
-        </Card>
+      <ListGroup>
+        <ListRow icon={History} label={S27_COPY.recordsLink} sublabel={S27_COPY.recordsSub} onPress={() => router.push(withOrigin(ROUTES.records, 'achievements') as Href)} />
+      </ListGroup>
 
-        {!nonTenureEarned ? (
-          <Card accessibilityLabel={S27_COPY.newUserBanner}>
-            <Text style={[styles.banner, { color: t.color.textMuted }]}>{S27_COPY.newUserBanner}</Text>
-          </Card>
-        ) : null}
-
+      <View style={styles.section}>
+        <SectionHeading>{S27_COPY.badgesHeading}</SectionHeading>
+        {!nonTenureEarned ? <Text style={[styles.note, { color: t.color.textMuted }]}>{S27_COPY.newUserBanner}</Text> : null}
         <Tabs items={FILTER_TABS} value={filter} onChange={(v) => setFilter(v as typeof filter)} accessibilityLabel="Filter badges" />
-
-        {CATEGORY_ORDER.map((category) => {
-          const defs = ACHIEVEMENTS.filter((a) => a.category === category);
-          return (
-            <View key={category} style={styles.categorySection}>
-              <Text accessibilityRole="header" style={[styles.categoryHeader, { color: t.color.text }]}>
-                {S27_COPY.categoryHeaders[category]}
-              </Text>
-              <View style={styles.badgeGrid}>
-                {defs.map((def) => {
-                  const earned = unlockedKeys.has(def.key);
-                  if (!badgeVisible(earned)) return null;
-                  const Icon = BADGE_ICONS[def.key];
-                  if (!Icon) return null;
-                  return (
-                    <View key={def.key} style={styles.badgeColumn}>
-                      <MilestoneBadge label={def.label} earned={earned} icon={Icon} onPress={() => setExpandedKey((k) => (k === def.key ? null : def.key))} />
-                      {expandedKey === def.key ? (
-                        <Card accessibilityLabel={`${def.label} detail`}>
-                          <Text style={[styles.detailName, { color: t.color.text }]}>{def.label}</Text>
-                          <Text style={[styles.detailBody, { color: t.color.textMuted }]}>
-                            {earned
-                              ? S27_COPY.earnedDetail(formatDate(unlocked.find((u) => u.key === def.key)!.unlockedOn))
-                              : category === 'tenure'
-                                ? tenureLockedLine(def.key, settings.tenureAnchorDate)
-                                : lockedHintFor(def.key)}
-                          </Text>
-                          <Text style={[styles.detailDescription, { color: t.color.textDim }]}>{def.description}</Text>
-                        </Card>
-                      ) : null}
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          );
-        })}
       </View>
-    </View>
+
+      {CATEGORY_ORDER.map((category) => {
+        const defs = ACHIEVEMENTS.filter((a) => a.category === category && BADGE_ICONS[a.key]);
+        const visible = defs.filter((def) => {
+          const earned = unlockedKeys.has(def.key);
+          return filter === 'all' || (filter === 'earned' ? earned : !earned);
+        });
+        return (
+          <View key={category} style={styles.section}>
+            <Text accessibilityRole="header" style={[styles.categoryHeader, { color: t.color.text }]}>
+              {S27_COPY.categoryHeaders[category]}
+            </Text>
+            {visible.length === 0 ? (
+              <EmptyLine>{filter === 'earned' ? S27_COPY.noneEarned : S27_COPY.noneLocked}</EmptyLine>
+            ) : (
+              <View style={styles.badgeGrid}>
+                {visible.map((def) => (
+                  <View key={def.key} style={styles.badgeCell}>
+                    <MilestoneBadge label={def.label} earned={unlockedKeys.has(def.key)} icon={BADGE_ICONS[def.key]!} onPress={() => setOpenKey(def.key)} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      })}
+
+      <Dialog visible={!!openDef} onClose={() => setOpenKey(null)} title={openDef?.label} accessibilityLabel={`${openDef?.label ?? 'Badge'} detail`} showClose>
+        {openDef && OpenIcon ? (
+          <View style={styles.detail}>
+            <MilestoneBadge label={openEarned ? S27_COPY.tabs.earned : S27_COPY.tabs.locked} earned={openEarned} icon={OpenIcon} />
+            <Text style={[styles.detailBody, { color: t.color.text }]}>
+              {openEarned
+                ? S27_COPY.earnedDetail(formatDate(unlocked.find((u) => u.key === openDef.key)!.unlockedOn))
+                : openDef.category === 'tenure'
+                  ? tenureLockedLine(openDef.key, settings.tenureAnchorDate)
+                  : lockedHintFor(openDef.key)}
+            </Text>
+            <Text style={[styles.note, styles.centered, { color: t.color.textMuted }]}>{openDef.description}</Text>
+          </View>
+        ) : null}
+      </Dialog>
+    </Screen>
   );
 }
 
-function tenureLockedLine(key: string, anchor: LocalDate): string {
-  const date = tenureUnlockDate(key, anchor);
-  const relative = TENURE_OFFSETS[key]?.relative ?? 'day one';
-  return date ? S27_COPY.tenureLockedDetail(formatDate(date), relative) : 'Locked.';
-}
-
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  linkRow: { fontSize: 16, fontWeight: '600' },
-  banner: { fontSize: 14, lineHeight: 20 },
-  categorySection: { gap: SPACE.s2 },
-  categoryHeader: { fontSize: 16, fontWeight: '700' },
-  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s3 },
-  badgeColumn: { gap: SPACE.s1 },
-  detailName: { fontSize: 15, fontWeight: '700' },
-  detailBody: { fontSize: 13, lineHeight: 18 },
-  detailDescription: { fontSize: 13, lineHeight: 18 },
+  card: { gap: SPACE.s3 },
+  section: { gap: SPACE.s2 + 4 },
+  note: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
+  centered: { textAlign: 'center' },
+  categoryHeader: { fontSize: FONT_SIZE.base, fontWeight: '800' },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s3 },
+  medal: { width: 64, height: 64, borderRadius: RADIUS.pill, borderWidth: 2, borderBottomWidth: 6, alignItems: 'center', justifyContent: 'center' },
+  medalNumber: { fontSize: FONT_SIZE.xl, lineHeight: 30, fontWeight: '800', color: INK, fontVariant: ['tabular-nums'] },
+  levelText: { flex: 1, gap: 2 },
+  levelKicker: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
+  levelTitle: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800' },
+  xpTrack: { height: 16, borderRadius: RADIUS.pill, overflow: 'hidden' },
+  xpFill: { height: '100%', borderRadius: RADIUS.pill },
+  xpRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: SPACE.s2, flexWrap: 'wrap' },
+  xpStrong: { fontSize: FONT_SIZE.base, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: SPACE.s3 },
+  badgeCell: { width: '25%', alignItems: 'center', paddingHorizontal: 2 },
+  detail: { alignItems: 'center', gap: SPACE.s2 + 4 },
+  detailBody: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
 });

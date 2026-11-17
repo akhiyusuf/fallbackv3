@@ -1,72 +1,53 @@
-/**
- * S50 — Data Recovery    route: /recovery
- * Owner: M1. Features: F1.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S50)
- *
- * Calm recovery surface for a corrupt local store detected on launch — never red, never
- * alarm iconography, never a crash loop. Same sanctioned `@/db` exception as S01: this
- * screen's "Try again" re-attempts `StoreLifecycle.open()` directly.
- */
-import { useState } from 'react';
-import { useRouter, type Href } from 'expo-router';
+/** S50 — data recovery. Stacked button pair (D11); reset is confirmed in a sheet (D3). */
+import { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RefreshCw } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { store } from '@/db';
-import { withOrigin } from '@/navigation';
 import { S50_COPY } from '@/features/data/copy';
-import { SPACE, useTheme } from '@/theme';
-import { Button } from '@/ui';
+import { EraseDataSheet } from '@/features/data/EraseDataSheet';
+import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
+import { ButtonPair } from '@/ui';
+import { Text } from '@/ui/AppText';
 
 export default function S50DataRecovery() {
   const t = useTheme();
   const router = useRouter();
+  const { confirmErase } = useLocalSearchParams<{ confirmErase?: string }>();
   const [retrying, setRetrying] = useState(false);
+  const [eraseOpen, setEraseOpen] = useState(false);
+
+  useEffect(() => {
+    if (confirmErase === '1') setEraseOpen(true);
+  }, [confirmErase]);
 
   async function handleTryAgain() {
     setRetrying(true);
     const result = await store.open();
     if (result.ok && result.value === 'ready') {
-      // S01 re-evaluates onboarding/returning-user routing on its own.
       router.replace('/splash');
       return;
     }
-    // Silently returns to the same default rendering — no new copy, no escalation.
     setRetrying(false);
-  }
-
-  function handleResetAppData() {
-    router.push(withOrigin('/settings/data/erase', 'recovery') as Href);
   }
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
       <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.content}>
-        <RefreshCw size={40} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
+        <View style={[styles.iconWrap, { backgroundColor: t.color.surface }]}>
+          <RefreshCw size={28} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
+        </View>
         <Text accessibilityRole="header" style={[styles.headline, { color: t.color.text }]}>
           {S50_COPY.headline}
         </Text>
         <Text style={[styles.body, { color: t.color.textMuted }]}>{S50_COPY.body}</Text>
       </View>
-      <View style={styles.actions}>
-        <Button
-          label={S50_COPY.tryAgain}
-          onPress={handleTryAgain}
-          loading={retrying}
-          disabled={retrying}
-          variant="primary"
-          fullWidth
-          accessibilityLabel={S50_COPY.tryAgain}
-        />
-        <Button
-          label={S50_COPY.resetAppData}
-          onPress={handleResetAppData}
-          disabled={retrying}
-          variant="secondary"
-          fullWidth
-          accessibilityLabel={S50_COPY.resetAppData}
-        />
-      </View>
+      <ButtonPair
+        primary={{ label: S50_COPY.tryAgain, onPress: () => void handleTryAgain(), loading: retrying, disabled: retrying }}
+        secondary={{ label: S50_COPY.resetAppData, onPress: () => setEraseOpen(true), disabled: retrying }}
+      />
+      <EraseDataSheet visible={eraseOpen} onClose={() => setEraseOpen(false)} fromRecovery />
     </View>
   );
 }
@@ -74,7 +55,7 @@ export default function S50DataRecovery() {
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: 'center', padding: SPACE.s4, gap: SPACE.s5 },
   content: { alignItems: 'center', gap: SPACE.s2 },
-  headline: { fontSize: 24, fontWeight: '700', textAlign: 'center' },
-  body: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
-  actions: { gap: SPACE.s2 },
+  iconWrap: { width: 64, height: 64, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', marginBottom: SPACE.s1 },
+  headline: { fontSize: FONT_SIZE.xl, fontWeight: '700', textAlign: 'center' },
+  body: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
 });

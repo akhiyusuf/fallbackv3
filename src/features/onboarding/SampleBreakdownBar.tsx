@@ -11,11 +11,12 @@
  * a `legendLabels`-hiding prop to the frozen kit component. Composed from theme tokens only
  * (Rule 1: no raw colour literal), same signal hues the kit component itself uses.
  */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SPACE, useTheme } from '@/theme';
 
 import { S05_COPY } from './copy';
+import { Text } from '@/ui/AppText';
 
 export function SampleBreakdownBar() {
   const t = useTheme();
@@ -27,17 +28,17 @@ export function SampleBreakdownBar() {
       <View
         style={[styles.track, { borderColor: t.color.border }]}
         accessibilityRole="progressbar"
-        accessibilityLabel="Example breakdown: ideal, fallback, off"
+        accessibilityLabel="Example breakdown: ideal and fallback"
       >
         <View style={{ width: pct(ideal), backgroundColor: t.color.ideal }} />
         <View style={{ width: pct(fallback), backgroundColor: t.color.fallback }} />
-        <View style={{ width: pct(off), backgroundColor: t.color.off }} />
-        {/* The remainder — 1 of 7, the sample's missed day — is deliberately unfilled and unnamed. */}
+        {off > 0 ? <View style={{ width: pct(off), backgroundColor: t.color.off }} /> : null}
+        {/* The remainder, 1 of 7, is the empty place in the tray: deliberately unfilled and unnamed. */}
       </View>
       <View style={styles.legend}>
         <LegendItem swatchColor={t.color.ideal} label={S05_COPY.legend.ideal} textColor={t.color.textMuted} />
         <LegendItem swatchColor={t.color.fallback} label={S05_COPY.legend.fallback} textColor={t.color.textMuted} />
-        <LegendItem swatchColor={t.color.off} label={S05_COPY.legend.off} textColor={t.color.textMuted} />
+        {off > 0 ? <LegendItem swatchColor={t.color.off} label={S05_COPY.legend.off} textColor={t.color.textMuted} /> : null}
       </View>
     </View>
   );
@@ -58,5 +59,5 @@ const styles = StyleSheet.create({
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   swatch: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 13 },
+  legendText: { fontSize: 12 },
 });

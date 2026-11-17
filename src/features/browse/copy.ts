@@ -14,6 +14,7 @@ export const S10_COPY = {
   emptyNothingDueSubcopyPrefix: 'No routines on ',
   emptyNothingDueSubcopySuffix: 's — enjoy the rest day, or add one to fill it.',
   emptyNothingDueHeadline: 'Nothing scheduled.',
+  asNeededSection: 'As needed',
 } as const;
 
 export function dueSectionLabel(dayName: string): string {
@@ -26,6 +27,7 @@ export const S11_COPY = {
   upcomingSection: 'Upcoming',
   oneTime: 'One-time',
   noEventsTodayHeadlinePrefix: 'No events today.',
+  repeatingSection: 'Repeating',
   noEventsTodaySubcopyPrefix: 'Nothing on the calendar for ',
   noEventsTodaySubcopySuffix: '. Schedule a one-off whenever you need to.',
   noEventsAtAllHeadline: 'No events yet.',
@@ -47,7 +49,7 @@ export const S12_COPY = {
 } as const;
 
 export const S13_COPY = {
-  title: 'To-dos & Notes',
+  title: 'To-dos',
   todosLens: 'To-dos',
   notesLens: 'Notes',
   emptyTodosHeadline: 'Nothing here yet.',

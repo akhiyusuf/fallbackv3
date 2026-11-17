@@ -4,9 +4,11 @@
  * collapses the gap between them. `ghost` is flat — no shadow, text-only.
  */
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { play } from '@/services/sfx';
 import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -42,13 +44,20 @@ export function Button({
 
   const tactile = variant === 'primary' || variant === 'secondary' || variant === 'danger';
   const faceColor =
-    variant === 'primary' ? t.accent.base : variant === 'danger' ? t.color.danger : variant === 'secondary' ? t.color.bgAlt : 'transparent';
-  const shadowColor = variant === 'primary' ? t.accent.deep : variant === 'danger' ? t.color.dangerDeep : t.color.borderStrong;
-  const textColor = variant === 'primary' || variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.base;
+    variant === 'primary' ? t.accent.fill : variant === 'danger' ? t.color.danger : variant === 'secondary' ? t.color.bgAlt : 'transparent';
+  const shadowColor = variant === 'primary' ? t.accent.fillEdge : variant === 'danger' ? '#9E2020' : t.color.borderStrong;
+  const textColor = variant === 'primary' ? t.accent.on : variant === 'danger' ? t.color.textOnAccent : variant === 'secondary' ? t.color.text : t.accent.text;
 
   return (
     <Pressable
-      onPress={isInert ? undefined : onPress}
+      onPress={
+        isInert
+          ? undefined
+          : () => {
+              play('tap');
+              onPress();
+            }
+      }
       disabled={isInert}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}

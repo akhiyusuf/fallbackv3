@@ -14,6 +14,8 @@ const config: ExpoConfig = {
   scheme: 'fallback',
   version: '1.0.0',
   orientation: 'portrait',
+  // Placeholder mark until the human chooses one: the sprout pot from onboarding on the app orange.
+  icon: './assets/icon.png',
   userInterfaceStyle: 'automatic',
   platforms: ['ios', 'android'],
   assetBundlePatterns: ['**/*'],
@@ -42,6 +44,7 @@ const config: ExpoConfig = {
   android: {
     package: 'com.fallback.app',
     versionCode: 1,
+    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#F2601A' },
     permissions: [
       'android.permission.RECORD_AUDIO',
       'android.permission.POST_NOTIFICATIONS',
@@ -61,7 +64,36 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-localization',
     'expo-web-browser',
-    ['expo-splash-screen', { backgroundColor: '#ffffff', resizeMode: 'contain' }],
+    ['expo-splash-screen', { backgroundColor: '#F2601A', image: './assets/splash-icon.png', imageWidth: 180, resizeMode: 'contain' }],
+    // The app typeface, one file per weight. `Text` and `TextInput` from `@/ui/AppText` ask for it by family name.
+    [
+      'expo-font',
+      {
+        android: {
+          fonts: [
+            {
+              fontFamily: 'Nunito',
+              fontDefinitions: [
+                { path: './assets/fonts/Nunito-Regular.ttf', weight: 400 },
+                { path: './assets/fonts/Nunito-Medium.ttf', weight: 500 },
+                { path: './assets/fonts/Nunito-SemiBold.ttf', weight: 600 },
+                { path: './assets/fonts/Nunito-Bold.ttf', weight: 700 },
+                { path: './assets/fonts/Nunito-ExtraBold.ttf', weight: 800 },
+              ],
+            },
+          ],
+        },
+        ios: {
+          fonts: [
+            './assets/fonts/Nunito-Regular.ttf',
+            './assets/fonts/Nunito-Medium.ttf',
+            './assets/fonts/Nunito-SemiBold.ttf',
+            './assets/fonts/Nunito-Bold.ttf',
+            './assets/fonts/Nunito-ExtraBold.ttf',
+          ],
+        },
+      },
+    ],
     ['expo-local-authentication', { faceIDPermission: 'Confirm your subscription purchase with Face ID.' }],
     ['expo-audio', { microphonePermission: 'Fallback listens only while you hold the assistant mic button.' }],
     ['expo-notifications', { color: '#F2601A' }],

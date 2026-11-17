@@ -22,10 +22,14 @@ import { CURRENT_SCHEMA_VERSION } from '../migrations';
 
 import type { DbClient } from '../client';
 
+/** The values `settings.accent` may hold (its CHECK). Anything else is stored in `accent_ext`. */
+const ORIGINAL_ACCENTS: ReadonlySet<string> = new Set(['forge-orange', 'indigo', 'berry', 'plum']);
+
 interface SettingsRow {
   readonly id: number;
   readonly theme: string;
   readonly accent: string;
+  readonly accent_ext: string | null;
   readonly onboarding_completed_at: string | null;
   readonly tenure_anchor_date: string;
   readonly cycle_cadence: string;
@@ -78,7 +82,7 @@ function rowToSettings(row: SettingsRow, widgets: readonly WidgetConfig[]): Sett
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     theme: row.theme as ThemeMode,
-    accent: row.accent as AccentKey,
+    accent: (row.accent_ext ?? row.accent) as AccentKey,
     onboardingCompletedAt: row.onboarding_completed_at as Instant | null,
     tenureAnchorDate: row.tenure_anchor_date as LocalDate,
     cycleCadence: row.cycle_cadence as CycleCadence,
@@ -96,7 +100,7 @@ function rowToSettings(row: SettingsRow, widgets: readonly WidgetConfig[]): Sett
 }
 
 const SETTINGS_COLUMNS = `
-  id, theme, accent, onboarding_completed_at, tenure_anchor_date, cycle_cadence,
+  id, theme, accent, accent_ext, onboarding_completed_at, tenure_anchor_date, cycle_cadence,
   notif_master, notif_routine_due, notif_event_starting, notif_course_dose,
   notif_course_ending_soon, notif_gentle_reentry, notif_milestone_reached, notif_daily_digest,
   notif_digest_time, assistant_language, assistant_voice,
@@ -147,7 +151,7 @@ export function createSettingsRepository(db: DbClient) {
 
         await db.withTransactionAsync(async () => {
           await db.runAsync(
-            `UPDATE settings SET theme=?, accent=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
+            `UPDATE settings SET theme=?, accent=?, accent_ext=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
              notif_master=?, notif_routine_due=?, notif_event_starting=?, notif_course_dose=?,
              notif_course_ending_soon=?, notif_gentle_reentry=?, notif_milestone_reached=?, notif_daily_digest=?,
              notif_digest_time=?, assistant_language=?, assistant_voice=?,
@@ -155,7 +159,8 @@ export function createSettingsRepository(db: DbClient) {
              WHERE id = 1`,
             [
               next.theme,
-              next.accent,
+              ORIGINAL_ACCENTS.has(next.accent) ? next.accent : ORIGINAL_ACCENTS.has(merged.accent) ? merged.accent : 'forge-orange',
+              ORIGINAL_ACCENTS.has(next.accent) ? null : next.accent,
               next.onboardingCompletedAt,
               next.tenureAnchorDate,
               next.cycleCadence,

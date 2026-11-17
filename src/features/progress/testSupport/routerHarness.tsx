@@ -11,10 +11,10 @@
  * NAVIGATION (which marker screen is now on screen), never by importing another module's real
  * implementation (which would drag in that screen's own query dependencies).
  */
-import { Text } from 'react-native';
 
 import S28 from '../../../../app/achievements/celebrate';
 import S30 from '../../../../app/records/[cycleId]';
+import { Text } from '@/ui/AppText';
 
 function marker(label: string) {
   return function Marker() {

@@ -1,26 +1,16 @@
-/**
- * S45 — Account & Sync    route: /settings/sync
- * Owner: M1. Features: F20.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S45)
- *
- * Platform-equivalent Switch label resolved per the spec's own allowance ("iCloud sync
- * (iOS) / platform-equivalent label") — Android has no iCloud, so it reads "Cloud sync".
- */
+/** S45 — Account and sync. */
 import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
-import { Lock, ShieldCheck } from 'lucide-react-native';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Cloud, Smartphone } from 'lucide-react-native';
+import { Platform } from 'react-native';
 
 import { now } from '@/lib/date';
 import { getSyncProvider } from '@/services/sync';
 import { S45_COPY } from '@/features/data/copy';
-import { SettingsHeader } from '@/features/data/SettingsHeader';
 import { useSettings, useUpdateSettings } from '@/queries';
-import { SPACE, useTheme } from '@/theme';
-import { Card, InlineRetryBanner, Skeleton, Switch } from '@/ui';
+import { InlineRetryBanner, ListGroup, ListRow, Screen, Skeleton, Switch } from '@/ui';
 
 export default function S45AccountAndSync() {
-  const t = useTheme();
   const router = useRouter();
   const settingsQuery = useSettings();
   const updateSettings = useUpdateSettings();
@@ -30,23 +20,7 @@ export default function S45AccountAndSync() {
     router.replace('/settings' as Href);
   }
 
-  async function handleToggle(next: boolean) {
-    const patchResult = await updateSettings.mutateAsync({ sync: { enabled: next, lastSyncedAt: null, lastError: null } });
-    if (!patchResult.ok || !next) return;
-
-    // "After a brief simulated sync, status updates" — a real best-effort push attempt.
-    setSyncing(true);
-    const provider = getSyncProvider();
-    const pushResult = await provider.push();
-    setSyncing(false);
-    if (pushResult.ok) {
-      await updateSettings.mutateAsync({ sync: { enabled: true, lastSyncedAt: pushResult.value, lastError: null } });
-    } else {
-      await updateSettings.mutateAsync({ sync: { enabled: true, lastSyncedAt: null, lastError: pushResult.error.message } });
-    }
-  }
-
-  async function handleRetry() {
+  async function push() {
     setSyncing(true);
     const pushResult = await getSyncProvider().push();
     setSyncing(false);
@@ -57,54 +31,46 @@ export default function S45AccountAndSync() {
     }
   }
 
+  async function handleToggle(next: boolean) {
+    const patchResult = await updateSettings.mutateAsync({ sync: { enabled: next, lastSyncedAt: null, lastError: null } });
+    if (!patchResult.ok || !next) return;
+    await push();
+  }
+
   const settings = settingsQuery.data;
   const syncLabel = Platform.OS === 'ios' ? S45_COPY.iCloudSyncLabel : S45_COPY.androidSyncLabel;
+  const syncSub = !settings?.sync.enabled
+    ? S45_COPY.offHelper
+    : syncing
+      ? 'Syncing…'
+      : settings.sync.lastSyncedAt
+        ? `${S45_COPY.lastSyncedPrefix} ${formatRelative(settings.sync.lastSyncedAt)}`
+        : undefined;
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <SettingsHeader title={S45_COPY.title} onBack={handleBack} />
-      <View style={styles.content}>
-        <Card accessibilityLabel={`${S45_COPY.noLoginHeadline} ${S45_COPY.noLoginBody}`}>
-          <ShieldCheck size={20} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-          <Text style={[styles.cardHeadline, { color: t.color.text }]}>{S45_COPY.noLoginHeadline}</Text>
-          <Text style={[styles.cardBody, { color: t.color.textMuted }]}>{S45_COPY.noLoginBody}</Text>
-        </Card>
-
-        <Card accessibilityLabel="Storage">
-          <View style={styles.row} accessibilityRole="text" accessibilityLabel={S45_COPY.onDeviceLabel}>
-            <Lock size={18} color={t.color.textDim} accessibilityElementsHidden importantForAccessibility="no" />
-            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S45_COPY.onDeviceLabel}</Text>
-          </View>
-
-          {settingsQuery.isLoading ? (
-            <Skeleton width="100%" height={28} />
-          ) : (
-            <View style={styles.row}>
-              <Text style={[styles.rowLabel, { color: t.color.text }]}>{syncLabel}</Text>
+    <Screen title="Account and sync" onBack={handleBack}>
+      {settingsQuery.isLoading ? (
+        <Skeleton height={130} radius={16} />
+      ) : (
+        <ListGroup title="Where your data lives" footer={`${S45_COPY.noLoginHeadline} ${S45_COPY.noLoginBody}`}>
+          <ListRow icon={Smartphone} label="On this device" value="Always" />
+          <ListRow
+            icon={Cloud}
+            label={syncLabel}
+            sublabel={syncSub}
+            right={
               <Switch
                 value={!!settings?.sync.enabled}
-                onValueChange={handleToggle}
+                onValueChange={(v) => void handleToggle(v)}
                 disabled={syncing}
                 accessibilityLabel={`${syncLabel}, ${settings?.sync.enabled ? 'on' : 'off'}`}
               />
-            </View>
-          )}
-
-          {settings?.sync.enabled ? (
-            settings.sync.lastError ? (
-              <InlineRetryBanner message={S45_COPY.failure} onRetry={handleRetry} tone="warning" />
-            ) : settings.sync.lastSyncedAt ? (
-              <Text style={[styles.helper, { color: t.color.textMuted }]}>
-                {`${S45_COPY.lastSyncedPrefix} ${formatRelative(settings.sync.lastSyncedAt)}`}
-              </Text>
-            ) : null /* sync just turned on, no push has resolved yet (e.g. app died mid-first-push) —
-                         nothing to report rather than a dangling "Last synced" with no time (review note 6) */
-          ) : (
-            <Text style={[styles.helper, { color: t.color.textMuted }]}>{S45_COPY.offHelper}</Text>
-          )}
-        </Card>
-      </View>
-    </View>
+            }
+          />
+        </ListGroup>
+      )}
+      {settings?.sync.enabled && settings.sync.lastError ? <InlineRetryBanner message={S45_COPY.failure} onRetry={push} tone="warning" /> : null}
+    </Screen>
   );
 }
 
@@ -117,13 +83,3 @@ function formatRelative(iso: string): string {
   const hours = Math.round(minutes / 60);
   return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  cardHeadline: { fontSize: 16, fontWeight: '600' },
-  cardBody: { fontSize: 14, lineHeight: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2 },
-  rowLabel: { fontSize: 16 },
-  helper: { fontSize: 14, lineHeight: 20 },
-});

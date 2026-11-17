@@ -30,7 +30,7 @@ export function taskTypeLabel(type: TaskType): string {
       return 'Course';
     case 'todo':
     default:
-      return 'To-do/Note';
+      return 'To-do';
   }
 }
 

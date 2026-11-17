@@ -12,6 +12,7 @@ CREATE TABLE settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   theme TEXT NOT NULL CHECK (theme IN ('light','dark','auto')) DEFAULT 'auto',
   accent TEXT NOT NULL CHECK (accent IN ('forge-orange','indigo','berry','plum')) DEFAULT 'forge-orange',
+  accent_ext TEXT,
   onboarding_completed_at TEXT,
   tenure_anchor_date TEXT NOT NULL,
   cycle_cadence TEXT NOT NULL CHECK (cycle_cadence IN ('weekly','monthly')) DEFAULT 'monthly',
@@ -61,6 +62,8 @@ CREATE TABLE task (
   deleted_at TEXT,
   -- migration 3 (CR-4): PRD §3.7 per-task snooze gate, default on.
   snoozable INTEGER NOT NULL DEFAULT 1 CHECK (snoozable IN (0,1)),
+  is_note INTEGER NOT NULL DEFAULT 0 CHECK (is_note IN (0,1)),
+  priority_rank INTEGER,
   CHECK (is_as_needed = 0 OR type = 'routine')
 );
 CREATE INDEX idx_task_type_deleted ON task(type, deleted_at);

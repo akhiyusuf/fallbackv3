@@ -14,13 +14,14 @@
  * cell, not this chip — the design reuses the existing `off` signal deliberately, it does
  * not invent a fifth hue. (REVIEW-M0.md item 1.)
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Check, CheckCheck, Minus } from 'lucide-react-native';
 
 import { MIN_TAP_TARGET, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
 import type { ChipState } from '@/types';
 
 import type { IconComponent } from './icon';
+import { Text } from '@/ui/AppText';
 
 export interface StateChipProps {
   readonly value: ChipState | null;

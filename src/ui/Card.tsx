@@ -6,7 +6,8 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { RADIUS, SPACE, useTheme } from '@/theme';
+import { SPACE, useTheme } from '@/theme';
+import { cardSurface, pressedSurface } from './surface';
 
 export interface CardProps {
   readonly children: ReactNode;
@@ -24,7 +25,7 @@ export function Card({ children, onPress, accessibilityLabel, accessibilityRole,
   const t = useTheme();
   const base: StyleProp<ViewStyle> = [
     styles.root,
-    { backgroundColor: t.color.bgAlt, borderColor: t.color.border },
+    cardSurface(t),
     style,
   ];
 
@@ -36,7 +37,7 @@ export function Card({ children, onPress, accessibilityLabel, accessibilityRole,
         accessibilityLabel={accessibilityLabel}
         accessibilityHint={accessibilityHint}
         testID={testID}
-        style={({ pressed }) => [base, pressed && { backgroundColor: t.color.surface, borderColor: t.color.borderStrong }]}
+        style={({ pressed }) => [base, pressed && pressedSurface]}
       >
         {children}
         {corner ? <View style={styles.corner}>{corner}</View> : null}
@@ -59,6 +60,6 @@ export function Card({ children, onPress, accessibilityLabel, accessibilityRole,
 }
 
 const styles = StyleSheet.create({
-  root: { borderWidth: 1, borderRadius: RADIUS.md, padding: SPACE.s3, gap: SPACE.s2 },
+  root: { padding: SPACE.s3, gap: SPACE.s2 },
   corner: { position: 'absolute', top: SPACE.s1, right: SPACE.s1 },
 });

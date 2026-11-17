@@ -1,26 +1,16 @@
-/**
- * S13 — To-dos & Notes Browse. F11.
- *
- * SPEC GAP (flagged in the M3 build report): `Task`/`docs/SCHEMA.md` carry no boolean
- * distinguishing a "to-do" sub-kind from a "note" sub-kind within `type: 'todo'` — S19's own
- * create form is one shared flow for both with no such toggle either. Absent that field, this
- * screen partitions on `note` body presence (a task with note text renders as a checkbox-less
- * Note row using that text as its preview, per the design's own Note example; a task with no
- * note body renders as a checkable To-do row). This is a heuristic, not a schema fact — a
- * to-do that legitimately carries an optional note (S19 allows it) will misclassify as a Note
- * under this rule. Flagged for M4/architect: an explicit `Task.isNote` (or similar) column
- * would remove the ambiguity.
- */
+/** M3 — S13 To-dos. Segmented To-dos/Notes (D9); rows in one grouped list (D7). */
+import { play } from '@/services/sfx';
 import { useState } from 'react';
-import { useRouter, type Href } from 'expo-router';
-import { StickyNote } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { Check, StickyNote } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { now } from '@/lib/date';
+import { useToastStore } from '@/app-shell';
 import { useTasks, useUpdateTask } from '@/queries';
 import { ROUTES, withOrigin } from '@/navigation';
-import { SPACE, useTheme } from '@/theme';
-import { Card, Checkbox, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
+import { RADIUS, SPACE, useTheme } from '@/theme';
+import { EmptyLine, EmptyState, InlineRetryBanner, ListGroup, ListRow, Skeleton, TabSummary, Tabs } from '@/ui';
 import type { Id, TaskWithSteps } from '@/types';
 
 import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
@@ -31,7 +21,7 @@ import { BrowseHeader } from './BrowseHeader';
 type Lens = 'todos' | 'notes';
 
 function isNote(tk: TaskWithSteps): boolean {
-  return !!tk.note && tk.note.trim().length > 0;
+  return tk.isNote;
 }
 
 export default function ToDosBrowseScreen() {
@@ -39,98 +29,120 @@ export default function ToDosBrowseScreen() {
   const router = useRouter();
   const tasksQuery = useTasks({ type: 'todo' });
   const updateTask = useUpdateTask();
-  const [lens, setLens] = useState<Lens>('todos');
+  const showToast = useToastStore((s) => s.show);
+  const params = useLocalSearchParams<{ lens?: string }>();
+  const [lens, setLens] = useState<Lens>(params.lens === 'notes' ? 'notes' : 'todos');
 
   const all = tasksQuery.data ?? [];
   const shown = lens === 'todos' ? all.filter((tk) => !isNote(tk)) : all.filter(isNote);
-  const isEmpty = !tasksQuery.isLoading && !tasksQuery.isError && shown.length === 0;
+  const todos = all.filter((tk) => !isNote(tk));
+  const todosDone = todos.filter((tk) => !!tk.todoDoneAt).length;
+  const todosOpen = todos.length - todosDone;
+  const highOpen = todos.filter((tk) => !tk.todoDoneAt && tk.importance === 'high').length;
+  const nothingAtAll = !tasksQuery.isLoading && !tasksQuery.isError && all.length === 0;
 
   function openTask(id: string) {
     router.push(withOrigin(`/task/${id}`, 'todos') as Href);
   }
 
   async function toggleDone(tk: TaskWithSteps) {
-    await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: tk.todoDoneAt ? null : now() } });
+    const wasDone = !!tk.todoDoneAt;
+    const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: wasDone ? null : now() } });
+    if (!result.ok || wasDone) return;
+    play('todo_done');
+    // Ticking is one tap, so a slip has to be one tap to take back.
+    showToast('Done', 'success', { icon: 'ideal', action: { label: 'Undo', onPress: () => void updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: null } }) } });
   }
 
   return (
     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
       <BrowseHeader title={S13_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'todos') as Href)} />
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE }]}>
-        <Tabs
-          items={[
-            { value: 'todos', label: S13_COPY.todosLens },
-            { value: 'notes', label: S13_COPY.notesLens },
-          ]}
-          value={lens}
-          onChange={(v) => setLens(v as Lens)}
-          accessibilityLabel="To-dos or Notes"
-        />
-
+      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: nothingAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
         {tasksQuery.isLoading ? (
-          <View style={styles.list}>
-            <Skeleton height={56} />
-            <Skeleton height={56} />
-            <Skeleton height={56} />
-          </View>
+          <Skeleton height={168} radius={20} />
         ) : tasksQuery.isError ? (
           <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-        ) : isEmpty ? (
+        ) : nothingAtAll ? (
           <EmptyState
             icon={StickyNote}
-            headline={lens === 'todos' ? S13_COPY.emptyTodosHeadline : S13_COPY.emptyNotesHeadline}
-            subcopy={lens === 'todos' ? S13_COPY.emptyTodosSubcopy : S13_COPY.emptyNotesSubcopy}
+            headline={S13_COPY.emptyTodosHeadline}
+            subcopy={S13_COPY.emptyTodosSubcopy}
             actionLabel={S13_COPY.newTodoOrNote}
             onAction={() => router.push(ROUTES.addTodo as Href)}
           />
         ) : (
-          <View style={styles.list}>
-            {shown.map((tk) =>
-              lens === 'todos' ? (
-                <Card key={tk.id} onPress={() => openTask(tk.id)} accessibilityLabel={tk.name}>
-                  <View style={styles.todoRow}>
-                    <Checkbox
-                      checked={!!tk.todoDoneAt}
-                      onToggle={() => toggleDone(tk)}
+          <>
+            <Tabs
+              items={[
+                { value: 'todos', label: S13_COPY.todosLens },
+                { value: 'notes', label: S13_COPY.notesLens },
+              ]}
+              value={lens}
+              onChange={(v) => setLens(v as Lens)}
+              accessibilityLabel="To-dos or notes"
+            />
+            {lens === 'todos' && todos.length > 0 ? (
+              <TabSummary
+                mark={{ kind: 'ring', done: todosDone, total: todos.length }}
+                title={todosOpen === 0 ? 'Everything ticked off' : `${todosOpen} left to do`}
+                detail={highOpen > 0 ? `${highOpen} marked high importance` : undefined}
+                testID="todos-summary"
+              />
+            ) : null}
+            {shown.length === 0 ? (
+              <EmptyLine>{lens === 'todos' ? 'No to-dos right now.' : `${S13_COPY.emptyNotesHeadline} ${S13_COPY.emptyNotesSubcopy}`}</EmptyLine>
+            ) : (
+              <ListGroup>
+                {shown.map((tk) =>
+                  lens === 'todos' ? (
+                    <ListRow
+                      key={tk.id}
+                      leading={
+                        <Pressable
+                          onPress={() => void toggleDone(tk)}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: !!tk.todoDoneAt }}
+                          accessibilityLabel={`${tk.name}, done`}
+                          hitSlop={10}
+                          testID={`todo-checkbox-${tk.id}`}
+                          style={[
+                            styles.check,
+                            { borderColor: tk.todoDoneAt ? t.color.ideal : t.color.borderStrong, backgroundColor: tk.todoDoneAt ? t.color.ideal : 'transparent' },
+                          ]}
+                        >
+                          {tk.todoDoneAt ? <Check size={16} color={t.color.iconOnSignal} /> : null}
+                        </Pressable>
+                      }
                       label={tk.name}
-                      strikethrough
-                      testID={`todo-checkbox-${tk.id}`}
+                      sublabel={(tk.note ?? '').split('\n')[0] || undefined}
+                      value={tk.importance ? `${importanceLabel(tk.importance)} importance` : undefined}
+                      onPress={() => openTask(tk.id)}
                     />
-                  </View>
-                  {tk.importance ? (
-                    <View style={styles.tagRow}>
-                      <Tag label={importanceLabel(tk.importance)} />
-                    </View>
-                  ) : null}
-                </Card>
-              ) : (
-                <Card key={tk.id} onPress={() => openTask(tk.id)} accessibilityLabel={`${tk.name}, ${tk.note}`}>
-                  <Text style={[styles.name, { color: t.color.text }]}>{tk.name}</Text>
-                  <Text numberOfLines={1} style={[styles.preview, { color: t.color.textMuted }]}>
-                    {tk.note}
-                  </Text>
-                  {tk.importance ? (
-                    <View style={styles.tagRow}>
-                      <Tag label={importanceLabel(tk.importance)} />
-                    </View>
-                  ) : null}
-                </Card>
-              ),
+                  ) : (
+                    <ListRow
+                      key={tk.id}
+                      icon={StickyNote}
+                      label={tk.name}
+                      sublabel={(tk.note ?? '').split('\n')[0] || undefined}
+                      onPress={() => openTask(tk.id)}
+                    />
+                  ),
+                )}
+              </ListGroup>
             )}
-          </View>
+          </>
         )}
       </ScrollView>
-      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
+      {nothingAtAll ? null : <Fab
+          accessibilityLabel={lens === 'notes' ? 'New note' : 'New to-do'}
+          onPress={() => router.push(withOrigin(lens === 'notes' ? `${ROUTES.addTodo}?kind=note` : ROUTES.addTodo, 'todos') as Href)}
+        />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scrollContent: { padding: SPACE.s3, gap: SPACE.s3 },
-  list: { gap: SPACE.s2 },
-  todoRow: { flexDirection: 'row', alignItems: 'center' },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
-  name: { fontSize: 16, fontWeight: '600' },
-  preview: { fontSize: 14, lineHeight: 20 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
+  check: { width: 28, height: 28, borderRadius: RADIUS.pill, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
 });

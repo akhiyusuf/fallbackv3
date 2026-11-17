@@ -1,7 +1,8 @@
 /** M0 kit — Fallback-custom `Tag`. Fixed-vocabulary label chip (type/importance/necessity/cadence). Never color-coded. */
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { RADIUS, SPACE, useTheme } from '@/theme';
+import { Text } from '@/ui/AppText';
 
 export interface TagProps {
   readonly label: string;

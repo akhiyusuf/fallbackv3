@@ -1,9 +1,11 @@
 /** M0 kit â€” Verdant `Select`. A labeled field that opens a single-select option sheet. */
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Check, ChevronDown } from 'lucide-react-native';
 
-import { RADIUS, SCRIM, SPACE, useTheme } from '@/theme';
+import { RADIUS, SPACE, useTheme } from '@/theme';
+import { Dialog } from './Dialog';
+import { Text } from '@/ui/AppText';
 
 export interface SelectOption {
   readonly value: string;
@@ -27,71 +29,66 @@ export function Select({ label, value, options, onChange, placeholder = 'Selectâ
 
   return (
     <View style={styles.root}>
-      <Text style={[styles.label, { color: t.color.text }]}>{label}</Text>
+      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
       <Pressable
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? `${label}, ${selected?.label ?? placeholder}`}
         testID={testID}
-        style={[styles.field, { backgroundColor: t.color.bg, borderColor: t.color.border }]}
+        style={[styles.field, { backgroundColor: t.color.bgAlt, borderColor: t.color.borderStrong }]}
       >
         <Text style={[styles.value, { color: selected ? t.color.text : t.color.textDim }]}>{selected?.label ?? placeholder}</Text>
         <ChevronDown size={18} color={t.color.textMuted} />
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={[styles.scrim, { backgroundColor: SCRIM }]} onPress={() => setOpen(false)} accessibilityLabel="Dismiss" accessibilityRole="button">
-          <Pressable style={[styles.sheet, { backgroundColor: t.color.bg }]} onPress={(e) => e.stopPropagation()}>
-            <ScrollView accessibilityRole="radiogroup" accessibilityLabel={label}>
-              {options.map((option) => {
-                const isSelected = option.value === value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => {
-                      onChange(option.value);
-                      setOpen(false);
-                    }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: isSelected }}
-                    accessibilityLabel={option.label}
-                    style={styles.option}
-                  >
-                    <Text style={[styles.optionLabel, { color: t.color.text }]}>{option.label}</Text>
-                    {isSelected ? <Check size={18} color={t.accent.base} /> : null}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <Dialog visible={open} onClose={() => setOpen(false)} title={label} accessibilityLabel={label}>
+        <View accessibilityRole="radiogroup" accessibilityLabel={label}>
+          {options.map((option) => {
+            const isSelected = option.value === value;
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isSelected }}
+                accessibilityLabel={option.label}
+                style={[styles.option, { borderBottomColor: t.color.border }]}
+              >
+                <Text style={[styles.optionLabel, { color: t.color.text, fontWeight: isSelected ? '700' : '400' }]}>{option.label}</Text>
+                {isSelected ? <Check size={18} color={t.accent.text} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      </Dialog>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: SPACE.s1 },
+  root: { gap: SPACE.s1 + 2, flex: 1 },
   label: { fontSize: 14, fontWeight: '600' },
   field: {
     borderWidth: 1,
-    borderRadius: RADIUS.sm,
+    borderRadius: RADIUS.md,
     paddingVertical: SPACE.s2,
-    paddingHorizontal: SPACE.s2,
+    paddingHorizontal: SPACE.s2 + 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minHeight: 44,
+    minHeight: 48,
   },
   value: { fontSize: 16, flexShrink: 1 },
-  scrim: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: RADIUS.lg, borderTopRightRadius: RADIUS.lg, padding: SPACE.s3, maxHeight: '70%' },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: SPACE.s2,
-    minHeight: 44,
+    minHeight: 48,
+    borderBottomWidth: 1,
   },
   optionLabel: { fontSize: 16, flexShrink: 1 },
 });

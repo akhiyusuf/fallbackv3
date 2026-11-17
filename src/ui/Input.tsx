@@ -1,7 +1,9 @@
 /** M0 kit — Verdant `Input`. Labeled text field, radius `sm`, inline error state. */
-import { StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, View, type KeyboardTypeOptions } from 'react-native';
 
 import { RADIUS, SPACE, useTheme } from '@/theme';
+import { Text, TextInput } from '@/ui/AppText';
 
 export interface InputProps {
   readonly label: string;
@@ -15,6 +17,12 @@ export interface InputProps {
   readonly secureTextEntry?: boolean;
   readonly accessibilityLabel?: string;
   readonly testID?: string;
+  /** Rendered inside the field, on the right (e.g. a show/hide eye). */
+  readonly right?: ReactNode;
+  readonly multiline?: boolean;
+  readonly onSubmitEditing?: () => void;
+  /** A shorter field (44 instead of 48) with the label closer, for a form that has to fit a short screen. */
+  readonly dense?: boolean;
 }
 
 export function Input({
@@ -29,32 +37,33 @@ export function Input({
   secureTextEntry,
   accessibilityLabel,
   testID,
+  right,
+  multiline,
+  onSubmitEditing,
+  dense = false,
 }: InputProps) {
   const t = useTheme();
   return (
-    <View style={styles.root}>
-      <Text style={[styles.label, { color: t.color.text }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={t.color.textDim}
-        autoFocus={autoFocus}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        accessibilityLabel={accessibilityLabel ?? label}
-        accessibilityRole="text"
-        aria-invalid={!!error}
-        testID={testID}
-        style={[
-          styles.field,
-          {
-            backgroundColor: t.color.bg,
-            borderColor: error ? t.color.danger : t.color.border,
-            color: t.color.text,
-          },
-        ]}
-      />
+    <View style={[styles.root, dense && styles.rootDense]}>
+      {label ? <Text style={[styles.label, { color: t.color.text }]}>{label}</Text> : null}
+      <View style={[styles.fieldWrap, dense && styles.fieldWrapDense, { backgroundColor: t.color.bgAlt, borderColor: error ? t.color.danger : t.color.borderStrong }]}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={t.color.textDim}
+          autoFocus={autoFocus}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          multiline={multiline}
+          onSubmitEditing={onSubmitEditing}
+          accessibilityLabel={accessibilityLabel ?? label}
+          aria-invalid={!!error}
+          testID={testID}
+          style={[styles.field, dense && styles.fieldDense, multiline && styles.multiline, { color: t.color.text }]}
+        />
+        {right}
+      </View>
       {error ? (
         <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.danger }]}>
           {error}
@@ -67,8 +76,13 @@ export function Input({
 }
 
 const styles = StyleSheet.create({
-  root: { gap: SPACE.s1 },
+  root: { gap: SPACE.s1 + 2 },
+  rootDense: { gap: SPACE.s1 },
+  fieldWrapDense: { minHeight: 44 },
+  fieldDense: { paddingVertical: SPACE.s2, minHeight: 42 },
   label: { fontSize: 14, fontWeight: '600' },
-  field: { borderWidth: 1, borderRadius: RADIUS.sm, paddingVertical: SPACE.s2, paddingHorizontal: SPACE.s2, fontSize: 16 },
+  fieldWrap: { borderWidth: 1, borderRadius: RADIUS.md, flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingRight: 2 },
+  field: { flex: 1, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s2 + 4, fontSize: 16, minHeight: 44, borderWidth: 0, ...({ outlineStyle: 'none' } as object) },
+  multiline: { minHeight: 96, textAlignVertical: 'top' },
   helper: { fontSize: 14, lineHeight: 20 },
 });

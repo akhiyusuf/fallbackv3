@@ -1,21 +1,16 @@
-/**
- * S42 — Notifications Settings    route: /settings/notifications
- * Owner: M7. Features: F14.
- * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S42)
- */
+/** S42 — Notifications. One grouped list per section (D7); switches as row accessories. */
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
-import { BellOff } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useToastStore } from '@/app-shell';
 import { S42_COPY } from '@/features/settings/copy';
-import { SettingsHeader } from '@/features/settings/SettingsHeader';
-import { useSettings, useUpdateSettings } from '@/queries';
+import { formatTimeOfDay } from '@/features/browse/format';
+import { NotificationSample } from '@/features/notifications/NotificationSample';
+import { useSettings, useTasks, useUpdateSettings } from '@/queries';
 import { initNotificationsBridge } from '@/services/notifications';
 import { initWidgetsBridge } from '@/services/widgets';
-import { SPACE, useTheme } from '@/theme';
-import { Card, EmptyState, Select, Skeleton, Switch } from '@/ui';
+import { EmptyLine, ListGroup, ListRow, Screen, Select, Skeleton, Switch } from '@/ui';
 import type { NotificationPrefs } from '@/types';
 
 const DIGEST_TIME_OPTIONS = [
@@ -29,15 +24,18 @@ const DIGEST_TIME_OPTIONS = [
   { value: '21:00', label: '9:00 PM' },
 ];
 
+function shortDate(date: string): string {
+  const [y = 2000, m = 1, d = 1] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export default function S42NotificationsSettings() {
-  const t = useTheme();
   const router = useRouter();
   const settingsQuery = useSettings();
+  const tasksQuery = useTasks();
   const updateSettings = useUpdateSettings();
   const showToast = useToastStore((s) => s.show);
 
-  // Review pass 1, blocking item 1: idempotent, safe on every M7-owned screen's mount — S42's
-  // toggles emit `settings:changed` into the bus, which needs a live subscriber to do anything.
   useEffect(() => {
     initNotificationsBridge();
     initWidgetsBridge();
@@ -50,8 +48,7 @@ export default function S42NotificationsSettings() {
   async function patchPrefs(patch: Partial<NotificationPrefs>) {
     const current = settingsQuery.data?.notifications;
     if (!current) return;
-    const next = { ...current, ...patch };
-    const result = await updateSettings.mutateAsync({ notifications: next });
+    const result = await updateSettings.mutateAsync({ notifications: { ...current, ...patch } });
     if (!result.ok) showToast(S42_COPY.errorToast, 'warning');
   }
 
@@ -59,122 +56,87 @@ export default function S42NotificationsSettings() {
 
   if (settingsQuery.isLoading || !prefs) {
     return (
-      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-        <SettingsHeader title={S42_COPY.title} onBack={handleBack} />
-        <View style={styles.content}>
-          <Skeleton height={56} />
-          <Skeleton height={140} />
-          <Skeleton height={100} />
-        </View>
-      </View>
+      <Screen title={S42_COPY.title} onBack={handleBack}>
+        <Skeleton height={64} radius={16} />
+        <Skeleton height={220} radius={16} />
+        <Skeleton height={120} radius={16} />
+      </Screen>
     );
   }
 
   const allSubsOff =
-    !prefs.routineDue &&
-    !prefs.eventStarting &&
-    !prefs.courseDose &&
-    !prefs.courseEndingSoon &&
-    !prefs.gentleReentry &&
-    !prefs.milestoneReached &&
-    !prefs.dailyDigest;
+    !prefs.routineDue && !prefs.eventStarting && !prefs.courseDose && !prefs.courseEndingSoon && !prefs.gentleReentry && !prefs.milestoneReached && !prefs.dailyDigest;
 
-  const masterOff = !prefs.master; // Trigger A
-  const triggerB = prefs.master && allSubsOff;
+  // Each sample uses one of the person's own tasks, so the picture is of their reminder.
+  const tasks = (tasksQuery.data ?? []).filter((task) => !task.deletedAt);
+  const routines = tasks.filter((task) => task.type === 'routine' && !task.isAsNeeded);
+  const routine = routines.find((task) => task.timeOfDay) ?? routines[0];
+  const event = tasks.find((task) => task.type === 'event');
+  const course = tasks.find((task) => task.type === 'course');
+  const routineName = routine?.name ?? 'Morning workout';
+  const eventName = event?.name ?? 'Dentist';
+  const courseName = course?.name ?? 'Antibiotics';
+  const samples: Record<string, { title: string; body: string; when: string }> = {
+    routineDue: { title: `Time for your ${routineName}`, body: 'Too tired? The fallback still counts.', when: routine?.timeOfDay ? formatTimeOfDay(routine.timeOfDay) : 'now' },
+    eventStarting: { title: `${eventName} is coming up`, body: 'Starting today.', when: event?.timeOfDay ? formatTimeOfDay(event.timeOfDay) : 'now' },
+    courseDose: { title: `${courseName} — today's dose`, body: 'Log it when you take it.', when: 'now' },
+    courseEndingSoon: { title: `${courseName} is ending soon`, body: `Runs through ${course?.endDate ? shortDate(course.endDate) : 'Friday'}.`, when: 'now' },
+    gentleReentry: { title: 'A quiet invitation back', body: 'Yesterday slipped by — today is a fresh one. Even the fallback counts.', when: 'now' },
+    milestoneReached: { title: 'Milestone reached', body: "You've hit a new level or badge — nice work.", when: 'now' },
+    dailyDigest: { title: 'Your day, at a glance', body: "Check in on today's habits.", when: formatTimeOfDay(prefs.dailyDigestTime) },
+  };
+
+  const toggle = (label: string, key: keyof NotificationPrefs) => {
+    const sample = samples[key];
+    return (
+      <View key={key}>
+        <ListRow
+          label={label}
+          right={<Switch value={!!prefs[key]} onValueChange={(v) => void patchPrefs({ [key]: v } as Partial<NotificationPrefs>)} accessibilityLabel={`${label}, ${prefs[key] ? 'on' : 'off'}`} />}
+        />
+        {sample ? <NotificationSample title={sample.title} body={sample.body} when={sample.when} off={!prefs[key]} /> : null}
+      </View>
+    );
+  };
 
   return (
-    <View style={[styles.root, { backgroundColor: t.color.bg }]}>
-      <SettingsHeader title={S42_COPY.title} onBack={handleBack} />
-      <ScrollView contentContainerStyle={styles.content}>
-        <Card accessibilityLabel={S42_COPY.masterLabel}>
-          <View style={styles.row}>
-            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S42_COPY.masterLabel}</Text>
-            <Switch
-              value={prefs.master}
-              onValueChange={(v) => patchPrefs({ master: v })}
-              accessibilityLabel={`${S42_COPY.masterLabel}, ${prefs.master ? 'on' : 'off'}, toggles all reminders`}
-            />
+    <Screen title={S42_COPY.title} onBack={handleBack}>
+      <ListGroup footer={prefs.master ? S42_COPY.masterOnSubcopy : S42_COPY.emptySubcopy}>
+        <ListRow
+          label="Allow notifications"
+          right={<Switch value={prefs.master} onValueChange={(v) => void patchPrefs({ master: v })} accessibilityLabel={`Allow notifications, ${prefs.master ? 'on' : 'off'}`} />}
+        />
+      </ListGroup>
+
+      {prefs.master ? (
+        <>
+          <ListGroup title={S42_COPY.remindersSection}>
+            {toggle(S42_COPY.reminderRows.routineDue, 'routineDue')}
+            {toggle(S42_COPY.reminderRows.eventStarting, 'eventStarting')}
+            {toggle(S42_COPY.reminderRows.courseDose, 'courseDose')}
+            {toggle(S42_COPY.reminderRows.courseEndingSoon, 'courseEndingSoon')}
+          </ListGroup>
+
+          <ListGroup title={S42_COPY.encouragementSection}>
+            {toggle(S42_COPY.encouragementRows.gentleReentry, 'gentleReentry')}
+            {toggle(S42_COPY.encouragementRows.milestoneReached, 'milestoneReached')}
+          </ListGroup>
+
+          <ListGroup title="Digest">{toggle(S42_COPY.digestRow, 'dailyDigest')}</ListGroup>
+          {prefs.dailyDigest ? (
+            <Select label="Digest time" value={prefs.dailyDigestTime} options={DIGEST_TIME_OPTIONS} onChange={(v) => void patchPrefs({ dailyDigestTime: v })} />
+          ) : null}
+
+          {allSubsOff ? <EmptyLine>{`${S42_COPY.emptyHeadline}. ${S42_COPY.emptySubcopy}`}</EmptyLine> : null}
+        </>
+      ) : (
+        // Off: still show one, so the choice is made knowing what would arrive.
+        <ListGroup title="What a reminder looks like">
+          <View style={{ paddingTop: 12 }}>
+            <NotificationSample title={samples.routineDue?.title ?? ''} body={samples.routineDue?.body ?? ''} when={samples.routineDue?.when ?? 'now'} />
           </View>
-          {prefs.master ? <Text style={[styles.subcopy, { color: t.color.textMuted }]}>{S42_COPY.masterOnSubcopy}</Text> : null}
-        </Card>
-
-        {masterOff ? (
-          <EmptyState icon={BellOff} headline={S42_COPY.emptyHeadline} subcopy={S42_COPY.emptySubcopy} />
-        ) : (
-          <>
-            <Card accessibilityLabel={S42_COPY.remindersSection}>
-              <Text style={[styles.sectionLabel, { color: t.color.textMuted }]}>{S42_COPY.remindersSection}</Text>
-              <SubToggleRow
-                label={S42_COPY.reminderRows.routineDue}
-                value={prefs.routineDue}
-                onChange={(v) => patchPrefs({ routineDue: v })}
-              />
-              <SubToggleRow
-                label={S42_COPY.reminderRows.eventStarting}
-                value={prefs.eventStarting}
-                onChange={(v) => patchPrefs({ eventStarting: v })}
-              />
-              <SubToggleRow label={S42_COPY.reminderRows.courseDose} value={prefs.courseDose} onChange={(v) => patchPrefs({ courseDose: v })} />
-              <SubToggleRow
-                label={S42_COPY.reminderRows.courseEndingSoon}
-                value={prefs.courseEndingSoon}
-                onChange={(v) => patchPrefs({ courseEndingSoon: v })}
-              />
-            </Card>
-
-            <Card accessibilityLabel={S42_COPY.encouragementSection}>
-              <Text style={[styles.sectionLabel, { color: t.color.textMuted }]}>{S42_COPY.encouragementSection}</Text>
-              <SubToggleRow
-                label={S42_COPY.encouragementRows.gentleReentry}
-                value={prefs.gentleReentry}
-                onChange={(v) => patchPrefs({ gentleReentry: v })}
-              />
-              <SubToggleRow
-                label={S42_COPY.encouragementRows.milestoneReached}
-                value={prefs.milestoneReached}
-                onChange={(v) => patchPrefs({ milestoneReached: v })}
-              />
-            </Card>
-
-            <Card accessibilityLabel={S42_COPY.digestRow}>
-              <SubToggleRow label={S42_COPY.digestRow} value={prefs.dailyDigest} onChange={(v) => patchPrefs({ dailyDigest: v })} />
-              {prefs.dailyDigest ? (
-                <Select
-                  label={S42_COPY.digestRow}
-                  value={prefs.dailyDigestTime}
-                  options={DIGEST_TIME_OPTIONS}
-                  onChange={(v) => patchPrefs({ dailyDigestTime: v })}
-                />
-              ) : null}
-            </Card>
-
-            {triggerB ? (
-              <View accessibilityLabel={`${S42_COPY.emptyHeadline}. ${S42_COPY.emptySubcopy}`}>
-                <EmptyState icon={BellOff} headline={S42_COPY.emptyHeadline} subcopy={S42_COPY.emptySubcopy} />
-              </View>
-            ) : null}
-          </>
-        )}
-      </ScrollView>
-    </View>
+        </ListGroup>
+      )}
+    </Screen>
   );
 }
-
-function SubToggleRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  const t = useTheme();
-  return (
-    <View style={styles.row}>
-      <Text style={[styles.rowLabel, { color: t.color.text }]}>{label}</Text>
-      <Switch value={value} onValueChange={onChange} accessibilityLabel={`${label}, ${value ? 'on' : 'off'}, toggles ${label.toLowerCase()} reminders`} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  root: { flex: 1 },
-  content: { padding: SPACE.s3, gap: SPACE.s3 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
-  rowLabel: { fontSize: 16, fontWeight: '500' },
-  subcopy: { fontSize: 14, lineHeight: 20 },
-  sectionLabel: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-});

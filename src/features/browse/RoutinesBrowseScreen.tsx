@@ -1,34 +1,37 @@
-/**
- * S10 — Routines Browse. F2 (browse), F6, F27 (as-needed rows, never on Today, → S23).
- */
+/** M3 — S10 Routines. Weekday circles as the day filter (D10), shared task cards (D13/D14). */
 import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Repeat } from 'lucide-react-native';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { format } from 'date-fns';
 
 import { parseLocalDate, today, weekdayOf } from '@/lib/date';
 import { useTasks } from '@/queries';
 import { ROUTES, withOrigin } from '@/navigation';
 import { SPACE, useTheme } from '@/theme';
-import { AsNeededCard, Badge, Card, EmptyState, InlineRetryBanner, Skeleton, Tabs, Tag } from '@/ui';
+import { EmptyLine, EmptyState, InlineRetryBanner, SectionHeading, Skeleton, TabSummary, WeekdayPicker } from '@/ui';
 import type { Id, TaskWithSteps, Weekday } from '@/types';
 
+import { TaskCard } from '@/features/task/TaskCard';
+import { StatusPill, metaParts } from '@/features/task/TaskDetails';
 import { BROWSE_SHARED_COPY, dueSectionLabel, S10_COPY } from './copy';
-import { cadenceLabel, cadenceRunsOnWeekday, importanceLabel, necessityLabel } from './format';
+import { cadenceLabel, cadenceRunsOnWeekday, formatTimeOfDay } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
-import { resolveTaskIcon } from './resolveIcon';
 import { useAsNeededHistory } from './useAsNeededHistory';
+import { useTodayRows } from '@/features/today/useTodayRows';
 import { WEEKDAY_FULL } from './weekdayLabels';
-
-const WEEKDAY_TABS = ([1, 2, 3, 4, 5, 6, 7] as const).map((d) => ({ value: String(d), label: WEEKDAY_FULL[d as Weekday].slice(0, 3) }));
 
 export default function RoutinesBrowseScreen() {
   const t = useTheme();
   const router = useRouter();
   const tasksQuery = useTasks({ type: 'routine' });
-  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(weekdayOf(today()));
+  const todayWeekday = weekdayOf(today());
+  const todayRows = useTodayRows().rows.filter((r) => r.task.type === 'routine' && r.occurrence.outcome !== 'off');
+  const loggedToday = todayRows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback');
+  const nextUp = todayRows.find((r) => r.occurrence.chipState !== 'done' && r.occurrence.chipState !== 'fallback' && r.occurrence.chipState !== 'skip');
+  const idealToday = loggedToday.filter((r) => r.occurrence.chipState === 'done').length;
+  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(todayWeekday);
 
   const all = tasksQuery.data ?? [];
   const scheduled = all.filter((tk) => !tk.isAsNeeded);
@@ -50,19 +53,12 @@ export default function RoutinesBrowseScreen() {
   return (
     <View style={[styles.root, { backgroundColor: t.color.bg }]}>
       <BrowseHeader title={S10_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'routines') as Href)} />
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FAB_CLEARANCE }]}>
-        <Tabs
-          items={WEEKDAY_TABS}
-          value={String(selectedWeekday)}
-          onChange={(v) => setSelectedWeekday(Number(v) as Weekday)}
-          accessibilityLabel="Select a weekday"
-        />
-
+      <ScrollView alwaysBounceVertical={false} overScrollMode="auto" contentContainerStyle={[styles.scrollContent, { paddingBottom: noRoutinesAtAll ? SPACE.s2 : FAB_CLEARANCE + SPACE.s4 }]} showsVerticalScrollIndicator={false}>
         {tasksQuery.isLoading ? (
           <View style={styles.list}>
-            <Skeleton height={80} />
-            <Skeleton height={80} />
-            <Skeleton height={80} />
+            <Skeleton height={112} radius={20} />
+            <Skeleton height={112} radius={20} />
+            <Skeleton height={112} radius={20} />
           </View>
         ) : tasksQuery.isError ? (
           <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
@@ -72,105 +68,90 @@ export default function RoutinesBrowseScreen() {
             headline={S10_COPY.emptyNoRoutinesHeadline}
             subcopy={S10_COPY.emptyNoRoutinesSubcopy}
             actionLabel={S10_COPY.emptyNoRoutinesAction}
-            onAction={() => router.push(ROUTES.addPickType as Href)}
+            onAction={() => router.push(ROUTES.addRoutine as Href)}
           />
         ) : (
           <>
-            <Text accessibilityRole="header" style={[styles.sectionLabel, { color: t.color.text }]}>
-              {dueSectionLabel(dayFull)}
-            </Text>
-            {due.length === 0 ? (
-              <EmptyState
-                icon={Repeat}
-                headline={S10_COPY.emptyNothingDueHeadline}
-                subcopy={`${S10_COPY.emptyNothingDueSubcopyPrefix}${dayFull}${S10_COPY.emptyNothingDueSubcopySuffix}`}
+            {todayRows.length > 0 ? (
+              <TabSummary
+                mark={{ kind: 'ring', done: loggedToday.length, total: todayRows.length }}
+                title={nextUp ? `${todayRows.length - loggedToday.length} left today` : 'Done for today'}
+                detail={nextUp ? `Next: ${nextUp.task.name}` : `${idealToday} ideal, ${loggedToday.length - idealToday} fallback`}
+                testID="routines-summary"
               />
-            ) : (
+            ) : null}
+            <WeekdayPicker
+              mode="single"
+              selected={[selectedWeekday]}
+              onChange={(days) => setSelectedWeekday(days[0] ?? todayWeekday)}
+              markedDay={todayWeekday}
+              accessibilityLabel="Show routines for a weekday"
+            />
+
+            <View style={styles.list}>
+              <SectionHeading>{dueSectionLabel(dayFull)}</SectionHeading>
+              {due.length === 0 ? (
+                <EmptyLine>{`${S10_COPY.emptyNothingDueSubcopyPrefix}${dayFull}${S10_COPY.emptyNothingDueSubcopySuffix}`}</EmptyLine>
+              ) : (
+                due.map((tk) => (
+                  <TaskCard
+                    key={tk.id}
+                    task={tk}
+                    meta={metaParts({ schedule: tk.timeOfDay ? `${cadenceLabel(tk.cadence)} · ${formatTimeOfDay(tk.timeOfDay)}` : cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
+                    status={selectedWeekday === todayWeekday ? <StatusPill label={S10_COPY.dueBadge} tone="due" /> : undefined}
+                    onPress={() => openTask(tk.id)}
+                  />
+                ))
+              )}
+            </View>
+
+            {other.length > 0 ? (
               <View style={styles.list}>
-                {due.map((tk) => (
-                  <ScheduledRow key={tk.id} task={tk} showDueBadge cadenceText={cadenceLabel(tk.cadence)} onPress={() => openTask(tk.id)} />
+                <SectionHeading>{S10_COPY.otherSection}</SectionHeading>
+                {other.map((tk) => (
+                  <TaskCard
+                    key={tk.id}
+                    task={tk}
+                    meta={metaParts({ schedule: tk.timeOfDay ? `${cadenceLabel(tk.cadence)} · ${formatTimeOfDay(tk.timeOfDay)}` : cadenceLabel(tk.cadence), importance: tk.importance, necessity: tk.necessity, compact: true })}
+                    onPress={() => openTask(tk.id)}
+                  />
                 ))}
               </View>
-            )}
+            ) : null}
 
-            <Text accessibilityRole="header" style={[styles.sectionLabel, { color: t.color.text }]}>
-              {S10_COPY.otherSection}
-            </Text>
-            <View style={styles.list}>
-              {other.map((tk) => (
-                <ScheduledRow key={tk.id} task={tk} showDueBadge={false} cadenceText={`Due ${cadenceLabel(tk.cadence)}`} onPress={() => openTask(tk.id)} />
-              ))}
-              {asNeeded.map((tk) => (
-                <AsNeededRow key={tk.id} task={tk} onOpen={() => openAsNeeded(tk.id)} />
-              ))}
-            </View>
+            {asNeeded.length > 0 ? (
+              <View style={styles.list}>
+                <SectionHeading>{S10_COPY.asNeededSection}</SectionHeading>
+                {asNeeded.map((tk) => (
+                  <AsNeededRow key={tk.id} task={tk} onOpen={() => openAsNeeded(tk.id)} />
+                ))}
+              </View>
+            ) : null}
           </>
         )}
       </ScrollView>
-      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
+      {noRoutinesAtAll ? null : <Fab accessibilityLabel="New routine" onPress={() => router.push(withOrigin(ROUTES.addRoutine, 'routines') as Href)} />}
     </View>
   );
 }
 
-function ScheduledRow({
-  task: tk,
-  showDueBadge,
-  cadenceText,
-  onPress,
-}: {
-  task: TaskWithSteps;
-  showDueBadge: boolean;
-  cadenceText: string;
-  onPress: () => void;
-}) {
-  const t = useTheme();
-  const Icon = resolveTaskIcon(tk.icon);
-  return (
-    <Card onPress={onPress} accessibilityLabel={`${tk.name}, ${cadenceText}`}>
-      <View style={styles.rowHeader}>
-        <Icon size={22} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-        <Text style={[styles.name, { color: t.color.text }]}>{tk.name}</Text>
-        {showDueBadge ? <Badge label={S10_COPY.dueBadge} /> : null}
-      </View>
-      <Text style={[styles.meta, { color: t.color.textMuted }]}>{cadenceText}</Text>
-      <View style={styles.tagRow}>
-        {tk.idealSteps[0] ? <Tag label={`Ideal: ${tk.idealSteps[0].text}`} /> : null}
-        {tk.fallbackSteps[0] ? <Tag label={`Fallback: ${tk.fallbackSteps[0].text}`} /> : null}
-        {tk.importance ? <Tag label={importanceLabel(tk.importance)} /> : null}
-        {tk.necessity ? <Tag label={necessityLabel(tk.necessity)} /> : null}
-      </View>
-    </Card>
-  );
-}
-
-/** S10's as-needed row — adds the "Last used {date}" preview via `useAsNeededHistory`. */
 function AsNeededRow({ task: tk, onOpen }: { task: TaskWithSteps; onOpen: () => void }) {
   const historyQuery = useAsNeededHistory(tk.id as Id);
   const history = historyQuery.data ?? [];
   const mostRecent = [...history].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
-  const lastUsedLabel = mostRecent ? `Last used ${format(parseLocalDate(mostRecent.date), 'MMM d')}` : undefined;
-
+  const lastUsed = mostRecent ? `Last used ${format(parseLocalDate(mostRecent.date), 'MMM d')}` : 'Not used yet';
   return (
-    <AsNeededCard
-      name={tk.name}
-      icon={resolveTaskIcon(tk.icon)}
-      idealLabel={tk.idealSteps[0] ? `Ideal: ${tk.idealSteps[0].text}` : undefined}
-      fallbackLabel={tk.fallbackSteps[0] ? `Fallback: ${tk.fallbackSteps[0].text}` : undefined}
-      lastUsedLabel={lastUsedLabel}
+    <TaskCard
+      task={tk}
+      meta={metaParts({ schedule: lastUsed, importance: tk.importance, necessity: tk.necessity, compact: true })}
+      status={<StatusPill label="As-needed" />}
       onPress={onOpen}
-      onLogUsedIt={onOpen}
-      logButtonLabel={S10_COPY.logUsedIt}
     />
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  scrollContent: { padding: SPACE.s3, gap: SPACE.s3 },
-  list: { gap: SPACE.s2 },
-  sectionLabel: { fontSize: 16, fontWeight: '700' },
-  rowHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 },
-  name: { fontSize: 16, fontWeight: '600', flex: 1 },
-  meta: { fontSize: 13 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACE.s1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
+  list: { gap: SPACE.s2 + 4 },
 });

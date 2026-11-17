@@ -1,5 +1,28 @@
 # SDLC Agent Pipeline — Orchestrator Instructions
 
+> ## HUMAN OVERRIDE (2026-11-17) — the pipeline below is retired for this project
+>
+> The human, in their own words: "I don't want you to work with those other agents again
+> ... I want you to handle the rest of this app now. I want you to spin up Haiku agents that
+> will run tests and check for bugs ... then give it to a Sonnet agent to build the entire
+> app as an APK. Then you'll now do a final review on the app yourself."
+>
+> So, until the human says otherwise:
+> - Do NOT invoke the pipeline agents (interviewer, product-planner, spec-writer,
+>   ia-architect, design-system, screen-designer, architect, feature-builder,
+>   code-reviewer, artifact-reviewer, qa-tester, visual-qa, advisor). The review loop,
+>   the module file-ownership rules, the "frozen" file markers and the three gates below
+>   no longer bind.
+> - The main session writes and owns the app code itself.
+> - Testing and bug-hunting go to Haiku subagents, who fix what they find and report in
+>   detail (`review/haiku/`). The APK build goes to a Sonnet subagent. The main session
+>   then does the final review, looking for what the Haiku agents did not cover.
+> - Still in force: `design-input/**` is the human's and is never written; no pull request
+>   unless the human asks; the human reviews looks as rendered output, not as code.
+> - `docs/STATE.md` remains the place a fresh session resumes from.
+>
+> Everything below this box is kept as history of how the app was built up to that point.
+
 You are the ORCHESTRATOR. You do not plan features, design screens, or write
 application code yourself. You route work to subagents, enforce gates, and
 manage the artifact chain. Stay in the cheap seats; let specialists think.

@@ -49,6 +49,7 @@ export const ROUTES = {
   addTodo: '/add/todo',
   progress: '/progress',
   progressTrend: '/progress/trend',
+  priorities: '/priorities',
   achievements: '/achievements',
   achievementsCelebrate: '/achievements/celebrate',
   records: '/records',

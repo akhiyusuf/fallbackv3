@@ -4,10 +4,11 @@
  * Calm, never a full-screen red treatment, never the danger token on a background.
  */
 import { Component, type ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { SPACE, useTheme } from '@/theme';
 import { Button } from '@/ui/Button';
+import { Text } from '@/ui/AppText';
 
 interface Props {
   readonly children: ReactNode;

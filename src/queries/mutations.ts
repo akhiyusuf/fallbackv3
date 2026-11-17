@@ -352,6 +352,8 @@ export function useCreateTask() {
         necessity: draft.necessity ?? null,
         todoDoneAt: null,
         snoozable: draft.snoozable ?? true, // CR-4
+        isNote: draft.type === 'todo' ? (draft.isNote ?? false) : false,
+        priorityRank: null,
         createdAt: nowIso,
         updatedAt: nowIso,
         deletedAt: null,

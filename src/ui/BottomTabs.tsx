@@ -5,11 +5,12 @@
  * from the same tokens; this component is for any other surface that needs the identical look
  * without a real navigator underneath it (e.g. a mockup/mid-flow illustration).
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Calendar, ListChecks, Repeat, StickyNote, Sun } from 'lucide-react-native';
 
 import { SPACE, useTheme } from '@/theme';
 import type { IconComponent } from './icon';
+import { Text } from '@/ui/AppText';
 
 export interface BottomTabsItem {
   readonly key: string;
@@ -49,7 +50,7 @@ export function BottomTabs({ items, activeKey, onSelect, testID }: BottomTabsPro
       {items.map((item) => {
         const active = item.key === activeKey;
         const Icon = item.icon;
-        const color = active ? t.accent.base : t.color.textDim;
+        const color = active ? t.accent.text : t.color.textMuted;
         return (
           <Pressable
             key={item.key}
@@ -71,5 +72,5 @@ export function BottomTabs({ items, activeKey, onSelect, testID }: BottomTabsPro
 const styles = StyleSheet.create({
   root: { flexDirection: 'row', borderTopWidth: 1, paddingTop: SPACE.s1, paddingBottom: SPACE.s2 },
   tab: { flex: 1, alignItems: 'center', gap: 2, minHeight: 44, justifyContent: 'center' },
-  label: { fontSize: 11, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '600' },
 });
