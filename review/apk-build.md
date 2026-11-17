@@ -84,3 +84,9 @@ and no "— try again".
 `expo` package (checked with `expo-modules-autolinking resolve`). Adding it as a direct dependency made npm move
 `expo-asset` and `expo-constants` to newer patch versions than this Expo release was built with, so that change
 was undone. Left as it is.
+
+## 10. Rebuild at commit `32baae1` (2026-11-17, 2m54s)
+
+Contains: Android sounds follow the media volume (no longer dropped on vibrate or silent), exact centred
+onboarding pictures, in-place onboarding step motion, slide-in screen changes on Android. Same checks pass
+(package, no `AD_ID`, `allowBackup=false`, signature verifies, 18 sound resources). 54,819,324 bytes.
