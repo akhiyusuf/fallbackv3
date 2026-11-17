@@ -3134,8 +3134,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +});
 diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboarding/OnboardingShell.tsx web/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 14:24:35.420372503 +0000
-@@ -1,99 +1,227 @@
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 14:33:46.507285940 +0000
+@@ -1,99 +1,222 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
 - * S02 "Contents": Skip control, 5-dot progress, decorative icon, headline, body, Next).
@@ -3198,8 +3198,8 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 + * place on all seven steps and no picture is smaller than another. That height is what the
 + * fullest step leaves free, up to BANNER_SHARE of the screen. To keep it generous the type and
 + * the gaps tighten on ALL steps together ("compact", then "tight"): a roomier setting is used
-+ * only when it costs the banner almost nothing (NEAR). Step 5 has the least below its words,
-+ * so its banner may run a little taller (STEP5_EXTRA) to use up the room it would leave empty.
++ * only when it costs the banner almost nothing (NEAR). A step with less below its words (step 5
++ * most of all) leaves its spare room above the button; its banner stays the same as the rest.
 + *
 + * ONBOARDING_NEEDS is the height each step needs below the banner (words, example, buttons),
 + * measured in the built app by docs/design-rebuild/preview-harness/obneed.js. Re-measure after
@@ -3207,7 +3207,6 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 + */
 +const BANNER_SHARE = 0.36;
 +const NEAR = 0.92;
-+const STEP5_EXTRA = 1.15;
 +// Room kept spare so a slightly wider typeface on a real phone does not push a step into scrolling.
 +const NEED_SLACK = 8;
 +const DENSITIES: readonly OnboardingDensity[] = ['regular', 'compact', 'tight'];
@@ -3221,8 +3220,6 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  readonly density: OnboardingDensity;
 +  /** Height of the whole top (bar and banner) on every step, before the phone's top inset. */
 +  readonly top: number;
-+  /** The same for step 5. */
-+  readonly topStep5: number;
 +}
 +function planFor(height: number, width: number): Plan {
 +  const cap = Math.round(height * BANNER_SHARE);
@@ -3231,9 +3228,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  // Only for the measuring script, which has to see each setting at any window size.
 +  const forced = (globalThis as { __obDensity?: OnboardingDensity }).__obDensity;
 +  const density = forced ?? DENSITIES.find((d) => room(d) >= best * NEAR) ?? 'tight';
-+  const top = Math.max(HEADER_HEIGHT, room(density));
-+  const step5Room = height - (needsAt(density, width)[4] ?? 0) - NEED_SLACK;
-+  return { density, top, topStep5: Math.max(top, Math.min(step5Room, Math.round(top * STEP5_EXTRA))) };
++  return { density, top: Math.max(HEADER_HEIGHT, room(density)) };
 +}
 +// The height the top had on the step the person just left, so the next one can start from it.
 +let lastTopHeight: number | null = null;
@@ -3303,7 +3298,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
 +  const density = plan.density;
 +  useEffect(() => publishDensity(density), [density]);
 +  const barAndInset = HEADER_HEIGHT + insets.top;
-+  const target = (step === 5 ? plan.topStep5 : plan.top) + insets.top;
++  const target = plan.top + insets.top;
 +  const reduced = useReduceMotion();
 +  // Moving between steps eases from the banner the person was just looking at to this one.
 +  const basis = useState(() => new Animated.Value(lastTopHeight ?? target))[0];
@@ -3426,7 +3421,7 @@ diff -ruN -x sounds.generated.ts -x bannerImages.ts web-orig/src/features/onboar
        </View>
      </View>
    );
-@@ -101,11 +229,33 @@
+@@ -101,11 +224,33 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },

@@ -987,6 +987,17 @@ we don't burn credits" (step 4).
   Fallback only (no Off, since the picture has none). The design had 83%,
   5 of 6, with an off day. No image was generated.
 
+### Round 4, fourteenth pass (2026-11-17, preview version 20)
+
+- **Step 5's banner is the same height as the others.** The human: "the 5th
+  card from it's onboarding step should be the same size as the others".
+  The 15% extra from the thirteenth pass is removed (`STEP5_EXTRA` is gone);
+  all seven banners are now identical at every size (190 px in the human's
+  375 by 609 window, 304 px at 390 by 844). Step 5's spare room sits above
+  its button, like any other step's.
+- The two pieces of copy removed from onboarding step 7 in the thirteenth
+  pass are still waiting on the human's yes or no.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

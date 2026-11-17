@@ -724,6 +724,10 @@ new sounds, and whether the tap should also be on icon buttons and list rows
 (left silent for now). Details: `docs/design-rebuild/SOUND_EFFECTS.md` and
 "Round 4, twelfth pass" in `docs/DESIGN_DECISIONS.md`.
 
+**Round 4, fourteenth pass (2026-11-17): Fallback Preview is at version 20.**
+Step 5's onboarding banner is now exactly the same height as the other six
+(the human asked; the 15% extra below is gone).
+
 **Round 4, thirteenth pass (2026-11-17): Fallback Preview is at version 19.**
 From the human's screenshots: onboarding banners were uneven and small in
 their window. Now all seven steps share one banner height (step 5 up to 15%
