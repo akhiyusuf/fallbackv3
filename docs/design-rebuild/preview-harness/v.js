@@ -14,7 +14,7 @@ const S = '/tmp/claude-0/-home-user-fallbackv3/4065cf9b-48bb-5876-bcc5-38bb70a7f
   await page.waitForTimeout(2500);
   const P = (fn, arg) => page.evaluate(fn, arg);
   if (mode === 'sample') { await P(() => window.__fallbackPreview.loadSample()); await page.waitForTimeout(2500); }
-  else { await P(() => window.__fallbackPreview.go('/onboarding/hook')); await page.waitForTimeout(600); }
+  else { await P(() => window.__fallbackPreview.go('/onboarding/concept')); await page.waitForTimeout(600); }
   let tasks = [];
   try { tasks = await P(async () => (await window.__fallbackPreview.repos.tasks.list()).map((t) => ({ id: t.id, name: t.name }))); } catch (e) {}
   const id = (n) => (tasks.find((t) => t.name === n) || {}).id;

@@ -688,6 +688,41 @@ Allow".
   S06 and S07 in `design-input/` (human-owned): the PRD and the screen spec
   need the same change before builders work from them.**
 
+### Round 4, fifth pass (2026-11-17, preview version 11)
+
+Decisions from the human, applied to the preview:
+
+- **The plus button.** Only Today's plus opens the sheet with every option.
+  On Routines, Events, Courses and To-dos the plus goes straight to that
+  tab's create form (To-dos opens "New note" when the Notes view is showing).
+- **Fallback AI from a list tab (my suggestion, the human asked for one).**
+  Each create form starts with one slim row, "Say it instead — Tell Fallback AI
+  and it sets it up", which opens the assistant. Today's sheet keeps its own
+  "Tell Fallback AI" row. To be confirmed by the human.
+- **Onboarding order.** The plan A / plan B step now leads; "Something beats
+  nothing" is second. Order: concept, hook, types, consistency, personalize,
+  reminders, first habit. The app's entry route and the resume-after-kill
+  check moved to the concept step with it.
+- **Onboarding copy.** Step 1 headline is now "a plan A and a plan B for every
+  habit." — the leading article in lower case, so the capitals belong to
+  "plan A" and "plan B".
+- **Snoozing is chosen at creation.** The routine form has a switch, "Can be
+  moved to tomorrow" (on by default, hidden for as-needed routines). It sets
+  the existing `task.snoozable`; no schema change. The task screen's switch
+  uses the same words.
+- **Undo, because the interface was unforgiving.** New Undo actions on the
+  toast after: snoozing to tomorrow (same day — before, undo only appeared the
+  next day), marking today off, and ticking a to-do. Logging already had one.
+
+These change approved copy and flow in `design-input/` (S02, S03, S10–S13
+plus buttons, S15 create routine, S20 snooze). The PRD and screen spec need
+the same changes before builders work from them.
+
+**Not done — deleting a task still cannot be undone.** Delete removes the
+task's steps and history at once (`softDelete` cascades), so an Undo there is
+not a restyle: it needs the delete to be deferred, or the rows kept until the
+sweep. Architect decision; flagged to the human.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

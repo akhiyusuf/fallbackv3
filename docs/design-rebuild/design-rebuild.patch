@@ -812,6 +812,52 @@ diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCar
 +  billed: { fontSize: FONT_SIZE.sm, fontWeight: '400' },
 +  note: { fontSize: FONT_SIZE.xs },
 +});
+diff -ruN a/src/features/assistant/SayItInsteadRow.tsx b/src/features/assistant/SayItInsteadRow.tsx
+--- a/src/features/assistant/SayItInsteadRow.tsx	1970-01-01 00:00:00.000000000 +0000
++++ b/src/features/assistant/SayItInsteadRow.tsx	2026-11-17 03:07:59.397575341 +0000
+@@ -0,0 +1,42 @@
++/**
++ * SayItInsteadRow — the way to Fallback AI from a create form. The plus button on a list tab
++ * goes straight to that tab's form, so the form itself offers the other way in: say it, and
++ * the assistant sets it up. One slim row at the top, never a second form.
++ */
++import { useRouter, type Href } from 'expo-router';
++import { ChevronRight } from 'lucide-react-native';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
++
++import { ROUTES } from '@/navigation';
++import { FONT_SIZE, SPACE, useTheme } from '@/theme';
++import { tintedSurface, VoiceMark } from '@/ui';
++
++export function SayItInsteadRow({ what }: { readonly what: string }) {
++  const t = useTheme();
++  const router = useRouter();
++  return (
++    <Pressable
++      onPress={() => router.push(ROUTES.assistant as Href)}
++      accessibilityRole="button"
++      accessibilityLabel={`Say it instead. Tell Fallback AI about your ${what} and it sets it up.`}
++      testID="say-it-instead"
++      style={({ pressed }) => [styles.root, tintedSurface(t, t.accent.fill), pressed && { borderColor: t.accent.text }]}
++    >
++      <VoiceMark size={36} />
++      <View style={styles.text}>
++        <Text style={[styles.title, { color: t.color.text }]}>Say it instead</Text>
++        <Text numberOfLines={1} style={[styles.body, { color: t.color.text }]}>
++          Tell Fallback AI and it sets it up.
++        </Text>
++      </View>
++      <ChevronRight size={18} color={t.accent.text} />
++    </Pressable>
++  );
++}
++
++const styles = StyleSheet.create({
++  root: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2 + 4, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s2 + 4, minHeight: 60 },
++  text: { flex: 1, gap: 1 },
++  title: { fontSize: FONT_SIZE.base, fontWeight: '800' },
++  body: { fontSize: FONT_SIZE.sm },
++});
 diff -ruN a/src/features/assistant/TaskCreatedCard.tsx b/src/features/assistant/TaskCreatedCard.tsx
 --- a/src/features/assistant/TaskCreatedCard.tsx	2026-11-16 05:43:15.822176710 +0000
 +++ b/src/features/assistant/TaskCreatedCard.tsx	2026-11-16 06:15:24.633328547 +0000
@@ -1142,8 +1188,8 @@ diff -ruN a/src/features/browse/BrowseHeader.tsx b/src/features/browse/BrowseHea
 -});
 diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/CoursesBrowseScreen.tsx
 --- a/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 05:43:15.822009504 +0000
-+++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 16:53:14.470983875 +0000
-@@ -1,27 +1,30 @@
++++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-17 03:03:53.651946706 +0000
+@@ -1,21 +1,22 @@
 -/** S12 — Courses Browse. F11 (browse), F12 (multi-dose meta). */
 +/** M3 — S12 Courses. Segmented Active/Past (D9), shared task cards. */
  import { useState } from 'react';
@@ -1154,7 +1200,6 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  import { format } from 'date-fns';
  
  import { diffDays, parseLocalDate, today } from '@/lib/date';
-+import { useAddMenuStore } from '@/app-shell';
  import { useTasks } from '@/queries';
  import { ROUTES, withOrigin } from '@/navigation';
  import { SPACE, useTheme } from '@/theme';
@@ -1171,14 +1216,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  
  type Lens = 'active' | 'past';
  
- export default function CoursesBrowseScreen() {
-   const t = useTheme();
-   const router = useRouter();
-+  const openAddMenu = useAddMenuStore((st) => st.show);
-   const tasksQuery = useTasks({ type: 'course' });
-   const [lens, setLens] = useState<Lens>('active');
-   const todayDate = today();
-@@ -30,9 +33,9 @@
+@@ -30,9 +31,9 @@
    const active = all.filter((c) => c.endDate === null || c.endDate >= todayDate);
    const past = all.filter((c) => c.endDate !== null && c.endDate < todayDate);
    const shown = lens === 'active' ? active : past;
@@ -1189,7 +1227,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'courses') as Href);
-@@ -41,21 +44,11 @@
+@@ -41,21 +42,11 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S12_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'courses') as Href)} />
@@ -1214,7 +1252,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
            </View>
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-@@ -67,67 +60,62 @@
+@@ -67,67 +58,62 @@
              actionLabel={S12_COPY.newCourse}
              onAction={() => router.push(ROUTES.addCourse as Href)}
            />
@@ -1262,7 +1300,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
          )}
        </ScrollView>
 -      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
-+      {noCoursesAtAll ? null : <Fab onPress={openAddMenu} />}
++      {noCoursesAtAll ? null : <Fab accessibilityLabel="New course" onPress={() => router.push(withOrigin(ROUTES.addCourse, 'courses') as Href)} />}
      </View>
    );
  }
@@ -1323,8 +1361,8 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
  });
 diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/EventsBrowseScreen.tsx
 --- a/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 05:43:15.821978885 +0000
-+++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 16:53:14.470856756 +0000
-@@ -1,29 +1,30 @@
++++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-17 03:03:53.651802268 +0000
+@@ -1,6 +1,4 @@
 -/**
 - * S11 — Events Browse. F11 (browse), F26 (repeating events).
 - */
@@ -1332,10 +1370,8 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  import { useCallback, useEffect, useState } from 'react';
  import { useRouter, type Href } from 'expo-router';
  import { Calendar } from 'lucide-react-native';
- import { ScrollView, StyleSheet, Text, View } from 'react-native';
- 
+@@ -9,15 +7,16 @@
  import { addDays, parseLocalDate, today } from '@/lib/date';
-+import { useAddMenuStore } from '@/app-shell';
  import { useTaskOccurrences, useTasks } from '@/queries';
  import { ROUTES, withOrigin } from '@/navigation';
 -import { SPACE, useTheme } from '@/theme';
@@ -1355,14 +1391,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  
  const UPCOMING_WINDOW_DAYS = 90;
  
- export default function EventsBrowseScreen() {
-   const t = useTheme();
-   const router = useRouter();
-+  const openAddMenu = useAddMenuStore((st) => st.show);
-   const tasksQuery = useTasks({ type: 'event' });
-   const todayDate = today();
- 
-@@ -33,7 +34,6 @@
+@@ -33,7 +32,6 @@
  
    const todayEvents = oneOff.filter((e) => e.eventDate === todayDate);
    const upcomingOneOff = oneOff.filter((e) => e.eventDate !== null && e.eventDate > todayDate);
@@ -1370,7 +1399,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
    const upcomingGroups = new Map<LocalDate, TaskWithSteps[]>();
    for (const e of upcomingOneOff) {
      const key = e.eventDate as LocalDate;
-@@ -43,10 +43,6 @@
+@@ -43,10 +41,6 @@
    }
    const sortedUpcomingGroupDates = [...upcomingGroups.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
  
@@ -1381,7 +1410,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
    const [repeatingDueTodayIds, setRepeatingDueTodayIds] = useState<ReadonlySet<string>>(new Set());
    const reportDueToday = useCallback((id: string, dueToday: boolean) => {
      setRepeatingDueTodayIds((prev) => {
-@@ -61,6 +57,10 @@
+@@ -61,6 +55,10 @@
  
    const noEventsAtAll = !tasksQuery.isLoading && !tasksQuery.isError && events.length === 0;
    const noEventsToday = todayEvents.length === 0 && repeatingDueTodayIds.size === 0;
@@ -1392,7 +1421,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'events') as Href);
-@@ -69,17 +69,18 @@
+@@ -69,17 +67,18 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S11_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'events') as Href)} />
@@ -1414,7 +1443,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
              headline={S11_COPY.noEventsAtAllHeadline}
              subcopy={S11_COPY.noEventsAtAllSubcopy}
              actionLabel={S11_COPY.newEvent}
-@@ -87,36 +88,26 @@
+@@ -87,36 +86,26 @@
            />
          ) : (
            <>
@@ -1463,12 +1492,12 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
                {sortedUpcomingGroupDates.map((date) => {
                  const list = upcomingGroups.get(date) as TaskWithSteps[];
                  return (
-@@ -135,50 +126,27 @@
+@@ -135,50 +124,27 @@
            </>
          )}
        </ScrollView>
 -      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
-+      {noEventsAtAll ? null : <Fab onPress={openAddMenu} />}
++      {noEventsAtAll ? null : <Fab accessibilityLabel="New event" onPress={() => router.push(withOrigin(ROUTES.addEvent, 'events') as Href)} />}
      </View>
    );
  }
@@ -1522,7 +1551,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
  function RepeatingEventRow({
    task: tk,
    today: todayDate,
-@@ -193,8 +161,6 @@
+@@ -193,8 +159,6 @@
    onDueTodayChange?: (dueToday: boolean) => void;
  }) {
    const occQuery = useTaskOccurrences(tk.id, { from: todayDate, to: addDays(todayDate, UPCOMING_WINDOW_DAYS) });
@@ -1531,7 +1560,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
    const occs = occQuery.data ?? [];
    const dueToday = occs.some((o) => o.date === todayDate && o.outcome !== 'not-due');
    const next = occs.find((o) => o.outcome !== 'not-due' && o.date > todayDate);
-@@ -207,50 +173,20 @@
+@@ -207,50 +171,20 @@
  
    const timeLabel = tk.timeOfDay ? formatTimeOfDay(tk.timeOfDay) : undefined;
    const dateLabel = section === 'upcoming' && next ? formatRelativeDayLabel(next.date, todayDate) : undefined;
@@ -1638,8 +1667,8 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
  });
 diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/RoutinesBrowseScreen.tsx
 --- a/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 05:43:15.822061751 +0000
-+++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 16:53:14.471211190 +0000
-@@ -1,34 +1,39 @@
++++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 03:03:53.651624665 +0000
+@@ -1,34 +1,37 @@
 -/**
 - * S10 — Routines Browse. F2 (browse), F6, F27 (as-needed rows, never on Today, → S23).
 - */
@@ -1652,7 +1681,6 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  import { format } from 'date-fns';
  
  import { parseLocalDate, today, weekdayOf } from '@/lib/date';
-+import { useAddMenuStore } from '@/app-shell';
  import { useTasks } from '@/queries';
  import { ROUTES, withOrigin } from '@/navigation';
  import { SPACE, useTheme } from '@/theme';
@@ -1677,7 +1705,6 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  export default function RoutinesBrowseScreen() {
    const t = useTheme();
    const router = useRouter();
-+  const openAddMenu = useAddMenuStore((st) => st.show);
    const tasksQuery = useTasks({ type: 'routine' });
 -  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(weekdayOf(today()));
 +  const todayWeekday = weekdayOf(today());
@@ -1689,7 +1716,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  
    const all = tasksQuery.data ?? [];
    const scheduled = all.filter((tk) => !tk.isAsNeeded);
-@@ -50,19 +55,12 @@
+@@ -50,19 +53,12 @@
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S10_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'routines') as Href)} />
@@ -1713,7 +1740,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
            </View>
          ) : tasksQuery.isError ? (
            <InlineRetryBanner message={BROWSE_SHARED_COPY.errorReadFailure} retryLabel={BROWSE_SHARED_COPY.retry} onRetry={() => tasksQuery.refetch()} />
-@@ -72,105 +70,90 @@
+@@ -72,105 +68,90 @@
              headline={S10_COPY.emptyNoRoutinesHeadline}
              subcopy={S10_COPY.emptyNoRoutinesSubcopy}
              actionLabel={S10_COPY.emptyNoRoutinesAction}
@@ -1804,7 +1831,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
          )}
        </ScrollView>
 -      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
-+      {noRoutinesAtAll ? null : <Fab onPress={openAddMenu} />}
++      {noRoutinesAtAll ? null : <Fab accessibilityLabel="New routine" onPress={() => router.push(withOrigin(ROUTES.addRoutine, 'routines') as Href)} />}
      </View>
    );
  }
@@ -1880,7 +1907,7 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
  });
 diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDosBrowseScreen.tsx
 --- a/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 05:43:15.822041156 +0000
-+++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 16:53:14.471104178 +0000
++++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-17 03:08:49.184397993 +0000
 @@ -1,26 +1,15 @@
 -/**
 - * S13 — To-dos & Notes Browse. F11.
@@ -1905,7 +1932,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 +import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
  
  import { now } from '@/lib/date';
-+import { useAddMenuStore } from '@/app-shell';
++import { useToastStore } from '@/app-shell';
  import { useTasks, useUpdateTask } from '@/queries';
  import { ROUTES, withOrigin } from '@/navigation';
 -import { SPACE, useTheme } from '@/theme';
@@ -1915,7 +1942,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  import type { Id, TaskWithSteps } from '@/types';
  
  import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
-@@ -31,19 +20,25 @@
+@@ -31,7 +20,7 @@
  type Lens = 'todos' | 'notes';
  
  function isNote(tk: TaskWithSteps): boolean {
@@ -1924,12 +1951,12 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  }
  
  export default function ToDosBrowseScreen() {
-   const t = useTheme();
+@@ -39,98 +28,119 @@
    const router = useRouter();
-+  const openAddMenu = useAddMenuStore((st) => st.show);
    const tasksQuery = useTasks({ type: 'todo' });
    const updateTask = useUpdateTask();
 -  const [lens, setLens] = useState<Lens>('todos');
++  const showToast = useToastStore((s) => s.show);
 +  const params = useLocalSearchParams<{ lens?: string }>();
 +  const [lens, setLens] = useState<Lens>(params.lens === 'notes' ? 'notes' : 'todos');
  
@@ -1944,7 +1971,17 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  
    function openTask(id: string) {
      router.push(withOrigin(`/task/${id}`, 'todos') as Href);
-@@ -56,81 +51,89 @@
+   }
+ 
+   async function toggleDone(tk: TaskWithSteps) {
+-    await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: tk.todoDoneAt ? null : now() } });
++    const wasDone = !!tk.todoDoneAt;
++    const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: wasDone ? null : now() } });
++    if (!result.ok || wasDone) return;
++    // Ticking is one tap, so a slip has to be one tap to take back.
++    showToast('Done', 'success', { icon: 'ideal', action: { label: 'Undo', onPress: () => void updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: null } }) } });
+   }
+ 
    return (
      <View style={[styles.root, { backgroundColor: t.color.bg }]}>
        <BrowseHeader title={S13_COPY.title} onSearch={() => router.push(withOrigin(ROUTES.search, 'todos') as Href)} />
@@ -2075,7 +2112,10 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
          )}
        </ScrollView>
 -      <Fab onPress={() => router.push(ROUTES.addPickType as Href)} />
-+      {nothingAtAll ? null : <Fab onPress={openAddMenu} />}
++      {nothingAtAll ? null : <Fab
++          accessibilityLabel={lens === 'notes' ? 'New note' : 'New to-do'}
++          onPress={() => router.push(withOrigin(lens === 'notes' ? `${ROUTES.addTodo}?kind=note` : ROUTES.addTodo, 'todos') as Href)}
++        />}
      </View>
    );
  }
@@ -2210,10 +2250,10 @@ diff -ruN a/src/features/data/EraseDataSheet.tsx b/src/features/data/EraseDataSh
 +}
 diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/ConceptScreen.tsx
 --- a/src/features/onboarding/ConceptScreen.tsx	2026-11-16 05:43:15.822544297 +0000
-+++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-16 06:17:44.262893058 +0000
-@@ -1,53 +1,32 @@
++++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-17 03:03:53.653452636 +0000
+@@ -1,53 +1,34 @@
 -/** S03 — Onboarding: Concept (ideal + fallback). route: /onboarding/concept. Features: F9, F2. */
-+/** S03 — onboarding step 2. The example uses the real task-card pieces so it matches the app. */
++/** S03 — onboarding step 1 (it leads the tour: the idea first, then the reason for it). The example uses the real task-card pieces so it matches the app. */
  import { useRouter, type Href } from 'expo-router';
 -import { CheckCircle2, CircleDashed, GitBranch, Lock } from 'lucide-react-native';
 +import { Dumbbell, GitBranch, Lock } from 'lucide-react-native';
@@ -2230,14 +2270,14 @@ diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/
  import { S03_COPY } from './copy';
  import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
-+import { useOnboardingStepMarker } from './useOnboardingResume';
++import { useOnboardingResumeRedirect } from './useOnboardingResume';
  
  export function ConceptScreen() {
    const t = useTheme();
    const router = useRouter();
 -  const updateSettings = useUpdateSettings();
-   useOnboardingStepMarker('/onboarding/concept');
- 
+-  useOnboardingStepMarker('/onboarding/concept');
+-
 -  async function handleSkip() {
 -    void updateSettings.mutateAsync({ onboardingCompletedAt: now() });
 -    await finishOnboardingProgress();
@@ -2247,7 +2287,10 @@ diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/
 -  function handleNext() {
 -    router.push('/onboarding/types' as Href);
 -  }
--
++  // The first step is the one that reads the saved place back and forwards a returning person.
++  const { resuming } = useOnboardingResumeRedirect('/onboarding/concept');
++  if (resuming) return <View accessibilityLabel="Loading" />;
+ 
    return (
 -    <OnboardingShell step={2} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={handleNext} onSkip={handleSkip}>
 -      <Card
@@ -2266,7 +2309,7 @@ diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/
 -          <View style={styles.rowText}>
 -            <Text style={[styles.rowLabel, { color: t.color.text }]}>{S03_COPY.fallbackLabel}</Text>
 -            <Text style={[styles.rowHelper, { color: t.color.textMuted }]}>{S03_COPY.fallbackHelper}</Text>
-+    <OnboardingShell step={2} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={() => router.push('/onboarding/types' as Href)}>
++    <OnboardingShell step={1} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={() => router.push('/onboarding/hook' as Href)}>
 +      <Card accessibilityLabel="Example: Morning workout. Ideal: full workout, 30 minutes. Fallback: 10 pushups." style={styles.card}>
 +        <View style={styles.head}>
 +          <TaskIcon icon={Dumbbell} />
@@ -2279,7 +2322,7 @@ diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/
        </Card>
        <View style={styles.privacyRow} accessibilityLabel={S03_COPY.privacy}>
          <Lock size={16} color={t.color.textMuted} accessibilityElementsHidden importantForAccessibility="no" />
-@@ -58,11 +37,10 @@
+@@ -58,11 +39,10 @@
  }
  
  const styles = StyleSheet.create({
@@ -2554,26 +2597,26 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
 +const styles = StyleSheet.create({ note: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
 diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/HookScreen.tsx
 --- a/src/features/onboarding/HookScreen.tsx	2026-11-16 05:43:15.822535341 +0000
-+++ b/src/features/onboarding/HookScreen.tsx	2026-11-16 06:06:46.780375099 +0000
-@@ -1,35 +1,15 @@
++++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 03:03:53.653562241 +0000
+@@ -1,35 +1,12 @@
 -/** S02 — Onboarding: Hook. route: /onboarding/hook. Features: F9. */
-+/** S02 — onboarding step 1. */
++/** S02 — onboarding step 2: why a plan B is worth having. */
  import { useRouter, type Href } from 'expo-router';
  import { Sprout } from 'lucide-react-native';
- import { View } from 'react-native';
- 
+-import { View } from 'react-native';
+-
 -import { useUpdateSettings } from '@/queries';
 -import { now } from '@/lib/date';
 -
  import { S02_COPY } from './copy';
  import { OnboardingShell } from './OnboardingShell';
 -import { finishOnboardingProgress, useOnboardingResumeRedirect } from './useOnboardingResume';
-+import { useOnboardingResumeRedirect } from './useOnboardingResume';
++import { useOnboardingStepMarker } from './useOnboardingResume';
  
  export function HookScreen() {
    const router = useRouter();
 -  const updateSettings = useUpdateSettings();
-   const { resuming } = useOnboardingResumeRedirect('/onboarding/hook');
+-  const { resuming } = useOnboardingResumeRedirect('/onboarding/hook');
 -
 -  async function handleSkip() {
 -    // F9 edge case: a failed persist here is a silent retry-on-next-launch, never a blocking
@@ -2587,12 +2630,13 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
 -    router.push('/onboarding/concept' as Href);
 -  }
 -
-   if (resuming) return <View accessibilityLabel="Loading" />;
+-  if (resuming) return <View accessibilityLabel="Loading" />;
 -
 -  return (
 -    <OnboardingShell step={1} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={handleNext} onSkip={handleSkip} />
 -  );
-+  return <OnboardingShell step={1} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={() => router.push('/onboarding/concept' as Href)} />;
++  useOnboardingStepMarker('/onboarding/hook');
++  return <OnboardingShell step={2} icon={Sprout} headline={S02_COPY.headline} body={S02_COPY.body} onNext={() => router.push('/onboarding/types' as Href)} />;
  }
 diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
@@ -2757,7 +2801,7 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
  });
 diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboarding/OnboardingPicture.tsx
 --- a/src/features/onboarding/OnboardingPicture.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-16 19:24:10.550969772 +0000
++++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-17 03:04:28.697426302 +0000
 @@ -0,0 +1,196 @@
 +/**
 + * OnboardingPicture — the drawing at the top of each onboarding step. Every step has its own.
@@ -2765,7 +2809,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 + * (that says the same thing twice). Drawn from the theme's own colours on a
 + * 220 x 148 canvas and scaled to whatever room the step leaves, so it never forces a scroll.
 + */
-+import { useEffect, useRef } from 'react';
++import { useEffect, useState } from 'react';
 +import { Animated, StyleSheet, Text, View } from 'react-native';
 +import Svg, { Path, Rect } from 'react-native-svg';
 +import { Bell, Check, CheckCheck, Minus, Paintbrush, Plus } from 'lucide-react-native';
@@ -2779,7 +2823,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +export function OnboardingPicture({ step, scale }: { readonly step: 1 | 2 | 3 | 4 | 5 | 6 | 7; readonly scale: number }) {
 +  const t = useTheme();
 +  const reduced = useReduceMotion();
-+  const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
++  const enter = useState(() => new Animated.Value(reduced ? 1 : 0))[0];
 +  useEffect(() => {
 +    if (reduced) return;
 +    Animated.spring(enter, { toValue: 1, damping: 11, stiffness: 170, mass: 0.8, useNativeDriver: true }).start();
@@ -2811,7 +2855,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  return <View style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }, style]}>{children}</View>;
 +}
 +
-+/** 1 — Something beats nothing: one plant, a green leaf and a blue leaf. Both make it grow. */
++/** 2 — Something beats nothing: one plant, a green leaf and a blue leaf. Both make it grow. */
 +const Sprout: Draw = ({ t }) => (
 +  <View style={s.canvas}>
 +    <View style={[s.tile, { width: 108, height: 108, borderRadius: 30, backgroundColor: t.color.bgAlt, transform: [{ rotate: '-4deg' }] }]}>
@@ -2827,7 +2871,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  </View>
 +);
 +
-+/** 2 — A plan A and a plan B: two cards, one green, one blue. */
++/** 1 — A plan A and a plan B: two cards, one green, one blue. */
 +const PlanAB: Draw = ({ t }) => (
 +  <View style={[s.canvas, s.row]}>
 +    {(
@@ -2948,7 +2992,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  </View>
 +);
 +
-+const DRAWINGS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, Draw> = { 1: Sprout, 2: PlanAB, 3: Planner, 4: WeekCounts, 5: YourPhone, 6: Nudge, 7: Seedling };
++const DRAWINGS: Record<1 | 2 | 3 | 4 | 5 | 6 | 7, Draw> = { 1: PlanAB, 2: Sprout, 3: Planner, 4: WeekCounts, 5: YourPhone, 6: Nudge, 7: Seedling };
 +
 +const s = StyleSheet.create({
 +  canvas: { width: PICTURE_WIDTH, height: PICTURE_HEIGHT, alignItems: 'center', justifyContent: 'center' },
@@ -2957,7 +3001,7 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +});
 diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-16 19:34:15.563857605 +0000
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 03:03:53.653763012 +0000
 @@ -1,99 +1,150 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
@@ -3018,8 +3062,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  return height >= 760 ? 'regular' : height >= 650 ? 'compact' : 'tight';
 +}
 +const PREVIOUS: Record<number, string> = {
-+  2: '/onboarding/hook',
-+  3: '/onboarding/concept',
++  2: '/onboarding/concept',
++  3: '/onboarding/hook',
 +  4: '/onboarding/types',
 +  5: '/onboarding/consistency',
 +  6: '/onboarding/personalize',
@@ -3096,7 +3140,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +
 +  function handleBack() {
 +    if (router.canGoBack()) router.back();
-+    else router.replace((PREVIOUS[step] ?? '/onboarding/hook') as Href);
++    else router.replace((PREVIOUS[step] ?? '/onboarding/concept') as Href);
 +  }
  
    return (
@@ -3464,10 +3508,13 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
  });
 diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
-+++ b/src/features/onboarding/copy.ts	2026-11-16 19:34:15.563110441 +0000
-@@ -17,11 +17,9 @@
++++ b/src/features/onboarding/copy.ts	2026-11-17 03:03:53.654056527 +0000
+@@ -15,13 +15,11 @@
+ } as const;
+ 
  export const S03_COPY = {
-   headline: 'A plan A and a plan B for every habit.',
+-  headline: 'A plan A and a plan B for every habit.',
++  headline: 'a plan A and a plan B for every habit.',
    body: 'Too tired for the full thing? Do the fallback. You still showed up.',
 -  eyebrow: 'MORNING WORKOUT',
 -  idealLabel: 'Ideal — Full workout',
@@ -4939,7 +4986,7 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +});
 diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-16 18:26:00.494583773 +0000
++++ b/src/features/today/TodayScreen.tsx	2026-11-17 03:08:49.184216093 +0000
 @@ -1,35 +1,52 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
@@ -5010,7 +5057,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  export interface TodayScreenProps {
    readonly reentryOverride?: boolean;
    readonly justAddedOverride?: boolean;
-@@ -39,54 +56,48 @@
+@@ -39,54 +56,49 @@
  export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
    const t = useTheme();
    const router = useRouter();
@@ -5039,7 +5086,8 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    const allDueOff = rows.length > 0 && rows.every((r) => r.occurrence.outcome === 'off');
 +  const doneCount = rows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback').length;
  
-   async function handleToggleOff(next: boolean) {
+-  async function handleToggleOff(next: boolean) {
++  async function handleToggleOff(next: boolean, isUndo = false) {
      const result = await markOffDay.mutateAsync({ date, taskId: null, mark: next });
      if (!result.ok) {
 -      showToast(S09_COPY.chipRevertToast, 'warning');
@@ -5047,7 +5095,8 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
        return;
      }
 -    showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'success');
-+    showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral');
++    if (isUndo) return showToast('Undone', 'neutral');
++    showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral', { action: { label: 'Undo', onPress: () => void handleToggleOff(!next, true) } });
    }
  
 -  async function handleLogChip(row: TodayRow, chip: ChipState) {
@@ -5083,7 +5132,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +109,191 @@
+@@ -98,223 +110,191 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -8614,14 +8663,14 @@ diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
  });
 diff -ruN a/src/ui/VoiceMark.tsx b/src/ui/VoiceMark.tsx
 --- a/src/ui/VoiceMark.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/VoiceMark.tsx	2026-11-16 16:56:05.151938369 +0000
++++ b/src/ui/VoiceMark.tsx	2026-11-17 03:04:28.697911419 +0000
 @@ -0,0 +1,63 @@
 +/**
 + * VoiceMark — Fallback AI's mark: a four-point star with a sound wave inside it. The star says
 + * "assistant", the wave says "talk to it". `live` makes the wave move (the listening orb);
 + * it stays still when the OS asks for reduced motion.
 + */
-+import { useEffect, useRef } from 'react';
++import { useEffect, useState } from 'react';
 +import { Animated, Easing, StyleSheet, View } from 'react-native';
 +import Svg, { Path } from 'react-native-svg';
 +
@@ -8644,7 +8693,7 @@ diff -ruN a/src/ui/VoiceMark.tsx b/src/ui/VoiceMark.tsx
 +export function VoiceMark({ size = 40, fill, wave, live = false }: VoiceMarkProps) {
 +  const t = useTheme();
 +  const reduced = useReduceMotion();
-+  const phase = useRef(new Animated.Value(0)).current;
++  const phase = useState(() => new Animated.Value(0))[0];
 +  useEffect(() => {
 +    if (!live || reduced) return;
 +    const loop = Animated.loop(
@@ -8926,8 +8975,8 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { Stepper, type StepperProps } from './Stepper';
 diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
 --- a/src/ui/motion.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/ui/motion.tsx	2026-11-16 16:49:01.509686737 +0000
-@@ -0,0 +1,84 @@
++++ b/src/ui/motion.tsx	2026-11-17 03:04:50.202799709 +0000
+@@ -0,0 +1,83 @@
 +/**
 + * Motion — small, physical feedback. Buttons press down (see `pressedSurface`), a tick pops
 + * in, a bar fills, and logging the ideal throws a small burst. Everything here is skipped
@@ -8955,7 +9004,7 @@ diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
 +/** Scales its child in with a small overshoot whenever `trigger` changes to a truthy value. */
 +export function PopIn({ trigger, children, style, from = 0.4 }: { readonly trigger: unknown; readonly children: ReactNode; readonly style?: StyleProp<ViewStyle>; readonly from?: number }) {
 +  const reduced = useReduceMotion();
-+  const scale = useRef(new Animated.Value(1)).current;
++  const scale = useState(() => new Animated.Value(1))[0];
 +  const first = useRef(true);
 +  useEffect(() => {
 +    if (first.current) {
@@ -8976,15 +9025,14 @@ diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
 +/** A small burst of pieces from its centre, once, each time `fire` increases. Decorative only. */
 +export function Burst({ fire, colors }: { readonly fire: number; readonly colors: readonly string[] }) {
 +  const reduced = useReduceMotion();
-+  const progress = useRef(new Animated.Value(1)).current;
-+  const [live, setLive] = useState(false);
++  const progress = useState(() => new Animated.Value(1))[0];
 +  useEffect(() => {
 +    if (fire <= 0 || reduced) return;
-+    setLive(true);
 +    progress.setValue(0);
-+    Animated.timing(progress, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start(() => setLive(false));
++    Animated.timing(progress, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
 +  }, [fire, reduced, progress]);
-+  if (!live) return null;
++  // Nothing to draw until the first burst; after one, the pieces rest at zero opacity.
++  if (fire <= 0 || reduced) return null;
 +  return (
 +    <View pointerEvents="none" style={styles.burst} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
 +      {PIECES.map(([dx, dy], i) => (
@@ -9583,8 +9631,8 @@ diff -ruN a/app/achievements/index.tsx b/app/achievements/index.tsx
  });
 diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 --- a/app/add/course.tsx	2026-11-16 05:43:15.826512966 +0000
-+++ b/app/add/course.tsx	2026-11-16 05:57:23.878892544 +0000
-@@ -1,51 +1,31 @@
++++ b/app/add/course.tsx	2026-11-17 03:03:53.652865669 +0000
+@@ -1,51 +1,32 @@
 -/**
 - * S18 — Create Course    route: /add/course
 - * Owner: M4. Features: F11, F12, F24, F26.
@@ -9601,6 +9649,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 -import { Button, CadencePicker, IconButton, Input, SubStepScheduleGrid } from '@/ui';
 +import { SPACE } from '@/theme';
 +import { Button, CadencePicker, DateField, Input, Screen, SectionHeading, Stepper } from '@/ui';
++import { SayItInsteadRow } from '@/features/assistant/SayItInsteadRow';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { emptyRunOccurrences, validateTaskDraft } from '@/domain';
  import { useCreateTask } from '@/queries';
@@ -9645,7 +9694,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
    const [cadence, setCadence] = useState<Cadence>({ kind: 'daily' });
    const [idealSteps, setIdealSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
    const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
-@@ -60,154 +40,86 @@
+@@ -60,154 +41,87 @@
    const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
  
    const parentDays = parentDaysFor(cadence);
@@ -9735,6 +9784,7 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 +      onBack={goBack}
 +      footer={<Button label="Save course" onPress={onSave} loading={createTask.isPending} accessibilityLabel="Save course" fullWidth />}
 +    >
++      <SayItInsteadRow what="course" />
 +      <Input label="Name" value={name} onChangeText={setName} placeholder="Antibiotics" error={nameError} accessibilityLabel="Course name" />
 +
 +      <SectionHeading>Schedule</SectionHeading>
@@ -9844,8 +9894,8 @@ diff -ruN a/app/add/course.tsx b/app/add/course.tsx
 +const styles = StyleSheet.create({ row: { flexDirection: 'row', gap: SPACE.s2 + 4 } });
 diff -ruN a/app/add/event.tsx b/app/add/event.tsx
 --- a/app/add/event.tsx	2026-11-16 05:43:15.826539891 +0000
-+++ b/app/add/event.tsx	2026-11-16 05:57:23.877024480 +0000
-@@ -1,45 +1,24 @@
++++ b/app/add/event.tsx	2026-11-17 03:03:53.652729470 +0000
+@@ -1,45 +1,25 @@
 -/**
 - * S17 — Create Event    route: /add/event
 - * Owner: M4. Features: F11, F24, F26.
@@ -9863,6 +9913,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
 -import { CadencePicker, SubStepScheduleGrid } from '@/ui';
 +import { SPACE } from '@/theme';
 +import { Button, CadencePicker, DateField, Input, ListGroup, ListRow, Radio, Screen, SectionHeading, Switch, TimeField } from '@/ui';
++import { SayItInsteadRow } from '@/features/assistant/SayItInsteadRow';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { emptyRunOccurrences, validateTaskDraft } from '@/domain';
  import { useCreateTask } from '@/queries';
@@ -9898,7 +9949,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
    const createTask = useCreateTask();
    const showToast = useToastStore((s) => s.show);
  
-@@ -59,7 +38,7 @@
+@@ -59,7 +39,7 @@
    const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
  
    const parentDays = parentDaysFor(cadence);
@@ -9907,7 +9958,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
  
    function buildDraft(): TaskDraft {
      return {
-@@ -73,137 +52,93 @@
+@@ -73,137 +53,94 @@
      };
    }
  
@@ -9976,6 +10027,7 @@ diff -ruN a/app/add/event.tsx b/app/add/event.tsx
 +      onBack={goBack}
 +      footer={<Button label="Save event" onPress={onSave} loading={createTask.isPending} accessibilityLabel="Save event" fullWidth />}
 +    >
++      <SayItInsteadRow what="event" />
 +      <Input label="Name" value={name} onChangeText={setName} placeholder="Dentist visit" error={nameError} accessibilityLabel="Event name" />
  
 +      <SectionHeading>When</SectionHeading>
@@ -10184,8 +10236,8 @@ diff -ruN a/app/add/index.tsx b/app/add/index.tsx
 -});
 diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 --- a/app/add/routine.tsx	2026-11-16 05:43:15.826553558 +0000
-+++ b/app/add/routine.tsx	2026-11-16 05:57:23.875151110 +0000
-@@ -1,54 +1,23 @@
++++ b/app/add/routine.tsx	2026-11-17 03:08:49.183702236 +0000
+@@ -1,59 +1,30 @@
 -/**
 - * S16 — Create Routine    route: /add/routine
 - * Owner: M4. Features: F2, F23, F26, F27.
@@ -10202,6 +10254,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 -import { CadencePicker, SubStepScheduleGrid } from '@/ui';
 +import { FONT_SIZE, useTheme } from '@/theme';
 +import { Button, CadencePicker, Input, ListGroup, ListRow, Radio, Screen, SectionHeading, Switch } from '@/ui';
++import { SayItInsteadRow } from '@/features/assistant/SayItInsteadRow';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { emptyRunOccurrences, validateTaskDraft } from '@/domain';
  import { useCreateTask } from '@/queries';
@@ -10247,7 +10300,13 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
    const createTask = useCreateTask();
    const showToast = useToastStore((s) => s.show);
  
-@@ -67,8 +36,8 @@
+   const [name, setName] = useState('');
+   const [isAsNeeded, setIsAsNeeded] = useState(false);
++  const [snoozable, setSnoozable] = useState(true);
+   const [cadence, setCadence] = useState<Cadence>({ kind: 'specific-weekdays', weekdays: [] });
+   const [idealSteps, setIdealSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
+   const [fallbackSteps, setFallbackSteps] = useState<readonly StepDraft[]>([{ text: '', dueWeekdays: null }]);
+@@ -67,8 +38,8 @@
    const [bannerDay, setBannerDay] = useState<string | undefined>();
    const [errorWeekdays, setErrorWeekdays] = useState<readonly Weekday[]>([]);
  
@@ -10257,7 +10316,13 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
  
    function buildDraft(): TaskDraft {
      return {
-@@ -83,150 +52,92 @@
+@@ -78,155 +49,106 @@
+       cadence: isAsNeeded ? null : cadence,
+       importance,
+       necessity,
++      snoozable: isAsNeeded ? false : snoozable,
+       idealSteps: isAsNeeded ? idealSteps.filter((s) => s.text.trim().length > 0) : idealSteps,
+       fallbackSteps: isAsNeeded ? fallbackSteps.filter((s) => s.text.trim().length > 0) : fallbackSteps,
      };
    }
  
@@ -10341,6 +10406,7 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 +      onBack={goBack}
 +      footer={<Button label="Save routine" onPress={onSave} loading={createTask.isPending} accessibilityLabel="Save routine" fullWidth />}
 +    >
++      <SayItInsteadRow what="routine" />
 +      <Input label="Name" value={name} onChangeText={setName} placeholder="Studying" error={nameError} accessibilityLabel="Routine name" />
 +
 +      <ListGroup footer="As-needed routines have no schedule and no consistency tracking. You log them from the Routines list when the situation comes up.">
@@ -10383,6 +10449,13 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 -              Single occurrence per period — nothing to subset. Every ideal step simply runs whenever this routine is due.
 -            </Text>
 -          ) : null}
++          <ListGroup footer="When it's on, a day you can't manage can be moved to tomorrow from the routine's own screen, instead of being missed. Turn it off for something that can't wait.">
++            <ListRow
++              label="Can be moved to tomorrow"
++              sublabel="Snooze a day instead of missing it"
++              right={<Switch value={snoozable} onValueChange={setSnoozable} accessibilityLabel="Can be moved to tomorrow" testID="routine-snoozable-switch" />}
++            />
++          </ListGroup>
          </>
        )}
  
@@ -10451,8 +10524,8 @@ diff -ruN a/app/add/routine.tsx b/app/add/routine.tsx
 +const styles = StyleSheet.create({ error: { fontSize: FONT_SIZE.sm } });
 diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 --- a/app/add/todo.tsx	2026-11-16 05:43:15.826528444 +0000
-+++ b/app/add/todo.tsx	2026-11-16 07:03:34.098895051 +0000
-@@ -1,104 +1,68 @@
++++ b/app/add/todo.tsx	2026-11-17 03:03:53.653006990 +0000
+@@ -1,104 +1,70 @@
 -/**
 - * S19 — Create To-do/Note    route: /add/todo
 - * Owner: M4. Features: F11.
@@ -10468,6 +10541,7 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 -import { SPACE, useTheme } from '@/theme';
 -import { Button, Card, IconButton, Input, Radio, Textarea } from '@/ui';
 +import { Button, Input, Radio, Screen, SectionHeading, Tabs, Textarea } from '@/ui';
++import { SayItInsteadRow } from '@/features/assistant/SayItInsteadRow';
  import { ROUTES, useOriginAwareBack } from '@/navigation';
  import { validateTaskDraft } from '@/domain';
  import { useCreateTask } from '@/queries';
@@ -10551,6 +10625,7 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 +      onBack={goBack}
 +      footer={<Button label={isNote ? 'Save note' : 'Save to-do'} onPress={onSave} loading={createTask.isPending} accessibilityLabel={isNote ? 'Save note' : 'Save to-do'} fullWidth />}
 +    >
++      <SayItInsteadRow what={isNote ? 'note' : 'to-do'} />
 +      <Tabs items={KIND_ITEMS} value={kind} onChange={(v) => setKind(v as 'todo' | 'note')} accessibilityLabel="To-do or note" />
 +      <Input label={isNote ? 'Title' : 'Name'} value={name} onChangeText={setName} placeholder={isNote ? 'Gift ideas' : 'Renew passport'} error={nameError} autoFocus accessibilityLabel={isNote ? 'Title' : 'Name'} />
 +      <Textarea
@@ -15175,6 +15250,18 @@ diff -ruN a/app/settings/widgets.tsx b/app/settings/widgets.tsx
 -  footer: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
 -});
 +const styles = StyleSheet.create({ helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
+diff -ruN a/app/splash.tsx b/app/splash.tsx
+--- a/app/splash.tsx	2026-11-16 05:43:15.826307865 +0000
++++ b/app/splash.tsx	2026-11-17 03:03:53.653309746 +0000
+@@ -51,7 +51,7 @@
+         if (settings.onboardingCompletedAt) {
+           router.replace('/today');
+         } else {
+-          router.replace('/onboarding/hook');
++          router.replace('/onboarding/concept');
+         }
+       } catch {
+         // `repos.settings.get()` throws (by design) if the singleton is somehow missing
 diff -ruN a/app/task/[id]/as-needed.tsx b/app/task/[id]/as-needed.tsx
 --- a/app/task/[id]/as-needed.tsx	2026-11-16 05:43:15.826398252 +0000
 +++ b/app/task/[id]/as-needed.tsx	2026-11-16 06:00:41.278283806 +0000
@@ -15918,7 +16005,7 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-16 18:26:00.494355583 +0000
++++ b/app/task/[id]/index.tsx	2026-11-17 03:08:49.184029093 +0000
 @@ -1,38 +1,41 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
@@ -16182,7 +16269,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +180,355 @@
+@@ -210,380 +180,366 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -16199,7 +16286,18 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -  function onDelete() {
 -    router.push(`/task/${taskId}/delete?openedFrom=manage&origin=${from ?? ''}` as never);
 +    if (!result.ok) fail();
-+    else showToast('Moved to tomorrow', 'neutral');
++    else
++      showToast('Moved to tomorrow', 'neutral', {
++        action: {
++          label: 'Undo',
++          onPress: () =>
++            void (async () => {
++              const undone = await undoSnooze.mutateAsync({ taskId, date: today });
++              if (!undone.ok) fail();
++              else showToast('Back on today', 'neutral');
++            })(),
++        },
++      });
    }
  
 -  function startScheduleEdit() {
@@ -16489,8 +16587,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
              )}
 -          </View>
 +            <ListRow
-+              label="Allow snoozing"
-+              right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Allow snoozing" testID="s20-snoozable-switch" />}
++              label="Can be moved to tomorrow"
++              right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Can be moved to tomorrow" testID="s20-snoozable-switch" />}
 +            />
 +            {showScheduleEditor ? <ListRow icon={CalendarDays} label="Step schedule" sublabel="Which days each step applies" onPress={openSchedule} chevron={false} /> : null}
 +          </ListGroup>

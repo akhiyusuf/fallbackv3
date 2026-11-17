@@ -2,7 +2,7 @@
 const { chromium } = require('playwright');
 const S = '/tmp/claude-0/-home-user-fallbackv3/4065cf9b-48bb-5876-bcc5-38bb70a7fbe9/scratchpad';
 const SIZES = [[320, 568], [360, 640], [375, 667], [390, 700], [390, 776], [390, 844], [412, 915], [430, 932]];
-const STEPS = ['hook', 'concept', 'types', 'consistency', 'personalize', 'notifications-primer', 'first-task'];
+const STEPS = ['concept', 'hook', 'types', 'consistency', 'personalize', 'notifications-primer', 'first-task'];
 (async () => {
   const shots = process.argv.slice(2);
   const browser = await chromium.launch();
