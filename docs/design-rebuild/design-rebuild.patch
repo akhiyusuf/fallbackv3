@@ -1,4 +1,4 @@
-diff -ruN a/src/app-shell/index.ts b/src/app-shell/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/app-shell/index.ts web/src/app-shell/index.ts
 --- a/src/app-shell/index.ts	2026-11-16 05:43:15.823074845 +0000
 +++ b/src/app-shell/index.ts	2026-11-16 05:56:01.128262125 +0000
 @@ -15,7 +15,9 @@
@@ -12,7 +12,7 @@ diff -ruN a/src/app-shell/index.ts b/src/app-shell/index.ts
  export { useEntitlementStore } from './stores/entitlement';
  export { useAssistantSessionStore } from './stores/assistantSession';
  
-diff -ruN a/src/app-shell/stores/addMenu.ts b/src/app-shell/stores/addMenu.ts
+diff -ruN -x sounds.generated.ts web-orig/src/app-shell/stores/addMenu.ts web/src/app-shell/stores/addMenu.ts
 --- a/src/app-shell/stores/addMenu.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/app-shell/stores/addMenu.ts	2026-11-16 05:56:01.126235209 +0000
 @@ -0,0 +1,14 @@
@@ -30,7 +30,7 @@ diff -ruN a/src/app-shell/stores/addMenu.ts b/src/app-shell/stores/addMenu.ts
 +  show: () => set({ open: true }),
 +  hide: () => set({ open: false }),
 +}));
-diff -ruN a/src/app-shell/stores/celebration.ts b/src/app-shell/stores/celebration.ts
+diff -ruN -x sounds.generated.ts web-orig/src/app-shell/stores/celebration.ts web/src/app-shell/stores/celebration.ts
 --- a/src/app-shell/stores/celebration.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/app-shell/stores/celebration.ts	2026-11-16 05:49:42.057995220 +0000
 @@ -0,0 +1,22 @@
@@ -56,11 +56,12 @@ diff -ruN a/src/app-shell/stores/celebration.ts b/src/app-shell/stores/celebrati
 +  push: (celebration) => set((s) => ({ queue: [...s.queue, celebration] })),
 +  shift: () => set((s) => ({ queue: s.queue.slice(1) })),
 +}));
-diff -ruN a/src/app-shell/stores/toast.ts b/src/app-shell/stores/toast.ts
+diff -ruN -x sounds.generated.ts web-orig/src/app-shell/stores/toast.ts web/src/app-shell/stores/toast.ts
 --- a/src/app-shell/stores/toast.ts	2026-11-16 05:43:15.822875572 +0000
-+++ b/src/app-shell/stores/toast.ts	2026-11-16 05:44:47.525021289 +0000
-@@ -1,25 +1,50 @@
++++ b/src/app-shell/stores/toast.ts	2026-11-17 05:14:19.621312341 +0000
+@@ -1,25 +1,54 @@
 -/** M0. Ephemeral global toast queue, consumed by `@/ui`'s `Toast`. */
++import { play } from '@/services/sfx';
  import { create } from 'zustand';
  
  import { newId } from '@/lib/id';
@@ -105,15 +106,18 @@ diff -ruN a/src/app-shell/stores/toast.ts b/src/app-shell/stores/toast.ts
    toast: null,
 -  show: (message, tone = 'neutral') => set({ toast: { id: newId(), message, tone } }),
 +  actionBars: 0,
-+  show: (message, tone = 'neutral', options) =>
-+    set({ toast: { id: newId(), message, tone, icon: options?.icon ?? null, detail: options?.detail, action: options?.action } }),
++  show: (message, tone = 'neutral', options) => {
++    // Every "could not do that" message arrives here, so the two knocks live here too.
++    if (tone === 'warning') play('error');
++    set({ toast: { id: newId(), message, tone, icon: options?.icon ?? null, detail: options?.detail, action: options?.action } });
++  },
    hide: () => set({ toast: null }),
 +  registerActionBar: () => {
 +    set((s) => ({ actionBars: s.actionBars + 1 }));
 +    return () => set((s) => ({ actionBars: Math.max(0, s.actionBars - 1) }));
 +  },
  }));
-diff -ruN a/src/db/migrations/005_task_is_note.ts b/src/db/migrations/005_task_is_note.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/migrations/005_task_is_note.ts web/src/db/migrations/005_task_is_note.ts
 --- a/src/db/migrations/005_task_is_note.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/db/migrations/005_task_is_note.ts	2026-11-16 07:02:37.036187792 +0000
 @@ -0,0 +1,15 @@
@@ -132,7 +136,7 @@ diff -ruN a/src/db/migrations/005_task_is_note.ts b/src/db/migrations/005_task_i
 +    UPDATE task SET is_note = 1 WHERE type = 'todo' AND note IS NOT NULL AND trim(note) <> '';
 +  `,
 +};
-diff -ruN a/src/db/migrations/006_settings_accent_ext.ts b/src/db/migrations/006_settings_accent_ext.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/migrations/006_settings_accent_ext.ts web/src/db/migrations/006_settings_accent_ext.ts
 --- a/src/db/migrations/006_settings_accent_ext.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/db/migrations/006_settings_accent_ext.ts	2026-11-16 16:09:46.476468386 +0000
 @@ -0,0 +1,15 @@
@@ -151,7 +155,7 @@ diff -ruN a/src/db/migrations/006_settings_accent_ext.ts b/src/db/migrations/006
 +    ALTER TABLE settings ADD COLUMN accent_ext TEXT;
 +  `,
 +};
-diff -ruN a/src/db/migrations/007_task_priority_rank.ts b/src/db/migrations/007_task_priority_rank.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/migrations/007_task_priority_rank.ts web/src/db/migrations/007_task_priority_rank.ts
 --- a/src/db/migrations/007_task_priority_rank.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/db/migrations/007_task_priority_rank.ts	2026-11-16 18:24:39.569666573 +0000
 @@ -0,0 +1,14 @@
@@ -169,7 +173,7 @@ diff -ruN a/src/db/migrations/007_task_priority_rank.ts b/src/db/migrations/007_
 +    ALTER TABLE task ADD COLUMN priority_rank INTEGER;
 +  `,
 +};
-diff -ruN a/src/db/migrations/index.ts b/src/db/migrations/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/migrations/index.ts web/src/db/migrations/index.ts
 --- a/src/db/migrations/index.ts	2026-11-16 05:43:15.824554748 +0000
 +++ b/src/db/migrations/index.ts	2026-11-16 18:24:39.602411834 +0000
 @@ -7,6 +7,9 @@
@@ -192,7 +196,7 @@ diff -ruN a/src/db/migrations/index.ts b/src/db/migrations/index.ts
  ];
  
  export const CURRENT_SCHEMA_VERSION: number = MIGRATIONS[MIGRATIONS.length - 1]!.version;
-diff -ruN a/src/db/repositories/settingsRepository.ts b/src/db/repositories/settingsRepository.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/repositories/settingsRepository.ts web/src/db/repositories/settingsRepository.ts
 --- a/src/db/repositories/settingsRepository.ts	2026-11-16 05:43:15.823895091 +0000
 +++ b/src/db/repositories/settingsRepository.ts	2026-11-16 16:09:46.487840132 +0000
 @@ -22,10 +22,14 @@
@@ -247,7 +251,7 @@ diff -ruN a/src/db/repositories/settingsRepository.ts b/src/db/repositories/sett
                next.onboardingCompletedAt,
                next.tenureAnchorDate,
                next.cycleCadence,
-diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepository.ts
+diff -ruN -x sounds.generated.ts web-orig/src/db/repositories/taskRepository.ts web/src/db/repositories/taskRepository.ts
 --- a/src/db/repositories/taskRepository.ts	2026-11-16 05:43:15.823700626 +0000
 +++ b/src/db/repositories/taskRepository.ts	2026-11-16 18:24:52.060139071 +0000
 @@ -59,6 +59,8 @@
@@ -318,7 +322,7 @@ diff -ruN a/src/db/repositories/taskRepository.ts b/src/db/repositories/taskRepo
              taskParams(copy),
            );
            for (const step of newSteps) {
-diff -ruN a/src/db/schema.sql b/src/db/schema.sql
+diff -ruN -x sounds.generated.ts web-orig/src/db/schema.sql web/src/db/schema.sql
 --- a/src/db/schema.sql	2026-11-16 05:43:15.824818661 +0000
 +++ b/src/db/schema.sql	2026-11-16 18:24:39.602637665 +0000
 @@ -12,6 +12,7 @@
@@ -338,7 +342,7 @@ diff -ruN a/src/db/schema.sql b/src/db/schema.sql
    CHECK (is_as_needed = 0 OR type = 'routine')
  );
  CREATE INDEX idx_task_type_deleted ON task(type, deleted_at);
-diff -ruN a/src/domain/__fixtures__/index.ts b/src/domain/__fixtures__/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/domain/__fixtures__/index.ts web/src/domain/__fixtures__/index.ts
 --- a/src/domain/__fixtures__/index.ts	2026-11-16 05:43:15.825293370 +0000
 +++ b/src/domain/__fixtures__/index.ts	2026-11-16 18:24:39.603485476 +0000
 @@ -36,6 +36,8 @@
@@ -350,7 +354,7 @@ diff -ruN a/src/domain/__fixtures__/index.ts b/src/domain/__fixtures__/index.ts
      createdAt: CREATED,
      updatedAt: CREATED,
      deletedAt: null,
-diff -ruN a/src/features/agents/store.ts b/src/features/agents/store.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/agents/store.ts web/src/features/agents/store.ts
 --- a/src/features/agents/store.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/agents/store.ts	2026-11-16 16:14:34.244453274 +0000
 @@ -0,0 +1,60 @@
@@ -414,7 +418,7 @@ diff -ruN a/src/features/agents/store.ts b/src/features/agents/store.ts
 +  disconnect: (id) => set((s) => ({ agents: s.agents.filter((a) => a.id !== id) })),
 +  disconnectAll: () => set({ agents: [] }),
 +}));
-diff -ruN a/src/features/assistant/AssistantHeader.tsx b/src/features/assistant/AssistantHeader.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/AssistantHeader.tsx web/src/features/assistant/AssistantHeader.tsx
 --- a/src/features/assistant/AssistantHeader.tsx	2026-11-16 05:43:15.822222897 +0000
 +++ b/src/features/assistant/AssistantHeader.tsx	1970-01-01 00:00:00.000000000 +0000
 @@ -1,37 +0,0 @@
@@ -455,7 +459,7 @@ diff -ruN a/src/features/assistant/AssistantHeader.tsx b/src/features/assistant/
 -  spacer: { flex: 1 },
 -  trailingSlot: { width: 40 },
 -});
-diff -ruN a/src/features/assistant/ClarificationModal.tsx b/src/features/assistant/ClarificationModal.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/ClarificationModal.tsx web/src/features/assistant/ClarificationModal.tsx
 --- a/src/features/assistant/ClarificationModal.tsx	2026-11-16 05:43:15.822204568 +0000
 +++ b/src/features/assistant/ClarificationModal.tsx	2026-11-16 06:15:24.635162963 +0000
 @@ -1,14 +1,10 @@
@@ -537,7 +541,7 @@ diff -ruN a/src/features/assistant/ClarificationModal.tsx b/src/features/assista
 +  voiceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACE.s2, minHeight: 44 },
 +  voiceCaption: { fontSize: FONT_SIZE.sm },
  });
-diff -ruN a/src/features/assistant/EditUndoBanner.tsx b/src/features/assistant/EditUndoBanner.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/EditUndoBanner.tsx web/src/features/assistant/EditUndoBanner.tsx
 --- a/src/features/assistant/EditUndoBanner.tsx	2026-11-16 05:43:15.822247388 +0000
 +++ b/src/features/assistant/EditUndoBanner.tsx	2026-11-16 06:15:24.631549923 +0000
 @@ -1,8 +1,8 @@
@@ -589,7 +593,7 @@ diff -ruN a/src/features/assistant/EditUndoBanner.tsx b/src/features/assistant/E
 +  undo: { minHeight: 44, justifyContent: 'center' },
 +  undoLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600', textDecorationLine: 'underline' },
  });
-diff -ruN a/src/features/assistant/OptionsSheet.tsx b/src/features/assistant/OptionsSheet.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/OptionsSheet.tsx web/src/features/assistant/OptionsSheet.tsx
 --- a/src/features/assistant/OptionsSheet.tsx	2026-11-16 05:43:15.822265216 +0000
 +++ b/src/features/assistant/OptionsSheet.tsx	2026-11-16 06:15:24.637508563 +0000
 @@ -1,13 +1,8 @@
@@ -751,7 +755,7 @@ diff -ruN a/src/features/assistant/OptionsSheet.tsx b/src/features/assistant/Opt
 -  subtitle: { fontSize: 13 },
 -  accordion: { gap: SPACE.s2, paddingTop: SPACE.s2 },
 -});
-diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCard.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/PlanCard.tsx web/src/features/assistant/PlanCard.tsx
 --- a/src/features/assistant/PlanCard.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/assistant/PlanCard.tsx	2026-11-16 16:12:20.617286575 +0000
 @@ -0,0 +1,57 @@
@@ -812,7 +816,7 @@ diff -ruN a/src/features/assistant/PlanCard.tsx b/src/features/assistant/PlanCar
 +  billed: { fontSize: FONT_SIZE.sm, fontWeight: '400' },
 +  note: { fontSize: FONT_SIZE.xs },
 +});
-diff -ruN a/src/features/assistant/SayItInsteadRow.tsx b/src/features/assistant/SayItInsteadRow.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/SayItInsteadRow.tsx web/src/features/assistant/SayItInsteadRow.tsx
 --- a/src/features/assistant/SayItInsteadRow.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/assistant/SayItInsteadRow.tsx	2026-11-17 03:07:59.397575341 +0000
 @@ -0,0 +1,42 @@
@@ -858,7 +862,7 @@ diff -ruN a/src/features/assistant/SayItInsteadRow.tsx b/src/features/assistant/
 +  title: { fontSize: FONT_SIZE.base, fontWeight: '800' },
 +  body: { fontSize: FONT_SIZE.sm },
 +});
-diff -ruN a/src/features/assistant/TaskCreatedCard.tsx b/src/features/assistant/TaskCreatedCard.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/TaskCreatedCard.tsx web/src/features/assistant/TaskCreatedCard.tsx
 --- a/src/features/assistant/TaskCreatedCard.tsx	2026-11-16 05:43:15.822176710 +0000
 +++ b/src/features/assistant/TaskCreatedCard.tsx	2026-11-16 06:15:24.633328547 +0000
 @@ -1,51 +1,46 @@
@@ -938,7 +942,7 @@ diff -ruN a/src/features/assistant/TaskCreatedCard.tsx b/src/features/assistant/
 +  text: { flex: 1, gap: 2 },
 +  name: { fontSize: FONT_SIZE.base, fontWeight: '600' },
  });
-diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant/TranscriptBubble.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/TranscriptBubble.tsx web/src/features/assistant/TranscriptBubble.tsx
 --- a/src/features/assistant/TranscriptBubble.tsx	2026-11-16 05:43:15.822213600 +0000
 +++ b/src/features/assistant/TranscriptBubble.tsx	2026-11-17 03:17:31.653406371 +0000
 @@ -1,8 +1,8 @@
@@ -986,7 +990,7 @@ diff -ruN a/src/features/assistant/TranscriptBubble.tsx b/src/features/assistant
 +  bubble: { borderRadius: RADIUS.lg, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s3, flexShrink: 1 },
 +  text: { fontSize: FONT_SIZE.base, lineHeight: 24 },
  });
-diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/assistant/copy.ts web/src/features/assistant/copy.ts
 --- a/src/features/assistant/copy.ts	2026-11-16 05:43:15.822152474 +0000
 +++ b/src/features/assistant/copy.ts	2026-11-17 03:17:31.653721179 +0000
 @@ -4,23 +4,27 @@
@@ -1165,7 +1169,7 @@ diff -ruN a/src/features/assistant/copy.ts b/src/features/assistant/copy.ts
    successFullSub: 'Taking you to Fallback AI…',
    successDegraded:
      "Saved — this endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",
-diff -ruN a/src/features/browse/BrowseHeader.tsx b/src/features/browse/BrowseHeader.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/BrowseHeader.tsx web/src/features/browse/BrowseHeader.tsx
 --- a/src/features/browse/BrowseHeader.tsx	2026-11-16 05:43:15.822031798 +0000
 +++ b/src/features/browse/BrowseHeader.tsx	2026-11-16 05:54:40.876595032 +0000
 @@ -1,23 +1,8 @@
@@ -1195,7 +1199,7 @@ diff -ruN a/src/features/browse/BrowseHeader.tsx b/src/features/browse/BrowseHea
 -  root: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, paddingBottom: SPACE.s2 },
 -  title: { fontSize: 24, fontWeight: '700' },
 -});
-diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/CoursesBrowseScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/CoursesBrowseScreen.tsx web/src/features/browse/CoursesBrowseScreen.tsx
 --- a/src/features/browse/CoursesBrowseScreen.tsx	2026-11-16 05:43:15.822009504 +0000
 +++ b/src/features/browse/CoursesBrowseScreen.tsx	2026-11-17 04:57:26.429192687 +0000
 @@ -1,21 +1,22 @@
@@ -1368,7 +1372,7 @@ diff -ruN a/src/features/browse/CoursesBrowseScreen.tsx b/src/features/browse/Co
 +  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
 +  list: { gap: SPACE.s2 + 4 },
  });
-diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/EventsBrowseScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/EventsBrowseScreen.tsx web/src/features/browse/EventsBrowseScreen.tsx
 --- a/src/features/browse/EventsBrowseScreen.tsx	2026-11-16 05:43:15.821978885 +0000
 +++ b/src/features/browse/EventsBrowseScreen.tsx	2026-11-17 04:57:26.429376683 +0000
 @@ -1,6 +1,4 @@
@@ -1630,7 +1634,7 @@ diff -ruN a/src/features/browse/EventsBrowseScreen.tsx b/src/features/browse/Eve
 +  group: { gap: SPACE.s2 },
 +  groupLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
  });
-diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/Fab.tsx web/src/features/browse/Fab.tsx
 --- a/src/features/browse/Fab.tsx	2026-11-16 05:43:15.822072570 +0000
 +++ b/src/features/browse/Fab.tsx	2026-11-16 16:12:20.617177272 +0000
 @@ -1,24 +1,27 @@
@@ -1674,7 +1678,7 @@ diff -ruN a/src/features/browse/Fab.tsx b/src/features/browse/Fab.tsx
 +  wrap: { position: 'absolute', right: SPACE.s3, bottom: SPACE.s3, borderRadius: RADIUS.pill },
 +  face: { width: FAB_SIZE, height: FAB_SIZE, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
  });
-diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/RoutinesBrowseScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/RoutinesBrowseScreen.tsx web/src/features/browse/RoutinesBrowseScreen.tsx
 --- a/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-16 05:43:15.822061751 +0000
 +++ b/src/features/browse/RoutinesBrowseScreen.tsx	2026-11-17 04:57:26.429592789 +0000
 @@ -1,34 +1,37 @@
@@ -1914,10 +1918,10 @@ diff -ruN a/src/features/browse/RoutinesBrowseScreen.tsx b/src/features/browse/R
 +  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s4 },
 +  list: { gap: SPACE.s2 + 4 },
  });
-diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDosBrowseScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/ToDosBrowseScreen.tsx web/src/features/browse/ToDosBrowseScreen.tsx
 --- a/src/features/browse/ToDosBrowseScreen.tsx	2026-11-16 05:43:15.822041156 +0000
-+++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-17 04:57:26.429798090 +0000
-@@ -1,26 +1,15 @@
++++ b/src/features/browse/ToDosBrowseScreen.tsx	2026-11-17 05:14:19.622658406 +0000
+@@ -1,26 +1,16 @@
 -/**
 - * S13 — To-dos & Notes Browse. F11.
 - *
@@ -1932,6 +1936,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 - * would remove the ambiguity.
 - */
 +/** M3 — S13 To-dos. Segmented To-dos/Notes (D9); rows in one grouped list (D7). */
++import { play } from '@/services/sfx';
  import { useState } from 'react';
 -import { useRouter, type Href } from 'expo-router';
 -import { StickyNote } from 'lucide-react-native';
@@ -1951,7 +1956,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  import type { Id, TaskWithSteps } from '@/types';
  
  import { BROWSE_SHARED_COPY, S13_COPY } from './copy';
-@@ -31,7 +20,7 @@
+@@ -31,7 +21,7 @@
  type Lens = 'todos' | 'notes';
  
  function isNote(tk: TaskWithSteps): boolean {
@@ -1960,7 +1965,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
  }
  
  export default function ToDosBrowseScreen() {
-@@ -39,98 +28,119 @@
+@@ -39,98 +29,120 @@
    const router = useRouter();
    const tasksQuery = useTasks({ type: 'todo' });
    const updateTask = useUpdateTask();
@@ -1987,6 +1992,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 +    const wasDone = !!tk.todoDoneAt;
 +    const result = await updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: wasDone ? null : now() } });
 +    if (!result.ok || wasDone) return;
++    play('todo_done');
 +    // Ticking is one tap, so a slip has to be one tap to take back.
 +    showToast('Done', 'success', { icon: 'ideal', action: { label: 'Undo', onPress: () => void updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt: null } }) } });
    }
@@ -2140,7 +2146,7 @@ diff -ruN a/src/features/browse/ToDosBrowseScreen.tsx b/src/features/browse/ToDo
 +  scrollContent: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, gap: SPACE.s3 },
 +  check: { width: 28, height: 28, borderRadius: RADIUS.pill, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
  });
-diff -ruN a/src/features/browse/copy.ts b/src/features/browse/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/copy.ts web/src/features/browse/copy.ts
 --- a/src/features/browse/copy.ts	2026-11-16 05:43:15.821967660 +0000
 +++ b/src/features/browse/copy.ts	2026-11-16 05:54:40.890256139 +0000
 @@ -14,6 +14,7 @@
@@ -2168,7 +2174,7 @@ diff -ruN a/src/features/browse/copy.ts b/src/features/browse/copy.ts
    todosLens: 'To-dos',
    notesLens: 'Notes',
    emptyTodosHeadline: 'Nothing here yet.',
-diff -ruN a/src/features/browse/format.ts b/src/features/browse/format.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/format.ts web/src/features/browse/format.ts
 --- a/src/features/browse/format.ts	2026-11-16 05:43:15.822020474 +0000
 +++ b/src/features/browse/format.ts	2026-11-16 05:55:02.730470243 +0000
 @@ -30,7 +30,7 @@
@@ -2180,7 +2186,7 @@ diff -ruN a/src/features/browse/format.ts b/src/features/browse/format.ts
    }
  }
  
-diff -ruN a/src/features/browse/resolveIcon.ts b/src/features/browse/resolveIcon.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/browse/resolveIcon.ts web/src/features/browse/resolveIcon.ts
 --- a/src/features/browse/resolveIcon.ts	2026-11-16 05:43:15.822087902 +0000
 +++ b/src/features/browse/resolveIcon.ts	2026-11-16 05:50:15.592567587 +0000
 @@ -1,7 +1,8 @@
@@ -2210,7 +2216,7 @@ diff -ruN a/src/features/browse/resolveIcon.ts b/src/features/browse/resolveIcon
 +} {
 +  return { icon: resolveTaskIcon(task.icon), color: taskColor(task.color) };
 +}
-diff -ruN a/src/features/data/EraseDataSheet.tsx b/src/features/data/EraseDataSheet.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/data/EraseDataSheet.tsx web/src/features/data/EraseDataSheet.tsx
 --- a/src/features/data/EraseDataSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/data/EraseDataSheet.tsx	2026-11-16 06:03:24.104493253 +0000
 @@ -0,0 +1,43 @@
@@ -2257,18 +2263,20 @@ diff -ruN a/src/features/data/EraseDataSheet.tsx b/src/features/data/EraseDataSh
 +    </ConfirmSheet>
 +  );
 +}
-diff -ruN a/src/features/notifications/NotificationSample.tsx b/src/features/notifications/NotificationSample.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/notifications/NotificationSample.tsx web/src/features/notifications/NotificationSample.tsx
 --- a/src/features/notifications/NotificationSample.tsx	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/notifications/NotificationSample.tsx	2026-11-17 04:28:43.605776383 +0000
-@@ -0,0 +1,49 @@
++++ b/src/features/notifications/NotificationSample.tsx	2026-11-17 05:14:37.839399418 +0000
+@@ -0,0 +1,53 @@
 +/**
 + * NotificationSample — one reminder drawn the way the phone shows it: app icon, app name,
 + * when, a bold first line and a second line. The wording is the wording the reminder
-+ * service sends. Dimmed when that kind of reminder is switched off.
++ * service sends. Dimmed when that kind of reminder is switched off. Tapping it plays the
++ * reminder sound.
 + */
 +import { Sprout } from 'lucide-react-native';
-+import { StyleSheet, Text, View } from 'react-native';
++import { Pressable, StyleSheet, Text, View } from 'react-native';
 +
++import { play } from '@/services/sfx';
 +import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 +
 +export interface NotificationSampleProps {
@@ -2281,8 +2289,10 @@ diff -ruN a/src/features/notifications/NotificationSample.tsx b/src/features/not
 +export function NotificationSample({ title, body, when, off = false }: NotificationSampleProps) {
 +  const t = useTheme();
 +  return (
-+    <View
-+      accessible
++    <Pressable
++      onPress={() => play('reminder')}
++      accessibilityRole="button"
++      accessibilityHint="Plays the reminder sound"
 +      accessibilityLabel={`${off ? 'Off. ' : ''}Looks like: Fallback, ${when}. ${title}. ${body}`}
 +      style={[styles.root, { backgroundColor: t.color.surface, opacity: off ? 0.45 : 1 }]}
 +    >
@@ -2297,7 +2307,7 @@ diff -ruN a/src/features/notifications/NotificationSample.tsx b/src/features/not
 +        <Text style={[styles.title, { color: t.color.text }]}>{title}</Text>
 +        <Text style={[styles.body, { color: t.color.text }]}>{body}</Text>
 +      </View>
-+    </View>
++    </Pressable>
 +  );
 +}
 +
@@ -2310,7 +2320,7 @@ diff -ruN a/src/features/notifications/NotificationSample.tsx b/src/features/not
 +  title: { fontSize: FONT_SIZE.sm, fontWeight: '800', lineHeight: 19 },
 +  body: { fontSize: FONT_SIZE.sm, lineHeight: 19 },
 +});
-diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/ConceptScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/ConceptScreen.tsx web/src/features/onboarding/ConceptScreen.tsx
 --- a/src/features/onboarding/ConceptScreen.tsx	2026-11-16 05:43:15.822544297 +0000
 +++ b/src/features/onboarding/ConceptScreen.tsx	2026-11-17 03:03:53.653452636 +0000
 @@ -1,53 +1,34 @@
@@ -2402,7 +2412,7 @@ diff -ruN a/src/features/onboarding/ConceptScreen.tsx b/src/features/onboarding/
 +  privacyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACE.s2 },
 +  privacyText: { fontSize: FONT_SIZE.sm, lineHeight: 20, flexShrink: 1 },
  });
-diff -ruN a/src/features/onboarding/ConsistencyScreen.tsx b/src/features/onboarding/ConsistencyScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/ConsistencyScreen.tsx web/src/features/onboarding/ConsistencyScreen.tsx
 --- a/src/features/onboarding/ConsistencyScreen.tsx	2026-11-16 05:43:15.822426326 +0000
 +++ b/src/features/onboarding/ConsistencyScreen.tsx	2026-11-16 06:06:46.785498886 +0000
 @@ -1,51 +1,39 @@
@@ -2473,7 +2483,7 @@ diff -ruN a/src/features/onboarding/ConsistencyScreen.tsx b/src/features/onboard
 +  numeral: { fontSize: FONT_SIZE.xxxl, fontWeight: '700', fontVariant: ['tabular-nums'] },
 +  subLabel: { fontSize: FONT_SIZE.base },
  });
-diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboarding/FirstTaskScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/FirstTaskScreen.tsx web/src/features/onboarding/FirstTaskScreen.tsx
 --- a/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 05:43:15.822514959 +0000
 +++ b/src/features/onboarding/FirstTaskScreen.tsx	2026-11-16 18:29:55.020917820 +0000
 @@ -1,24 +1,24 @@
@@ -2657,7 +2667,7 @@ diff -ruN a/src/features/onboarding/FirstTaskScreen.tsx b/src/features/onboardin
 -  footer: { padding: SPACE.s3 },
 -});
 +const styles = StyleSheet.create({ note: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
-diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/HookScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/HookScreen.tsx web/src/features/onboarding/HookScreen.tsx
 --- a/src/features/onboarding/HookScreen.tsx	2026-11-16 05:43:15.822535341 +0000
 +++ b/src/features/onboarding/HookScreen.tsx	2026-11-17 03:17:31.660240599 +0000
 @@ -1,35 +1,60 @@
@@ -2745,7 +2755,7 @@ diff -ruN a/src/features/onboarding/HookScreen.tsx b/src/features/onboarding/Hoo
 +  count: { fontSize: FONT_SIZE.sm, fontWeight: '700', fontVariant: ['tabular-nums'] },
 +  rule: { height: 1 },
 +});
-diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features/onboarding/NotificationsPrimerScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/NotificationsPrimerScreen.tsx web/src/features/onboarding/NotificationsPrimerScreen.tsx
 --- a/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-16 05:43:15.822503108 +0000
 +++ b/src/features/onboarding/NotificationsPrimerScreen.tsx	2026-11-17 04:23:45.577987666 +0000
 @@ -1,99 +1,95 @@
@@ -2906,7 +2916,7 @@ diff -ruN a/src/features/onboarding/NotificationsPrimerScreen.tsx b/src/features
 +  previewTitle: { fontSize: FONT_SIZE.base, fontWeight: '700' },
 +  previewBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
-diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboarding/OnboardingPicture.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/OnboardingPicture.tsx web/src/features/onboarding/OnboardingPicture.tsx
 --- a/src/features/onboarding/OnboardingPicture.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/onboarding/OnboardingPicture.tsx	2026-11-17 03:04:28.697426302 +0000
 @@ -0,0 +1,196 @@
@@ -3106,9 +3116,9 @@ diff -ruN a/src/features/onboarding/OnboardingPicture.tsx b/src/features/onboard
 +  row: { flexDirection: 'row' },
 +  tile: { alignItems: 'center', justifyContent: 'center' },
 +});
-diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboarding/OnboardingShell.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/OnboardingShell.tsx web/src/features/onboarding/OnboardingShell.tsx
 --- a/src/features/onboarding/OnboardingShell.tsx	2026-11-16 05:43:15.822493510 +0000
-+++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 04:52:30.528259210 +0000
++++ b/src/features/onboarding/OnboardingShell.tsx	2026-11-17 05:20:03.306158949 +0000
 @@ -1,99 +1,205 @@
  /**
 - * M7. Shared onboarding shell, established on S02 and reused through S06 (ALLSCREENS_1.md
@@ -3379,7 +3389,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
        </View>
      </View>
    );
-@@ -101,11 +207,29 @@
+@@ -101,11 +207,30 @@
  
  const styles = StyleSheet.create({
    root: { flex: 1 },
@@ -3393,7 +3403,8 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  flex: { flex: 1 },
 +  // The top gives up its height before anything below has to scroll.
 +  top: { flexShrink: 1000, overflow: 'hidden', borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-+  image: { width: '100%', height: '100%' },
++  // A little air, so a cut-out never touches the banner's rounded bottom edge.
++  image: { flex: 1, alignSelf: 'stretch', marginTop: 2, marginBottom: 14 },
 +  pictureRoom: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 +  body: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto' },
 +  bar: { height: HEADER_HEIGHT, flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACE.s2 + 4 },
@@ -3416,7 +3427,7 @@ diff -ruN a/src/features/onboarding/OnboardingShell.tsx b/src/features/onboardin
 +  children: { gap: SPACE.s3, marginTop: SPACE.s3 },
 +  footer: { paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, borderTopWidth: 1, gap: SPACE.s2 },
  });
-diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboarding/PersonalizeScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/PersonalizeScreen.tsx web/src/features/onboarding/PersonalizeScreen.tsx
 --- a/src/features/onboarding/PersonalizeScreen.tsx	2026-11-16 05:43:15.822463487 +0000
 +++ b/src/features/onboarding/PersonalizeScreen.tsx	2026-11-17 04:49:24.839213321 +0000
 @@ -1,24 +1,21 @@
@@ -3589,7 +3600,7 @@ diff -ruN a/src/features/onboarding/PersonalizeScreen.tsx b/src/features/onboard
 +  swatch: { width: 44, height: 44, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
 +  monoHalf: { position: 'absolute', right: 0, top: 0, bottom: 0, width: '50%', backgroundColor: '#ffffff' },
  });
-diff -ruN a/src/features/onboarding/SampleBreakdownBar.tsx b/src/features/onboarding/SampleBreakdownBar.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/SampleBreakdownBar.tsx web/src/features/onboarding/SampleBreakdownBar.tsx
 --- a/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-16 05:43:15.822475472 +0000
 +++ b/src/features/onboarding/SampleBreakdownBar.tsx	2026-11-16 06:06:46.795751117 +0000
 @@ -58,5 +58,5 @@
@@ -3599,7 +3610,7 @@ diff -ruN a/src/features/onboarding/SampleBreakdownBar.tsx b/src/features/onboar
 -  legendText: { fontSize: 13 },
 +  legendText: { fontSize: 12 },
  });
-diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/TypesScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/TypesScreen.tsx web/src/features/onboarding/TypesScreen.tsx
 --- a/src/features/onboarding/TypesScreen.tsx	2026-11-16 05:43:15.822526108 +0000
 +++ b/src/features/onboarding/TypesScreen.tsx	2026-11-16 18:29:39.646713538 +0000
 @@ -1,56 +1,44 @@
@@ -3682,21 +3693,27 @@ diff -ruN a/src/features/onboarding/TypesScreen.tsx b/src/features/onboarding/Ty
 +  tileLabel: { fontSize: FONT_SIZE.base, fontWeight: '600', marginTop: SPACE.s1 },
 +  tileHelper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
-diff -ruN a/src/features/onboarding/bannerImages.ts b/src/features/onboarding/bannerImages.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/bannerImages.ts web/src/features/onboarding/bannerImages.ts
 --- a/src/features/onboarding/bannerImages.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/onboarding/bannerImages.ts	2026-11-17 04:49:24.826067028 +0000
-@@ -0,0 +1,10 @@
++++ b/src/features/onboarding/bannerImages.ts	2026-11-17 05:26:49.857009140 +0000
+@@ -0,0 +1,16 @@
 +/**
 + * The picture each onboarding step shows in its banner. A step with no entry here falls back
 + * to its drawn stand-in (OnboardingPicture). Images are cut-outs on a transparent background,
 + * so the banner's theme colour shows around them.
++ *
++ * Preview only: the pictures are inlined so the single-file preview can carry them. The app
++ * should ship them as bundled image files.
 + */
 +import type { ImageSourcePropType } from 'react-native';
 +
 +export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 +
-+export const BANNER_IMAGES: Partial<Record<OnboardingStep, ImageSourcePropType>> = {};
-diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
++/* eslint-disable */
++export const BANNER_IMAGES: Partial<Record<OnboardingStep, ImageSourcePropType>> = {
++  1: { uri: 'data:image/webp;base64,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' },
++};
+diff -ruN -x sounds.generated.ts web-orig/src/features/onboarding/copy.ts web/src/features/onboarding/copy.ts
 --- a/src/features/onboarding/copy.ts	2026-11-16 05:43:15.822439269 +0000
 +++ b/src/features/onboarding/copy.ts	2026-11-17 04:49:24.839577335 +0000
 @@ -12,16 +12,19 @@
@@ -3778,7 +3795,7 @@ diff -ruN a/src/features/onboarding/copy.ts b/src/features/onboarding/copy.ts
    save: 'Save routine',
    nameError: 'Add a name to continue',
    idealError: 'Add an ideal version to continue',
-diff -ruN a/src/features/priorities/PriorityPlaceRow.tsx b/src/features/priorities/PriorityPlaceRow.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/priorities/PriorityPlaceRow.tsx web/src/features/priorities/PriorityPlaceRow.tsx
 --- a/src/features/priorities/PriorityPlaceRow.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/priorities/PriorityPlaceRow.tsx	2026-11-16 18:26:00.483076077 +0000
 @@ -0,0 +1,29 @@
@@ -3811,7 +3828,7 @@ diff -ruN a/src/features/priorities/PriorityPlaceRow.tsx b/src/features/prioriti
 +    </ListGroup>
 +  );
 +}
-diff -ruN a/src/features/priorities/order.ts b/src/features/priorities/order.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/priorities/order.ts web/src/features/priorities/order.ts
 --- a/src/features/priorities/order.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/priorities/order.ts	2026-11-16 18:26:00.481674663 +0000
 @@ -0,0 +1,48 @@
@@ -3863,7 +3880,7 @@ diff -ruN a/src/features/priorities/order.ts b/src/features/priorities/order.ts
 +  const groups = useMemo(() => groupByImportance(tasksQuery.data ?? [], date), [tasksQuery.data, date]);
 +  return { groups, isLoading: tasksQuery.isLoading, isError: tasksQuery.isError, refetch: tasksQuery.refetch };
 +}
-diff -ruN a/src/features/progress/CelebrationHost.tsx b/src/features/progress/CelebrationHost.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/progress/CelebrationHost.tsx web/src/features/progress/CelebrationHost.tsx
 --- a/src/features/progress/CelebrationHost.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/progress/CelebrationHost.tsx	2026-11-16 05:49:42.074881386 +0000
 @@ -0,0 +1,65 @@
@@ -3932,7 +3949,7 @@ diff -ruN a/src/features/progress/CelebrationHost.tsx b/src/features/progress/Ce
 +  subhead: { fontSize: FONT_SIZE.base, fontWeight: '700', textAlign: 'center' },
 +  body: { fontSize: FONT_SIZE.base, lineHeight: 24, textAlign: 'center' },
 +});
-diff -ruN a/src/features/progress/ProgressHeader.tsx b/src/features/progress/ProgressHeader.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/progress/ProgressHeader.tsx web/src/features/progress/ProgressHeader.tsx
 --- a/src/features/progress/ProgressHeader.tsx	2026-11-16 05:43:15.821872085 +0000
 +++ b/src/features/progress/ProgressHeader.tsx	1970-01-01 00:00:00.000000000 +0000
 @@ -1,28 +0,0 @@
@@ -3964,7 +3981,7 @@ diff -ruN a/src/features/progress/ProgressHeader.tsx b/src/features/progress/Pro
 -  root: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s2, paddingHorizontal: SPACE.s2, paddingVertical: SPACE.s2 },
 -  title: { fontSize: 20, fontWeight: '700' },
 -});
-diff -ruN a/src/features/progress/copy.ts b/src/features/progress/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/progress/copy.ts web/src/features/progress/copy.ts
 --- a/src/features/progress/copy.ts	2026-11-16 05:43:15.821824990 +0000
 +++ b/src/features/progress/copy.ts	2026-11-16 06:11:56.917229415 +0000
 @@ -13,34 +13,37 @@
@@ -4142,7 +4159,7 @@ diff -ruN a/src/features/progress/copy.ts b/src/features/progress/copy.ts
    errorMessage: "Couldn't load this cycle right now.",
    retryLabel: 'Retry',
    // Honest approximation — see build report's contract-gap note: `CycleRecord` carries only
-diff -ruN a/src/features/progress/index.ts b/src/features/progress/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/progress/index.ts web/src/features/progress/index.ts
 --- a/src/features/progress/index.ts	2026-11-16 05:43:15.821849623 +0000
 +++ b/src/features/progress/index.ts	2026-11-16 06:11:56.917568727 +0000
 @@ -1,5 +1,4 @@
@@ -4151,7 +4168,7 @@ diff -ruN a/src/features/progress/index.ts b/src/features/progress/index.ts
  export { Confetti } from './Confetti';
  export { BADGE_ICONS, LEVEL_UP_ICON } from './badgeIcons';
  export * from './copy';
-diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/search/FilterChip.tsx web/src/features/search/FilterChip.tsx
 --- a/src/features/search/FilterChip.tsx	2026-11-16 05:43:15.821944328 +0000
 +++ b/src/features/search/FilterChip.tsx	2026-11-16 16:12:20.617066491 +0000
 @@ -13,15 +13,15 @@
@@ -4173,7 +4190,7 @@ diff -ruN a/src/features/search/FilterChip.tsx b/src/features/search/FilterChip.
 +  chip: { minHeight: MIN_TAP_TARGET, paddingHorizontal: SPACE.s3, borderRadius: RADIUS.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
    label: { fontSize: 14, fontWeight: '600' },
  });
-diff -ruN a/src/features/search/SearchScreen.tsx b/src/features/search/SearchScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/search/SearchScreen.tsx web/src/features/search/SearchScreen.tsx
 --- a/src/features/search/SearchScreen.tsx	2026-11-16 05:43:15.821923876 +0000
 +++ b/src/features/search/SearchScreen.tsx	2026-11-16 07:03:34.094852703 +0000
 @@ -1,18 +1,19 @@
@@ -4317,7 +4334,7 @@ diff -ruN a/src/features/search/SearchScreen.tsx b/src/features/search/SearchScr
 +  resultsHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
 +  resultsCount: { fontSize: 14 },
  });
-diff -ruN a/src/features/search/copy.ts b/src/features/search/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/search/copy.ts web/src/features/search/copy.ts
 --- a/src/features/search/copy.ts	2026-11-16 05:43:15.821903945 +0000
 +++ b/src/features/search/copy.ts	2026-11-16 05:55:02.730139730 +0000
 @@ -14,7 +14,7 @@
@@ -4346,7 +4363,7 @@ diff -ruN a/src/features/search/copy.ts b/src/features/search/copy.ts
    },
  } as const;
  
-diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/settings/copy.ts web/src/features/settings/copy.ts
 --- a/src/features/settings/copy.ts	2026-11-16 05:43:15.822109910 +0000
 +++ b/src/features/settings/copy.ts	2026-11-16 16:12:20.618886498 +0000
 @@ -5,19 +5,19 @@
@@ -4422,7 +4439,7 @@ diff -ruN a/src/features/settings/copy.ts b/src/features/settings/copy.ts
 +  version: 'Fallback 1.0.0 (128)',
 +  tagline: 'Something beats nothing.',
  } as const;
-diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/AddMenuHost.tsx web/src/features/task/AddMenuHost.tsx
 --- a/src/features/task/AddMenuHost.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/AddMenuHost.tsx	2026-11-17 03:16:42.498230145 +0000
 @@ -0,0 +1,79 @@
@@ -4505,7 +4522,7 @@ diff -ruN a/src/features/task/AddMenuHost.tsx b/src/features/task/AddMenuHost.ts
 +  aiTitle: { fontSize: FONT_SIZE.md, fontWeight: '700' },
 +  aiBody: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +});
-diff -ruN a/src/features/task/DeleteTaskSheet.tsx b/src/features/task/DeleteTaskSheet.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/DeleteTaskSheet.tsx web/src/features/task/DeleteTaskSheet.tsx
 --- a/src/features/task/DeleteTaskSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/DeleteTaskSheet.tsx	2026-11-16 05:58:33.277346803 +0000
 @@ -0,0 +1,56 @@
@@ -4565,7 +4582,7 @@ diff -ruN a/src/features/task/DeleteTaskSheet.tsx b/src/features/task/DeleteTask
 +    </ConfirmSheet>
 +  );
 +}
-diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEditor.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/StepListEditor.tsx web/src/features/task/StepListEditor.tsx
 --- a/src/features/task/StepListEditor.tsx	2026-11-16 05:43:15.821745148 +0000
 +++ b/src/features/task/StepListEditor.tsx	2026-11-17 03:16:42.497102541 +0000
 @@ -1,73 +1,106 @@
@@ -4713,7 +4730,7 @@ diff -ruN a/src/features/task/StepListEditor.tsx b/src/features/task/StepListEdi
 +  stepBlockGap: { marginTop: SPACE.s2 },
 +  banner: { borderRadius: RADIUS.sm, padding: SPACE.s2 + 4 },
  });
-diff -ruN a/src/features/task/StepScheduleSection.tsx b/src/features/task/StepScheduleSection.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/StepScheduleSection.tsx web/src/features/task/StepScheduleSection.tsx
 --- a/src/features/task/StepScheduleSection.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/StepScheduleSection.tsx	2026-11-16 05:56:01.155167459 +0000
 @@ -0,0 +1,59 @@
@@ -4776,7 +4793,7 @@ diff -ruN a/src/features/task/StepScheduleSection.tsx b/src/features/task/StepSc
 +  banner: { borderRadius: RADIUS.sm, padding: SPACE.s2 + 4 },
 +  bannerText: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +});
-diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/TaskCard.tsx web/src/features/task/TaskCard.tsx
 --- a/src/features/task/TaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/TaskCard.tsx	2026-11-16 16:52:26.036806329 +0000
 @@ -0,0 +1,98 @@
@@ -4878,7 +4895,7 @@ diff -ruN a/src/features/task/TaskCard.tsx b/src/features/task/TaskCard.tsx
 +  metaRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1 + 2 },
 +  metaText: { flex: 1 },
 +});
-diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/TaskDetails.tsx web/src/features/task/TaskDetails.tsx
 --- a/src/features/task/TaskDetails.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/TaskDetails.tsx	2026-11-16 07:14:18.909017787 +0000
 @@ -0,0 +1,110 @@
@@ -4992,7 +5009,7 @@ diff -ruN a/src/features/task/TaskDetails.tsx b/src/features/task/TaskDetails.ts
 +  pill: { borderRadius: RADIUS.pill, paddingVertical: 2, paddingHorizontal: SPACE.s2, alignSelf: 'flex-start' },
 +  pillLabel: { fontSize: FONT_SIZE.xs, fontWeight: '700' },
 +});
-diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/TaskHero.tsx web/src/features/task/TaskHero.tsx
 --- a/src/features/task/TaskHero.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/TaskHero.tsx	2026-11-16 17:43:27.653569862 +0000
 @@ -0,0 +1,73 @@
@@ -5069,7 +5086,7 @@ diff -ruN a/src/features/task/TaskHero.tsx b/src/features/task/TaskHero.tsx
 +  meta: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +  week: { borderRadius: RADIUS.lg, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s2 },
 +});
-diff -ruN a/src/features/task/formShared.ts b/src/features/task/formShared.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/formShared.ts web/src/features/task/formShared.ts
 --- a/src/features/task/formShared.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/formShared.ts	2026-11-16 05:57:23.873103247 +0000
 @@ -0,0 +1,21 @@
@@ -5094,16 +5111,17 @@ diff -ruN a/src/features/task/formShared.ts b/src/features/task/formShared.ts
 +}
 +
 +export const SAVE_FAILED = "Couldn't save that — try again.";
-diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/logFeedback.ts web/src/features/task/logFeedback.ts
 --- a/src/features/task/logFeedback.ts	1970-01-01 00:00:00.000000000 +0000
-+++ b/src/features/task/logFeedback.ts	2026-11-16 05:52:00.315415840 +0000
-@@ -0,0 +1,44 @@
++++ b/src/features/task/logFeedback.ts	2026-11-17 05:14:19.620763084 +0000
+@@ -0,0 +1,49 @@
 +/**
 + * useLogFeedback — what happens after a log, everywhere (D2).
 + * A daily log shows a toast (state icon, "Ideal done" / "Fallback done", XP,
 + * Undo) and the user stays where they are. Only a level-up or a badge opens
 + * the milestone pop-up.
 + */
++import { play } from '@/services/sfx';
 +import { useCallback } from 'react';
 +
 +import { useCelebrationStore, useToastStore } from '@/app-shell';
@@ -5125,6 +5143,10 @@ diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
 +  return useCallback(
 +    (chip: ChipState, result: LogResultLike, undo?: () => void) => {
 +      const action = undo ? { label: 'Undo', onPress: undo } : undefined;
++      if (chip === 'done') play('log_ideal');
++      else if (chip === 'fallback') play('log_fallback');
++      else if (chip === 'skip') play('log_skip');
++      if (result.levelUp) play('level_up', 700);
 +      const detail = result.xpAwarded > 0 ? `+${result.xpAwarded} XP` : undefined;
 +      if (chip === 'done') showToast('Ideal done', 'success', { icon: 'ideal', detail, action });
 +      else if (chip === 'fallback') showToast('Fallback done', 'success', { icon: 'fallback', detail, action });
@@ -5142,7 +5164,7 @@ diff -ruN a/src/features/task/logFeedback.ts b/src/features/task/logFeedback.ts
 +    [showToast, pushCelebration],
 +  );
 +}
-diff -ruN a/src/features/task/useWeekStrip.ts b/src/features/task/useWeekStrip.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/task/useWeekStrip.ts web/src/features/task/useWeekStrip.ts
 --- a/src/features/task/useWeekStrip.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/task/useWeekStrip.ts	2026-11-16 16:47:50.309573810 +0000
 @@ -0,0 +1,24 @@
@@ -5170,7 +5192,7 @@ diff -ruN a/src/features/task/useWeekStrip.ts b/src/features/task/useWeekStrip.t
 +    });
 +  }, [query.data, from, to]);
 +}
-diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/today/StatHero.tsx web/src/features/today/StatHero.tsx
 --- a/src/features/today/StatHero.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/today/StatHero.tsx	2026-11-16 16:54:29.132239416 +0000
 @@ -0,0 +1,60 @@
@@ -5234,10 +5256,10 @@ diff -ruN a/src/features/today/StatHero.tsx b/src/features/today/StatHero.tsx
 +  band: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2, paddingHorizontal: SPACE.s3, paddingVertical: SPACE.s2 + 2 },
 +  detail: { flex: 1, fontSize: FONT_SIZE.sm, lineHeight: 20, fontWeight: '600' },
 +});
-diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/today/TodayScreen.tsx web/src/features/today/TodayScreen.tsx
 --- a/src/features/today/TodayScreen.tsx	2026-11-16 05:43:15.822365298 +0000
-+++ b/src/features/today/TodayScreen.tsx	2026-11-17 04:57:26.430046356 +0000
-@@ -1,35 +1,52 @@
++++ b/src/features/today/TodayScreen.tsx	2026-11-17 05:14:37.833215913 +0000
+@@ -1,35 +1,53 @@
  /**
 - * S09 — Today. F3 (chip logging), F4 (whole-day off), F5 (stat chip), F6 (task list), F14
 - * (re-entry banner landing state).
@@ -5246,6 +5268,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 + * control (D1) and toast feedback (D2). The add button hides while the app is
 + * empty (D15).
   */
++import { play } from '@/services/sfx';
  import { useMemo, useState } from 'react';
  import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 -import { Bell, ChevronRight, Mic, Plus, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
@@ -5307,7 +5330,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
  export interface TodayScreenProps {
    readonly reentryOverride?: boolean;
    readonly justAddedOverride?: boolean;
-@@ -39,54 +56,49 @@
+@@ -39,54 +57,53 @@
  export default function TodayScreen({ reentryOverride, justAddedOverride, reentryTaskIdOverride }: TodayScreenProps = {}) {
    const t = useTheme();
    const router = useRouter();
@@ -5378,11 +5401,15 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +      showToast('Undone', 'neutral');
 +      return;
      }
++    // The last thing due today just got done: the day's own sound follows the log sound.
++    const wasOpen = previous === 'todo';
++    const othersLogged = rows.every((r) => r.task.id === row.task.id || isLogged(r.occurrence.chipState));
++    if (wasOpen && (chip === 'done' || chip === 'fallback') && rows.length > 1 && othersLogged) play('day_complete', 650);
 +    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void handleLog({ ...row, occurrence: { ...row.occurrence, chipState: chip } }, previous, true));
    }
  
    function openTask(taskId: string) {
-@@ -98,223 +110,193 @@
+@@ -98,223 +115,193 @@
      return rows.find((r) => r.task.id === reentryTaskId) ?? rows[0] ?? null;
    }, [isReentry, rows, reentryTaskId]);
  
@@ -5744,7 +5771,7 @@ diff -ruN a/src/features/today/TodayScreen.tsx b/src/features/today/TodayScreen.
 +  count: { fontSize: FONT_SIZE.sm },
 +  list: { gap: SPACE.s2 + 4 },
  });
-diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskCard.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/today/TodayTaskCard.tsx web/src/features/today/TodayTaskCard.tsx
 --- a/src/features/today/TodayTaskCard.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/today/TodayTaskCard.tsx	2026-11-16 16:52:26.036441257 +0000
 @@ -0,0 +1,95 @@
@@ -5843,7 +5870,7 @@ diff -ruN a/src/features/today/TodayTaskCard.tsx b/src/features/today/TodayTaskC
 +  change: { flexDirection: 'row', alignItems: 'center', gap: SPACE.s1, minHeight: 44 },
 +  tick: { width: 32, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
 +});
-diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
+diff -ruN -x sounds.generated.ts web-orig/src/features/today/copy.ts web/src/features/today/copy.ts
 --- a/src/features/today/copy.ts	2026-11-16 05:43:15.822345620 +0000
 +++ b/src/features/today/copy.ts	2026-11-16 05:51:33.432931360 +0000
 @@ -12,11 +12,15 @@
@@ -5897,7 +5924,7 @@ diff -ruN a/src/features/today/copy.ts b/src/features/today/copy.ts
  }
  
  /** Builds the re-entry-state re-worded stat line — see this file's header note. */
-diff -ruN a/src/features/widgets/WidgetPreviews.tsx b/src/features/widgets/WidgetPreviews.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/features/widgets/WidgetPreviews.tsx web/src/features/widgets/WidgetPreviews.tsx
 --- a/src/features/widgets/WidgetPreviews.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/features/widgets/WidgetPreviews.tsx	2026-11-17 04:28:43.603593816 +0000
 @@ -0,0 +1,205 @@
@@ -6106,7 +6133,7 @@ diff -ruN a/src/features/widgets/WidgetPreviews.tsx b/src/features/widgets/Widge
 +  apps: { flexDirection: 'row', gap: GAP, width: WIDGET * 2 + GAP, justifyContent: 'space-between' },
 +  app: { width: 62, height: 62, borderRadius: 16 },
 +});
-diff -ruN a/src/navigation/index.ts b/src/navigation/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/navigation/index.ts web/src/navigation/index.ts
 --- a/src/navigation/index.ts	2026-11-16 05:43:15.821603477 +0000
 +++ b/src/navigation/index.ts	2026-11-16 18:26:00.493786661 +0000
 @@ -49,6 +49,7 @@
@@ -6117,7 +6144,7 @@ diff -ruN a/src/navigation/index.ts b/src/navigation/index.ts
    achievements: '/achievements',
    achievementsCelebrate: '/achievements/celebrate',
    records: '/records',
-diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
+diff -ruN -x sounds.generated.ts web-orig/src/previewBridge.ts web/src/previewBridge.ts
 --- a/src/previewBridge.ts	2026-11-16 05:43:15.821576387 +0000
 +++ b/src/previewBridge.ts	2026-11-17 04:30:31.630515991 +0000
 @@ -21,7 +21,7 @@
@@ -6158,7 +6185,7 @@ diff -ruN a/src/previewBridge.ts b/src/previewBridge.ts
  
    // Three weeks of history, oldest first. Today is left open so there is something to tap.
    const workoutPattern: (ChipState | 'off' | null)[] = ['done', 'done', 'fallback', 'done', null, 'done', 'fallback', 'done', 'done', 'off', 'fallback', 'done', 'done', 'skip', 'done', 'fallback', 'done', 'done', null, 'done', 'fallback'];
-diff -ruN a/src/queries/mutations.ts b/src/queries/mutations.ts
+diff -ruN -x sounds.generated.ts web-orig/src/queries/mutations.ts web/src/queries/mutations.ts
 --- a/src/queries/mutations.ts	2026-11-16 05:43:15.826146297 +0000
 +++ b/src/queries/mutations.ts	2026-11-16 18:24:39.603341034 +0000
 @@ -352,6 +352,8 @@
@@ -6170,7 +6197,90 @@ diff -ruN a/src/queries/mutations.ts b/src/queries/mutations.ts
          createdAt: nowIso,
          updatedAt: nowIso,
          deletedAt: null,
-diff -ruN a/src/services/widgets/index.ts b/src/services/widgets/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/services/sfx/index.ts web/src/services/sfx/index.ts
+--- a/src/services/sfx/index.ts	1970-01-01 00:00:00.000000000 +0000
++++ b/src/services/sfx/index.ts	2026-11-17 05:14:19.603686265 +0000
+@@ -0,0 +1,79 @@
++/**
++ * Sounds. One call: `play('log_ideal')`. Every sound is cut from a recording of one object
++ * hitting another (no musical instruments), levelled as a set: frequent sounds are quiet and
++ * dry, rare happy ones are louder and carry a short echo.
++ *
++ * Preview implementation: Web Audio with the clips inlined, and the on/off choice kept in the
++ * browser. The app needs an audio library chosen by the architect, the clips as bundled files,
++ * a `sounds` setting stored with the other settings, and silence when the phone is on silent.
++ */
++import { create } from 'zustand';
++
++import { SOUND_DATA } from './sounds.generated';
++
++export type SoundName = keyof typeof SOUND_DATA;
++
++const KEY = 'fallback.sounds';
++function readOn(): boolean {
++  try {
++    return globalThis.localStorage?.getItem(KEY) !== 'off';
++  } catch {
++    return true;
++  }
++}
++
++interface SoundState {
++  readonly on: boolean;
++  setOn(on: boolean): void;
++}
++export const useSoundStore = create<SoundState>((set) => ({
++  on: readOn(),
++  setOn: (on) => {
++    try {
++      globalThis.localStorage?.setItem(KEY, on ? 'on' : 'off');
++    } catch {
++      // Private mode: the choice lasts for this visit only.
++    }
++    set({ on });
++  },
++}));
++
++type Ctx = AudioContext;
++let ctx: Ctx | null = null;
++const buffers = new Map<SoundName, Promise<AudioBuffer | null>>();
++
++function context(): Ctx | null {
++  if (ctx) return ctx;
++  const g = globalThis as unknown as { AudioContext?: new () => Ctx; webkitAudioContext?: new () => Ctx };
++  const Make = g.AudioContext ?? g.webkitAudioContext;
++  if (!Make) return null;
++  ctx = new Make();
++  return ctx;
++}
++
++function load(c: Ctx, name: SoundName): Promise<AudioBuffer | null> {
++  let p = buffers.get(name);
++  if (!p) {
++    p = fetch(SOUND_DATA[name])
++      .then((r) => r.arrayBuffer())
++      .then((b) => c.decodeAudioData(b))
++      .catch(() => null);
++    buffers.set(name, p);
++  }
++  return p;
++}
++
++/** Play a sound now, or after `delayMs` (so a reward can follow the tap that earned it). */
++export function play(name: SoundName, delayMs = 0): void {
++  if (!useSoundStore.getState().on) return;
++  const c = context();
++  if (!c) return;
++  if (c.state === 'suspended') void c.resume();
++  void load(c, name).then((buffer) => {
++    if (!buffer || !useSoundStore.getState().on) return;
++    const src = c.createBufferSource();
++    src.buffer = buffer;
++    src.connect(c.destination);
++    src.start(c.currentTime + delayMs / 1000);
++  });
++}
+diff -ruN -x sounds.generated.ts web-orig/src/services/widgets/index.ts web/src/services/widgets/index.ts
 --- a/src/services/widgets/index.ts	2026-11-16 05:43:15.821127102 +0000
 +++ b/src/services/widgets/index.ts	2026-11-16 16:13:33.587749465 +0000
 @@ -25,7 +25,7 @@
@@ -6191,7 +6301,7 @@ diff -ruN a/src/services/widgets/index.ts b/src/services/widgets/index.ts
        palette: PALETTES[scheme],
        widgetConfigs: settings.widgets,
        generatedAt: now(),
-diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
+diff -ruN -x sounds.generated.ts web-orig/src/theme/engine.ts web/src/theme/engine.ts
 --- a/src/theme/engine.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/theme/engine.ts	2026-11-17 04:23:45.575673251 +0000
 @@ -0,0 +1,219 @@
@@ -6414,7 +6524,7 @@ diff -ruN a/src/theme/engine.ts b/src/theme/engine.ts
 +export function seedForHue(hue: number): string {
 +  return fromLch(0.63, 0.2, hue);
 +}
-diff -ruN a/src/theme/index.ts b/src/theme/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/theme/index.ts web/src/theme/index.ts
 --- a/src/theme/index.ts	2026-11-16 05:43:15.822578154 +0000
 +++ b/src/theme/index.ts	2026-11-17 04:23:45.577429255 +0000
 @@ -4,28 +4,39 @@
@@ -6470,7 +6580,7 @@ diff -ruN a/src/theme/index.ts b/src/theme/index.ts
  }
  
  export const ThemeContext = createContext<Theme>(buildTheme('light'));
-diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
+diff -ruN -x sounds.generated.ts web-orig/src/theme/tokens.ts web/src/theme/tokens.ts
 --- a/src/theme/tokens.ts	2026-11-16 05:43:15.822695778 +0000
 +++ b/src/theme/tokens.ts	2026-11-17 04:23:45.575285187 +0000
 @@ -6,20 +6,48 @@
@@ -6671,7 +6781,7 @@ diff -ruN a/src/theme/tokens.ts b/src/theme/tokens.ts
 +export const HEADER_HEIGHT = 56;
 +/** Hairline used for dividers inside grouped lists (D7). */
 +export const HAIRLINE = 1;
-diff -ruN a/src/types/settings.ts b/src/types/settings.ts
+diff -ruN -x sounds.generated.ts web-orig/src/types/settings.ts web/src/types/settings.ts
 --- a/src/types/settings.ts	2026-11-16 05:43:15.819101856 +0000
 +++ b/src/types/settings.ts	2026-11-17 04:23:45.575514900 +0000
 @@ -4,7 +4,9 @@
@@ -6685,7 +6795,7 @@ diff -ruN a/src/types/settings.ts b/src/types/settings.ts
  
  export interface NotificationPrefs {
    readonly master: boolean;
-diff -ruN a/src/types/task.ts b/src/types/task.ts
+diff -ruN -x sounds.generated.ts web-orig/src/types/task.ts web/src/types/task.ts
 --- a/src/types/task.ts	2026-11-16 05:43:15.819152445 +0000
 +++ b/src/types/task.ts	2026-11-16 18:24:39.602803074 +0000
 @@ -86,10 +86,15 @@
@@ -6713,7 +6823,7 @@ diff -ruN a/src/types/task.ts b/src/types/task.ts
    readonly idealSteps: readonly StepDraft[];
    readonly fallbackSteps: readonly StepDraft[];
  }
-diff -ruN a/src/ui/AsNeededCard.tsx b/src/ui/AsNeededCard.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/AsNeededCard.tsx web/src/ui/AsNeededCard.tsx
 --- a/src/ui/AsNeededCard.tsx	2026-11-16 05:43:15.819723748 +0000
 +++ b/src/ui/AsNeededCard.tsx	2026-11-16 05:49:00.647596120 +0000
 @@ -59,5 +59,5 @@
@@ -6723,7 +6833,7 @@ diff -ruN a/src/ui/AsNeededCard.tsx b/src/ui/AsNeededCard.tsx
 -  lastUsed: { fontSize: 13 },
 +  lastUsed: { fontSize: 12 },
  });
-diff -ruN a/src/ui/Badge.tsx b/src/ui/Badge.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Badge.tsx web/src/ui/Badge.tsx
 --- a/src/ui/Badge.tsx	2026-11-16 05:43:15.819696337 +0000
 +++ b/src/ui/Badge.tsx	2026-11-16 07:14:18.908837751 +0000
 @@ -12,7 +12,7 @@
@@ -6735,7 +6845,7 @@ diff -ruN a/src/ui/Badge.tsx b/src/ui/Badge.tsx
    return (
      <View
        style={[styles.root, { backgroundColor: bg }]}
-diff -ruN a/src/ui/BottomTabs.tsx b/src/ui/BottomTabs.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/BottomTabs.tsx web/src/ui/BottomTabs.tsx
 --- a/src/ui/BottomTabs.tsx	2026-11-16 05:43:15.819644291 +0000
 +++ b/src/ui/BottomTabs.tsx	2026-11-16 07:14:18.909568815 +0000
 @@ -49,7 +49,7 @@
@@ -6754,7 +6864,7 @@ diff -ruN a/src/ui/BottomTabs.tsx b/src/ui/BottomTabs.tsx
 -  label: { fontSize: 11, fontWeight: '600' },
 +  label: { fontSize: 12, fontWeight: '600' },
  });
-diff -ruN a/src/ui/Button.tsx b/src/ui/Button.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Button.tsx web/src/ui/Button.tsx
 --- a/src/ui/Button.tsx	2026-11-16 05:43:15.819677365 +0000
 +++ b/src/ui/Button.tsx	2026-11-16 16:12:20.616545725 +0000
 @@ -42,9 +42,9 @@
@@ -6770,7 +6880,7 @@ diff -ruN a/src/ui/Button.tsx b/src/ui/Button.tsx
  
    return (
      <Pressable
-diff -ruN a/src/ui/ButtonPair.tsx b/src/ui/ButtonPair.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ButtonPair.tsx web/src/ui/ButtonPair.tsx
 --- a/src/ui/ButtonPair.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ButtonPair.tsx	2026-11-16 05:46:54.831855491 +0000
 @@ -0,0 +1,51 @@
@@ -6825,7 +6935,7 @@ diff -ruN a/src/ui/ButtonPair.tsx b/src/ui/ButtonPair.tsx
 +}
 +
 +const styles = StyleSheet.create({ root: { gap: SPACE.s2, alignSelf: 'stretch' } });
-diff -ruN a/src/ui/Card.tsx b/src/ui/Card.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Card.tsx web/src/ui/Card.tsx
 --- a/src/ui/Card.tsx	2026-11-16 05:43:15.819443859 +0000
 +++ b/src/ui/Card.tsx	2026-11-16 16:47:50.284340419 +0000
 @@ -6,7 +6,8 @@
@@ -6864,10 +6974,32 @@ diff -ruN a/src/ui/Card.tsx b/src/ui/Card.tsx
 +  root: { padding: SPACE.s3, gap: SPACE.s2 },
    corner: { position: 'absolute', top: SPACE.s1, right: SPACE.s1 },
  });
-diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Checkbox.tsx web/src/ui/Checkbox.tsx
 --- a/src/ui/Checkbox.tsx	2026-11-16 05:43:15.819466535 +0000
-+++ b/src/ui/Checkbox.tsx	2026-11-16 16:12:20.616352518 +0000
-@@ -31,10 +31,10 @@
++++ b/src/ui/Checkbox.tsx	2026-11-17 05:14:19.622152778 +0000
+@@ -1,4 +1,5 @@
+ /** M0 kit — Verdant `Checkbox`. Plain binary control (S13 To-dos, S20 ideal-step rows). */
++import { play } from '@/services/sfx';
+ import { Pressable, StyleSheet, Text, View } from 'react-native';
+ import { Check } from 'lucide-react-native';
+ 
+@@ -19,7 +20,14 @@
+   const t = useTheme();
+   return (
+     <Pressable
+-      onPress={disabled ? undefined : onToggle}
++      onPress={
++        disabled
++          ? undefined
++          : () => {
++              if (!checked) play('step_tick');
++              onToggle();
++            }
++      }
+       disabled={disabled}
+       accessibilityRole="checkbox"
+       accessibilityState={{ checked, disabled }}
+@@ -31,10 +39,10 @@
        <View
          style={[
            styles.box,
@@ -6880,7 +7012,7 @@ diff -ruN a/src/ui/Checkbox.tsx b/src/ui/Checkbox.tsx
        </View>
        <View style={styles.textCol}>
          <Text style={[styles.label, { color: t.color.text, textDecorationLine: strikethrough && checked ? 'line-through' : 'none' }]}>
-diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ConfirmSheet.tsx web/src/ui/ConfirmSheet.tsx
 --- a/src/ui/ConfirmSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ConfirmSheet.tsx	2026-11-16 05:48:00.591529205 +0000
 @@ -0,0 +1,41 @@
@@ -6925,7 +7057,7 @@ diff -ruN a/src/ui/ConfirmSheet.tsx b/src/ui/ConfirmSheet.tsx
 +}
 +
 +const styles = StyleSheet.create({ message: { fontSize: FONT_SIZE.base, lineHeight: 24 } });
-diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ConsistencyBreakdownBar.tsx web/src/ui/ConsistencyBreakdownBar.tsx
 --- a/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 05:43:15.819505214 +0000
 +++ b/src/ui/ConsistencyBreakdownBar.tsx	2026-11-16 17:43:27.653740982 +0000
 @@ -16,12 +16,14 @@
@@ -6981,7 +7113,7 @@ diff -ruN a/src/ui/ConsistencyBreakdownBar.tsx b/src/ui/ConsistencyBreakdownBar.
 +  legendText: { fontSize: 12 },
    caption: { fontSize: 12, marginTop: SPACE.s1, lineHeight: 18 },
  });
-diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/DateField.tsx web/src/ui/DateField.tsx
 --- a/src/ui/DateField.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/DateField.tsx	2026-11-16 07:14:18.910492049 +0000
 @@ -0,0 +1,134 @@
@@ -7119,7 +7251,7 @@ diff -ruN a/src/ui/DateField.tsx b/src/ui/DateField.tsx
 +  value: { fontSize: FONT_SIZE.base, flex: 1 },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +});
-diff -ruN a/src/ui/Dialog.tsx b/src/ui/Dialog.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Dialog.tsx web/src/ui/Dialog.tsx
 --- a/src/ui/Dialog.tsx	2026-11-16 05:43:15.819573460 +0000
 +++ b/src/ui/Dialog.tsx	2026-11-17 04:52:30.395188184 +0000
 @@ -1,9 +1,14 @@
@@ -7212,7 +7344,7 @@ diff -ruN a/src/ui/Dialog.tsx b/src/ui/Dialog.tsx
 +  scroll: { flexGrow: 0 },
 +  scrollContent: { gap: SPACE.s3, paddingBottom: SPACE.s1 },
  });
-diff -ruN a/src/ui/EmptyArt.tsx b/src/ui/EmptyArt.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/EmptyArt.tsx web/src/ui/EmptyArt.tsx
 --- a/src/ui/EmptyArt.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/EmptyArt.tsx	2026-11-16 16:58:53.757325347 +0000
 @@ -0,0 +1,47 @@
@@ -7263,7 +7395,7 @@ diff -ruN a/src/ui/EmptyArt.tsx b/src/ui/EmptyArt.tsx
 +    </View>
 +  );
 +}
-diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/EmptyState.tsx web/src/ui/EmptyState.tsx
 --- a/src/ui/EmptyState.tsx	2026-11-16 05:43:15.819714553 +0000
 +++ b/src/ui/EmptyState.tsx	2026-11-17 04:57:26.428961401 +0000
 @@ -1,13 +1,23 @@
@@ -7343,7 +7475,7 @@ diff -ruN a/src/ui/EmptyState.tsx b/src/ui/EmptyState.tsx
 +  action: { marginTop: SPACE.s2 },
 +  line: { fontSize: FONT_SIZE.sm, lineHeight: 20, paddingVertical: SPACE.s1 },
  });
-diff -ruN a/src/ui/IconButton.tsx b/src/ui/IconButton.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/IconButton.tsx web/src/ui/IconButton.tsx
 --- a/src/ui/IconButton.tsx	2026-11-16 05:43:15.819765814 +0000
 +++ b/src/ui/IconButton.tsx	2026-11-16 16:12:20.616795856 +0000
 @@ -16,9 +16,9 @@
@@ -7359,7 +7491,7 @@ diff -ruN a/src/ui/IconButton.tsx b/src/ui/IconButton.tsx
  
    return (
      <Pressable
-diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Input.tsx web/src/ui/Input.tsx
 --- a/src/ui/Input.tsx	2026-11-16 05:43:15.819457108 +0000
 +++ b/src/ui/Input.tsx	2026-11-16 07:14:18.910067307 +0000
 @@ -1,4 +1,5 @@
@@ -7447,7 +7579,7 @@ diff -ruN a/src/ui/Input.tsx b/src/ui/Input.tsx
 +  multiline: { minHeight: 96, textAlignVertical: 'top' },
    helper: { fontSize: 14, lineHeight: 20 },
  });
-diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ListGroup.tsx web/src/ui/ListGroup.tsx
 --- a/src/ui/ListGroup.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ListGroup.tsx	2026-11-16 16:47:50.299697444 +0000
 @@ -0,0 +1,139 @@
@@ -7590,7 +7722,7 @@ diff -ruN a/src/ui/ListGroup.tsx b/src/ui/ListGroup.tsx
 +  rowValue: { fontSize: FONT_SIZE.sm, flexShrink: 1, maxWidth: '45%', textAlign: 'right' },
 +  disabled: { opacity: 0.5 },
 +});
-diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/LogControl.tsx web/src/ui/LogControl.tsx
 --- a/src/ui/LogControl.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/LogControl.tsx	2026-11-16 16:58:53.757610551 +0000
 @@ -0,0 +1,245 @@
@@ -7839,7 +7971,7 @@ diff -ruN a/src/ui/LogControl.tsx b/src/ui/LogControl.tsx
 +  controlLabel: { fontSize: FONT_SIZE.base, fontWeight: '600' },
 +  controlCaption: { fontSize: FONT_SIZE.sm },
 +});
-diff -ruN a/src/ui/MenuSheet.tsx b/src/ui/MenuSheet.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/MenuSheet.tsx web/src/ui/MenuSheet.tsx
 --- a/src/ui/MenuSheet.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/MenuSheet.tsx	2026-11-16 05:48:00.594758141 +0000
 @@ -0,0 +1,54 @@
@@ -7897,7 +8029,7 @@ diff -ruN a/src/ui/MenuSheet.tsx b/src/ui/MenuSheet.tsx
 +}
 +
 +const styles = StyleSheet.create({ caption: { fontSize: FONT_SIZE.sm, lineHeight: 20 } });
-diff -ruN a/src/ui/MilestoneBadge.tsx b/src/ui/MilestoneBadge.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/MilestoneBadge.tsx web/src/ui/MilestoneBadge.tsx
 --- a/src/ui/MilestoneBadge.tsx	2026-11-16 05:43:15.819486436 +0000
 +++ b/src/ui/MilestoneBadge.tsx	2026-11-16 16:56:05.162102258 +0000
 @@ -16,7 +16,7 @@
@@ -7938,7 +8070,7 @@ diff -ruN a/src/ui/MilestoneBadge.tsx b/src/ui/MilestoneBadge.tsx
 +  pill: { width: 60, height: 60, borderRadius: RADIUS.pill, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 +  label: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
  });
-diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ProgressRing.tsx web/src/ui/ProgressRing.tsx
 --- a/src/ui/ProgressRing.tsx	2026-11-16 05:43:15.819476749 +0000
 +++ b/src/ui/ProgressRing.tsx	2026-11-16 16:49:01.526380843 +0000
 @@ -10,10 +10,18 @@
@@ -7991,7 +8123,7 @@ diff -ruN a/src/ui/ProgressRing.tsx b/src/ui/ProgressRing.tsx
 -  label: { position: 'absolute', fontSize: 14, fontWeight: '700', textAlign: 'center' },
 +  label: { position: 'absolute', fontSize: 14, fontWeight: '800', textAlign: 'center', fontVariant: ['tabular-nums'] },
  });
-diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Radio.tsx web/src/ui/Radio.tsx
 --- a/src/ui/Radio.tsx	2026-11-16 05:43:15.819596120 +0000
 +++ b/src/ui/Radio.tsx	2026-11-16 05:48:00.601577588 +0000
 @@ -1,7 +1,12 @@
@@ -8072,7 +8204,7 @@ diff -ruN a/src/ui/Radio.tsx b/src/ui/Radio.tsx
 +  groupLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
  });
-diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Screen.tsx web/src/ui/Screen.tsx
 --- a/src/ui/Screen.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/Screen.tsx	2026-11-17 04:56:02.807647041 +0000
 @@ -0,0 +1,65 @@
@@ -8141,7 +8273,7 @@ diff -ruN a/src/ui/Screen.tsx b/src/ui/Screen.tsx
 +  content: { flexGrow: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s2, paddingBottom: SPACE.s5, gap: SPACE.s3 },
 +  actionBar: { borderTopWidth: 1, paddingHorizontal: SPACE.s3, paddingTop: SPACE.s3, gap: SPACE.s2 },
 +});
-diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ScreenHeader.tsx web/src/ui/ScreenHeader.tsx
 --- a/src/ui/ScreenHeader.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/ScreenHeader.tsx	2026-11-16 07:04:17.692638736 +0000
 @@ -0,0 +1,70 @@
@@ -8215,7 +8347,7 @@ diff -ruN a/src/ui/ScreenHeader.tsx b/src/ui/ScreenHeader.tsx
 +  subtitle: { fontSize: FONT_SIZE.sm, lineHeight: 18 },
 +  right: { flexDirection: 'row', alignItems: 'center' },
 +});
-diff -ruN a/src/ui/ScreenStub.tsx b/src/ui/ScreenStub.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/ScreenStub.tsx web/src/ui/ScreenStub.tsx
 --- a/src/ui/ScreenStub.tsx	2026-11-16 05:43:15.819626256 +0000
 +++ b/src/ui/ScreenStub.tsx	2026-11-17 04:52:48.075640077 +0000
 @@ -3,9 +3,9 @@
@@ -8283,7 +8415,7 @@ diff -ruN a/src/ui/ScreenStub.tsx b/src/ui/ScreenStub.tsx
    rowLabel: { fontSize: 12, width: 72 },
    rowValue: { fontSize: 14, flexShrink: 1 },
    note: { fontSize: 14, lineHeight: 22 },
-diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Select.tsx web/src/ui/Select.tsx
 --- a/src/ui/Select.tsx	2026-11-16 05:43:15.819553716 +0000
 +++ b/src/ui/Select.tsx	2026-11-16 07:14:18.910213350 +0000
 @@ -1,9 +1,10 @@
@@ -8402,7 +8534,7 @@ diff -ruN a/src/ui/Select.tsx b/src/ui/Select.tsx
    },
    optionLabel: { fontSize: 16, flexShrink: 1 },
  });
-diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/StatTile.tsx web/src/ui/StatTile.tsx
 --- a/src/ui/StatTile.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/StatTile.tsx	2026-11-16 17:43:27.656822200 +0000
 @@ -0,0 +1,41 @@
@@ -8447,7 +8579,7 @@ diff -ruN a/src/ui/StatTile.tsx b/src/ui/StatTile.tsx
 +  value: { fontSize: FONT_SIZE.xl, lineHeight: 28, fontWeight: '800', fontVariant: ['tabular-nums'] },
 +  label: { fontSize: 13, fontWeight: '700' },
 +});
-diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Stepper.tsx web/src/ui/Stepper.tsx
 --- a/src/ui/Stepper.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/Stepper.tsx	2026-11-16 07:14:18.910624181 +0000
 @@ -0,0 +1,60 @@
@@ -8511,7 +8643,7 @@ diff -ruN a/src/ui/Stepper.tsx b/src/ui/Stepper.tsx
 +  value: { fontSize: FONT_SIZE.md, fontWeight: '700', minWidth: 28, textAlign: 'center', fontVariant: ['tabular-nums'] },
 +  helper: { fontSize: FONT_SIZE.sm, lineHeight: 20 },
 +});
-diff -ruN a/src/ui/SubStepScheduleGrid.tsx b/src/ui/SubStepScheduleGrid.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/SubStepScheduleGrid.tsx web/src/ui/SubStepScheduleGrid.tsx
 --- a/src/ui/SubStepScheduleGrid.tsx	2026-11-16 05:43:15.819562418 +0000
 +++ b/src/ui/SubStepScheduleGrid.tsx	2026-11-16 05:57:23.868963624 +0000
 @@ -1,22 +1,19 @@
@@ -8634,10 +8766,16 @@ diff -ruN a/src/ui/SubStepScheduleGrid.tsx b/src/ui/SubStepScheduleGrid.tsx
 +  step: { gap: SPACE.s1 + 2 },
 +  stepLabel: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
  });
-diff -ruN a/src/ui/Switch.tsx b/src/ui/Switch.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Switch.tsx web/src/ui/Switch.tsx
 --- a/src/ui/Switch.tsx	2026-11-16 05:43:15.819544456 +0000
-+++ b/src/ui/Switch.tsx	2026-11-16 07:22:01.724159695 +0000
-@@ -34,7 +34,7 @@
++++ b/src/ui/Switch.tsx	2026-11-17 05:14:19.621759301 +0000
+@@ -1,4 +1,5 @@
+ /** M0 kit — Verdant `Switch`. Pill track + knob, `--ease-tactile` overshoot on toggle. */
++import { play } from '@/services/sfx';
+ import { useEffect, useRef } from 'react';
+ import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
+ 
+@@ -34,7 +35,7 @@
      return () => animation.stop();
    }, [value, progress]);
  
@@ -8646,7 +8784,20 @@ diff -ruN a/src/ui/Switch.tsx b/src/ui/Switch.tsx
    const knobTranslate = progress.interpolate({
      inputRange: [0, 1],
      outputRange: [KNOB_INSET, TRACK_WIDTH - KNOB_SIZE - KNOB_INSET],
-diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
+@@ -42,7 +43,11 @@
+ 
+   return (
+     <Pressable
+-      onPress={() => !disabled && onValueChange(!value)}
++      onPress={() => {
++        if (disabled) return;
++        play(value ? 'toggle_off' : 'toggle_on');
++        onValueChange(!value);
++      }}
+       disabled={disabled}
+       accessibilityRole="switch"
+       accessibilityLabel={accessibilityLabel}
+diff -ruN -x sounds.generated.ts web-orig/src/ui/TabSummary.tsx web/src/ui/TabSummary.tsx
 --- a/src/ui/TabSummary.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/TabSummary.tsx	2026-11-16 17:43:27.653430206 +0000
 @@ -0,0 +1,91 @@
@@ -8741,7 +8892,7 @@ diff -ruN a/src/ui/TabSummary.tsx b/src/ui/TabSummary.tsx
 +  tileTop: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
 +  tileMain: { fontSize: FONT_SIZE.lg, lineHeight: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
 +});
-diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Tabs.tsx web/src/ui/Tabs.tsx
 --- a/src/ui/Tabs.tsx	2026-11-16 05:43:15.819659401 +0000
 +++ b/src/ui/Tabs.tsx	2026-11-16 07:14:18.909685843 +0000
 @@ -1,7 +1,10 @@
@@ -8812,7 +8963,7 @@ diff -ruN a/src/ui/Tabs.tsx b/src/ui/Tabs.tsx
 +  label: { fontSize: FONT_SIZE.sm },
 +  disabled: { opacity: 0.5 },
  });
-diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/TaskIcon.tsx web/src/ui/TaskIcon.tsx
 --- a/src/ui/TaskIcon.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/TaskIcon.tsx	2026-11-17 04:23:45.577631452 +0000
 @@ -0,0 +1,26 @@
@@ -8842,7 +8993,7 @@ diff -ruN a/src/ui/TaskIcon.tsx b/src/ui/TaskIcon.tsx
 +}
 +
 +const styles = StyleSheet.create({ root: { borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' } });
-diff -ruN a/src/ui/Textarea.tsx b/src/ui/Textarea.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Textarea.tsx web/src/ui/Textarea.tsx
 --- a/src/ui/Textarea.tsx	2026-11-16 05:43:15.819686388 +0000
 +++ b/src/ui/Textarea.tsx	2026-11-16 07:14:18.910336358 +0000
 @@ -10,9 +10,10 @@
@@ -8877,7 +9028,7 @@ diff -ruN a/src/ui/Textarea.tsx b/src/ui/Textarea.tsx
 -  field: { borderWidth: 1, borderRadius: RADIUS.sm, paddingVertical: SPACE.s2, paddingHorizontal: SPACE.s2, fontSize: 16, minHeight: 96, textAlignVertical: 'top' },
 +  field: { borderWidth: 1, borderRadius: RADIUS.md, paddingVertical: SPACE.s2 + 2, paddingHorizontal: SPACE.s2 + 4, fontSize: 16, minHeight: 96, textAlignVertical: 'top' },
  });
-diff -ruN a/src/ui/Toast.tsx b/src/ui/Toast.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/Toast.tsx web/src/ui/Toast.tsx
 --- a/src/ui/Toast.tsx	2026-11-16 05:43:15.819668266 +0000
 +++ b/src/ui/Toast.tsx	2026-11-16 07:17:35.677906885 +0000
 @@ -1,70 +1,110 @@
@@ -9028,7 +9179,7 @@ diff -ruN a/src/ui/Toast.tsx b/src/ui/Toast.tsx
 +  action: { minHeight: 44, paddingHorizontal: SPACE.s2 + 4, justifyContent: 'center' },
 +  actionLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700', textDecorationLine: 'underline' },
  });
-diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/TrendGraph.tsx web/src/ui/TrendGraph.tsx
 --- a/src/ui/TrendGraph.tsx	2026-11-16 05:43:15.819582912 +0000
 +++ b/src/ui/TrendGraph.tsx	2026-11-16 06:17:32.401450885 +0000
 @@ -1,23 +1,23 @@
@@ -9267,7 +9418,7 @@ diff -ruN a/src/ui/TrendGraph.tsx b/src/ui/TrendGraph.tsx
 +  tableWide: { flex: 1.35, fontSize: FONT_SIZE.xs, textAlign: 'right', fontVariant: ['tabular-nums'] },
 +  tableCell: { flex: 1, fontSize: FONT_SIZE.xs, textAlign: 'right', fontVariant: ['tabular-nums'] },
  });
-diff -ruN a/src/ui/VoiceMark.tsx b/src/ui/VoiceMark.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/VoiceMark.tsx web/src/ui/VoiceMark.tsx
 --- a/src/ui/VoiceMark.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/VoiceMark.tsx	2026-11-17 03:04:28.697911419 +0000
 @@ -0,0 +1,63 @@
@@ -9334,7 +9485,7 @@ diff -ruN a/src/ui/VoiceMark.tsx b/src/ui/VoiceMark.tsx
 +    </View>
 +  );
 +}
-diff -ruN a/src/ui/WeekStrip.tsx b/src/ui/WeekStrip.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/WeekStrip.tsx web/src/ui/WeekStrip.tsx
 --- a/src/ui/WeekStrip.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/WeekStrip.tsx	2026-11-16 16:47:50.308240740 +0000
 @@ -0,0 +1,70 @@
@@ -9408,7 +9559,7 @@ diff -ruN a/src/ui/WeekStrip.tsx b/src/ui/WeekStrip.tsx
 +  dot: { alignItems: 'center', justifyContent: 'center' },
 +  label: { fontSize: FONT_SIZE.xs },
 +});
-diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/WeekdayPicker.tsx web/src/ui/WeekdayPicker.tsx
 --- a/src/ui/WeekdayPicker.tsx	2026-11-16 05:43:15.819795475 +0000
 +++ b/src/ui/WeekdayPicker.tsx	2026-11-16 16:12:20.616951465 +0000
 @@ -1,12 +1,11 @@
@@ -9515,7 +9666,7 @@ diff -ruN a/src/ui/WeekdayPicker.tsx b/src/ui/WeekdayPicker.tsx
 +  mark: { position: 'absolute', bottom: 5, width: 4, height: 4, borderRadius: RADIUS.pill },
 +  error: { fontSize: FONT_SIZE.sm },
  });
-diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/XPBar.tsx web/src/ui/XPBar.tsx
 --- a/src/ui/XPBar.tsx	2026-11-16 05:43:15.819524086 +0000
 +++ b/src/ui/XPBar.tsx	2026-11-16 16:47:50.300321684 +0000
 @@ -34,7 +34,7 @@
@@ -9539,7 +9690,7 @@ diff -ruN a/src/ui/XPBar.tsx b/src/ui/XPBar.tsx
 -  subline: { fontSize: 13 },
 +  subline: { fontSize: 14 },
  });
-diff -ruN a/src/ui/index.ts b/src/ui/index.ts
+diff -ruN -x sounds.generated.ts web-orig/src/ui/index.ts web/src/ui/index.ts
 --- a/src/ui/index.ts	2026-11-16 05:43:15.819514483 +0000
 +++ b/src/ui/index.ts	2026-11-16 17:43:27.653265577 +0000
 @@ -24,6 +24,13 @@
@@ -9579,7 +9730,7 @@ diff -ruN a/src/ui/index.ts b/src/ui/index.ts
 +export { DateField, TimeField, formatDateValue, formatTimeValue, type DateFieldProps, type TimeFieldProps } from './DateField';
 +export { TaskIcon, type TaskIconProps } from './TaskIcon';
 +export { Stepper, type StepperProps } from './Stepper';
-diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
+diff -ruN -x sounds.generated.ts web-orig/src/ui/motion.tsx web/src/ui/motion.tsx
 --- a/src/ui/motion.tsx	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/motion.tsx	2026-11-17 03:04:50.202799709 +0000
 @@ -0,0 +1,83 @@
@@ -9666,7 +9817,7 @@ diff -ruN a/src/ui/motion.tsx b/src/ui/motion.tsx
 +  burst: { position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, zIndex: 5 },
 +  piece: { position: 'absolute', width: 7, height: 10, borderRadius: 2 },
 +});
-diff -ruN a/src/ui/surface.ts b/src/ui/surface.ts
+diff -ruN -x sounds.generated.ts web-orig/src/ui/surface.ts web/src/ui/surface.ts
 --- a/src/ui/surface.ts	1970-01-01 00:00:00.000000000 +0000
 +++ b/src/ui/surface.ts	2026-11-16 17:43:27.653087775 +0000
 @@ -0,0 +1,44 @@
@@ -11288,8 +11439,12 @@ diff -ruN a/app/add/todo.tsx b/app/add/todo.tsx
 -});
 diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
 --- a/app/assistant/chat.tsx	2026-11-16 05:43:15.826855234 +0000
-+++ b/app/assistant/chat.tsx	2026-11-17 04:52:30.544665534 +0000
-@@ -6,11 +6,10 @@
++++ b/app/assistant/chat.tsx	2026-11-17 05:15:02.606088689 +0000
+@@ -3,14 +3,14 @@
+  * Owner: M6. Features: F16.
+  * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S32)
+  */
++import { play } from '@/services/sfx';
  import { useEffect, useRef, useState } from 'react';
  import { ScrollView, StyleSheet, Text, View } from 'react-native';
  import { format } from 'date-fns';
@@ -11302,7 +11457,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
  import { ClarificationModal } from '@/features/assistant/ClarificationModal';
  import { OptionsSheet } from '@/features/assistant/OptionsSheet';
  import { EditUndoBanner } from '@/features/assistant/EditUndoBanner';
-@@ -23,8 +22,8 @@
+@@ -23,8 +23,8 @@
  import { billing } from '@/services/billing';
  import { parseLocalDate } from '@/lib/date';
  import type { Id } from '@/types';
@@ -11313,7 +11468,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
  
  export default function S32AssistantConversation() {
    const t = useTheme();
-@@ -86,7 +85,7 @@
+@@ -86,7 +86,7 @@
      // caller (docs/API.md §3: a mutation never reports success on a failed write). The
      // returned flag also tells `OptionsSheet` whether to keep its optimistic override.
      const saved = await voiceLanguage.save({ language, voice });
@@ -11322,7 +11477,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
      return saved;
    }
  
-@@ -102,10 +101,6 @@
+@@ -102,10 +102,6 @@
      scrollRef.current?.scrollToEnd({ animated: true });
    }, [items.length, isStreaming]);
  
@@ -11333,7 +11488,23 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
    function handleDoneRecap() {
      if (router.canGoBack()) router.back();
      else router.replace('/assistant' as Href);
-@@ -136,53 +131,52 @@
+@@ -119,6 +115,7 @@
+ 
+   async function handleMicToggle() {
+     if (modality === 'voice') {
++      play('ai_stop');
+       setModality('text');
+       return;
+     }
+@@ -129,6 +126,7 @@
+       router.push('/assistant/mic-primer?context=recovery' as Href);
+       return;
+     }
++    play('ai_start');
+     setModality('voice');
+     // Honest disclosure of what's still stubbed: the native record → transcribe → send loop
+     // itself (driving `expo-audio`'s recorder against real hardware) is legitimately
+@@ -136,53 +134,52 @@
      // visual modality state. That capture loop is the one seam left behind this comment.
    }
  
@@ -11429,7 +11600,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
            return <EditUndoBanner key={item.id} label={item.label} onUndo={item.onUndo} undone={item.undone} />;
          })}
          {isStreaming ? (
-@@ -192,37 +186,16 @@
+@@ -192,37 +189,16 @@
          ) : null}
        </ScrollView>
  
@@ -11477,7 +11648,7 @@ diff -ruN a/app/assistant/chat.tsx b/app/assistant/chat.tsx
  
        <ClarificationModal
          visible={!!clarification}
-@@ -259,22 +232,15 @@
+@@ -259,22 +235,15 @@
          voiceLanguage={voiceLanguage.prefs}
          onSaveVoiceLanguage={handleSaveVoiceLanguage}
        />
@@ -11778,14 +11949,15 @@ diff -ruN a/app/assistant/history/index.tsx b/app/assistant/history/index.tsx
 -});
 diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 --- a/app/assistant/index.tsx	2026-11-16 05:43:15.826867228 +0000
-+++ b/app/assistant/index.tsx	2026-11-16 16:56:05.162679895 +0000
-@@ -1,18 +1,13 @@
++++ b/app/assistant/index.tsx	2026-11-17 05:14:37.839215402 +0000
+@@ -1,18 +1,14 @@
 -/**
 - * S31 — Assistant Home    route: /assistant
 - * Owner: M6. Features: F16.
 - * Spec: design-input/fallback-handoff/uploads/ALLSCREENS_1.md (S31)
 - */
 +/** S31 — Assistant home    route: /assistant */
++import { play } from '@/services/sfx';
  import { useState } from 'react';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
 -import { ArrowUp, Mic } from 'lucide-react-native';
@@ -11803,7 +11975,7 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
  
  export default function S31AssistantHome() {
    const t = useTheme();
-@@ -26,149 +21,97 @@
+@@ -26,149 +22,98 @@
    }
  
    function handleMicPress() {
@@ -11817,6 +11989,7 @@ diff -ruN a/app/assistant/index.tsx b/app/assistant/index.tsx
 -    }
 +    if (!isEntitled) return router.push('/assistant/paywall' as Href);
 +    if (!micGranted) return router.push('/assistant/mic-primer?context=primer' as Href);
++    play('ai_start');
      goToConversation(undefined, true);
    }
  
@@ -14528,8 +14701,8 @@ diff -ruN a/app/settings/help.tsx b/app/settings/help.tsx
  });
 diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 --- a/app/settings/index.tsx	2026-11-16 05:43:15.826722413 +0000
-+++ b/app/settings/index.tsx	2026-11-16 16:12:20.619560064 +0000
-@@ -1,34 +1,17 @@
++++ b/app/settings/index.tsx	2026-11-17 05:19:49.348895835 +0000
+@@ -1,34 +1,18 @@
 -/**
 - * S41 — Settings Home    route: /settings
 - * Owner: M7. Features: F8, F13, F14, F17, F19, F20, F21, F25.
@@ -14553,7 +14726,7 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 -  type LucideIcon,
 -} from 'lucide-react-native';
 -import { ScrollView, StyleSheet, Text, View } from 'react-native';
-+import { Award, Bell, CalendarDays, Cloud, HardDrive, HelpCircle, History, Palette, Sparkles, SquareStack, type LucideIcon, Bot } from 'lucide-react-native';
++import { Award, Bell, CalendarDays, Cloud, HardDrive, HelpCircle, History, Palette, Sparkles, SquareStack, type LucideIcon, Bot, Volume2 } from 'lucide-react-native';
 +import { useAgentAccessStore } from '@/features/agents/store';
 +import { StyleSheet, Text, View } from 'react-native';
  
@@ -14566,11 +14739,12 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 -import { Badge, Button, Card, IconButton, Skeleton } from '@/ui';
 -import { ChevronLeft } from 'lucide-react-native';
 +import { FONT_SIZE, RADIUS, useTheme } from '@/theme';
-+import { ListGroup, ListRow, Screen, Skeleton } from '@/ui';
++import { play, useSoundStore } from '@/services/sfx';
++import { ListGroup, ListRow, Screen, Skeleton, Switch } from '@/ui';
  
  const ROW_ICON: Record<string, LucideIcon> = {
    Badges: Award,
-@@ -38,24 +21,33 @@
+@@ -38,24 +22,33 @@
    Widgets: SquareStack,
    'Fallback AI subscription': Sparkles,
    'Conversation history': History,
@@ -14605,7 +14779,7 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
  export default function S41SettingsHome() {
    const t = useTheme();
    const router = useRouter();
-@@ -63,115 +55,67 @@
+@@ -63,115 +56,88 @@
    const progressQuery = useProgress();
    const statQuery = useConsistency({ scope: 'aggregate', window: 'last-30' });
    const entitlement = useEntitlementStore((s) => s.entitlement);
@@ -14624,6 +14798,8 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
      initWidgetsBridge();
    }, []);
  
++  const soundsOn = useSoundStore((s) => s.on);
++  const setSoundsOn = useSoundStore((s) => s.setOn);
 +  const stat = statQuery.isError
 +    ? S41_COPY.statLoadError
 +    : statQuery.data?.percent != null
@@ -14692,6 +14868,25 @@ diff -ruN a/app/settings/index.tsx b/app/settings/index.tsx
 +          />
 +        </ListGroup>
 +      )}
++
++      <ListGroup>
++        <ListRow
++          icon={Volume2}
++          label="Sounds"
++          sublabel="Small sounds when you log, tick and switch things."
++          right={
++            <Switch
++              value={soundsOn}
++              onValueChange={(v) => {
++                setSoundsOn(v);
++                // Turning sounds on answers with a sound; turning them off answers with silence.
++                if (v) play('toggle_on');
++              }}
++              accessibilityLabel={`Sounds, ${soundsOn ? 'on' : 'off'}`}
++            />
++          }
++        />
++      </ListGroup>
  
        {S41_COPY.sections.map((section) => (
 -        <Card key={section.label} accessibilityLabel={section.label}>
@@ -16692,8 +16887,8 @@ diff -ruN a/app/task/[id]/icon.tsx b/app/task/[id]/icon.tsx
  });
 diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 --- a/app/task/[id]/index.tsx	2026-11-16 05:43:15.826464829 +0000
-+++ b/app/task/[id]/index.tsx	2026-11-17 04:24:38.261710577 +0000
-@@ -1,38 +1,42 @@
++++ b/app/task/[id]/index.tsx	2026-11-17 05:14:37.832734030 +0000
+@@ -1,38 +1,43 @@
  /**
 - * S20 — Manage Task Sheet    route: /task/:id
 - * Owner: M4. Features: F3, F4, F7, F12, F23, F24.
@@ -16711,6 +16906,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
   */
 -import { useState } from 'react';
 -import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
++import { play } from '@/services/sfx';
 +import { useEffect, useState } from 'react';
 +import { Pressable, StyleSheet, Text, View } from 'react-native';
  import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -16753,7 +16949,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  import { isDue, perTaskConsistency } from '@/domain';
  import {
    useConsistency,
-@@ -48,38 +52,32 @@
+@@ -48,38 +53,32 @@
    useUpdateTask,
  } from '@/queries';
  import { useToastStore } from '@/app-shell/stores/toast';
@@ -16809,7 +17005,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
  
    const taskQuery = useTask(taskId);
    const today = todayFn();
-@@ -90,12 +88,7 @@
+@@ -90,12 +89,7 @@
    const monthFrom = startOfMonth(monthAnchor);
    const monthTo = endOfMonth(monthAnchor);
    const monthOccQuery = useTaskOccurrences(taskId, { from: monthFrom, to: monthTo });
@@ -16822,7 +17018,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    const [popoverDate, setPopoverDate] = useState<LocalDate | null>(null);
  
    const updateTask = useUpdateTask();
-@@ -107,100 +100,78 @@
+@@ -107,100 +101,78 @@
    const snoozeOccurrence = useSnoozeOccurrence();
    const undoSnooze = useUndoSnooze();
  
@@ -16957,7 +17153,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
    }
  
    const snoozeSlot = task
-@@ -210,380 +181,373 @@
+@@ -210,380 +182,375 @@
    async function onSnoozeSlotPress() {
      if (snoozeSlot.kind === 'undo') {
        const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
@@ -16974,7 +17170,8 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 -  function onDelete() {
 -    router.push(`/task/${taskId}/delete?openedFrom=manage&origin=${from ?? ''}` as never);
 +    if (!result.ok) fail();
-+    else
++    else {
++      play('snooze');
 +      showToast('Moved to tomorrow', 'neutral', {
 +        action: {
 +          label: 'Undo',
@@ -16986,6 +17183,7 @@ diff -ruN a/app/task/[id]/index.tsx b/app/task/[id]/index.tsx
 +            })(),
 +        },
 +      });
++    }
    }
  
 -  function startScheduleEdit() {

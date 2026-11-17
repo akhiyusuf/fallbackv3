@@ -2,39 +2,70 @@
 
 Rule from the human (2026-11-17): **no musical instruments in the app.** Sounds are things hitting things (an iron rod on an iron bar, not a bell).
 
-Rule from the human: do not go overboard. Twelve short source sounds were generated; every sound the app plays is cut from one of them by editing (trim, level, pitch, repeats, echo where it helps).
+Rule from the human: do not go overboard. Every sound the app plays is cut from one of six short source takes by editing (trim, level, pitch, repeats, echo where it helps).
 
 ## How they are made
 
-- Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. 48 clips, about 140 credits.
-- The human picks one take per job on the "Fallback Sound Picker" page (https://claude.ai/artifact/Tybxk4ZABSdF8L5DzXK5c6) and can leave a note per sound. Picks are stored in that page's database, collection `picks`, one document per job: `{choice: "<label>_<n>" | "redo" | "none", note}`.
-- The raw takes are not in the repo (they live in the ElevenLabs flow "Fallback app sounds"); `docs/design-rebuild/sound-picker/generations.json` lists every take's generation id.
-- Each pick is then edited: levels matched across the set, tails trimmed, pitch and repeats used to make the variants, echo only where it suits.
+- Generated with ElevenLabs Sound Effects v2 through the connected account, 4 takes each, prompt influence 0.75, fixed length, no loop. Round one: 12 sounds, 48 takes, about 140 credits. Round two: 4 sounds, 16 takes, about 36 credits.
+- The human picks takes on a picker page and can leave a note per sound. Picks are stored in the page's database, collection `picks`, one document per job: `{choice: "<label>_<n>" | "redo" | "none", note}`.
+  - Round one: "Fallback Sound Picker", https://claude.ai/artifact/Tybxk4ZABSdF8L5DzXK5c6 (source in `sound-picker/`). Answered.
+  - Round two: "Fallback Sound Picker 2", https://claude.ai/artifact/6JuV4MSQ3FfVu1eUHnh4hL (source in `sound-picker/round2/`). **Waiting for the human.** It also lists the fifteen edited sounds; a flagged one is stored as `picks/rev_<sound>` = `{choice: "change", note}`.
+- Only the six picked source takes are in the repo (`sound-edit/raw/`). Every take's generation id is in `sound-picker/generations.json` and `sound-picker/round2/generations.json`.
 - AI-generated: credit as "ElevenLabs Sound Effects v2 (AI)". The account is on the Starter plan; confirm its licence covers a shipped app before release.
 
-## Source sounds and where each is used
+## Round-one picks (2026-11-17)
 
-| Job in the app | Source sound | Seconds | Prompt |
-|---|---|---|---|
-| The done sound | `iron_ting` (Iron rod on an iron bar) | 1.5 | Small iron rod striking a thick hanging iron bar once, clear bright ringing ting with a short ring, close-mic, dry |
-| The done sound | `glass_clink` (Spoon on a glass jar) | 1.0 | Metal teaspoon tapping the side of a thick glass jar once, bright short clink, close-mic, dry |
-| The done sound | `stone_click` (Two pebbles) | 0.6 | Two smooth river pebbles knocked together once, crisp bright click, close-mic, dry |
-| Skip, and something went wrong | `wood_knock` (Knuckle on a wooden table) | 0.6 | Knuckle knocking once on a thick wooden table, soft low muted knock, close-mic, dry |
-| Buttons and tabs | `tap` (Fingertip on a desk) | 0.5 | Fingertip tapping once on a wooden desk, very soft short muted tap, close-mic, dry |
-| Switches and step ticks | `switch_click` (Light switch) | 0.5 | Small plastic light switch flicked once, soft crisp click, close-mic, dry |
-| Ticking a to-do | `pencil_check` (Pencil check mark) | 0.7 | Pencil drawing one quick check mark on paper, short scratch, close-mic, dry |
-| Undo, menus, next step | `swish` (Paper through the air) | 0.6 | Sheet of paper swished quickly through the air once, short soft whoosh, close-mic, dry |
-| Moved to tomorrow | `page_flip` (Calendar page) | 0.8 | Single paper calendar page flipped over quickly, close-mic, dry |
-| Saved | `block_clunk` (Wooden block into a box) | 0.7 | Small wooden toy block dropped into a wooden box, one short solid clunk, close-mic, dry |
-| Badge earned and level up | `coin` (Coin settling on a table) | 1.5 | Single metal coin spinning and settling quickly on a wooden table, bright, close-mic, dry |
-| Fallback AI | `glass_flick` (Fingernail on a drinking glass) | 1.2 | Fingernail flicking the rim of a thin empty drinking glass once, soft high clear ping, close-mic, dry |
+| Job | Pick | Note from the human |
+|---|---|---|
+| The done sound | `iron_ting_3` | |
+| Skip, and something went wrong | `wood_knock_1` | |
+| Switches and step ticks | `switch_click_1` | |
+| Ticking a to-do | `pencil_check_1` | "where would this be used though?" Answer: when a to-do is ticked on the To-dos tab. |
+| Undo, menus, next step | no sound | "use no 4 for the sound in moved to tomorrow" (so `swish_4` is the moved-to-tomorrow sound) |
+| Saved | redo | "I'm not a fan of wood saving things" |
+| Badge earned and level up | redo | Not the sound, the thing: a coin does not say "earned a badge". |
+| Fallback AI | `glass_flick_2` | |
+| Buttons and tabs | no answer | Silent for now; asked again in round two. |
+| Moved to tomorrow (calendar page) | no answer | Replaced by `swish_4`, as the note asks. |
 
-## Planned edits
+## The edit (sound director pass)
 
-- Done: two hits of the chosen done sound, the second pitched up. Fallback: one softer hit. All done for today: a short rising run. Reminder: two calm hits.
-- Something went wrong: two quick knocks. Closing a menu: the swish reversed. Fallback AI start and stop: the glass flick pitched up and down.
-- Level up: the rising run with the coin under it.
+`sound-edit/edit.py` (needs ffmpeg) cuts all fifteen sounds from `sound-edit/raw/` into `sound-edit/out/` as 32 kHz mono 16-bit WAV, 824 KB in total, and writes `out/report.json` with the measured levels.
+
+Each source take is trimmed to the useful part, high-passed to remove rumble, faded at both ends and brought to the same peak. Then:
+
+- **Levels follow how often a sound is heard.** Switches and ticks are the quietest (peaks at -14 to -12 dBFS), logging sits in the middle (-10 to -5), and the two rare, happy sounds are the loudest (-4 and -3).
+- **Echo only on the rare ones.** Frequent sounds are dry. Day finished, reminder and assistant finished get a short soft echo (`aecho=0.9:0.5:110|230:0.22|0.10`); level up gets a wider one (`aecho=0.9:0.6:120|250|390:0.30|0.16|0.08`).
+- **One family.** Done, fallback, day finished, level up and reminder are all the same iron hit, so they belong together: more hits and a higher finish mean a bigger moment. Fallback is deliberately one softer, duller hit next to Done's two.
+
+| Sound | Plays when | How it is cut | Source take | Seconds | Peak dBFS | Echo |
+|---|---|---|---|---|---|---|
+| `log_ideal` | Logging a task as done | Iron hit twice, the second 5 semitones up, 140 ms apart | `iron_ting_3` | 1.15 | -4.9 | none |
+| `log_fallback` | Logging the fallback | One iron hit, highs rolled off at 5.2 kHz | `iron_ting_3` | 0.85 | -8.0 | none |
+| `log_skip` | Skip today | One knock | `wood_knock_1` | 0.42 | -10.0 | none |
+| `day_complete` | Last open task of the day logged (only when the day has more than one task) | Four rising iron hits (0, +4, +7, +12 semitones), 110 ms apart | `iron_ting_3` | 1.9 | -4.1 | soft |
+| `level_up` | Reaching a new level (700 ms after the log sound) | Five rising iron hits (0, +4, +7, +12, +16) | `iron_ting_3` | 2.3 | -3.3 | wide |
+| `reminder` | With a notification; in the preview, tapping a sample notification | Two iron hits (0, +7), 320 ms apart, highs rolled off at 4.8 kHz | `iron_ting_3` | 1.6 | -6.1 | soft |
+| `error` | A warning toast (something could not be saved) | Two knocks, the second 2 semitones down, 150 ms apart | `wood_knock_1` | 0.6 | -8.0 | none |
+| `toggle_on` | Any switch turned on | Switch click, 3 semitones up | `switch_click_1` | 0.22 | -15.2 | none |
+| `toggle_off` | Any switch turned off | Switch click, 3 semitones down | `switch_click_1` | 0.26 | -13.5 | none |
+| `step_tick` | Ticking a checkbox (a routine step) | Switch click, unpitched | `switch_click_1` | 0.24 | -12.0 | none |
+| `todo_done` | Ticking a to-do on the To-dos tab | Pencil check mark, trimmed | `pencil_check_1` | 0.62 | -9.8 | none |
+| `snooze` | Moving a task to tomorrow | Paper swish take 4, trimmed | `swish_4` | 0.4 | -9.9 | none |
+| `ai_start` | Assistant microphone starts listening | Glass flick, 4 semitones up | `glass_flick_2` | 0.6 | -8.9 | none |
+| `ai_stop` | Assistant microphone stops listening | Glass flick, 3 semitones down | `glass_flick_2` | 0.7 | -8.8 | none |
+| `ai_done` | Not used yet (made for "assistant finished") | Two glass flicks (0, +7), 160 ms apart | `glass_flick_2` | 1.3 | -8.3 | soft |
+
+## Where it lives in the preview
+
+- `src/services/sfx/index.ts`: `play(name, delayMs?)` and `useSoundStore` (`on`, `setOn`). Web Audio in the browser preview; the audio is inlined in `sounds.generated.ts`, which is left out of the patch (rebuild it with `python3 sound-edit/make_ts.py <path>`).
+- Hooks: `src/features/task/logFeedback.ts` (done, fallback, skip, level up), `TodayScreen.handleLog` (day finished), `src/app-shell/stores/toast.ts` (warning), `src/ui/Switch.tsx`, `src/ui/Checkbox.tsx`, `ToDosBrowseScreen.toggleDone`, `app/task/[id]/index.tsx` (moved to tomorrow), `app/assistant/index.tsx` and `chat.tsx` (microphone), `NotificationSample` (reminder).
+- Settings has a "Sounds" switch ("Small sounds when you log, tick and switch things."). Turning it on plays the switch sound; turning it off is silent.
+- Silent on purpose: undo, menus, onboarding steps (the human chose no sound). Silent until round two is answered: saving, badge earned, buttons and tabs.
 
 ## Still needed before builders touch it
 
-- A line in the PRD (sound is a new feature), a Sounds switch in Settings, silence when the phone is on silent, and the architect's choice of audio library.
+- A line in the PRD (sound is a new feature) and a `sounds` setting stored with the other settings (the preview keeps it in the browser only).
+- The architect's choice of audio library for the phone build, the sounds bundled as files, and silence when the phone is on silent.
+- The reminder sound attached to real notifications (a notification sound file per platform).
+- The answers from round two, then the edit for Saved and Badge earned.

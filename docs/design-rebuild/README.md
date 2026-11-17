@@ -11,6 +11,10 @@ this repo are unchanged.
 |---|---|
 | `design-rebuild.patch` | Every change to `src/` and `app/` (non-test files) that applies `docs/DESIGN_DECISIONS.md` to the app. Unified diff, `a/` = this repo, `b/` = rebuilt. |
 | `preview-harness/` | The pieces that run the real app in a browser: `web-shims/` (native modules replaced for web), `metro.config.js`, `package.json`, `app.config.ts`, `previewBridge.ts` (goes in `src/`), `+not-found.tsx` (goes in `app/`), `page/` (inlines the bundle into one HTML file), and the build and screenshot scripts. |
+| `SOUND_EFFECTS.md` | The sound rules, the human's picks, the edit and where each sound plays. |
+| `sound-edit/` | `edit.py` (cuts the fifteen app sounds from the picked takes), `raw/` (the six picked takes), `out/` (the finished WAVs and measured levels), `make_ts.py` (inlines them for the browser preview; that generated file is not in the patch). |
+| `sound-picker/` | Source of the two picker pages the human chooses takes on, and every take's generation id. |
+| `banners/` | Onboarding banner pictures: `cutout.sh` (cuts a render off its background), `banner_1.png` (cut-out), `banner_1.webp` (what the preview inlines). |
 
 ## Apply the patch to a working copy
 

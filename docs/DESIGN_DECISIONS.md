@@ -814,6 +814,37 @@ These change approved screens in `design-input/` (S02 to S08 layout, S06
 content, and the empty states of S09 to S13); the spec needs the same changes
 before builders work from them.
 
+### Round 4, ninth pass (2026-11-17, preview version 15)
+
+- **Sounds are in the preview.** The human picked takes (iron rod on an iron
+  bar for Done, a knock for Skip, a light switch, a pencil check mark, a glass
+  flick for the assistant, paper swish take 4 for "moved to tomorrow") and
+  asked for a sound director's edit. Fifteen sounds were cut from those six
+  takes: frequent sounds are quiet and dry, the rare happy ones (day
+  finished, level up) are the loudest and the only ones with echo. Full
+  table, levels and hook points: `docs/design-rebuild/SOUND_EFFECTS.md`.
+- **A "Sounds" switch in Settings** turns them all off. Undo, menus and
+  onboarding steps are silent because the human chose no sound for them.
+- **Rejected by the human:** a wooden block for "saved" ("not a fan of wood
+  saving things") and a coin for "badge earned" (a coin does not say "badge").
+  New takes (metal latch, rubber stamp, pin badge, medal, and two built from
+  the chosen iron hit) are on "Fallback Sound Picker 2"
+  (https://claude.ai/artifact/6JuV4MSQ3FfVu1eUHnh4hL), which also asks about
+  buttons and tabs (no answer in round one, silent for now) and lets the
+  human flag any of the fifteen edited sounds.
+- **Banner pictures, one at a time.** The human chose gpt-image-2 and asked
+  for one image at a time. Banner 1 (step 1, "a plan A and a plan B"): a big
+  and a small clay dumbbell, a green tick badge on the big one and a blue tick
+  badge on the small one, standing for ideal and fallback. It replaces the
+  drawn A and B cards. The model paints a fake checkerboard when asked for a
+  transparent background, so the picture is cut out locally
+  (`docs/design-rebuild/banners/cutout.sh`); later prompts should ask for a
+  plain flat light-grey background with no floor shadow. Steps 2 to 7 keep
+  their drawn stand-ins until the human has reacted to banner 1.
+- **New things the spec does not have yet:** sound (a setting, the files, an
+  audio library, silent-mode behaviour, the notification sound), and bundled
+  AI-made banner images (files per step, licence for AI-made content).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

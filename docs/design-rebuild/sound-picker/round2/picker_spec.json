@@ -1,0 +1,30 @@
+{
+ "jobs": [
+  {"id": "saved", "title": "Saved",
+   "pick": "Plays when you save a new task or an edit. No wood this time: a small metal latch closing, or a stamp on paper.",
+   "sources": [{"label": "latch_click", "name": "Metal latch on a tin box"}, {"label": "stamp", "name": "Rubber stamp on paper"}]},
+  {"id": "badge", "title": "Badge earned",
+   "pick": "Plays when you earn a badge. Two real things: a pin badge being fastened, and a medal knocking against another medal. The last row is built from the iron hit you already chose, so it belongs to the same family as Done: 1 is two quick hits then a higher one, 2 is one bright hit that rings out.",
+   "sources": [{"label": "pin_badge", "name": "Pin badge fastened onto fabric"}, {"label": "medal", "name": "Medal knocking a medal"}, {"label": "ting_badge", "name": "Built from your iron hit"}]},
+  {"id": "tap", "title": "Buttons and tabs",
+   "pick": "You did not choose one for this last time, so buttons and tabs are silent right now. Choose a take if you want a very quiet tap, or choose no sound to keep them silent.",
+   "sources": [{"label": "tap", "name": "Fingertip on a desk"}]}
+ ],
+ "review": [
+  {"id": "log_ideal", "name": "Done", "where": "Logging a task as done. Two hits, the second one higher."},
+  {"id": "log_fallback", "name": "Fallback", "where": "Logging the fallback. One softer, duller hit."},
+  {"id": "log_skip", "name": "Skip today", "where": "One quiet knock."},
+  {"id": "day_complete", "name": "Day finished", "where": "When the last task of the day is logged. A short rising run with a little echo."},
+  {"id": "level_up", "name": "Level up", "where": "A longer rising run with a wider echo. The loudest sound in the app."},
+  {"id": "reminder", "name": "Reminder", "where": "Arrives with a notification. Two calm hits, softened, with a little echo."},
+  {"id": "error", "name": "Could not save", "where": "Two quick knocks, the second one lower."},
+  {"id": "toggle_on", "name": "Switch on", "where": "Very quiet. Slightly higher than switch off."},
+  {"id": "toggle_off", "name": "Switch off", "where": "Very quiet. Slightly lower than switch on."},
+  {"id": "step_tick", "name": "Step ticked", "where": "Ticking one step of a routine."},
+  {"id": "todo_done", "name": "To-do ticked", "where": "The pencil check mark. Plays when you tick a to-do on the To-dos tab."},
+  {"id": "snooze", "name": "Moved to tomorrow", "where": "Paper swish, take 4, as you asked."},
+  {"id": "ai_start", "name": "Assistant listening", "where": "When you tap the microphone."},
+  {"id": "ai_stop", "name": "Assistant stopped listening", "where": "The same glass flick, lower."},
+  {"id": "ai_done", "name": "Assistant finished", "where": "Two flicks with a little echo. Made, but not used in the app yet."}
+ ]
+}

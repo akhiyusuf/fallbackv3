@@ -667,6 +667,22 @@ takes and wire them into the preview. Banner pictures: the human wants
 AI-made images in place of the onboarding drawings; none made yet. Still
 awaiting the human's approval of the look; nothing routed to pipeline agents.
 
+**Round 4, ninth pass (2026-11-17): Fallback Preview is at version 15.**
+Since version 14 it adds sounds and the first banner picture. Sounds: the
+human's round-one picks were edited into fifteen app sounds (levels matched,
+echo only on the rare ones) and wired in, with a "Sounds" switch in Settings;
+see `docs/design-rebuild/SOUND_EFFECTS.md`. Two picks were rejected (wood for
+"saved", a coin for "badge earned") and one was not answered (buttons and
+tabs), so "Fallback Sound Picker 2"
+(https://claude.ai/artifact/6JuV4MSQ3FfVu1eUHnh4hL) offers new takes and a
+review of the edited set. **Waiting for the human there.** Banner pictures:
+the human chose gpt-image-2, one image at a time; banner 1 (two clay
+dumbbells with a green and a blue tick) is in step 1 of onboarding.
+**Waiting for the human's verdict on banner 1 before making banner 2.**
+ElevenLabs credits used this pass: about 140 + 36 for sounds and 260 for the
+one image. Still awaiting the human's approval of the look; nothing routed to
+pipeline agents.
+
 **New feature request, built in the preview only: Priorities.** A screen where
 High, Medium and Low each hold a list in the person's own order
 (`task.priority_rank`, migration 007). It is a product feature and must go
