@@ -45,6 +45,8 @@ function buildTask(): Task {
     importance: null,
     necessity: null,
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,

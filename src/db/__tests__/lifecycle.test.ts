@@ -63,6 +63,8 @@ describe('StoreLifecycle', () => {
         importance: null,
         necessity: null,
         todoDoneAt: null,
+        priorityRank: null,
+        isNote: false,
         createdAt: '2026-01-01T00:00:00.000Z' as never,
         updatedAt: '2026-01-01T00:00:00.000Z' as never,
         deletedAt: null,

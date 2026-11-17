@@ -15,7 +15,7 @@ import { S05_COPY } from '@/features/onboarding/copy';
 describe('S05 — Onboarding: Consistency, not perfection', () => {
   it('renders the sample stat block labeled EXAMPLE, never wired to real data', async () => {
     await render(<S05OnboardingConsistencyNotPerfection />);
-    expect(screen.getByText(S05_COPY.eyebrow)).toBeTruthy();
+    expect(screen.getByText(S05_COPY.headline)).toBeTruthy();
     expect(screen.getByText(S05_COPY.bigNumeral)).toBeTruthy();
     expect(screen.getByText(S05_COPY.subLabel)).toBeTruthy();
   });

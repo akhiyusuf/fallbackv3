@@ -1,6 +1,6 @@
 /** M0 kit — Verdant `Switch`. Pill track + knob, `--ease-tactile` overshoot on toggle. */
 import { play } from '@/services/sfx';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 
 import { MIN_TAP_TARGET, MOTION, RADIUS, useTheme } from '@/theme';
@@ -20,7 +20,7 @@ const KNOB_INSET = 3;
 
 export function Switch({ value, onValueChange, disabled = false, accessibilityLabel, testID }: SwitchProps) {
   const t = useTheme();
-  const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
+  const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
 
   useEffect(() => {
     const animation = Animated.timing(progress, {

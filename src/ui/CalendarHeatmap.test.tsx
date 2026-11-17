@@ -1,11 +1,17 @@
+import { StyleSheet } from 'react-native';
 import { fireEvent, isInaccessible, render, screen } from '@testing-library/react-native';
 
+import { buildTheme } from '@/theme';
 import { PALETTES } from '@/theme/tokens';
 import type { LocalDate } from '@/types';
 
 import { CalendarHeatmap, type CalendarHeatmapDay } from './CalendarHeatmap';
 
 const D = (s: string) => s as LocalDate;
+
+// The neutrals (surface, border, text-muted) are tinted toward the accent by the theme engine, so the
+// expected values come from the same default theme the component paints with, not the untinted tokens.
+const T = buildTheme('light').color;
 
 // Mon Jun 29 2026 .. Sun Jul 5 2026 — one full Monday-start week, one of each outcome.
 const DAYS: readonly CalendarHeatmapDay[] = [
@@ -35,10 +41,10 @@ describe('CalendarHeatmap', () => {
     // level deeper, on the inner cell View.
     const missedFill = firstViewChild(screen.getByLabelText('2026-07-02, missed'));
     const notDueFill = firstViewChild(screen.getByLabelText('2026-07-04, not due'));
-    expect(flattenBg(missedFill.props.style)).toBe(PALETTES.light.surface);
-    expect(flattenBorderColor(missedFill.props.style)).toBe(PALETTES.light.borderStrong);
+    expect(flattenBg(missedFill.props.style)).toBe(T.surface);
+    expect(flattenBorderColor(missedFill.props.style)).toBe(T.borderStrong);
     expect(flattenBg(notDueFill.props.style)).toBe('transparent');
-    expect(flattenBorderColor(notDueFill.props.style)).toBe(PALETTES.light.border);
+    expect(flattenBorderColor(notDueFill.props.style)).toBe(T.border);
   });
 
   it('ideal and fallback cells fill with the same signal colours as StateChip', async () => {
@@ -53,7 +59,7 @@ describe('CalendarHeatmap', () => {
       const node = screen.getByText(label);
       const color = flattenColor(node.props.style);
       expect(color).toBeDefined();
-      expect(color).toBe(PALETTES.light.textMuted);
+      expect(color).toBe(T.textMuted);
     }
   });
 
@@ -103,7 +109,8 @@ describe('CalendarHeatmap', () => {
     // (host `Text`, therefore auto-accessible) sibling element outside the interactive
     // subtree rather than a wrapper of it.
     const label = screen.getByText('Calendar');
-    expect(label.props.style).toEqual(expect.objectContaining({ position: 'absolute', opacity: 0 }));
+    // AppText wraps the style in a nested array (typeface + caller style), so flatten before comparing.
+    expect(StyleSheet.flatten(label.props.style)).toEqual(expect.objectContaining({ position: 'absolute', opacity: 0 }));
     expect(label.props.accessibilityElementsHidden).toBe(false);
     expect(label.props.importantForAccessibility).toBe('yes');
   });
@@ -136,10 +143,7 @@ function flattenColor(style: unknown): string | undefined {
 }
 
 function flattenStyleProp(style: unknown, key: 'backgroundColor' | 'borderColor' | 'color'): string | undefined {
-  const arr = Array.isArray(style) ? style : [style];
-  for (const s of arr) {
-    const v = (s as Record<string, string> | undefined)?.[key];
-    if (v) return v;
-  }
-  return undefined;
+  // StyleSheet.flatten handles nested style arrays, which AppText produces.
+  const flat = StyleSheet.flatten(style as never) as Record<string, string> | undefined;
+  return flat?.[key] || undefined;
 }

@@ -32,6 +32,8 @@ function routine(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: 'med',
     necessity: 'recommended',
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     snoozable: true,
     createdAt: '2026-01-01T00:00:00.000Z' as never,
     updatedAt: '2026-01-01T00:00:00.000Z' as never,

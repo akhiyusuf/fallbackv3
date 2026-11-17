@@ -16,8 +16,8 @@ describe('S03 — Onboarding: Concept', () => {
   it('renders the ideal/fallback worked example and the privacy promise verbatim', async () => {
     await render(<S03OnboardingConcept />);
     expect(screen.getByText(S03_COPY.headline)).toBeTruthy();
-    expect(screen.getByText(S03_COPY.idealLabel)).toBeTruthy();
-    expect(screen.getByText(S03_COPY.fallbackLabel)).toBeTruthy();
+    expect(screen.getByText(S03_COPY.idealText)).toBeTruthy();
+    expect(screen.getByText(S03_COPY.fallbackText)).toBeTruthy();
     expect(screen.getByText(S03_COPY.privacy)).toBeTruthy();
   });
 

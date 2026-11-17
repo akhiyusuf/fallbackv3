@@ -77,6 +77,8 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: null,
     necessity: null,
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     snoozable: true,
     createdAt: '2024-06-03T00:00:00.000Z' as Instant, // exactly D1 — the domain floor
     updatedAt: '2024-06-03T00:00:00.000Z' as Instant,

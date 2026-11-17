@@ -10,7 +10,7 @@ const PALETTE = {
   off: '#A8A294', offDeep: '#000', offSoft: '#000',
   celebrationGold: '#000', goldDeep: '#000', goldSoft: '#000',
   danger: '#000', dangerSoft: '#000', dangerDeep: '#000',
-  xp: '#000', iconOnSignal: '#fff', textOnAccent: '#fff',
+  xp: '#000', xpFill: '#000', iconOnSignal: '#fff', textOnAccent: '#fff',
 } as const;
 
 function task(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
@@ -32,6 +32,8 @@ function task(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: 'med',
     necessity: 'recommended',
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     snoozable: true,
     createdAt: '2026-01-01T00:00:00.000Z' as never,
     updatedAt: '2026-01-01T00:00:00.000Z' as never,

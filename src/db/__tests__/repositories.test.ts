@@ -33,6 +33,8 @@ function buildTask(overrides: Partial<Task> = {}): Task {
     importance: 'high',
     necessity: 'must-do',
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,

@@ -92,6 +92,8 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: null,
     necessity: null,
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     snoozable: true,
     createdAt: '2024-05-01T00:00:00.000Z' as Instant,
     updatedAt: '2024-05-01T00:00:00.000Z' as Instant,

@@ -6,10 +6,10 @@ import { PALETTES } from '@/theme/tokens';
 import { MilestoneBadge } from './MilestoneBadge';
 
 describe('MilestoneBadge', () => {
-  it('earned: gold-soft fill + celebration-gold border, per-badge icon, no Text inside the pill (Rule 4)', async () => {
+  it('earned: solid celebration-gold coin, per-badge icon, no Text inside the pill (Rule 4)', async () => {
     await render(<MilestoneBadge icon={Sunrise} earned label="7 days" />);
     const pills = screen.container.queryAll(
-      (n) => n.type === 'View' && flattenBg(n.props.style) === PALETTES.light.goldSoft,
+      (n) => n.type === 'View' && flattenBg(n.props.style) === PALETTES.light.celebrationGold,
     );
     expect(pills.length).toBeGreaterThan(0);
     for (const pill of pills) {

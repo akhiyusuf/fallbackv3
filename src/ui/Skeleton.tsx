@@ -1,5 +1,5 @@
 /** M0 kit — Fallback-custom `Skeleton`. Calm shimmer placeholder; static block under reduced motion. */
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, type StyleProp, type ViewStyle } from 'react-native';
 
 import { RADIUS, useTheme } from '@/theme';
@@ -14,7 +14,7 @@ export interface SkeletonProps {
 
 export function Skeleton({ width = '100%', height = 16, radius = RADIUS.sm, style, accessibilityLabel = 'Loading' }: SkeletonProps) {
   const t = useTheme();
-  const opacity = useRef(new Animated.Value(0.5)).current;
+  const [opacity] = useState(() => new Animated.Value(0.5));
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | undefined;

@@ -27,6 +27,8 @@ export function makeTask(patch: Partial<TaskWithSteps> = {}): TaskWithSteps {
     importance: 'high',
     necessity: 'recommended',
     todoDoneAt: null,
+    priorityRank: null,
+    isNote: false,
     snoozable: true,
     createdAt: '2024-01-01T00:00:00.000Z' as Instant,
     updatedAt: '2024-01-01T00:00:00.000Z' as Instant,
