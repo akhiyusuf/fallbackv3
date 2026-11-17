@@ -20,3 +20,6 @@ server/dist/
 
 # OS
 .DS_Store
+
+# Built app packages (too large for git; handed over directly)
+/build-output/
