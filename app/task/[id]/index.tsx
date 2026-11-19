@@ -6,7 +6,7 @@
  * To-dos and untracked events only show what applies to them.
  */
 import { play } from '@/services/sfx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AlarmClock, CalendarDays, CircleStop, LifeBuoy, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, RotateCcw, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
@@ -190,17 +190,32 @@ export default function S20ManageTask() {
     if (!result.ok) fail();
   }
 
+  // A second tap before the sheet or button re-renders as busy must not run the change twice.
+  const changing = useRef(false);
+
   async function onEnd() {
-    const result = await endTask.mutateAsync(taskId).catch(() => ({ ok: false as const }));
-    setEndOpen(false);
-    if (result.ok) showToast(END_COPY.endedToast, 'neutral');
-    else fail();
+    if (changing.current) return;
+    changing.current = true;
+    try {
+      const result = await endTask.mutateAsync(taskId).catch(() => ({ ok: false as const }));
+      setEndOpen(false);
+      if (result.ok) showToast(END_COPY.endedToast, 'neutral');
+      else fail();
+    } finally {
+      changing.current = false;
+    }
   }
 
   async function onStartAgain() {
-    const result = await startAgain.mutateAsync(taskId).catch(() => ({ ok: false as const }));
-    if (result.ok) showToast(END_COPY.startedToast, 'success');
-    else fail();
+    if (changing.current) return;
+    changing.current = true;
+    try {
+      const result = await startAgain.mutateAsync(taskId).catch(() => ({ ok: false as const }));
+      if (result.ok) showToast(END_COPY.startedToast, 'success');
+      else fail();
+    } finally {
+      changing.current = false;
+    }
   }
 
   async function onDuplicate() {
@@ -325,7 +340,7 @@ export default function S20ManageTask() {
         icon={Icon}
         color={taskColor(task.color)}
         meta={metaParts({ schedule: cadenceSummary(task), extra: when, importance: task.importance, necessity: task.necessity })}
-        showWeek={isTrackedTask && !task.isAsNeeded && (task.type === 'routine' || task.type === 'course')}
+        showWeek={isTrackedTask && !task.isAsNeeded && endedOn === null && (task.type === 'routine' || task.type === 'course')}
         onIconPress={() => router.push(`/task/${taskId}/icon` as never)}
       />
 
@@ -629,8 +644,7 @@ function DayLogSheet({
 
 export const END_COPY = {
   confirmTitle: (noun: string) => `End this ${noun}?`,
-  confirmBody: (noun: string) =>
-    `It stops here and moves to Ended. Every day you've logged still counts in your consistency, and the days from now on don't count against you. You can start this ${noun} again any time.`,
+  confirmBody: (noun: string) => `It moves to Ended and nothing is due from now on. Every day you've logged still counts. You can start this ${noun} again any time.`,
   endedTitle: (date: string) => `Ended ${date}`,
   endedBody: "Nothing is due from here on. The days before still count in your consistency.",
   startAgain: 'Start again',

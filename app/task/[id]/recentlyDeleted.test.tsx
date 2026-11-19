@@ -77,7 +77,7 @@ describe('Delete sheet: wording', () => {
     expect(within(sheet).getByText('Delete this routine?')).toBeTruthy();
     expect(
       within(sheet).getByText(
-        "“Morning workout” goes to Recently deleted, where you can restore it for 30 days. The days you've logged still count in your consistency. Only stopping? End the routine instead and it stays in your list.",
+        "“Morning workout” goes to Recently deleted for 30 days. The days you've logged still count. Only stopping? End the routine instead and it stays in your list.",
       ),
     ).toBeTruthy();
     expect(within(sheet).queryByText(/can't be undone/)).toBeNull();
@@ -90,7 +90,7 @@ describe('Delete sheet: wording', () => {
     const sheet = await openDelete('to-do');
     expect(within(sheet).getByText('Delete this to-do?')).toBeTruthy();
     // A to-do can't be ended, so there is no "End it instead".
-    expect(within(sheet).getByText("“Call mum” goes to Recently deleted, where you can restore it for 30 days. The days you've logged still count in your consistency.")).toBeTruthy();
+    expect(within(sheet).getByText("“Call mum” goes to Recently deleted for 30 days. The days you've logged still count.")).toBeTruthy();
   });
 });
 

@@ -25,7 +25,7 @@ import { Text } from '@/ui/AppText';
 export const DELETED_COPY = {
   title: 'Recently deleted',
   intro: `Things you delete stay here for ${DELETED_KEEP_DAYS} days. Restore one, or delete it for good. Either way, the days you logged still count in your consistency.`,
-  empty: `Nothing here. Things you delete wait here for ${DELETED_KEEP_DAYS} days before they're gone.`,
+  empty: `Nothing here. Things you delete wait here for ${DELETED_KEEP_DAYS} days, and the days you logged with them still count.`,
   daysLeft: (n: number) => (n <= 1 ? 'Last day' : `${n} days left`),
   sheetBody: (deletedOn: string, goneOn: string) => `Deleted ${deletedOn}. Unless you restore it, it's removed for good on ${goneOn}.`,
   restore: 'Restore',
@@ -90,7 +90,8 @@ export default function RecentlyDeletedScreen() {
 
   return (
     <Screen title={DELETED_COPY.title} onBack={() => router.replace(ROUTES.settingsData as Href)}>
-      <Text style={[styles.intro, { color: t.color.textMuted }]}>{DELETED_COPY.intro}</Text>
+      {/* Said once: the empty line already explains what this place is. */}
+      {deletedQuery.isSuccess && items.length === 0 ? null : <Text style={[styles.intro, { color: t.color.textMuted }]}>{DELETED_COPY.intro}</Text>}
 
       {deletedQuery.isError ? (
         <InlineRetryBanner message={DELETED_COPY.loadFailed} onRetry={() => void deletedQuery.refetch()} />

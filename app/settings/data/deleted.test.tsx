@@ -81,10 +81,12 @@ beforeEach(() => {
 });
 
 describe('Recently deleted: states', () => {
-  it('always shows the intro line', async () => {
+  it('shows the intro line with items, and only the empty line when there are none (said once)', async () => {
     await mount();
-    expect(screen.getByText(DELETED_COPY.intro)).toBeTruthy();
+    expect(await screen.findByText(DELETED_COPY.empty)).toBeTruthy();
+    expect(screen.queryByText(DELETED_COPY.intro)).toBeNull();
     expect(DELETED_COPY.intro).toContain('30 days');
+    expect(DELETED_COPY.empty).toContain('30 days');
   });
 
   it('loading: the intro shows and nothing else (no empty message, no rows, no Delete all)', async () => {
