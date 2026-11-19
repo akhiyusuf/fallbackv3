@@ -12,7 +12,7 @@
  * choose between.
  */
 import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
-import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence } from '@/domain';
+import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
 import type { DayLog, Occurrence, Repositories, TaskWithSteps } from '@/types';
 import type { LocalDate } from '@/types';
@@ -73,14 +73,18 @@ export async function resolveTaskOccurrences(
     if (l.movedToDate !== null && l.movedToDate >= from && l.movedToDate <= to) allDates.add(l.movedToDate);
   }
 
-  return [...allDates]
-    .sort()
-    .map((date) => {
-      const log = logByDate.get(date) ?? null;
-      const priorLog = logByDate.get(addDays(date, -1)) ?? null;
-      const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
-      return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
-    });
+  return [...allDates].sort().flatMap((date) => {
+    const log = logByDate.get(date) ?? null;
+    const priorLog = logByDate.get(addDays(date, -1)) ?? null;
+    const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
+    const own = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+    // Additive push: when the day keeps its own occurrence, the one pushed into it is a second
+    // occurrence that day, never merged into the first.
+    if (movedInLog && own.pushedFrom === undefined) {
+      return [own, resolvePushedOccurrence({ task, date, today, sourceLog: movedInLog, offMarks, notBefore })];
+    }
+    return [own];
+  });
 }
 
 /**
@@ -89,14 +93,25 @@ export async function resolveTaskOccurrences(
  * two parallel implementations (review pass 2, blocking item N1). `mutations.ts`'s
  * `reconcileOccurrence` calls this instead of resolving inline.
  */
-export async function resolveOneOccurrence(repos: Repositories, task: TaskWithSteps, date: LocalDate, today: LocalDate): Promise<Occurrence> {
+export async function resolveOneOccurrence(
+  repos: Repositories,
+  task: TaskWithSteps,
+  date: LocalDate,
+  today: LocalDate,
+  pushedFrom?: LocalDate,
+): Promise<Occurrence> {
   const notBefore = creationLocalDate(task);
   const priorDate = addDays(date, -1);
   const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, priorDate, date), repos.offDays.listRange(date, date)]);
   const log = logs.find((l) => l.date === date) ?? null;
   const priorLog = logs.find((l) => l.date === priorDate) ?? null;
   const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
-  return resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+  const own = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+  // The pushed occurrence that sits beside the day's own one (additive push), when asked for.
+  if (pushedFrom !== undefined && pushedFrom === priorDate && movedInLog && own.pushedFrom === undefined) {
+    return resolvePushedOccurrence({ task, date, today, sourceLog: movedInLog, offMarks, notBefore });
+  }
+  return own;
 }
 
 export interface WriteTarget {
@@ -123,7 +138,13 @@ export interface WriteTarget {
  * otherwise `targetDate`/`existing` tell the caller exactly which row to upsert (T-2), never
  * the raw tapped-date row when a visitor is the occurrence.
  */
-export async function resolveWriteTarget(repos: Repositories, task: TaskWithSteps, date: LocalDate, today: LocalDate): Promise<WriteTarget> {
+export async function resolveWriteTarget(
+  repos: Repositories,
+  task: TaskWithSteps,
+  date: LocalDate,
+  today: LocalDate,
+  pushedFrom?: LocalDate,
+): Promise<WriteTarget> {
   const notBefore = creationLocalDate(task);
   const priorDate = addDays(date, -1);
   const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, priorDate, date), repos.offDays.listRange(date, date)]);
@@ -133,6 +154,18 @@ export async function resolveWriteTarget(repos: Repositories, task: TaskWithStep
   const natural = isDue(task, date, notBefore);
   const carrier = designateCarrier({ log, movedInLog, natural });
   const occurrence = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
+
+  // Additive push: a write addressed to the pushed occurrence (the one beside the day's own)
+  // goes to its source row. Anything else asked of a pushed date that has no such occurrence
+  // resolves to nothing, so no write can land on the wrong row.
+  if (pushedFrom !== undefined) {
+    if (pushedFrom === priorDate && movedInLog) {
+      if (carrier.kind === 'visitor') return { occurrence, carrier, targetDate: carrier.row.date, existing: carrier.row };
+      const pushed = resolvePushedOccurrence({ task, date, today, sourceLog: movedInLog, offMarks, notBefore });
+      return { occurrence: pushed, carrier: { kind: 'visitor', row: movedInLog }, targetDate: movedInLog.date, existing: movedInLog };
+    }
+    return { occurrence, carrier: { kind: 'none' }, targetDate: date, existing: log };
+  }
 
   if (carrier.kind === 'visitor') return { occurrence, carrier, targetDate: carrier.row.date, existing: carrier.row };
   // 'own-live', 'own-create', and 'none' all address D's own row (T-1 rejects 'none' before

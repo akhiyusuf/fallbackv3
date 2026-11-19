@@ -95,7 +95,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   async function handleLog(row: TodayRow, chip: ChipState, isUndo = false) {
     setReopenedTaskId(null);
     const previous: ChipState = row.occurrence.chipState ?? 'todo';
-    const result = await logState.mutateAsync({ taskId: row.task.id, date, chip });
+    const result = await logState.mutateAsync({ taskId: row.task.id, date, chip, pushedFrom: row.occurrence.pushedFrom });
     if (!result.ok) {
       showToast(LOG_SAVE_FAILED, 'warning');
       return;
@@ -233,10 +233,10 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
             ) : (
               rows.map((row) => (
                 <TaskRow
-                  key={row.task.id}
+                  key={rowKey(row)}
                   row={row}
-                  reopened={reopenedTaskId === row.task.id}
-                  onToggleReopen={() => setReopenedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
+                  reopened={reopenedTaskId === rowKey(row)}
+                  onToggleReopen={() => setReopenedTaskId((cur) => (cur === rowKey(row) ? null : rowKey(row)))}
                   onLog={(chip) => void handleLog(row, chip)}
                   onEmergency={() => void takeDayOff(row.task.id, date)}
                   onPush={() => void pushToTomorrow(row.task.id, date)}
@@ -253,10 +253,17 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   );
 }
 
+/** A habit can be on Today twice: its own occurrence, and one pushed here from yesterday. */
+function rowKey(row: TodayRow): string {
+  return row.occurrence.pushedFrom ? `${row.task.id}@${row.occurrence.pushedFrom}` : row.task.id;
+}
+
 function scheduleParts(row: TodayRow, logged = false): string[] {
   const { task, occurrence } = row;
   // The time leads, so the list reads as a day: 7:00 AM, then what it is.
   const parts = task.timeOfDay ? [formatTimeOfDay(task.timeOfDay), taskTypeLabel(task.type)] : [taskTypeLabel(task.type)];
+  // The one pushed here from yesterday says so, so the two are told apart at a glance.
+  if (occurrence.pushedFrom) parts.push(S09_COPY.pushedFromYesterday);
   if (task.type === 'course' && task.dosesPerDay > 1) {
     if (!logged) parts.push(`Dose ${occurrence.dosesCompleted} of ${occurrence.dosesRequired}`);
   } else if (task.cadence) {
@@ -300,7 +307,7 @@ function TaskRow({
       onLog={onLog}
       onEmergency={row.occurrence.outcome === 'off' ? undefined : onEmergency}
       // Only a habit allowed to move offers the push (its "Can be moved to tomorrow" switch).
-      onPush={row.occurrence.outcome === 'off' || !row.task.snoozable ? undefined : onPush}
+      onPush={row.occurrence.outcome === 'off' || !row.task.snoozable || row.occurrence.pushedFrom ? undefined : onPush}
       onToggleReopen={onToggleReopen}
       onOpen={onOpen}
     />

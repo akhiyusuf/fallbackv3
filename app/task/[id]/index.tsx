@@ -116,6 +116,8 @@ export default function S20ManageTask() {
 
   const task = taskQuery.data;
   const todayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === today);
+  // Pushed here from yesterday, beside today's own (additive push): shown and logged on its own.
+  const pushedToday = occTodayYesterdayQuery.data?.find((o) => o.date === today && o.pushedFrom !== undefined && o !== todayOccurrence);
   const yesterdayOccurrence = occTodayYesterdayQuery.data?.find((o) => o.date === yesterday);
   const isDueYesterday = task ? isDue(task, yesterday) : false;
   const isDueToday = task ? isDue(task, today) : false;
@@ -130,6 +132,15 @@ export default function S20ManageTask() {
     if (!result.ok) return fail();
     if (isUndo) return showToast('Undone', 'neutral');
     logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
+  }
+
+  async function onPushedChange(chip: ChipState, isUndo = false) {
+    if (!pushedToday?.pushedFrom) return;
+    const previous: ChipState = pushedToday.chipState ?? 'todo';
+    const result = await logState.mutateAsync({ taskId, date: today, chip, pushedFrom: pushedToday.pushedFrom });
+    if (!result.ok) return fail();
+    if (isUndo) return showToast('Undone', 'neutral');
+    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onPushedChange(previous, true));
   }
 
   async function onDoseChange(index: number, chip: ChipState) {
@@ -351,6 +362,15 @@ export default function S20ManageTask() {
             ) : (
               <>
                 <LogControl value={todayOccurrence?.chipState ?? null} onChange={(chip) => void onChipChange(chip)} accessibilityLabel={task.name} testID="s20-chip" />
+                {pushedToday ? (
+                  <LogControl
+                    label="From yesterday"
+                    value={pushedToday.chipState ?? null}
+                    onChange={(chip) => void onPushedChange(chip)}
+                    accessibilityLabel={`${task.name}, from yesterday`}
+                    testID="s20-pushed-chip"
+                  />
+                ) : null}
                 {task.idealSteps.length > 1 ? (
                   <View>
                     <Text style={[styles.caption, { color: t.color.textMuted }]}>Ticking every step logs the day as ideal.</Text>

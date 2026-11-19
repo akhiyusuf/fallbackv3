@@ -232,11 +232,18 @@ interface ReconcileResult {
  * that resolves a `(task, date)` occurrence from persisted data; this function and every read
  * hook both call it.
  */
-async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<ReconcileResult> {
+/**
+ * `pushedFrom`: reconcile the pushed occurrence that sits beside `date`'s own one (additive push)
+ * instead of the day's own occurrence. XP is keyed by the date of the ROW that holds the
+ * occurrence's data: `date` for a day's own occurrence, the source date for a pushed one. Each
+ * row has one occurrence, so no two occurrences share a key.
+ */
+async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: LocalDate): Promise<ReconcileResult> {
   const task = await repos.tasks.get(taskId);
   if (!task) return { occurrence: null, xpAwarded: 0, levelUp: null, badgesUnlocked: [] };
   const today = todayLocal();
-  const occurrence = await resolveOneOccurrence(repos, task, date, today);
+  const occurrence = await resolveOneOccurrence(repos, task, date, today, pushedFrom);
+  const awardDate = occurrence.pushedFrom ?? date;
 
   // Step 3 — XP. Every write's Result is checked (review pass 1, item 7): a failed award or
   // retraction reports as unchanged, never as a false success.
@@ -252,7 +259,7 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
     // only a genuinely NEW award is stamped with the current pointer. `appendXpAward`'s
     // UNIQUE(task_id, date) makes this an upsert either way (SCHEMA §7's documented
     // ideal->fallback "downgrade... updates the row's kind/amount", not its cycle_id).
-    const existingAward = (await repos.progress.listXpAwards(date, date)).find((a) => a.taskId === taskId);
+    const existingAward = (await repos.progress.listXpAwards(awardDate, awardDate)).find((a) => a.taskId === taskId);
     let cycleId = existingAward?.cycleId;
     if (!cycleId) {
       const settings = await repos.settings.get();
@@ -263,7 +270,7 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
     const appendResult = await repos.progress.appendXpAward({
       id: newId(),
       taskId,
-      date,
+      date: awardDate,
       kind: occurrence.outcome as 'ideal' | 'fallback',
       amount,
       cycleId,
@@ -280,8 +287,13 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate): Promise<Reconci
     // §3.4 — "never an XP penalty"), so `off` is explicitly excluded here even though it is
     // not XP-eligible either. Safe otherwise unconditionally: a delete that finds no row
     // (this occurrence was never eligible) is a documented no-op.
-    const retractResult = await repos.progress.retractXpAward(taskId, date);
-    if (retractResult.ok) xpChanged = true;
+    // A day whose own occurrence was pushed onward reads not-due here, but its row's XP now
+    // belongs to that pushed occurrence (living a day later): never retract it from here.
+    const ownRow = occurrence.outcome === 'not-due' ? ((await repos.logs.listForTask(taskId, date, date))[0] ?? null) : null;
+    if (!ownRow || ownRow.movedToDate === null) {
+      const retractResult = await repos.progress.retractXpAward(taskId, awardDate);
+      if (retractResult.ok) xpChanged = true;
+    }
   }
 
   const lifetimeXpAfter = xpChanged ? await repos.progress.lifetimeXp() : lifetimeXpBefore;
@@ -432,10 +444,10 @@ export function useDuplicateTask() {
  * key on `input.date` (T-3, unchanged): the XP award and `day:logged` are about the occurrence
  * the user tapped, wherever its data physically lives.
  */
-async function logState(input: { taskId: Id; date: LocalDate; chip: ChipState }) {
+async function logState(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; chip: ChipState }) {
   const task = await repos.tasks.get(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
-  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
   }
@@ -455,7 +467,7 @@ async function logState(input: { taskId: Id; date: LocalDate; chip: ChipState })
   });
   if (!persistResult.ok) return err(persistResult.error);
 
-  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date); // T-3
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date, input.pushedFrom); // T-3
   emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
   if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
 
@@ -473,10 +485,10 @@ export function useLogState() {
 }
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
-async function toggleStep(input: { taskId: Id; date: LocalDate; stepId: Id }) {
+async function toggleStep(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; stepId: Id }) {
   const task = await repos.tasks.get(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
-  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
   }
@@ -520,7 +532,7 @@ async function toggleStep(input: { taskId: Id; date: LocalDate; stepId: Id }) {
   // blocking item N5 — this hook was re-emitting it for the same crossing, producing a
   // duplicate milestone notification via M7's scheduler). Every mutation that calls
   // `reconcileOccurrence` follows this same convention: reconcile emits, callers don't.
-  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date);
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date, input.pushedFrom);
   emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
   if (xpAwarded > 0) emit({ type: 'xp:awarded', amount: xpAwarded, kind: occurrence!.outcome as 'ideal' | 'fallback' });
   return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
@@ -535,10 +547,10 @@ export function useToggleStep() {
 }
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
-async function logDose(input: { taskId: Id; date: LocalDate; dosesCompleted: number }) {
+async function logDose(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; dosesCompleted: number }) {
   const task = await repos.tasks.get(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
-  const target = await resolveWriteTarget(repos, task, input.date, todayLocal());
+  const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'Nothing is due on this date to log.' });
   }
@@ -557,7 +569,7 @@ async function logDose(input: { taskId: Id; date: LocalDate; dosesCompleted: num
     updatedAt: nowIso,
   });
   if (!persistResult.ok) return err(persistResult.error);
-  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date); // T-3
+  const { occurrence, xpAwarded, levelUp, badgesUnlocked } = await reconcileOccurrence(input.taskId, input.date, input.pushedFrom); // T-3
   emit({ type: 'day:logged', taskId: input.taskId, date: input.date });
   return ok({ occurrence, xpAwarded, levelUp, badgesUnlocked });
 }
@@ -673,7 +685,9 @@ async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
 
   // W-3: reconcile BOTH dates; `day:logged` carries the date the occurrence now lives at (D + 1).
   await reconcileOccurrence(taskId, date);
-  const targetReconcile = await reconcileOccurrence(taskId, nextDate);
+  await reconcileOccurrence(taskId, nextDate);
+  // The pushed occurrence itself (beside the next day's own, or the next day's only one).
+  const targetReconcile = await reconcileOccurrence(taskId, nextDate, date);
   emit({ type: 'day:logged', taskId, date: nextDate });
   return ok({ occurrence: targetReconcile.occurrence });
 }

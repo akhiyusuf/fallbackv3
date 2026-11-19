@@ -179,13 +179,32 @@ export function resolveOccurrence(input: {
     case 'own-create':
       return resolveDueOccurrence(task, date, today, null, offMarks, notBefore);
     case 'visitor':
-      return resolveDueOccurrence(task, date, today, carrier.row, offMarks, notBefore);
+      return { ...resolveDueOccurrence(task, date, today, carrier.row, offMarks, notBefore), pushedFrom: carrier.row.date };
     case 'none':
       // R-2 (vacated source) and R-3 (plainly not-due) both land here — never "missed", on
       // any day; `log?.chipState` surfaces a vacated own log's last chip as residue metadata
       // only, exactly as before this refactor.
       return notDueOccurrence(task, date, log?.chipState ?? null);
   }
+}
+
+/**
+ * The pushed occurrence on a day that also has its own (F7, additive push): the occurrence that
+ * was moved here from `sourceLog.date`, resolved from that row's data, as a second occurrence on
+ * `date`. `resolveOccurrence` above still answers the day's OWN occurrence (Supplement A clauses
+ * a/b); this answers the visitor those clauses used to merge away. The caller only asks for it
+ * when `sourceLog.movedToDate === date` and the day's own occurrence is not that visitor.
+ */
+export function resolvePushedOccurrence(input: {
+  task: TaskWithSteps;
+  date: LocalDate;
+  today: LocalDate;
+  sourceLog: DayLog;
+  offMarks: readonly OffDayMark[];
+  notBefore?: LocalDate;
+}): Occurrence {
+  const { task, date, today, sourceLog, offMarks, notBefore } = input;
+  return { ...resolveDueOccurrence(task, date, today, sourceLog, offMarks, notBefore), pushedFrom: sourceLog.date };
 }
 
 /** Auto-log rule (F3): all due ideal steps complete -> ideal; >=1 but not all -> fallback; 0 -> todo. */

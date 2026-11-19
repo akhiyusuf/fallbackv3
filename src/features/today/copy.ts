@@ -33,6 +33,7 @@ export const S09_COPY = {
   nothingDueAction: 'Add a task',
 
   offTodayMeta: 'Off today',
+  pushedFromYesterday: 'From yesterday',
 
   reentryHeadline: "No workout yesterday. That's okay.",
   reentrySubcopy: "Rest is part of the rhythm. One off day doesn't undo anything.",

@@ -224,6 +224,27 @@ describe('S09 — Today', () => {
     expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
   });
 
+  it('a habit pushed here from yesterday shows twice: its own card and the pushed one, each logged on its own', async () => {
+    const { today, addDays } = jest.requireActual('@/lib/date');
+    const yesterday = addDays(today(), -1);
+    mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
+    mockUseToday.mockReturnValue({
+      data: [occurrence({ date: today(), chipState: 'todo' }), occurrence({ date: today(), chipState: 'todo', pushedFrom: yesterday })],
+      isLoading: false,
+      isError: false,
+    });
+    mockLogStateMutateAsync.mockResolvedValue({ ok: true, value: { outcome: 'ideal', xpAwarded: 10, celebrate: 'ideal', levelUp: null, badgesUnlocked: [] } });
+    const user = userEvent.setup();
+    await render(withToastHost(<TodayScreen />));
+    expect(screen.getAllByText('Movement')).toHaveLength(2);
+    expect(screen.getByText('Routine · From yesterday · Daily')).toBeTruthy();
+    // Only the day's own one can be pushed; the pushed one already was.
+    expect(screen.getAllByLabelText('Movement: Push to tomorrow')).toHaveLength(1);
+
+    await user.press(screen.getAllByLabelText('Movement: Done')[1]!);
+    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today(), chip: 'done', pushedFrom: yesterday }));
+  });
+
   it('Push to tomorrow moves today\'s occurrence to tomorrow, with Undo', async () => {
     const { today } = jest.requireActual('@/lib/date');
     todayRead();

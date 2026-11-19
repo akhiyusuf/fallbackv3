@@ -128,6 +128,13 @@ async function occOn(taskId: TaskWithSteps['id'], date: LocalDate, client: Query
   return (result.current.data ?? []).find((o) => o.date === date);
 }
 
+/** The occurrence pushed onto `date` from the day before, when the day also has its own (additive push). */
+async function pushedOn(taskId: TaskWithSteps['id'], date: LocalDate, client: QueryClient) {
+  const { result } = await rh(() => useTaskOccurrences(taskId, { from: date, to: date }), client);
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  return (result.current.data ?? []).find((o) => o.date === date && o.pushedFrom !== undefined);
+}
+
 /**
  * `resolveTaskOccurrences` only materialises a date that is naturally due OR has a moved-in
  * record — a genuinely off-cadence, un-visited date is simply absent from a read's result set,
@@ -155,11 +162,11 @@ async function undo(client: QueryClient, taskId: TaskWithSteps['id'], date: Loca
   return outcome;
 }
 
-async function log(client: QueryClient, taskId: TaskWithSteps['id'], date: LocalDate, chip: 'done' | 'fallback' | 'skip' | 'todo') {
+async function log(client: QueryClient, taskId: TaskWithSteps['id'], date: LocalDate, chip: 'done' | 'fallback' | 'skip' | 'todo', pushedFrom?: LocalDate) {
   const { result } = await rh(() => useLogState(), client);
   let outcome: unknown;
   await act(async () => {
-    outcome = await result.current.mutateAsync({ taskId, date, chip });
+    outcome = await result.current.mutateAsync({ taskId, date, chip, pushedFrom });
   });
   return outcome;
 }
@@ -213,8 +220,11 @@ describe('C4 — snooze D onto a naturally-due D + 1 that HAS its own log (PRD c
   });
 });
 
-describe('C4b — snooze D onto a naturally-due D + 1 that has NEVER been logged (PRD case 2)', () => {
-  test('D + 1 keeps its own blank state; a COMPLETED visitor mints NO XP award; undo restores D with its data and re-affirmed award', async () => {
+describe('C4b — push D onto a naturally-due D + 1 that has NEVER been logged (PRD case 2)', () => {
+  // ADDITIVE PUSH (human, 2026-11-19: "pushing to tomorrow should mean doing it with whatever is
+  // available tomorrow, not overwriting tomorrow's routine"). The pushed occurrence is a SECOND
+  // occurrence on D + 1, beside D + 1's own; it keeps its data and its XP (keyed by its row, D).
+  test('D + 1 keeps its own blank occurrence AND gains the pushed one with its completion; its XP stays (keyed at D); undo brings it home', async () => {
     const task = makeTask({ cadence: { kind: 'daily' } });
     fake.seedTask(task);
     const client = freshClient();
@@ -227,18 +237,19 @@ describe('C4b — snooze D onto a naturally-due D + 1 that has NEVER been logged
     expect((outcome as { ok: boolean }).ok).toBe(true);
 
     expect((await occOn(task.id, D1, client))?.outcome).toBe('not-due');
-    const target = await occOn(task.id, D2, client);
-    expect(target?.outcome).not.toBe('ideal'); // NOT the visitor's completed outcome
-    expect(target?.chipState).not.toBe('done'); // NOT the visitor's chip
+    const own = await occOn(task.id, D2, client);
+    expect(own?.pushedFrom).toBeUndefined();
+    expect(own?.outcome).not.toBe('ideal'); // D + 1's own occurrence is untouched
+    const pushed = await pushedOn(task.id, D2, client);
+    expect(pushed?.pushedFrom).toBe(D1);
+    expect(pushed?.outcome).toBe('ideal'); // the pushed one keeps its completion
+    expect(pushed?.chipState).toBe('done');
 
-    // The explicit no-award assertion — the entire point of C4b.
-    expect(fake.xpAwards()).toHaveLength(0);
-    expect(await fake.repos.progress.lifetimeXp()).toBe(0);
+    // Nothing overwritten, nothing lost: one award, still keyed at its own row's date.
+    expect(fake.xpAwards()).toHaveLength(1);
+    expect(fake.xpAwards()[0]!.date).toBe(D1);
+    expect(await fake.repos.progress.lifetimeXp()).toBe(10);
 
-    // Undo restores D exactly, with its data and re-affirmed award. NOTE: this is undo from a
-    // CASE-2 target (D + 1 was blank) — not C4r, which SCHEMA pins as undo from a CASE-1
-    // target (a host with its OWN genuine logged data and award). See the dedicated C4r
-    // describe block below for that case.
     const undoOutcome = await undo(client, task.id, D1);
     expect((undoOutcome as { ok: boolean }).ok).toBe(true);
     const restored = await occOn(task.id, D1, client);
@@ -246,9 +257,8 @@ describe('C4b — snooze D onto a naturally-due D + 1 that has NEVER been logged
     expect(restored?.chipState).toBe('done');
     expect(fake.xpAwards()).toHaveLength(1);
     expect(await fake.repos.progress.lifetimeXp()).toBe(10);
-    // D + 1's own occurrence is untouched throughout: still naturally due (daily), still
-    // genuinely unlogged — reads its own blank state (missed, past, unlogged), never 'ideal'.
     expect((await occOn(task.id, D2, client))?.outcome).not.toBe('ideal');
+    expect(await pushedOn(task.id, D2, client)).toBeUndefined(); // nothing pushed any more
   });
 });
 
@@ -298,52 +308,87 @@ describe('C4r — undo FROM A CASE-1 TARGET: a host with its OWN genuine logged 
   });
 });
 
-describe('C5 — merge-then-vacate: the dormant visitor REVIVES when its host leaves (INVERTED from the old LIFO reading)', () => {
-  test('snooze D onto a D + 1 that has its own data (C4 merge); then D + 1\'s own occurrence snoozes onward — the visitor revives and its award re-materialises', async () => {
-    // D3 deliberately OFF-cadence: once D2's own occurrence snoozes to D3, D3 must be a pure
-    // visitor target (clause c) so D2's traveling data actually shows there — a `daily`
-    // cadence would make D3 naturally due too, and clause (b) would intercept with D3's own
-    // blank state instead (a different, already-covered case; see C4b).
+describe('C4p — push an open occurrence onto a day the habit is due anyway (the additive push)', () => {
+  test('the next day holds two occurrences; each is logged on its own row, each earns its own XP, and both count', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' }, createdAt: `${D1}T08:00:00.000Z` as Instant });
+    fake.seedTask(task);
+    const client = freshClient();
+
+    await snooze(client, task.id, D1); // nothing logged yet: "do it tomorrow, as well as tomorrow's"
+    const own = await occOn(task.id, D2, client);
+    const pushed = await pushedOn(task.id, D2, client);
+    expect(own?.pushedFrom).toBeUndefined();
+    expect(pushed?.pushedFrom).toBe(D1);
+
+    clock.today = D2;
+    await log(client, task.id, D2, 'done'); // D + 1's own
+    await log(client, task.id, D2, 'fallback', D1); // the pushed one
+
+    expect((await occOn(task.id, D2, client))?.outcome).toBe('ideal');
+    expect((await pushedOn(task.id, D2, client))?.outcome).toBe('fallback');
+    const rowD1 = fake.logsFor(task.id).find((r) => r.date === D1)!;
+    const rowD2 = fake.logsFor(task.id).find((r) => r.date === D2)!;
+    expect(rowD1.chipState).toBe('fallback'); // the pushed one's data stays on its own row
+    expect(rowD1.movedToDate).toBe(D2);
+    expect(rowD2.chipState).toBe('done');
+    expect(fake.xpAwards().map((a) => a.date).sort()).toEqual([D1, D2]);
+
+    // Both count toward D + 1: one ideal and one fallback, every day shown up.
+    const { result } = await rh(() => useConsistency({ scope: 'per-task', window: 'all-time', taskId: task.id }), client);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.breakdown.ideal).toBe(1);
+    expect(result.current.data?.breakdown.fallback).toBe(1);
+    expect(result.current.data?.breakdown.missed).toBe(0);
+  });
+
+  test('a pushed occurrence cannot be pushed again; the day\'s own one still can', async () => {
+    const task = makeTask({ cadence: { kind: 'daily' } });
+    fake.seedTask(task);
+    const client = freshClient();
+    await snooze(client, task.id, D1);
+    clock.today = D2;
+    const again = (await snooze(client, task.id, D2)) as { ok: boolean };
+    expect(again.ok).toBe(true); // D + 1's OWN occurrence moves on to D + 2
+    expect((await occOn(task.id, D2, client))?.pushedFrom).toBe(D1); // D + 1 keeps the pushed one
+    expect((await pushedOn(task.id, D3, client))?.pushedFrom).toBe(D2); // beside D + 2's own
+  });
+});
+
+describe('C5 — push D onto a D + 1 with its own data, then push D + 1\'s own onward', () => {
+  test('both occurrences stay live and both keep their XP throughout (no dip); after the second push each shows on its new day', async () => {
+    // D3 deliberately OFF-cadence, so D2's own occurrence is D3's only occurrence once pushed.
     const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2] as Weekday[] } }); // D1 (Mon), D2 (Tue) only
     fake.seedTask(task);
     const client = freshClient();
 
     await log(client, task.id, D2, 'fallback'); // D + 1's own data (6 XP)
-    await log(client, task.id, D1, 'done'); // D's own data, about to become the dormant visitor (10 XP)
+    await log(client, task.id, D1, 'done'); // D's own data (10 XP)
     expect(await fake.repos.progress.lifetimeXp()).toBe(16);
 
-    await snooze(client, task.id, D1); // D -> D+1: case-1 merge (C4). D vacates, its award retracts.
+    await snooze(client, task.id, D1); // D -> D + 1: D + 1 now holds BOTH occurrences
     expect((await occOn(task.id, D1, client))?.outcome).toBe('not-due');
-    expect((await occOn(task.id, D2, client))?.outcome).toBe('fallback'); // unchanged
-    expect(fake.xpAwards()).toHaveLength(1); // just D2's own 6 XP
-    expect(await fake.repos.progress.lifetimeXp()).toBe(6);
+    expect((await occOn(task.id, D2, client))?.outcome).toBe('fallback'); // D + 1's own, unchanged
+    expect((await pushedOn(task.id, D2, client))?.outcome).toBe('ideal'); // the pushed one, beside it
+    expect(fake.xpAwards()).toHaveLength(2);
+    expect(await fake.repos.progress.lifetimeXp()).toBe(16); // no dip: nothing is merged away
 
-    // Now D + 1's OWN displayed occurrence snoozes onward (D2 -> D3). Once it vacates, the
-    // dormant visitor (D1's data, still pointing at D2) is no longer shadowed by a live own
-    // row at D2 — it REVIVES there via R-1 clause (c), and its award re-materialises.
+    // D + 1's own occurrence is pushed on to D + 2. D + 1 keeps the pushed one (now its only
+    // occurrence); D + 2 gets D + 1's own data.
     const outcome = await snooze(client, task.id, D2);
     expect((outcome as { ok: boolean }).ok).toBe(true);
+    const atD2 = await occOn(task.id, D2, client);
+    expect(atD2?.outcome).toBe('ideal');
+    expect(atD2?.pushedFrom).toBe(D1);
+    const atD3 = await occOn(task.id, D3, client);
+    expect(atD3?.outcome).toBe('fallback');
+    expect(atD3?.pushedFrom).toBe(D2);
 
-    const revived = await occOn(task.id, D2, client);
-    expect(revived?.outcome).toBe('ideal'); // D1's 'done' data, revived
-    expect(revived?.chipState).toBe('done');
-    const carriedForward = await occOn(task.id, D3, client);
-    expect(carriedForward?.outcome).toBe('fallback'); // D2's own data travelled with it to D3
-
-    // Two genuinely distinct, currently-live occurrences now: D2 (D1's revived data) and D3
-    // (D2's own data, carried forward) — both real, both XP-eligible, both awarded exactly
-    // once, at their own dates. The D2 award RE-MATERIALISES (upserted into the same
-    // (task, D2) slot the dormant fallback award occupied, not a duplicate) at the higher
-    // 'ideal' amount; the D3 award is a fresh, ordinary award for D2's own carried-forward
-    // occurrence.
+    // Each award is keyed by the row that holds its occurrence's data: D1 for the first, D2 for
+    // the second. Two awards, no duplicates, nothing lost.
     expect(fake.xpAwards()).toHaveLength(2);
-    const atD2Award = fake.xpAwards().find((a) => a.date === D2)!;
-    expect(atD2Award.amount).toBe(10);
-    expect(atD2Award.kind).toBe('ideal');
-    const atD3Award = fake.xpAwards().find((a) => a.date === D3)!;
-    expect(atD3Award.amount).toBe(6);
-    expect(atD3Award.kind).toBe('fallback');
-    expect(await fake.repos.progress.lifetimeXp()).toBe(16); // the shadow dip (16 -> 6) was transient, not a loss — both occurrences' XP is intact
+    expect(fake.xpAwards().find((a) => a.date === D1)?.amount).toBe(10);
+    expect(fake.xpAwards().find((a) => a.date === D2)?.amount).toBe(6);
+    expect(await fake.repos.progress.lifetimeXp()).toBe(16);
   });
 });
 
@@ -375,7 +420,7 @@ describe('C7 — snooze D, complete at D + 1 (off-cadence), then undo', () => {
 
     expect((await occOn(task.id, D2, client))?.outcome).toBe('ideal');
     expect(fake.xpAwards()).toHaveLength(1);
-    expect(fake.xpAwards()[0]!.date).toBe(D2); // XP keys on D+1 while the occurrence shows there (T-3)
+    expect(fake.xpAwards()[0]!.date).toBe(D1); // XP keys on the row that holds the data (D), wherever it shows
 
     const rows = fake.logsFor(task.id);
     expect(rows).toHaveLength(1);
@@ -397,7 +442,7 @@ describe('C7 — snooze D, complete at D + 1 (off-cadence), then undo', () => {
 });
 
 describe('C9 — C6\'s shape, then a chip/step tap on D + 1', () => {
-  test('tap lands on D\'s row (the visitor); residue byte-unchanged; undoing D+1 home shadows the visitor (retraction), then the visitor\'s own undo revives it', async () => {
+  test('tap lands on D\'s row (the visitor); residue byte-unchanged; undoing D+1 home puts both on D+1 (nothing shadowed), then the visitor\'s own undo brings it home', async () => {
     const task = makeTask({ cadence: { kind: 'daily' } });
     fake.seedTask(task);
     const client = freshClient();
@@ -413,7 +458,7 @@ describe('C9 — C6\'s shape, then a chip/step tap on D + 1', () => {
     const atD2 = await occOn(task.id, D2, client);
     expect(atD2?.outcome).toBe('ideal');
     expect(fake.xpAwards()).toHaveLength(1);
-    expect(fake.xpAwards()[0]!.date).toBe(D2);
+    expect(fake.xpAwards()[0]!.date).toBe(D1); // keyed on the row that holds the data
 
     const dRow = fake.logsFor(task.id).find((r) => r.date === D1)!;
     expect(dRow.chipState).toBe('done');
@@ -422,13 +467,14 @@ describe('C9 — C6\'s shape, then a chip/step tap on D + 1', () => {
     const residueAfter = fake.logsFor(task.id).find((r) => r.date === D2)!;
     expect(residueAfter).toEqual(residueBefore); // byte-unchanged by the tap
 
-    // Undo D + 1's own occurrence home (D2 -> its own date, clearing D2's own pointer): this
-    // SHADOWS the visitor per clause (a) — D2's own (blank) live row now wins.
+    // Undo D + 1's own occurrence home (clearing D2's own pointer): D2 now holds its own (blank)
+    // occurrence AND, beside it, the pushed one with its completion. Nothing is shadowed.
     await undo(client, task.id, D2);
-    const shadowed = await occOn(task.id, D2, client);
-    expect(shadowed?.outcome).not.toBe('ideal');
-    expect(shadowed?.chipState).not.toBe('done');
-    expect(fake.xpAwards()).toHaveLength(0); // sanctioned transient retraction (CR-2), not value loss
+    const own = await occOn(task.id, D2, client);
+    expect(own?.pushedFrom).toBeUndefined();
+    expect(own?.outcome).not.toBe('ideal');
+    expect((await pushedOn(task.id, D2, client))?.outcome).toBe('ideal');
+    expect(fake.xpAwards()).toHaveLength(1); // the pushed occurrence keeps its XP
 
     // The visitor's OWN undo (D1's pointer, still -> D2) revives its data at D1.
     await undo(client, task.id, D1);

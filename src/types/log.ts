@@ -77,4 +77,11 @@ export interface Occurrence {
   readonly chipState: ChipState | null;
   readonly dosesRequired: number;
   readonly dosesCompleted: number;
+  /**
+   * Set when this occurrence was pushed here from the day before (F7, "Push to tomorrow"): the
+   * date it came from, whose row holds its data. A pushed occurrence that lands on a day the
+   * habit is due anyway is a SECOND occurrence that day, not merged into the first: the person
+   * does both, and each counts. Absent for a day's own occurrence.
+   */
+  readonly pushedFrom?: LocalDate;
 }

@@ -1146,6 +1146,28 @@ is snooze to tomorrow. Instead of snooze to tomorrow do push to tomorrow."**
   the first-routine save still fails the toast shows the real reason under
   "Couldn't save. Try again", so a screenshot names the cause.
 
+### Round 4, twenty-first pass (2026-11-19)
+
+- **Celebration:** the human looked at the board
+  (`docs/design-rebuild/celebration/celebration-picker.html`, Stamp / Glow /
+  Medal / Still beside the current confetti) and chose `{"celebration":"current"}`.
+  The confetti stays as it is.
+- **"Pushing to tomorrow should mean doing it with whatever is available
+  tomorrow, not overwriting tomorrow's routine."** The push is now ADDITIVE.
+  Before, pushing a habit onto a day it was due anyway merged the two (SCHEMA
+  §4.2 clauses a/b): the pushed occurrence and its data disappeared under the
+  day's own. Now that day holds two occurrences: its own, and the pushed one
+  ("From yesterday" on its card), each logged on its own row, each counting
+  toward consistency, each earning its own XP. Rules kept: one hop only (the
+  pushed one cannot be pushed again; the day's own can), undo brings it home.
+  XP is now keyed by the date of the row that holds an occurrence's data (the
+  source date for a pushed one), so no two occurrences share a key. Code:
+  `resolvePushedOccurrence` (src/domain/dayState.ts), `resolveTaskOccurrences`
+  / `resolveOneOccurrence` / `resolveWriteTarget` (src/queries/internal.ts,
+  optional `pushedFrom`), `reconcileOccurrence` (XP key), `Occurrence.pushedFrom`.
+  Tests C4b, C5, C7, C9 in `src/queries/moveSemantics.test.ts` were rewritten
+  to the new rule and C4p added.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
