@@ -1,0 +1,228 @@
+<title>Fallback Celebration Picker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&display=swap">
+<style>
+  /* Layout: a row of five phone-sized moments, each the app's real milestone pop-up, wrapping to one column on a phone. */
+  :root {
+    --bg: #f6f4f0; --bgAlt: #ffffff; --surface: #ebe8e1; --text: #33312b; --muted: #5f5b52; --border: #e2dfd8;
+    --scrim: rgba(28, 25, 20, 0.42);
+    --gold: #DCB863; --goldDeep: #7D5F14; --goldSoft: #F7F0E0; --ink: #33312b;
+    --accent: #F2601A; --accentFill: #C8490C; --accentEdge: #98380A; --accentHover: #DE5310; --onAccent: #ffffff;
+    --pick: #C8490C;
+    --font: 'Nunito', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #211f1c; --bgAlt: #2a2824; --surface: #33302a; --text: #efece6; --muted: #bdb7ac; --border: #3b3831;
+    --scrim: rgba(0, 0, 0, 0.55); --gold: #CBA24C; --goldDeep: #DDBE79; --goldSoft: #332B1C; --ink: #efece6; --pick: #FF8A4F; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #211f1c; --bgAlt: #2a2824; --surface: #33302a; --text: #efece6; --muted: #bdb7ac; --border: #3b3831;
+    --scrim: rgba(0, 0, 0, 0.55); --gold: #CBA24C; --goldDeep: #DDBE79; --goldSoft: #332B1C; --ink: #efece6; --pick: #FF8A4F; color-scheme: dark }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--font); }
+  .page { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 120px; max-width: 1640px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 800; margin: 0 0 6px; text-wrap: balance; }
+  .lede { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 0 0 20px; max-width: 62ch; }
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+  button { font-family: var(--font); cursor: pointer; }
+  .ghost { background: var(--surface); color: var(--text); border: 0; border-radius: 999px; padding: 9px 16px; font-weight: 700; font-size: 14px; }
+  .ghost:focus-visible, .choose:focus-visible, .replay:focus-visible { outline: 3px solid var(--pick); outline-offset: 2px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+  .option { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .option header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .option h2 { font-size: 17px; font-weight: 800; margin: 0; }
+  .tag { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+  .what { font-size: 13.5px; line-height: 1.45; color: var(--muted); margin: 0; min-height: 3.9em; }
+
+  /* The phone moment */
+  .stage { position: relative; height: 380px; border-radius: 26px; overflow: hidden; background: var(--bg); border: 1px solid var(--border); }
+  .stage .scrim { position: absolute; inset: 0; background: var(--scrim); }
+  .card { position: absolute; left: 22px; right: 22px; top: 50%; transform: translateY(-50%); background: var(--bg); border-radius: 22px; padding: 26px 18px 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; overflow: visible; }
+  .fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 22px; }
+  .badgeWrap { position: relative; width: 60px; height: 60px; display: grid; place-items: center; margin-bottom: 2px; }
+  .badge { position: relative; z-index: 2; width: 60px; height: 60px; border-radius: 50%; background: var(--goldSoft); border: 2px solid var(--gold); display: grid; place-items: center; box-sizing: border-box; }
+  .badge svg { width: 26px; height: 26px; }
+  .label { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+  .headline { font-size: 19px; font-weight: 800; text-align: center; margin: 2px 0 0; text-wrap: balance; }
+  .body { font-size: 13.5px; color: var(--muted); text-align: center; line-height: 1.4; margin: 0; }
+  .nice { margin-top: 8px; align-self: stretch; background: var(--accentEdge); border-radius: 14px; padding: 0 0 4px; border: 0; }
+  .nice span { display: block; background: var(--accentFill); color: var(--onAccent); font-weight: 800; font-size: 15px; border-radius: 14px; padding: 11px 0; }
+
+  .row { display: flex; gap: 8px; }
+  .replay { flex: 0 0 auto; background: var(--surface); color: var(--text); border: 0; border-radius: 12px; padding: 10px 14px; font-weight: 700; font-size: 14px; }
+  .choose { flex: 1; background: transparent; color: var(--text); border: 2px solid var(--border); border-radius: 12px; padding: 8px 12px; font-weight: 800; font-size: 14px; }
+  .option.picked .choose { border-color: var(--pick); color: var(--pick); }
+  .option.picked .stage { outline: 3px solid var(--pick); outline-offset: 3px; }
+
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bgAlt); border-top: 1px solid var(--border); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-top: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; z-index: 5; }
+  .bar p { margin: 0; font-size: 14px; font-weight: 700; min-width: 0; }
+  .copy { background: var(--accentFill); color: var(--onAccent); border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 800; font-size: 14px; }
+  .copy[disabled] { opacity: .45; cursor: default; }
+  #copied { font-size: 13px; color: var(--muted); }
+
+  /* Shared: words rise into place after the badge (all new options). */
+  .play .rise { animation: rise 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .play .rise.d1 { animation-delay: 260ms } .play .rise.d2 { animation-delay: 330ms } .play .rise.d3 { animation-delay: 420ms }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+  /* A — current confetti: rectangles falling top to bottom. */
+  .confetti i { position: absolute; top: -12px; width: 7px; height: 11px; border-radius: 1px; opacity: 0; }
+  .play .confetti i { animation: fall var(--d) linear var(--delay) both; }
+  @keyframes fall { 0% { opacity: 1; transform: translateY(0) rotate(var(--r)) } 85% { opacity: 1 } 100% { opacity: 0; transform: translateY(330px) rotate(calc(var(--r) + 300deg)) } }
+
+  /* B — Stamp: the badge comes down onto the card like a stamp, with one ring and a puff. */
+  .play .stamp .badge { animation: stampDown 520ms cubic-bezier(.5,0,.75,0) both, stampSettle 360ms cubic-bezier(.2,1.6,.4,1) 520ms both; }
+  @keyframes stampDown { from { opacity: 0; transform: scale(1.75) rotate(-9deg) } 70% { opacity: 1 } to { opacity: 1; transform: scale(.9) rotate(0) } }
+  @keyframes stampSettle { from { transform: scale(.9) } to { transform: scale(1) } }
+  .stamp .ring { position: absolute; z-index: 1; inset: 0; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; }
+  .play .stamp .ring { animation: ring 700ms cubic-bezier(.1,.6,.3,1) 500ms both; }
+  @keyframes ring { from { opacity: .9; transform: scale(.95) } to { opacity: 0; transform: scale(2.3) } }
+  .stamp .puff { position: absolute; z-index: 1; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--gold); opacity: 0; }
+  .play .stamp .puff { animation: puff 520ms ease-out 520ms both; }
+  @keyframes puff { from { opacity: .9; transform: rotate(var(--a)) translateX(30px) } to { opacity: 0; transform: rotate(var(--a)) translateX(46px) scale(.4) } }
+
+  /* C — Glow: the badge rises and a warm light swells once behind it, with slow rays. */
+  .play .glow .badge { animation: up 620ms cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes up { from { opacity: 0; transform: translateY(26px) scale(.86) } to { opacity: 1; transform: none } }
+  .glow .halo { position: absolute; z-index: 0; left: 50%; top: 50%; width: 170px; height: 170px; margin: -85px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--gold) 55%, transparent) 0%, transparent 68%); opacity: 0; }
+  .play .glow .halo { animation: halo 1900ms ease-out 180ms both; }
+  @keyframes halo { 0% { opacity: 0; transform: scale(.4) } 35% { opacity: 1; transform: scale(1) } 100% { opacity: .0; transform: scale(1.15) } }
+  .glow .rays { position: absolute; z-index: 0; left: 50%; top: 50%; width: 150px; height: 150px; margin: -75px; opacity: 0; }
+  .glow .rays b { position: absolute; left: 50%; top: 0; width: 3px; height: 26px; margin-left: -1.5px; border-radius: 3px; background: var(--gold); transform-origin: 50% 75px; transform: rotate(var(--a)); }
+  .play .glow .rays { animation: rays 2000ms ease-out 250ms both; }
+  @keyframes rays { 0% { opacity: 0; transform: rotate(-12deg) scale(.7) } 30% { opacity: .75 } 100% { opacity: 0; transform: rotate(14deg) scale(1.05) } }
+
+  /* D — Medal: a ribbon drops in behind the badge and swings to rest, like a medal being hung. */
+  .medal .ribbon { position: absolute; z-index: 1; left: 50%; top: -34px; width: 44px; height: 62px; margin-left: -22px; transform-origin: 50% 0; }
+  .medal .ribbon svg { width: 100%; height: 100%; display: block; }
+  .play .medal .ribbon { animation: hang 1100ms cubic-bezier(.3,1.25,.5,1) both; }
+  @keyframes hang { 0% { opacity: 0; transform: translateY(-40px) rotate(-14deg) } 35% { opacity: 1; transform: translateY(0) rotate(9deg) } 60% { transform: rotate(-5deg) } 80% { transform: rotate(2deg) } 100% { opacity: 1; transform: rotate(0) } }
+  .play .medal .badge { animation: swing 1100ms cubic-bezier(.3,1.25,.5,1) both; transform-origin: 50% -34px; }
+  @keyframes swing { 0% { opacity: 0; transform: translateY(-40px) rotate(-14deg) } 35% { opacity: 1; transform: translateY(0) rotate(9deg) } 60% { transform: rotate(-5deg) } 80% { transform: rotate(2deg) } 100% { opacity: 1; transform: rotate(0) } }
+  .medal .badgeWrap { margin-top: 18px; }
+
+  /* E — Still: only the badge pops and the words rise. Nothing flies. */
+  .play .still .badge { animation: pop 380ms cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes pop { from { opacity: 0; transform: scale(.78) } to { opacity: 1; transform: none } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .play * { animation: none !important; }
+    .confetti, .stamp .ring, .stamp .puff, .glow .halo, .glow .rays { display: none; }
+  }
+</style>
+
+<div class="page">
+  <h1>Pick the milestone celebration</h1>
+  <p class="lede">This is the pop-up for a new badge or level, shown on a phone. The first one is what the app does now. Each option plays its own sound after the press sound has finished, so timing stays as it is. Press Replay to see one again, then choose.</p>
+  <div class="tools"><button class="ghost" id="replayAll" type="button">Replay all</button></div>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="bar">
+  <p id="choice">Nothing chosen yet.</p>
+  <div class="row" style="align-items:center">
+    <span id="copied" aria-live="polite"></span>
+    <button class="copy" id="copy" type="button" disabled>Copy my choice</button>
+  </div>
+</div>
+
+<script>
+  const SUNRISE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink)"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>';
+  const RIBBON = '<svg viewBox="0 0 44 62" aria-hidden="true"><path d="M4 0h16l6 34-9 6z" fill="var(--accentFill)"/><path d="M40 0H24l-6 34 9 6z" fill="var(--accent)"/></svg>';
+
+  const OPTIONS = [
+    { key: 'current', name: 'Now: confetti', tag: 'what the app does', what: 'Orange and gold pieces fall over the card. The look you called too AI-made.', cls: 'current' },
+    { key: 'stamp', name: 'Stamp', tag: 'matches the stamp sound', what: 'The badge comes down onto the card like a stamp, with one gold ring and a small puff. Over in under a second.', cls: 'stamp' },
+    { key: 'glow', name: 'Glow', tag: 'quiet and warm', what: 'The badge rises into place and a warm light swells once behind it, with a few slow rays. No pieces flying.', cls: 'glow' },
+    { key: 'medal', name: 'Medal', tag: 'an award being hung', what: 'A ribbon drops in and the badge swings on it, then settles, like a medal being hung on you.', cls: 'medal' },
+    { key: 'still', name: 'Still', tag: 'the calmest', what: 'The badge pops in and the words rise. Nothing else moves. The sound does the celebrating.', cls: 'still' },
+  ];
+
+  function fxFor(o) {
+    if (o.key === 'current') {
+      const colors = ['var(--accent)', 'var(--accentHover)', 'var(--gold)', 'var(--goldDeep)'];
+      let s = '<div class="fx confetti">';
+      for (let i = 0; i < 24; i++) {
+        s += `<i style="left:${(i / 24) * 100 + (i % 3) * 2}%;background:${colors[i % 4]};--d:${1400 + (i % 5) * 140}ms;--delay:${(i % 6) * 60}ms;--r:${(i * 37) % 360}deg"></i>`;
+      }
+      return s + '</div>';
+    }
+    return '';
+  }
+  function badgeFor(o) {
+    let extra = '';
+    if (o.key === 'stamp') {
+      extra = '<span class="ring"></span>' + [0, 60, 120, 180, 240, 300].map((a) => `<span class="puff" style="--a:${a + 15}deg"></span>`).join('');
+    }
+    if (o.key === 'glow') {
+      extra = '<span class="halo"></span><span class="rays">' + Array.from({ length: 12 }, (_, i) => `<b style="--a:${i * 30}deg"></b>`).join('') + '</span>';
+    }
+    if (o.key === 'medal') extra = `<span class="ribbon">${RIBBON}</span>`;
+    return `<div class="badgeWrap">${extra}<div class="badge">${SUNRISE}</div></div>`;
+  }
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = OPTIONS.map((o) => {
+    const rise = o.key === 'current' ? '' : 'rise';
+    return `<section class="option" data-key="${o.key}">
+      <header><h2>${o.name}</h2><span class="tag">${o.tag}</span></header>
+      <p class="what">${o.what}</p>
+      <div class="stage" aria-label="${o.name}: the milestone pop-up"><div class="scrim"></div>
+        <div class="card ${o.cls}">${fxFor(o)}${badgeFor(o)}
+          <span class="label ${rise} d1">7 days</span>
+          <p class="headline ${rise} d2">Badge earned: 7 days of showing up.</p>
+          <p class="body ${rise} d3">Seven days you came back. Ideal or fallback, it counted.</p>
+          <button class="nice" type="button" tabindex="-1" aria-hidden="true"><span>Nice</span></button>
+        </div>
+      </div>
+      <div class="row">
+        <button class="replay" type="button">Replay</button>
+        <button class="choose" type="button" aria-pressed="false">Use ${o.name === 'Now: confetti' ? 'the current one' : o.name}</button>
+      </div>
+    </section>`;
+  }).join('');
+
+  function replay(stage) {
+    stage.classList.remove('play');
+    void stage.offsetWidth; // restart the animations
+    stage.classList.add('play');
+  }
+  const stages = [...document.querySelectorAll('.stage')];
+  document.getElementById('replayAll').addEventListener('click', () => stages.forEach(replay));
+  document.querySelectorAll('.option').forEach((el) => {
+    el.querySelector('.replay').addEventListener('click', () => replay(el.querySelector('.stage')));
+  });
+  stages.forEach((s, i) => setTimeout(() => replay(s), 300 + i * 120));
+
+  let picked = null;
+  try { picked = localStorage.getItem('fallback-celebration-pick'); } catch (e) { picked = null; }
+  const choice = document.getElementById('choice');
+  const copy = document.getElementById('copy');
+  function render() {
+    document.querySelectorAll('.option').forEach((el) => {
+      const on = el.dataset.key === picked;
+      el.classList.toggle('picked', on);
+      el.querySelector('.choose').setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const o = OPTIONS.find((x) => x.key === picked);
+    choice.textContent = o ? `Chosen: ${o.name === 'Now: confetti' ? 'keep the current confetti' : o.name}` : 'Nothing chosen yet.';
+    copy.disabled = !o;
+  }
+  document.querySelectorAll('.option .choose').forEach((b) => b.addEventListener('click', () => {
+    picked = b.closest('.option').dataset.key;
+    try { localStorage.setItem('fallback-celebration-pick', picked); } catch (e) { /* this visit only */ }
+    render();
+  }));
+  copy.addEventListener('click', () => {
+    const text = JSON.stringify({ celebration: picked });
+    const done = () => { document.getElementById('copied').textContent = 'Copied. Paste it in the chat.'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => { document.getElementById('copied').textContent = text; });
+    } else {
+      document.getElementById('copied').textContent = text;
+    }
+  });
+  render();
+</script>
