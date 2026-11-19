@@ -3,8 +3,8 @@
  *
  * `softDelete` is deliberately a plain UPDATE, not a DELETE: a deleted item goes to Recently
  * deleted with its history and can be restored for DELETED_KEEP_DAYS days (src/domain/retention).
- * Removal for good is `deleteForever`, `purgeDeleted`, or the sweep on `StoreLifecycle.open()`
- * for items past their time; each is a plain `DELETE FROM task`, which relies on the
+ * Removal for good is `deleteForever` only (the query layer's `retireForGood` / `retireExpired`
+ * pass it the past days to keep); it is a plain `DELETE FROM task`, which relies on the
  * FK actions declared in the migrations (`step`/`day_log`/`off_day_mark`/`as_needed_use`
  * CASCADE, `xp_award`/`widget_config.fixed_task_id` SET NULL) to reproduce the pinned split
  * exactly — the schema itself is the single source of truth for the cascade, not a second
@@ -21,6 +21,7 @@ import type {
   LocalDate,
   Necessity,
   Result,
+  RetiredDay,
   Step,
   StepRole,
   Task,
@@ -346,8 +347,8 @@ export function createTaskRepository(db: DbClient) {
       }
     },
 
-    // Split cascade — SCHEMA.md §2.3. Soft delete only; the hard sweep (which reproduces
-    // the pinned split via FK actions) runs on the next StoreLifecycle.open().
+    // Split cascade — SCHEMA.md §2.3. Soft delete only; removal for good (which reproduces the
+    // pinned split via FK actions) is `deleteForever`, after 30 days or when the person asks.
     async softDelete(id: Id): Promise<Result<void>> {
       try {
         const result = await db.runAsync(`UPDATE task SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, [
@@ -382,26 +383,26 @@ export function createTaskRepository(db: DbClient) {
     },
 
     // The FK actions in the schema carry the cascade (steps, logs, off marks, uses removed; XP
-    // awards and widget references kept with a NULL task, so lifetime XP never drops).
-    async deleteForever(id: Id): Promise<Result<void>> {
+    // awards and widget references kept with a NULL task, so lifetime XP never drops). Its past
+    // days go into `retired_day` in the same transaction, so the record keeps them.
+    async deleteForever(id: Id, keep: readonly RetiredDay[] = []): Promise<Result<void>> {
       try {
-        const result = await db.runAsync(`DELETE FROM task WHERE id = ? AND deleted_at IS NOT NULL`, [id]);
-        if (result.changes === 0) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+        let found = true;
+        await db.withTransactionAsync(async (tx) => {
+          const row = await tx.getFirstAsync<{ id: string }>(`SELECT id FROM task WHERE id = ? AND deleted_at IS NOT NULL`, [id]);
+          if (!row) {
+            found = false;
+            return;
+          }
+          for (const d of keep) {
+            await tx.runAsync(`INSERT INTO retired_day (id, date, outcome, retired_at) VALUES (?,?,?,?)`, [newId(), d.date, d.outcome, d.retiredAt]);
+          }
+          await tx.runAsync(`DELETE FROM task WHERE id = ?`, [id]);
+        });
+        if (!found) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
         return ok(undefined);
       } catch (cause) {
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'delete failed', cause });
-      }
-    },
-
-    async purgeDeleted(cutoff: Instant | null): Promise<Result<number>> {
-      try {
-        const result =
-          cutoff === null
-            ? await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL`)
-            : await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL AND deleted_at < ?`, [cutoff]);
-        return ok(result.changes);
-      } catch (cause) {
-        return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'purge failed', cause });
       }
     },
 

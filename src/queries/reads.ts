@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays, toLocalDate } from '@/lib/date';
 import { repos } from '@/db';
-import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, purgeCutoff, reconcileAchievements } from '@/domain';
+import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
 import type {
   ConsistencyResult,
   ConsistencyScope,
@@ -19,7 +19,7 @@ import type {
   XpState,
 } from '@/types';
 import { QUERY_KEYS } from './index';
-import { resolveAllOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
+import { recordStartDate, resolveAllOccurrences, retireDeleted, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
 
 /**
  * Review pass 1, blocking item 5: the type filter is applied client-side via `select`, on ONE
@@ -44,7 +44,7 @@ export function useRecentlyDeleted() {
   return useQuery({
     queryKey: QUERY_KEYS.recentlyDeleted,
     queryFn: async () => {
-      await repos.tasks.purgeDeleted(purgeCutoff(now()));
+      await retireDeleted(repos, 'expired');
       return repos.tasks.listDeleted();
     },
   });
@@ -94,7 +94,7 @@ export function useConsistency(input: { scope: ConsistencyScope; window: Consist
         const occs = task ? await resolveTaskOccurrences(repos, task, today, today) : [];
         return perTaskConsistency({ taskId, occurrences: occs, window, today });
       }
-      const occs = await resolveAllOccurrences(repos, today, today);
+      const occs = await resolveRecordOccurrences(repos, today, today);
       return aggregateConsistency({ occurrences: occs, window, today });
     },
   });
@@ -106,7 +106,7 @@ export function useConsistencyDisclosure() {
     queryKey: [...QUERY_KEYS.consistency('aggregate', 'last-30'), 'disclosure'] as const,
     queryFn: async () => {
       const today = todayLocal();
-      const occs = await resolveAllOccurrences(repos, today, today);
+      const occs = await resolveRecordOccurrences(repos, today, today);
       return dayFractions(occs);
     },
   });
@@ -168,16 +168,12 @@ export function useTrend() {
     queryKey: QUERY_KEYS.trend,
     queryFn: async (): Promise<readonly TrendPoint[]> => {
       const today = todayLocal();
-      const tasks = await repos.tasks.list();
-      const earliest = tasks.reduce<LocalDate | null>((min, t) => {
-        const created = toLocalDate(new Date(t.createdAt));
-        return min === null || created < min ? created : min;
-      }, null);
+      const earliest = await recordStartDate(repos);
       if (!earliest) return [];
 
       const spanDays = Math.max(1, diffDays(today, earliest));
       const granularity = granularityFor(spanDays);
-      const occs = await resolveAllOccurrences(repos, today, today);
+      const occs = await resolveRecordOccurrences(repos, today, today);
 
       const buckets = bucketRanges(earliest, today, granularity);
       return buckets.map((range) => {
@@ -224,7 +220,7 @@ export function useAchievements() {
     queryFn: async () => {
       const [unlocks, settings] = await Promise.all([repos.progress.listUnlocks(), repos.settings.get()]);
       const today = todayLocal();
-      const occs = await resolveAllOccurrences(repos, today, today);
+      const occs = await resolveRecordOccurrences(repos, today, today);
       // Recompute is idempotent and upsert-only — surfacing it here lets the achievements
       // screen show a badge the instant its condition is met, without waiting on a mutation
       // (the badge only durably PERSISTS on the next mutation's reconcile step).

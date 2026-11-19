@@ -130,23 +130,13 @@ export function createFakeRepos(): FakeRepos {
         tasks.set(id, { ...t, deletedAt: null });
         return ok(undefined);
       },
-      deleteForever: async (id) => {
+      deleteForever: async (id, keep = []) => {
         const t = tasks.get(id);
         if (!t || t.deletedAt === null) return err({ code: 'NOT_FOUND', message: 'not in Recently deleted' });
         tasks.delete(id);
         for (const k of [...logs.keys()]) if (k.startsWith(`${id}:`)) logs.delete(k);
+        retiredDays = [...retiredDays, ...keep];
         return ok(undefined);
-      },
-      purgeDeleted: async (cutoff) => {
-        let n = 0;
-        for (const t of [...tasks.values()]) {
-          if (t.deletedAt !== null && (cutoff === null || t.deletedAt < cutoff)) {
-            tasks.delete(t.id);
-            for (const k of [...logs.keys()]) if (k.startsWith(`${t.id}:`)) logs.delete(k);
-            n += 1;
-          }
-        }
-        return ok(n);
       },
       duplicate: async (id) => {
         const t = tasks.get(id);

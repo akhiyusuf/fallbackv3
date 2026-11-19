@@ -1,7 +1,8 @@
 /**
  * Recently deleted. A deleted routine, event, course or to-do waits here, with its history, for
  * DELETED_KEEP_DAYS days. From here it can be restored, deleted for good one at a time, or all at
- * once. Past its time it is removed when the app next opens (or when this screen loads).
+ * once. Past its time it is removed when the app next opens (or when this screen loads). Deleted
+ * or gone for good, its past days stay in the consistency record (`retired_day`).
  */
 import { useRef, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
@@ -23,7 +24,7 @@ import { Text } from '@/ui/AppText';
 
 export const DELETED_COPY = {
   title: 'Recently deleted',
-  intro: `Things you delete stay here for ${DELETED_KEEP_DAYS} days with their history. Restore one, or delete it for good.`,
+  intro: `Things you delete stay here for ${DELETED_KEEP_DAYS} days. Restore one, or delete it for good. Either way, the days you logged still count in your consistency.`,
   empty: `Nothing here. Things you delete wait here for ${DELETED_KEEP_DAYS} days before they're gone.`,
   daysLeft: (n: number) => (n <= 1 ? 'Last day' : `${n} days left`),
   sheetBody: (deletedOn: string, goneOn: string) => `Deleted ${deletedOn}. Unless you restore it, it's removed for good on ${goneOn}.`,
@@ -31,10 +32,10 @@ export const DELETED_COPY = {
   deleteForever: 'Delete forever',
   restoredToast: (name: string) => `Restored “${name}”`,
   confirmOneTitle: (name: string) => `Delete “${name}” forever?`,
-  confirmOneBody: "Its history goes with it. This can't be undone. XP you earned with it stays.",
+  confirmOneBody: "Its name and details go for good, and this can't be undone. The days you logged still count in your consistency, and the XP you earned stays.",
   deleteAll: 'Delete all forever',
   confirmAllTitle: (n: number) => `Delete ${n} ${n === 1 ? 'item' : 'items'} forever?`,
-  confirmAllBody: "Everything here, with its history. This can't be undone. XP you earned with them stays.",
+  confirmAllBody: "Their names and details go for good, and this can't be undone. The days you logged still count in your consistency, and the XP you earned stays.",
   deletedToast: 'Deleted for good',
   failed: "Couldn't do that. Try again.",
   loadFailed: "Couldn't load Recently deleted.",

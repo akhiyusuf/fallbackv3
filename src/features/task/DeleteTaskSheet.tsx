@@ -16,7 +16,10 @@ import { confirmedDeleteDestination } from './deleteOrigin';
 export const TYPE_NOUN: Record<TaskType, string> = { routine: 'routine', event: 'event', course: 'course', todo: 'to-do' };
 
 export const DELETE_COPY = {
-  message: (name: string) => `“${name}” goes to Recently deleted with its history. You can restore it for ${DELETED_KEEP_DAYS} days.`,
+  message: (name: string) =>
+    `“${name}” goes to Recently deleted, where you can restore it for ${DELETED_KEEP_DAYS} days. The days you've logged still count in your consistency.`,
+  /** Said only for something that can be ended instead. */
+  endInstead: (noun: string) => `Only stopping? End the ${noun} instead and it stays in your list.`,
   movedToast: 'Moved to Recently deleted',
   restoredToast: (name: string) => `Restored “${name}”`,
 } as const;
@@ -29,9 +32,11 @@ export interface DeleteTaskSheetProps {
   readonly origin?: string;
   /** Called once the delete has gone through, just before leaving the screen. */
   readonly onDeleted?: () => void;
+  /** It can be ended instead (a routine, repeating event or course still running): the sheet says so. */
+  readonly canEnd?: boolean;
 }
 
-export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, onDeleted }: DeleteTaskSheetProps) {
+export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, onDeleted, canEnd = false }: DeleteTaskSheetProps) {
   const router = useRouter();
   const deleteTask = useDeleteTask();
   const restoreTask = useRestoreTask();
@@ -73,7 +78,7 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, on
       visible={visible}
       onClose={onClose}
       title={`Delete this ${noun}?`}
-      message={DELETE_COPY.message(task.name)}
+      message={canEnd ? `${DELETE_COPY.message(task.name)} ${DELETE_COPY.endInstead(noun)}` : DELETE_COPY.message(task.name)}
       confirmLabel={`Delete ${noun}`}
       onConfirm={confirmDelete}
       danger

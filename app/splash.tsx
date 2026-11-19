@@ -15,6 +15,7 @@ import { useThemeStore } from '@/app-shell';
 import { billing } from '@/services/billing';
 import { takePendingTapRoute } from '@/services/notifications';
 import { store, repos } from '@/db';
+import { sweepExpiredDeleted } from '@/queries';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
 import { SPACE, useTheme } from '@/theme';
@@ -51,6 +52,8 @@ export default function S01Splash() {
 
         const settings = await repos.settings.get();
         if (cancelled || navigatedRef.current) return;
+        // What has been in Recently deleted past its time goes for good, its past days kept in the record.
+        void sweepExpiredDeleted();
         // The look the person chose (light or dark, and the colour) is kept with their settings;
         // put it back before the first real screen draws.
         useThemeStore.getState().hydrate(settings.theme, settings.accent);

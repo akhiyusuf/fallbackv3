@@ -28,10 +28,12 @@ export interface TaskRepository {
   listDeleted(): Promise<readonly TaskWithSteps[]>;
   /** Back from Recently deleted, with its history. NOT_FOUND if it is not in Recently deleted. */
   restore(id: Id): Promise<Result<void>>;
-  /** Removes one deleted item for good (only an item already in Recently deleted). */
-  deleteForever(id: Id): Promise<Result<void>>;
-  /** Removes for good everything deleted before `cutoff`; `null` removes everything deleted. Returns how many. */
-  purgeDeleted(cutoff: Instant | null): Promise<Result<number>>;
+  /**
+   * Removes one deleted item for good (only an item already in Recently deleted), writing `keep`
+   * (its past days, anonymous) into the record in the same transaction: either both happen or
+   * neither, so a day is never counted twice or lost.
+   */
+  deleteForever(id: Id, keep?: readonly RetiredDay[]): Promise<Result<void>>;
   duplicate(id: Id): Promise<Result<Id>>;
 }
 

@@ -16,7 +16,6 @@ import type { DbClient, DbClientProxy } from './client';
 import { deleteDatabaseFile, openClient } from './client';
 import { seedCycleWindow } from './cycleWindowSeed';
 import { runMigrations } from './migrate';
-import { purgeCutoff } from '@/domain/retention';
 
 /**
  * The BYO endpoint config lives ONLY in SecureStore (SCHEMA §1, API.md §5) under these keys.
@@ -71,18 +70,6 @@ async function ensureSingletons(db: DbClient): Promise<void> {
   }
 }
 
-/**
- * The hard cascade — SCHEMA §2.3. Runs on every `open()`, nothing else triggers it. A
- * single statement: FK actions declared in the migrations (CASCADE for
- * step/day_log/off_day_mark/as_needed_use, SET NULL for xp_award/widget_config) reproduce
- * the pinned split exactly, so there is no second hand-written copy of the cascade rule to
- * drift from the schema.
- */
-async function hardDeleteSweep(db: DbClient): Promise<void> {
-  // Only what has been in Recently deleted for its full time: anything newer can still be restored.
-  await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL AND deleted_at < ?`, [purgeCutoff(now())]);
-}
-
 async function clearSecureStoreKeys(): Promise<void> {
   for (const key of SECURE_STORE_KEYS) {
     try {
@@ -121,7 +108,6 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
       // MIGRATION_FAILED -> calm S50, never a crash loop (docs/API.md §1.1).
       return 'corrupt';
     }
-    await hardDeleteSweep(db);
     await ensureSingletons(db);
     proxy.setClient(db);
     return 'ready';

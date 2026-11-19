@@ -16,8 +16,9 @@ export const PRIORITY_LEVELS: readonly { readonly value: Importance; readonly la
 
 export type PriorityGroups = Record<Importance, readonly TaskWithSteps[]>;
 
-/** Finished things drop out: a done to-do, a note, a course that has ended, a one-off event that has passed. */
+/** Finished things drop out: a done to-do, a note, a course that has ended, a one-off event that has passed, anything ended. */
 function isLive(task: TaskWithSteps, date: LocalDate): boolean {
+  if (task.endedOn !== null) return false;
   if (task.type === 'todo') return !task.isNote && !task.todoDoneAt;
   if (task.type === 'course') return task.endDate === null || task.endDate >= date;
   if (task.type === 'event' && task.eventDate !== null) return task.eventDate >= date;

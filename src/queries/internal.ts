@@ -11,10 +11,12 @@
  * (`UNIQUE(task_id, date)` + the one-hop `CHECK`), so there is never more than one candidate to
  * choose between.
  */
-import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
-import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
+import { addDays, now as clockNow, today as clockToday, toLocalDate } from '@/lib/date';
+import { newId } from '@/lib/id';
+import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
-import type { DayLog, Occurrence, Repositories, RetiredDay, TaskWithSteps } from '@/types';
+import { ok } from '@/types';
+import type { DayLog, Instant, Occurrence, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
 import type { LocalDate } from '@/types';
 
 export function todayLocal(): LocalDate {
@@ -59,6 +61,8 @@ export async function resolveTaskOccurrences(
 ): Promise<Occurrence[]> {
   const notBefore = creationLocalDate(task);
   const from = iterationFrom(task, notBefore);
+  // An ended habit has nothing after its last day, not even a day pushed onto the next one.
+  if (task.endedOn !== null && task.endedOn < to) to = task.endedOn;
   if (from > to) return [];
 
   const dueDates = occurrencesBetween(task, from, to, notBefore);
@@ -223,4 +227,67 @@ export async function resolveRecordOccurrences(repos: Repositories, to: LocalDat
   const fromDeleted = (await Promise.all(deleted.map((t) => resolveDeletedTaskRecord(repos, t, to, today)))).flat();
   const fromRetired = retired.filter((d) => d.date <= to).map(retiredAsOccurrence);
   return [...live, ...fromDeleted, ...fromRetired];
+}
+
+/**
+ * The first day the record covers: the earliest creation day of any habit, live or deleted, or
+ * the earliest retired day. Null when there is nothing at all.
+ */
+export async function recordStartDate(repos: Repositories): Promise<LocalDate | null> {
+  const [live, deleted, retired] = await Promise.all([repos.tasks.list(), repos.tasks.listDeleted(), repos.retiredDays.list()]);
+  let earliest: LocalDate | null = null;
+  for (const t of [...live, ...deleted]) {
+    const created = toLocalDate(new Date(t.createdAt));
+    if (earliest === null || created < earliest) earliest = created;
+  }
+  for (const d of retired) if (earliest === null || d.date < earliest) earliest = d.date;
+  return earliest;
+}
+
+const KEPT_OUTCOMES = new Set<Occurrence['outcome']>(['ideal', 'fallback', 'missed', 'off']);
+
+/** The days a deleted task leaves in the record when it goes for good: settled days only. */
+export async function recordToKeep(repos: Repositories, task: TaskWithSteps, today: LocalDate, retiredAt: Instant): Promise<RetiredDay[]> {
+  const occs = await resolveDeletedTaskRecord(repos, task, today, today);
+  return occs.filter((o) => KEPT_OUTCOMES.has(o.outcome)).map((o) => ({ date: o.date, outcome: o.outcome as RetiredDay['outcome'], retiredAt }));
+}
+
+/** Deletes one item in Recently deleted for good, keeping its past days in the record. */
+export async function retireForGood(repos: Repositories, task: TaskWithSteps, today: LocalDate = todayLocal()): Promise<Result<void>> {
+  const keep = await recordToKeep(repos, task, today, clockNow());
+  return repos.tasks.deleteForever(task.id, keep);
+}
+
+/**
+ * Deletes for good what is in Recently deleted: everything (`all`), or only what has been there
+ * past its time. Each item keeps its past days in the record. Stops at the first failure.
+ */
+export async function retireDeleted(repos: Repositories, which: 'all' | 'expired', nowIso: Instant = clockNow()): Promise<Result<number>> {
+  const cutoff = purgeCutoff(nowIso);
+  const deleted = await repos.tasks.listDeleted();
+  const due = which === 'all' ? deleted : deleted.filter((t) => t.deletedAt !== null && t.deletedAt < cutoff);
+  const today = todayLocal();
+  let n = 0;
+  for (const task of due) {
+    const result = await retireForGood(repos, task, today);
+    if (!result.ok) return result;
+    n += 1;
+  }
+  return ok(n);
+}
+
+/**
+ * Marks a task off on each day it was due in `[from, to]`: the days it was away (deleted, or
+ * ended) are then neither missed nor done when it comes back.
+ */
+export async function markAwayDaysOff(repos: Repositories, task: TaskWithSteps, from: LocalDate, to: LocalDate): Promise<Result<void>> {
+  if (from > to) return ok(undefined);
+  const notBefore = creationLocalDate(task);
+  const createdAt = clockNow();
+  for (let date = from; date <= to; date = addDays(date, 1)) {
+    if (!isDue(task, date, notBefore)) continue;
+    const result = await repos.offDays.mark({ id: newId(), date, taskId: task.id, priorChipState: null, createdAt });
+    if (!result.ok) return result;
+  }
+  return ok(undefined);
 }

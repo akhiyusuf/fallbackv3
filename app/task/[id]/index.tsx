@@ -9,14 +9,17 @@ import { play } from '@/services/sfx';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlarmClock, CalendarDays, LifeBuoy, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
+import { AlarmClock, CalendarDays, CircleStop, LifeBuoy, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, RotateCcw, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
+import { format } from 'date-fns';
 
 import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import {
+  Button,
   ButtonPair,
   CalendarHeatmap,
   Card,
   Checkbox,
+  ConfirmSheet,
   Dialog,
   EmptyLine,
   IconButton,
@@ -37,15 +40,17 @@ import {
   TimeField,
 } from '@/ui';
 import { ROUTES, useOriginAwareBack } from '@/navigation';
-import { addDays, endOfMonth, now, startOfMonth, today as todayFn } from '@/lib/date';
+import { addDays, endOfMonth, now, parseLocalDate, startOfMonth, today as todayFn } from '@/lib/date';
 import { isDue, perTaskConsistency } from '@/domain';
 import {
   useConsistency,
   useDuplicateTask,
+  useEndTask,
   useLogDose,
   useLogState,
   useMarkOffDay,
   useSnoozeOccurrence,
+  useStartAgain,
   useTask,
   useTaskOccurrences,
   useToggleStep,
@@ -102,9 +107,12 @@ export default function S20ManageTask() {
   const duplicateTask = useDuplicateTask();
   const snoozeOccurrence = useSnoozeOccurrence();
   const undoSnooze = useUndoSnooze();
+  const endTask = useEndTask();
+  const startAgain = useStartAgain();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
   // Set the moment a delete is confirmed: the screen is on its way out, so it must not flash the "deleted" notice.
   const [leaving, setLeaving] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -182,6 +190,19 @@ export default function S20ManageTask() {
     if (!result.ok) fail();
   }
 
+  async function onEnd() {
+    const result = await endTask.mutateAsync(taskId).catch(() => ({ ok: false as const }));
+    setEndOpen(false);
+    if (result.ok) showToast(END_COPY.endedToast, 'neutral');
+    else fail();
+  }
+
+  async function onStartAgain() {
+    const result = await startAgain.mutateAsync(taskId).catch(() => ({ ok: false as const }));
+    if (result.ok) showToast(END_COPY.startedToast, 'success');
+    else fail();
+  }
+
   async function onDuplicate() {
     const result = await duplicateTask.mutateAsync(taskId);
     if (result.ok) {
@@ -252,6 +273,9 @@ export default function S20ManageTask() {
   const parentDays: readonly Weekday[] =
     task.cadence?.kind === 'daily' ? ALL_DAYS : task.cadence?.kind === 'specific-weekdays' ? task.cadence.weekdays : [];
   const showScheduleEditor = isTrackedTask && parentDays.length > 1 && task.idealSteps.length > 1;
+  // Something that keeps coming round can be ended: a routine, a repeating event, a course.
+  const canEnd = !isTodo && !task.isAsNeeded && !(task.type === 'event' && task.eventDate !== null);
+  const endedOn = task.endedOn;
 
   async function saveSchedule() {
     if (!task) return;
@@ -333,7 +357,15 @@ export default function S20ManageTask() {
         </>
       ) : null}
 
-      {isTrackedTask ? (
+      {endedOn !== null ? (
+        <Card style={styles.todayCard} testID="s20-ended">
+          <Text style={[styles.endedTitle, { color: t.color.text }]}>{END_COPY.endedTitle(format(parseLocalDate(endedOn), 'MMM d'))}</Text>
+          <Text style={[styles.caption, { color: t.color.textMuted }]}>{END_COPY.endedBody}</Text>
+          <Button label={END_COPY.startAgain} variant="secondary" onPress={() => void onStartAgain()} loading={startAgain.isPending} fullWidth testID="s20-start-again" />
+        </Card>
+      ) : null}
+
+      {isTrackedTask && endedOn === null ? (
         <View style={styles.block}>
           <SectionHeading right={<Text style={[styles.headingAside, { color: t.color.textMuted }]}>{dayLongLabel(today)}</Text>}>Today</SectionHeading>
           <Card style={styles.todayCard}>
@@ -429,19 +461,21 @@ export default function S20ManageTask() {
         </View>
       ) : null}
 
-      {task.type === 'routine' && !task.isAsNeeded ? (
+      {task.type === 'routine' && !task.isAsNeeded && endedOn === null ? (
         <View style={styles.block}>
           <SectionHeading>Time</SectionHeading>
           <TimeField label="Time of day" value={task.timeOfDay ?? ''} onChange={(v) => void patch({ timeOfDay: v || null })} placeholder="Any time" />
         </View>
       ) : null}
 
+      {endedOn !== null ? null : (
       <View style={styles.block}>
         <SectionHeading>Priority</SectionHeading>
         <Radio label="Importance" value={task.importance} options={IMPORTANCE_OPTIONS} onChange={(v) => void patch({ importance: v as Importance, priorityRank: null })} testID="s20-importance-picker" />
         {task.importance ? <PriorityPlaceRow taskId={taskId} importance={task.importance} /> : null}
         <Radio label="Necessity" value={task.necessity} options={NECESSITY_OPTIONS} onChange={(v) => void patch({ necessity: v as Necessity })} testID="s20-necessity-picker" />
       </View>
+      )}
 
       {isTrackedTask ? (
         <View style={styles.block}>
@@ -456,7 +490,8 @@ export default function S20ManageTask() {
                 onPrevMonth={() => setMonthAnchor(addDays(startOfMonth(monthAnchor), -1))}
                 onNextMonth={() => setMonthAnchor(addDays(endOfMonth(monthAnchor), 1))}
                 onCellPress={(date) => {
-                  if (date < today) setPopoverDate(date);
+                  // An ended habit's days after its last one are not part of it.
+                  if (date < today && (endedOn === null || date <= endedOn)) setPopoverDate(date);
                 }}
                 statLine={statLine}
                 emptyHistoryCaption={isEmptyHistory ? 'Your history will fill in as you log days.' : 'Tap a past day to change its log.'}
@@ -493,6 +528,13 @@ export default function S20ManageTask() {
               ]
             : []),
           { key: 'duplicate', icon: Copy, label: 'Duplicate', onPress: () => void onDuplicate() },
+          ...(canEnd
+            ? [
+                endedOn === null
+                  ? { key: 'end', icon: CircleStop, label: `End ${noun}`, onPress: () => setEndOpen(true) }
+                  : { key: 'start-again', icon: RotateCcw, label: END_COPY.startAgain, onPress: () => void onStartAgain() },
+              ]
+            : []),
           { key: 'delete', icon: Trash2, label: `Delete ${noun}`, danger: true, onPress: () => setDeleteOpen(true) },
         ]}
       />
@@ -528,7 +570,18 @@ export default function S20ManageTask() {
         />
       </Dialog>
 
-      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="manage" origin={from} onDeleted={() => setLeaving(true)} />
+      <ConfirmSheet
+        visible={endOpen}
+        onClose={() => setEndOpen(false)}
+        title={END_COPY.confirmTitle(noun)}
+        message={END_COPY.confirmBody(noun)}
+        confirmLabel={`End ${noun}`}
+        onConfirm={() => void onEnd()}
+        loading={endTask.isPending}
+        testID="s20-end-confirm"
+      />
+
+      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="manage" origin={from} onDeleted={() => setLeaving(true)} canEnd={canEnd && endedOn === null} />
 
       {popoverDate ? (
         <DayLogSheet
@@ -574,7 +627,19 @@ function DayLogSheet({
   );
 }
 
+export const END_COPY = {
+  confirmTitle: (noun: string) => `End this ${noun}?`,
+  confirmBody: (noun: string) =>
+    `It stops here and moves to Ended. Every day you've logged still counts in your consistency, and the days from now on don't count against you. You can start this ${noun} again any time.`,
+  endedTitle: (date: string) => `Ended ${date}`,
+  endedBody: "Nothing is due from here on. The days before still count in your consistency.",
+  startAgain: 'Start again',
+  endedToast: 'Ended. Its past days still count.',
+  startedToast: 'Started again from today',
+} as const;
+
 const styles = StyleSheet.create({
+  endedTitle: { fontSize: FONT_SIZE.base, fontWeight: '700' },
   block: { gap: SPACE.s2 + 4 },
   todayCard: { gap: SPACE.s3 },
   headingAside: { fontSize: FONT_SIZE.sm },

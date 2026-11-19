@@ -56,7 +56,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { resolveAllOccurrences, resolveOneOccurrence, resolveWriteTarget, todayLocal } from './internal';
+import { deletionDay, markAwayDaysOff, resolveOneOccurrence, resolveRecordOccurrences, resolveWriteTarget, retireDeleted, retireForGood, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -118,7 +118,7 @@ async function archiveCycleWindow(w: CycleWindow, recordEndDate: LocalDate, isSh
   if (already) return ok(already.id);
 
   const today = todayLocal();
-  const occs = await resolveAllOccurrences(repos, recordEndDate, today);
+  const occs = await resolveRecordOccurrences(repos, recordEndDate, today);
   const windowed = aggregateConsistency({ occurrences: occs, window: { from: w.startDate, to: recordEndDate }, today });
   const cyclingXpFinal = await repos.progress.cyclingXp(w.id);
   const unlocks = await repos.progress.listUnlocks();
@@ -316,7 +316,7 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
   const [unlocks, settings, allOccs] = await Promise.all([
     repos.progress.listUnlocks(),
     repos.settings.get(),
-    resolveAllOccurrences(repos, today, today),
+    resolveRecordOccurrences(repos, today, today),
   ]);
   const newUnlocks = reconcileAchievements({
     occurrences: allOccs,
@@ -419,7 +419,7 @@ async function persistEarnedBadges(): Promise<void> {
   const [unlocks, settings, allOccs] = await Promise.all([
     repos.progress.listUnlocks(),
     repos.settings.get(),
-    resolveAllOccurrences(repos, today, today),
+    resolveRecordOccurrences(repos, today, today),
   ]);
   const newUnlocks = reconcileAchievements({ occurrences: allOccs, tenureAnchor: settings.tenureAnchorDate, today, alreadyUnlocked: unlocks, now: now() });
   for (const u of newUnlocks) {
@@ -446,11 +446,24 @@ export function useDeleteTask() {
   });
 }
 
-/** Back from Recently deleted, with its history and settings. */
+/**
+ * Back from Recently deleted, with its history and settings. The days it was away are marked off
+ * first (the deletion day too, unless it was already logged), so they are never counted as missed.
+ */
 export function useRestoreTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: Id): Promise<Result<void>> => {
+      const task = (await repos.tasks.listDeleted()).find((t) => t.id === id);
+      if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+      const deletedOn = deletionDay(task);
+      const today = todayLocal();
+      if (deletedOn !== null) {
+        const occ = await resolveOneOccurrence(repos, task, deletedOn, today);
+        const logged = occ.outcome === 'ideal' || occ.outcome === 'fallback';
+        const away = await markAwayDaysOff(repos, task, logged ? addDays(deletedOn, 1) : deletedOn, addDays(today, -1));
+        if (!away.ok) return away;
+      }
       const result = await repos.tasks.restore(id);
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
@@ -460,12 +473,14 @@ export function useRestoreTask() {
   });
 }
 
-/** Removes one item in Recently deleted for good. Its XP stays (SCHEMA §2.3). */
+/** Removes one item in Recently deleted for good. Its past days stay in the record; its XP stays (SCHEMA §2.3). */
 export function useDeleteForever() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: Id): Promise<Result<void>> => {
-      const result = await repos.tasks.deleteForever(id);
+      const task = (await repos.tasks.listDeleted()).find((t) => t.id === id);
+      if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+      const result = await retireForGood(repos, task);
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
@@ -474,12 +489,69 @@ export function useDeleteForever() {
   });
 }
 
-/** Removes everything in Recently deleted for good. */
+/** Removes everything in Recently deleted for good; their past days stay in the record. */
 export function useEmptyRecentlyDeleted() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<Result<number>> => repos.tasks.purgeDeleted(null),
+    mutationFn: async (): Promise<Result<number>> => retireDeleted(repos, 'all'),
     onSuccess: () => invalidateCommon(qc),
+  });
+}
+
+/**
+ * Removes for good what has been in Recently deleted past its time, keeping each one's past days
+ * in the record. Run once the store is open; never throws.
+ */
+export async function sweepExpiredDeleted(): Promise<void> {
+  await retireDeleted(repos, 'expired').catch(() => undefined);
+}
+
+/**
+ * "End routine": the habit stops, its past stays. Its last day is today if today is already
+ * logged, otherwise yesterday, so ending never turns an unlogged today into a miss. It moves to
+ * the Ended list and is due on nothing after that.
+ */
+export function useEndTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: Id): Promise<Result<LocalDate>> => {
+      const task = await liveTask(id);
+      if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
+      if (task.endedOn !== null) return ok(task.endedOn);
+      const today = todayLocal();
+      const occs = await resolveRecordOccurrences(repos, today, today);
+      const doneToday = occs.some((o) => o.taskId === id && o.date === today && (o.outcome === 'ideal' || o.outcome === 'fallback'));
+      const endedOn = doneToday ? today : addDays(today, -1);
+      const result = await repos.tasks.update(id, { endedOn });
+      if (!result.ok) return result;
+      emit({ type: 'task:changed', taskId: id });
+      return ok(endedOn);
+    },
+    onSuccess: (_r, id) => invalidateCommon(qc, id),
+  });
+}
+
+/**
+ * "Start again": an ended habit comes back from today. The days it was ended are marked off, so
+ * the pause is neither missed nor done.
+ */
+export function useStartAgain() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: Id): Promise<Result<void>> => {
+      const task = await liveTask(id);
+      if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
+      if (task.endedOn === null) return ok(undefined);
+      const today = todayLocal();
+      const resumed = { ...task, endedOn: null };
+      const away = await markAwayDaysOff(repos, resumed, addDays(task.endedOn, 1), addDays(today, -1));
+      if (!away.ok) return away;
+      const result = await repos.tasks.update(id, { endedOn: null });
+      if (!result.ok) return result;
+      emit({ type: 'task:changed', taskId: id });
+      return ok(undefined);
+    },
+    onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
 

@@ -28,8 +28,10 @@ export default function CoursesBrowseScreen() {
   const todayDate = today();
 
   const all = tasksQuery.data ?? [];
-  const active = all.filter((c) => c.endDate === null || c.endDate >= todayDate);
-  const past = all.filter((c) => c.endDate !== null && c.endDate < todayDate);
+  // A course stopped early with "End course" is finished, the same as one past its end date.
+  const isOver = (c: (typeof all)[number]) => c.endedOn !== null || (c.endDate !== null && c.endDate < todayDate);
+  const active = all.filter((c) => !isOver(c));
+  const past = all.filter(isOver);
   const shown = lens === 'active' ? active : past;
   const nextToFinish = [...active].filter((c) => c.endDate !== null).sort((a, b) => ((a.endDate as LocalDate) < (b.endDate as LocalDate) ? -1 : 1))[0];
 

@@ -18,6 +18,7 @@ import { BROWSE_SHARED_COPY, dueSectionLabel, S10_COPY } from './copy';
 import { cadenceLabel, cadenceRunsOnWeekday, formatTimeOfDay } from './format';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
+import { EndedSection } from './EndedSection';
 import { useAsNeededHistory } from './useAsNeededHistory';
 import { useTodayRows } from '@/features/today/useTodayRows';
 import { WEEKDAY_FULL } from './weekdayLabels';
@@ -34,8 +35,10 @@ export default function RoutinesBrowseScreen() {
   const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(todayWeekday);
 
   const all = tasksQuery.data ?? [];
-  const scheduled = all.filter((tk) => !tk.isAsNeeded);
-  const asNeeded = all.filter((tk) => tk.isAsNeeded);
+  const running = all.filter((tk) => tk.endedOn === null);
+  const ended = all.filter((tk) => tk.endedOn !== null);
+  const scheduled = running.filter((tk) => !tk.isAsNeeded);
+  const asNeeded = running.filter((tk) => tk.isAsNeeded);
   const due = scheduled.filter((tk) => cadenceRunsOnWeekday(tk.cadence, selectedWeekday));
   const dueIds = new Set(due.map((tk) => tk.id));
   const other = scheduled.filter((tk) => !dueIds.has(tk.id));
@@ -127,6 +130,8 @@ export default function RoutinesBrowseScreen() {
                 ))}
               </View>
             ) : null}
+
+            <EndedSection tasks={ended} onOpen={openTask} />
           </>
         )}
       </ScrollView>
