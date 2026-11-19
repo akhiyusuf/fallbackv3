@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { resolveOccurrence } from '@/domain';
-import { repos } from '@/db';
+import { repos, store } from '@/db';
 import { clearOnboardingProgress } from '@/features/onboarding/progress';
 import { on } from '@/lib/events';
 import { addDays, parseLocalDate, toLocalDate, today } from '@/lib/date';
@@ -62,6 +62,18 @@ function routeForTap(data: Record<string, unknown> | undefined): string {
     return `/today?reentry=1&taskId=${data.taskId}`;
   }
   return '/today';
+}
+
+let pendingTapRoute: string | null = null;
+
+/**
+ * The screen a reminder tap asked for while the app was still starting, once. The splash opens it
+ * in place of plain Today when the person has finished onboarding.
+ */
+export function takePendingTapRoute(): string | null {
+  const route = pendingTapRoute;
+  pendingTapRoute = null;
+  return route;
 }
 
 function triggerDateFor(date: LocalDate, timeOfDay: string): Date {
@@ -272,7 +284,14 @@ export function initNotificationsBridge(): () => void {
   // fulfils (`/today?reentry=1&taskId=<id>` for gentle re-entry, plain `/today` otherwise).
   const tapSub = Notifications.addNotificationResponseReceivedListener((response) => {
     const data = response.notification.request.content.data as Record<string, unknown> | undefined;
-    router.push(routeForTap(data) as never);
+    const route = routeForTap(data);
+    // A tap that opened the app from closed arrives while the splash is still opening the
+    // database: hand the route to the splash instead of opening Today on a store not yet ready.
+    if (store.status() !== 'ready') {
+      pendingTapRoute = route;
+      return;
+    }
+    router.push(route as never);
   });
 
   void reschedule();

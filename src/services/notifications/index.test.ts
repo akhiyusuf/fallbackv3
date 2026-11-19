@@ -38,7 +38,9 @@ const mockLogsListRange = jest.fn((from: string, to: string) => {
   return Promise.resolve(out);
 });
 const mockOffDaysListRange = jest.fn().mockResolvedValue([]);
+const mockStoreStatus = jest.fn(() => 'ready');
 jest.mock('@/db', () => ({
+  store: { status: () => mockStoreStatus() },
   repos: {
     settings: { get: () => mockSettingsGet() },
     tasks: { list: () => mockTasksList() },
@@ -196,6 +198,22 @@ describe('notifications service', () => {
     const listener = mockAddResponseListener.mock.calls[0][0];
     listener({ notification: { request: { content: { data: { kind: 'routine-due', taskId: 'abc-123' } } } } });
     expect(push).toHaveBeenCalledWith('/today');
+
+    push.mockRestore();
+    dispose();
+  });
+
+  it('a tap that opens the app from closed waits for the splash: no navigation before the store is open', async () => {
+    const { initNotificationsBridge, takePendingTapRoute } = require('./index') as typeof import('./index');
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    mockStoreStatus.mockReturnValueOnce('uninitialised');
+    const dispose = initNotificationsBridge();
+
+    const listener = mockAddResponseListener.mock.calls[0][0];
+    listener({ notification: { request: { content: { data: { kind: 'gentle-reentry', taskId: 'abc-123' } } } } });
+    expect(push).not.toHaveBeenCalled();
+    expect(takePendingTapRoute()).toBe('/today?reentry=1&taskId=abc-123');
+    expect(takePendingTapRoute()).toBeNull(); // handed over once
 
     push.mockRestore();
     dispose();

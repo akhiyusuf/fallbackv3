@@ -15,6 +15,8 @@ import type { AchievementCategory, CycleCadence, LocalDate } from '@/types';
 import { FONT_SIZE, INK, mix, RADIUS, SPACE, useTheme } from '@/theme';
 import { Card, Dialog, EmptyLine, InlineRetryBanner, ListGroup, ListRow, MilestoneBadge, Radio, Screen, SectionHeading, Skeleton, Tabs, XPBar } from '@/ui';
 
+import { useToastStore } from '@/app-shell';
+import { SAVE_FAILED } from '@/features/task/formShared';
 import { BADGE_ICONS } from '@/features/progress/badgeIcons';
 import { OTHER_LOCKED_HINT, S27_COPY, SHOWING_UP_LOCKED_HINT, TENURE_OFFSETS } from '@/features/progress/copy';
 import { formatDate, tenureUnlockDate } from '@/features/progress/format';
@@ -50,6 +52,13 @@ export default function S27Achievements() {
   const achievementsQuery = useAchievements();
   const settingsQuery = useSettings();
   const updateSettings = useUpdateSettings();
+  const showSaveToast = useToastStore((st) => st.show);
+  // The reset rhythm is a saved setting: say so if it did not save, rather than leaving the
+  // choice showing until the next launch quietly brings the old one back.
+  async function changeCadence(next: CycleCadence) {
+    const result = await updateSettings.mutateAsync({ cycleCadence: next }).catch(() => ({ ok: false as const }));
+    if (!result.ok) showSaveToast(SAVE_FAILED, 'warning');
+  }
 
   const isLoading = progressQuery.isLoading || achievementsQuery.isLoading || settingsQuery.isLoading;
   const isError = progressQuery.isError || achievementsQuery.isError || settingsQuery.isError;
@@ -121,7 +130,7 @@ export default function S27Achievements() {
           max={null}
           subline={`${S27_COPY.resetsOnPrefix} ${formatDate(progress.currentCycle.endDate, progress.cycleCadence === 'weekly' ? 'EEE, MMM d' : 'MMM d')}`}
         />
-        <Radio label={S27_COPY.resetCadenceLabel} value={settings.cycleCadence} options={S27_COPY.cadenceOptions} onChange={(v) => updateSettings.mutate({ cycleCadence: v as CycleCadence })} />
+        <Radio label={S27_COPY.resetCadenceLabel} value={settings.cycleCadence} options={S27_COPY.cadenceOptions} onChange={(v) => void changeCadence(v as CycleCadence)} />
       </Card>
 
       <ListGroup>

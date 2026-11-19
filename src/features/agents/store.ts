@@ -49,6 +49,8 @@ export interface AgentAccessState {
   connectExample(): void;
   disconnect(id: string): void;
   disconnectAll(): void;
+  /** Back to the first-run defaults, in memory (an erase clears what is saved). */
+  reset(): void;
 }
 
 const KEY = 'fallback.agentAccess';
@@ -70,6 +72,7 @@ export const useAgentAccessStore = create<AgentAccessState>((set) => ({
   connectExample: () => set((s) => (s.agents.length ? s : { agents: [{ id: 'example', name: 'Claude' }] })),
   disconnect: (id) => set((s) => ({ agents: s.agents.filter((a) => a.id !== id) })),
   disconnectAll: () => set({ agents: [] }),
+  reset: () => set({ enabled: false, permissions: INITIAL, agents: [] }),
 }));
 
 /** Writes the on/off switch and the permissions. A failed write keeps them for this run only. */

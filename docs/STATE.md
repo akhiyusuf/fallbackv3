@@ -40,6 +40,18 @@ Done so far under the new process:
   (this machine has no emulator): widgets, notifications, purchases, sounds,
   fonts, pickers and the keyboard are unverified on a device.
 
+- 2026-11-19, after the human installed the APK ("a couple onboarding issues,
+  and a couple of my settings weren't remembered"): three agents (Sonnet
+  onboarding, Haiku settings, Haiku start-up/data) and a main-session review.
+  Reports: `review/sonnet/11-onboarding.md`, `review/haiku/08-settings-memory.md`,
+  `review/haiku/10-cold-start-data.md`. Main-session additions: Erase also
+  clears the onboarding pointer, sounds and agent-access choices and resets
+  them in memory; the app store is connected at launch (`billing.init`, so
+  purchases are acknowledged) and the plan is checked from the splash
+  (`refreshEntitlement` now connects first); a reminder tap that opens the app
+  waits for the splash; a failed reset-rhythm save on Achievements says so.
+  965 tests pass.
+
 Everything below this point describes the old pipeline's state and is history.
 
 **Phase 3 (BUILD) — WAVE 1 + F7 RESCOPE COMPLETE AND FROZEN. WAVE 2 BUILT —

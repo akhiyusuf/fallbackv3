@@ -2,7 +2,9 @@
 import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 
+import { useAgentAccessStore } from '@/features/agents/store';
 import { eraseAllData } from '@/services/data';
+import { useSoundStore } from '@/services/sfx';
 import { ConfirmSheet, InlineRetryBanner } from '@/ui';
 
 import { S48_COPY } from './copy';
@@ -17,7 +19,18 @@ export function EraseDataSheet({ visible, onClose, fromRecovery = false }: { rea
     setFailed(false);
     const result = await eraseAllData();
     if (result.ok) {
+      // What the app holds in memory goes back to first-run defaults with the data, so nothing
+      // from before the erase shows until the next launch.
+      useSoundStore.setState({ on: true });
+      useAgentAccessStore.getState().reset();
       onClose();
+      // Start again from the splash with nothing behind it: Back must not return to the
+      // screens that showed the erased data.
+      try {
+        router.dismissAll();
+      } catch {
+        // Nothing to dismiss.
+      }
       router.replace('/splash' as Href);
       return;
     }

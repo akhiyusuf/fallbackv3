@@ -30,7 +30,17 @@ import { runMigrations } from './migrate';
  * snapshot surviving an erase. Adding a key there without adding it here is a blocking
  * code-review finding.
  */
-const SECURE_STORE_KEYS = ['byo.baseUrl', 'byo.apiKey', 'byo.supportsTranscription', 'byo.model'] as const;
+const SECURE_STORE_KEYS = [
+  'byo.baseUrl',
+  'byo.apiKey',
+  'byo.supportsTranscription',
+  'byo.model',
+  // Kept on the device by other parts of the app; an erase starts them over too. Without the
+  // onboarding pointer here, a fresh start after an erase jumped to the step the person last saw.
+  'fallback.onboarding.progress',
+  'fallback.sounds',
+  'fallback.agentAccess',
+] as const;
 
 const BACKUP_DIR = FileSystem.documentDirectory ?? '';
 

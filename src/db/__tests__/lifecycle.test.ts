@@ -99,7 +99,7 @@ describe('StoreLifecycle', () => {
     // and `model` are inert without url+key, but F25 is all-or-nothing — a key surviving an erase
     // is the same defect shape as wave 1's widget snapshot surviving one.
     expect(clearedKeys).toEqual(
-      expect.arrayContaining(['byo.baseUrl', 'byo.apiKey', 'byo.supportsTranscription', 'byo.model']),
+      expect.arrayContaining(['byo.baseUrl', 'byo.apiKey', 'byo.supportsTranscription', 'byo.model', 'fallback.onboarding.progress', 'fallback.sounds', 'fallback.agentAccess']),
     );
   });
 

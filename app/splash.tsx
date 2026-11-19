@@ -12,6 +12,8 @@ import { useRouter } from 'expo-router';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { useThemeStore } from '@/app-shell';
+import { billing } from '@/services/billing';
+import { takePendingTapRoute } from '@/services/notifications';
 import { store, repos } from '@/db';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
@@ -52,9 +54,16 @@ export default function S01Splash() {
         // The look the person chose (light or dark, and the colour) is kept with their settings;
         // put it back before the first real screen draws.
         useThemeStore.getState().hydrate(settings.theme, settings.accent);
+        // The plan (subscription) is asked of the app store in the background, so Settings and the
+        // assistant show the right one from the start. It never holds up the first screen.
+        void billing
+          .init()
+          .then(() => billing.refreshEntitlement())
+          .catch(() => undefined);
         navigatedRef.current = true;
         if (settings.onboardingCompletedAt) {
-          router.replace('/today');
+          // A reminder tap that opened the app goes where it pointed (e.g. the re-entry banner).
+          router.replace((takePendingTapRoute() ?? '/today') as never);
         } else {
           router.replace('/onboarding/concept');
         }

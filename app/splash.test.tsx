@@ -7,6 +7,17 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ replace: mockReplace, push
 const mockOpen = jest.fn();
 const mockGetSettings = jest.fn();
 jest.mock('@/db', () => ({ store: { open: () => mockOpen() }, repos: { settings: { get: () => mockGetSettings() } } }));
+const mockBillingInit = jest.fn(async () => ({ ok: true }));
+const mockRefreshEntitlement = jest.fn(async () => ({ ok: true }));
+jest.mock('@/services/billing', () => ({ billing: { init: () => mockBillingInit(), refreshEntitlement: () => mockRefreshEntitlement() } }));
+const mockPendingTap: { current: string | null } = { current: null };
+jest.mock('@/services/notifications', () => ({
+  takePendingTapRoute: () => {
+    const r = mockPendingTap.current;
+    mockPendingTap.current = null;
+    return r;
+  },
+}));
 
 import S01Splash from './splash';
 import { useThemeStore } from '@/app-shell';
@@ -30,6 +41,22 @@ describe('S01 — Splash', () => {
     mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z' });
     await render(<S01Splash />);
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today'));
+  });
+
+  it('connects to the app store and checks the plan once the data is open', async () => {
+    mockOpen.mockResolvedValue({ ok: true, value: 'ready' });
+    mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z', theme: 'auto', accent: 'forge-orange' });
+    await render(<S01Splash />);
+    await waitFor(() => expect(mockRefreshEntitlement).toHaveBeenCalledTimes(1));
+    expect(mockBillingInit).toHaveBeenCalledTimes(1);
+  });
+
+  it('a reminder tap that opened the app lands on the screen it pointed to', async () => {
+    mockPendingTap.current = '/today?reentry=1&taskId=abc';
+    mockOpen.mockResolvedValue({ ok: true, value: 'ready' });
+    mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z', theme: 'auto', accent: 'forge-orange' });
+    await render(<S01Splash />);
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today?reentry=1&taskId=abc'));
   });
 
   it('puts the saved look (theme and colour) back before the first screen', async () => {

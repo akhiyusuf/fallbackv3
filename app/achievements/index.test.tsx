@@ -1,11 +1,11 @@
 /** House pattern: @testing-library/react-native, `await render`. Never mock expo-router. */
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 const mockProgress: { current: unknown; isLoading: boolean; isError: boolean } = { current: undefined, isLoading: false, isError: false };
 const mockAchievements: { current: unknown; isLoading: boolean; isError: boolean } = { current: [], isLoading: false, isError: false };
 const mockSettings: { current: unknown; isLoading: boolean; isError: boolean } = { current: undefined, isLoading: false, isError: false };
-const mockUpdateSettings = { mutate: jest.fn() };
+const mockUpdateSettings = { mutate: jest.fn(), mutateAsync: jest.fn(async () => ({ ok: true })) };
 
 jest.mock('@/queries', () => ({
   useProgress: () => ({ data: mockProgress.current, isLoading: mockProgress.isLoading, isError: mockProgress.isError, refetch: jest.fn() }),
@@ -21,6 +21,7 @@ import { addDays } from '@/lib/date';
 import { TENURE_OFFSETS } from '@/features/progress/copy';
 import { tenureUnlockDate } from '@/features/progress/format';
 import type { Instant, LocalDate } from '@/types';
+import { useToastStore } from '@/app-shell';
 
 function progressState(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -89,7 +90,15 @@ describe('S27 — Achievements', () => {
     await render(<S27Achievements />);
     // The reset cadence is a two-option Radio (a tab list labelled "Resets").
     await user.press(screen.getByLabelText('Weekly'));
-    expect(mockUpdateSettings.mutate).toHaveBeenCalledWith({ cycleCadence: 'weekly' });
+    expect(mockUpdateSettings.mutateAsync).toHaveBeenCalledWith({ cycleCadence: 'weekly' });
+  });
+
+  it('a reset-cadence change that does not save says so', async () => {
+    mockUpdateSettings.mutateAsync.mockResolvedValueOnce({ ok: false } as never);
+    const user = userEvent.setup();
+    await render(<S27Achievements />);
+    await user.press(screen.getByLabelText('Weekly'));
+    await waitFor(() => expect(useToastStore.getState().toast?.tone).toBe('warning'));
   });
 
   it('origin-aware back falls back to Today outside a navigator', async () => {

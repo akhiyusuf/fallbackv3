@@ -85,10 +85,17 @@ async function requestBiometricConfirmation(): Promise<Result<void>> {
   return ok(undefined);
 }
 
+let listening = false;
+
 export const billing: BillingProvider = {
+  // Called once at launch (app/splash.tsx). It connects to the store and listens for purchases,
+  // so each one is finished (acknowledged); Google Play refunds a purchase left unfinished for
+  // three days. A second call only reconnects; the listeners are added once.
   async init(): Promise<Result<void>> {
     try {
       await initConnection();
+      if (listening) return ok(undefined);
+      listening = true;
       purchaseUpdatedListener((event) => {
         void (async () => {
           const purchase = event as unknown as MinimalPurchase;
@@ -176,12 +183,15 @@ export const billing: BillingProvider = {
     }
   },
 
-  // B1: this is the ONLY path that repopulates `latestReceipt` on a cold app launch — S44,
-  // the assistant screens, and app-shell's own boot sequence all call this. Without stamping
+  // B1: this is the ONLY path that repopulates `latestReceipt` on a cold app launch — the splash
+  // screen calls it once the store is open, and S44, Settings and the assistant screens again. Without stamping
   // the receipt here, a paying subscriber's `currentReceipt()` stays null forever after a
   // relaunch until they happen to tap Restore Purchases.
   async refreshEntitlement(): Promise<Result<void>> {
     try {
+      // The store has to be connected before it answers; on a cold start nothing else has
+      // connected it yet, and without this the check failed quietly and showed "Free plan".
+      await initConnection();
       const purchases = (await getAvailablePurchases()) as readonly MinimalPurchase[];
       const active = purchases.find((p) => planForSku(p.productId ?? '') !== null);
       if (!active) {
