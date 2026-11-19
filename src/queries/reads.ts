@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays, toLocalDate } from '@/lib/date';
 import { repos } from '@/db';
-import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
+import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, purgeCutoff, reconcileAchievements } from '@/domain';
 import type {
   ConsistencyResult,
   ConsistencyScope,
@@ -33,6 +33,20 @@ export function useTasks(filter?: { type?: TaskType; includeDeleted?: boolean })
     queryKey: includeDeleted ? QUERY_KEYS.tasksIncludingDeleted : QUERY_KEYS.tasks,
     queryFn: () => repos.tasks.list({ includeDeleted }),
     select: (all) => (filter?.type ? all.filter((t) => t.type === filter.type) : all),
+  });
+}
+
+/**
+ * Recently deleted, newest first. Anything past its kept time is removed for good first, so the
+ * list never shows an item with no days left (the launch sweep does the same).
+ */
+export function useRecentlyDeleted() {
+  return useQuery({
+    queryKey: QUERY_KEYS.recentlyDeleted,
+    queryFn: async () => {
+      await repos.tasks.purgeDeleted(purgeCutoff(now()));
+      return repos.tasks.listDeleted();
+    },
   });
 }
 

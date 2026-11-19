@@ -16,6 +16,7 @@ import type { DbClient, DbClientProxy } from './client';
 import { deleteDatabaseFile, openClient } from './client';
 import { seedCycleWindow } from './cycleWindowSeed';
 import { runMigrations } from './migrate';
+import { purgeCutoff } from '@/domain/retention';
 
 /**
  * The BYO endpoint config lives ONLY in SecureStore (SCHEMA §1, API.md §5) under these keys.
@@ -78,9 +79,8 @@ async function ensureSingletons(db: DbClient): Promise<void> {
  * drift from the schema.
  */
 async function hardDeleteSweep(db: DbClient): Promise<void> {
-  await db.withTransactionAsync(async () => {
-    await db.execAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL;`);
-  });
+  // Only what has been in Recently deleted for its full time: anything newer can still be restored.
+  await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL AND deleted_at < ?`, [purgeCutoff(now())]);
 }
 
 async function clearSecureStoreKeys(): Promise<void> {

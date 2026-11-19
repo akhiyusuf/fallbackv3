@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { format } from 'date-fns';
-import { DownloadCloud, Trash2, UploadCloud } from 'lucide-react-native';
+import { ArchiveRestore, DownloadCloud, Trash2, UploadCloud } from 'lucide-react-native';
 import { Share } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { S47_COPY } from '@/features/data/copy';
 import { EraseDataSheet } from '@/features/data/EraseDataSheet';
 import { createBackup, restoreBackup } from '@/services/data';
-import { QUERY_KEYS, useSettings } from '@/queries';
+import { QUERY_KEYS, useRecentlyDeleted, useSettings } from '@/queries';
+import { ROUTES } from '@/navigation';
 import { InlineRetryBanner, ListGroup, ListRow, Screen } from '@/ui';
 import { useThemeStore, useToastStore } from '@/app-shell';
 import type { Settings } from '@/types';
@@ -25,6 +26,7 @@ export default function S47Data() {
   const { confirmErase } = useLocalSearchParams<{ confirmErase?: string }>();
   const showToast = useToastStore((s) => s.show);
   const settingsQuery = useSettings();
+  const recentlyDeleted = useRecentlyDeleted();
 
   const [backingUp, setBackingUp] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -79,6 +81,9 @@ export default function S47Data() {
     showToast(S47_COPY.restoreSuccessToast, 'success');
   }
 
+  const deletedCount = recentlyDeleted.data?.length ?? 0;
+  const recentlyDeletedLine =
+    deletedCount === 0 ? S47_COPY.recentlyDeletedEmpty : `${deletedCount} ${deletedCount === 1 ? 'item' : 'items'}. ${S47_COPY.recentlyDeletedKept}`;
   const settings = settingsQuery.data;
   const lastBackup = settings?.lastBackupAt ? `Last backup ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet;
 
@@ -103,6 +108,16 @@ export default function S47Data() {
         />
       </ListGroup>
       {restoreFailed ? <InlineRetryBanner message={S47_COPY.restoreFailure} onRetry={pickAndRestore} retryLabel={S47_COPY.tryDifferentFile} tone="warning" /> : null}
+
+      <ListGroup title="Deleted">
+        <ListRow
+          icon={ArchiveRestore}
+          label={S47_COPY.recentlyDeleted}
+          sublabel={recentlyDeletedLine}
+          onPress={() => router.push(ROUTES.settingsRecentlyDeleted as Href)}
+          testID="s47-recently-deleted"
+        />
+      </ListGroup>
 
       <ListGroup title="Erase">
         <ListRow icon={Trash2} label={S47_COPY.eraseRow} sublabel={S47_COPY.eraseSubcopy} danger onPress={() => setEraseOpen(true)} chevron={false} />

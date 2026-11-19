@@ -1,9 +1,10 @@
 /**
  * M1. `TaskRepository` — docs/API.md §1. The only SQL that reads/writes `task`/`step`.
  *
- * `softDelete` is deliberately a plain UPDATE, not a DELETE: SCHEMA §2.3's split cascade
- * runs on the NEXT `StoreLifecycle.open()`, not at delete time (undo window). The hard
- * sweep there is one `DELETE FROM task WHERE deleted_at IS NOT NULL`, which relies on the
+ * `softDelete` is deliberately a plain UPDATE, not a DELETE: a deleted item goes to Recently
+ * deleted with its history and can be restored for DELETED_KEEP_DAYS days (src/domain/retention).
+ * Removal for good is `deleteForever`, `purgeDeleted`, or the sweep on `StoreLifecycle.open()`
+ * for items past their time; each is a plain `DELETE FROM task`, which relies on the
  * FK actions declared in the migrations (`step`/`day_log`/`off_day_mark`/`as_needed_use`
  * CASCADE, `xp_award`/`widget_config.fixed_task_id` SET NULL) to reproduce the pinned split
  * exactly — the schema itself is the single source of truth for the cascade, not a second
@@ -355,6 +356,49 @@ export function createTaskRepository(db: DbClient) {
         return ok(undefined);
       } catch (cause) {
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'delete failed', cause });
+      }
+    },
+
+    async listDeleted(): Promise<readonly TaskWithSteps[]> {
+      const rows = await db.getAllAsync<TaskRow>(`SELECT ${TASK_COLUMNS} FROM task WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`);
+      const stepsByTask = await loadStepsForTasks(
+        db,
+        rows.map((r) => r.id as Id),
+      );
+      return rows.map((r) => withSteps(taskRowToTask(r), stepsByTask.get(r.id as Id) ?? []));
+    },
+
+    async restore(id: Id): Promise<Result<void>> {
+      try {
+        const result = await db.runAsync(`UPDATE task SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL`, [now(), id]);
+        if (result.changes === 0) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+        return ok(undefined);
+      } catch (cause) {
+        return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'restore failed', cause });
+      }
+    },
+
+    // The FK actions in the schema carry the cascade (steps, logs, off marks, uses removed; XP
+    // awards and widget references kept with a NULL task, so lifetime XP never drops).
+    async deleteForever(id: Id): Promise<Result<void>> {
+      try {
+        const result = await db.runAsync(`DELETE FROM task WHERE id = ? AND deleted_at IS NOT NULL`, [id]);
+        if (result.changes === 0) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+        return ok(undefined);
+      } catch (cause) {
+        return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'delete failed', cause });
+      }
+    },
+
+    async purgeDeleted(cutoff: Instant | null): Promise<Result<number>> {
+      try {
+        const result =
+          cutoff === null
+            ? await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL`)
+            : await db.runAsync(`DELETE FROM task WHERE deleted_at IS NOT NULL AND deleted_at < ?`, [cutoff]);
+        return ok(result.changes);
+      } catch (cause) {
+        return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'purge failed', cause });
       }
     },
 

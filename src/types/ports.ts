@@ -24,6 +24,14 @@ export interface TaskRepository {
   insert(task: Task, steps: readonly Step[]): Promise<Result<Id>>;
   update(id: Id, patch: Partial<Task>, steps?: readonly Step[]): Promise<Result<void>>;
   softDelete(id: Id): Promise<Result<void>>;
+  /** Deleted, not yet removed for good: newest deletion first. */
+  listDeleted(): Promise<readonly TaskWithSteps[]>;
+  /** Back from Recently deleted, with its history. NOT_FOUND if it is not in Recently deleted. */
+  restore(id: Id): Promise<Result<void>>;
+  /** Removes one deleted item for good (only an item already in Recently deleted). */
+  deleteForever(id: Id): Promise<Result<void>>;
+  /** Removes for good everything deleted before `cutoff`; `null` removes everything deleted. Returns how many. */
+  purgeDeleted(cutoff: Instant | null): Promise<Result<number>>;
   duplicate(id: Id): Promise<Result<Id>>;
 }
 

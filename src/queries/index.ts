@@ -18,6 +18,8 @@ export const QUERY_KEYS = {
    *  genuinely changes the underlying fetch. */
   tasks: ['tasks'] as const,
   tasksIncludingDeleted: ['tasks', 'includeDeleted'] as const,
+  /** Under 'tasks', so every task change refreshes Recently deleted too. */
+  recentlyDeleted: ['tasks', 'recentlyDeleted'] as const,
   task: (id: string) => ['tasks', id] as const,
   today: (date: string) => ['today', date] as const,
   consistency: (scope: string, window: string, taskId?: string) => ['consistency', scope, window, taskId ?? null] as const,

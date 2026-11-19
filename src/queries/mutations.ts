@@ -400,17 +400,53 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: Id): Promise<Result<void>> => {
-      // SCHEMA.md §2.3 — split cascade: repos.tasks.softDelete removes step/day_log/
-      // off_day_mark/as_needed_use but NEVER xp_award/achievement_unlock/cycle_record, so
-      // lifetime XP and level stay monotonic. Deliberately does NOT call `reconcileOccurrence`
-      // or `retractXpAward` — deletion must never touch XP (this file's header, CR-2's
-      // boundary).
+      // Moves the task to Recently deleted (soft delete): hidden everywhere, history kept, so it
+      // can be restored for DELETED_KEEP_DAYS days. Deliberately does NOT call
+      // `reconcileOccurrence` or `retractXpAward`: deletion never touches XP (this file's header,
+      // CR-2's boundary), and neither does restoring or deleting for good.
       const result = await repos.tasks.softDelete(id);
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
     },
     onSuccess: (_r, id) => invalidateCommon(qc, id),
+  });
+}
+
+/** Back from Recently deleted, with its history and settings. */
+export function useRestoreTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: Id): Promise<Result<void>> => {
+      const result = await repos.tasks.restore(id);
+      if (!result.ok) return result;
+      emit({ type: 'task:changed', taskId: id });
+      return ok(undefined);
+    },
+    onSuccess: (_r, id) => invalidateCommon(qc, id),
+  });
+}
+
+/** Removes one item in Recently deleted for good. Its XP stays (SCHEMA §2.3). */
+export function useDeleteForever() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: Id): Promise<Result<void>> => {
+      const result = await repos.tasks.deleteForever(id);
+      if (!result.ok) return result;
+      emit({ type: 'task:changed', taskId: id });
+      return ok(undefined);
+    },
+    onSuccess: (_r, id) => invalidateCommon(qc, id),
+  });
+}
+
+/** Removes everything in Recently deleted for good. */
+export function useEmptyRecentlyDeleted() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<Result<number>> => repos.tasks.purgeDeleted(null),
+    onSuccess: () => invalidateCommon(qc),
   });
 }
 

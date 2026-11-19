@@ -117,6 +117,31 @@ export function createFakeRepos(): FakeRepos {
         if (t) tasks.set(id, { ...t, deletedAt: '2024-01-01T00:00:00.000Z' as Instant });
         return ok(undefined);
       },
+      listDeleted: async () => [...tasks.values()].filter((t) => t.deletedAt !== null).sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt))),
+      restore: async (id) => {
+        const t = tasks.get(id);
+        if (!t || t.deletedAt === null) return err({ code: 'NOT_FOUND', message: 'not in Recently deleted' });
+        tasks.set(id, { ...t, deletedAt: null });
+        return ok(undefined);
+      },
+      deleteForever: async (id) => {
+        const t = tasks.get(id);
+        if (!t || t.deletedAt === null) return err({ code: 'NOT_FOUND', message: 'not in Recently deleted' });
+        tasks.delete(id);
+        for (const k of [...logs.keys()]) if (k.startsWith(`${id}:`)) logs.delete(k);
+        return ok(undefined);
+      },
+      purgeDeleted: async (cutoff) => {
+        let n = 0;
+        for (const t of [...tasks.values()]) {
+          if (t.deletedAt !== null && (cutoff === null || t.deletedAt < cutoff)) {
+            tasks.delete(t.id);
+            for (const k of [...logs.keys()]) if (k.startsWith(`${t.id}:`)) logs.delete(k);
+            n += 1;
+          }
+        }
+        return ok(n);
+      },
       duplicate: async (id) => {
         const t = tasks.get(id);
         if (!t) return err({ code: 'NOT_FOUND', message: 'not found' });

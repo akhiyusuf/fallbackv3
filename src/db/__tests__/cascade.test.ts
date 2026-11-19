@@ -115,6 +115,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
 
     const del = await repos.tasks.softDelete(task.id);
     expect(del.ok).toBe(true);
+    // Deleted long enough ago to be past its 30 days in Recently deleted.
+    await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
 
     // Reopen — this is what runs the hard sweep.
     const reopened = await store.open();
@@ -139,6 +141,24 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
     expect(unlocks.map((u) => u.key)).toEqual(['showing-up-7']);
   });
 
+  it('something deleted less than 30 days ago survives a relaunch with all its history, and can be restored', async () => {
+    const { repos, store } = await freshDb();
+    const task = buildTask();
+    await repos.tasks.insert(task, buildSteps(task.id));
+    await repos.logs.upsert({ id: newId(), taskId: task.id, date: '2026-01-02' as never, chipState: 'done', isManualOverride: true, completedStepIds: [], dosesCompleted: 0, movedToDate: null, createdAt: '2026-01-02T00:00:00.000Z' as never, updatedAt: '2026-01-02T00:00:00.000Z' as never });
+
+    await repos.tasks.softDelete(task.id);
+    await store.open(); // the launch sweep leaves it: it is within its 30 days
+
+    expect(await repos.tasks.list()).toHaveLength(0);
+    expect((await repos.tasks.listDeleted()).map((t) => t.id)).toEqual([task.id]);
+    expect((await repos.tasks.restore(task.id)).ok).toBe(true);
+    const back = await repos.tasks.get(task.id);
+    expect(back?.deletedAt).toBeNull();
+    expect(back?.idealSteps.length).toBeGreaterThan(0);
+    expect(await repos.logs.listForTask(task.id, '2026-01-01' as never, '2026-01-31' as never)).toHaveLength(1);
+  });
+
   it('as_needed_use rows for a deleted task are hard-deleted by the sweep (cascaded, per the split table)', async () => {
     const { repos, store } = await freshDb();
     const task = buildTask({ isAsNeeded: true, cadence: null, isTracked: false });
@@ -146,6 +166,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
     await repos.asNeeded.append({ id: newId(), taskId: task.id, date: '2026-01-01' as never, marker: null, createdAt: '2026-01-01T00:00:00.000Z' as never });
 
     await repos.tasks.softDelete(task.id);
+    // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
+    await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
 
     expect(await repos.asNeeded.listForTask(task.id)).toHaveLength(0);
@@ -158,6 +180,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
     await repos.offDays.mark({ id: newId(), date: '2026-03-01' as never, taskId: null, priorChipState: null, createdAt: '2026-03-01T00:00:00.000Z' as never });
 
     await repos.tasks.softDelete(task.id);
+    // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
+    await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
 
     const marks = await repos.offDays.listRange('2026-03-01' as never, '2026-03-01' as never);

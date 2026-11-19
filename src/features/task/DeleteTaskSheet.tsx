@@ -5,13 +5,21 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
-import { useDeleteTask } from '@/queries';
+import { useToastStore } from '@/app-shell';
+import { DELETED_KEEP_DAYS } from '@/domain';
+import { useDeleteTask, useRestoreTask } from '@/queries';
 import type { Id, TaskType } from '@/types';
 import { ConfirmSheet, InlineRetryBanner } from '@/ui';
 
 import { confirmedDeleteDestination } from './deleteOrigin';
 
 export const TYPE_NOUN: Record<TaskType, string> = { routine: 'routine', event: 'event', course: 'course', todo: 'to-do' };
+
+export const DELETE_COPY = {
+  message: (name: string) => `“${name}” goes to Recently deleted with its history. You can restore it for ${DELETED_KEEP_DAYS} days.`,
+  movedToast: 'Moved to Recently deleted',
+  restoredToast: (name: string) => `Restored “${name}”`,
+} as const;
 
 export interface DeleteTaskSheetProps {
   readonly visible: boolean;
@@ -24,6 +32,8 @@ export interface DeleteTaskSheetProps {
 export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin }: DeleteTaskSheetProps) {
   const router = useRouter();
   const deleteTask = useDeleteTask();
+  const restoreTask = useRestoreTask();
+  const showToast = useToastStore((s) => s.show);
   const [failed, setFailed] = useState(false);
   const noun = TYPE_NOUN[task.type];
 
@@ -36,6 +46,17 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin }: 
     }
     onClose();
     router.replace(confirmedDeleteDestination({ openedFrom, s20Origin: origin, taskType: task.type }) as never);
+    // Not final: it is in Recently deleted, and Undo brings it straight back.
+    showToast(DELETE_COPY.movedToast, 'neutral', {
+      action: {
+        label: 'Undo',
+        onPress: () =>
+          void restoreTask
+            .mutateAsync(task.id)
+            .then((r) => showToast(r.ok ? DELETE_COPY.restoredToast(task.name) : "Couldn't restore. Try again from Settings > Data.", r.ok ? 'neutral' : 'warning'))
+            .catch(() => showToast("Couldn't restore. Try again from Settings > Data.", 'warning')),
+      },
+    });
   }
 
   return (
@@ -43,7 +64,7 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin }: 
       visible={visible}
       onClose={onClose}
       title={`Delete this ${noun}?`}
-      message={`“${task.name}” and its history will be removed. This can't be undone.`}
+      message={DELETE_COPY.message(task.name)}
       confirmLabel={`Delete ${noun}`}
       onConfirm={confirmDelete}
       danger

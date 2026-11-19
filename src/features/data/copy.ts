@@ -2,6 +2,7 @@
  * M1. Verbatim copy for S01, S45, S47, S48, S50 — `design-input/fallback-handoff/uploads/
  * ALLSCREENS_1.md`. No paraphrasing; every string here is a direct quote from that file.
  */
+import { DELETED_KEEP_DAYS } from '@/domain';
 
 export const S01_COPY = {
   wordmark: 'Fallback',
@@ -37,6 +38,9 @@ export const S47_COPY = {
   restoreSubcopy: 'Choose a backup file saved on this device.',
   restoreFailure: "We couldn't read the backup file. Your current data is untouched. Nothing was overwritten.",
   tryDifferentFile: 'Try a different file',
+  recentlyDeleted: 'Recently deleted',
+  recentlyDeletedEmpty: 'Nothing deleted lately.',
+  recentlyDeletedKept: `Kept for ${DELETED_KEEP_DAYS} days.`,
   eraseRow: 'Erase all data',
   eraseSubcopy: 'Permanently remove everything from this device.',
   backupSuccessPrefix: 'Backed up',

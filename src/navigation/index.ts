@@ -68,6 +68,7 @@ export const ROUTES = {
   settingsWidgets: '/settings/widgets',
   settingsData: '/settings/data',
   settingsDataErase: '/settings/data/erase',
+  settingsRecentlyDeleted: '/settings/data/deleted',
   settingsHelp: '/settings/help',
   recovery: '/recovery',
 } as const satisfies Record<string, Href>;

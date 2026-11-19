@@ -236,6 +236,8 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     expect(await repos.progress.lifetimeXp()).toBe(100);
 
     await repos.tasks.softDelete(task.id);
+    // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
+    await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     // Hard sweep — xp_award.task_id becomes NULL, row survives (SCHEMA §2.3).
     await store.open();
     const orphaned = await repos.progress.listXpAwards();

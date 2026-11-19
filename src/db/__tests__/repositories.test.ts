@@ -291,6 +291,8 @@ describe('ProgressRepository', () => {
 
     // Delete the task and let the hard sweep orphan its award (SCHEMA §2.3).
     await repos.tasks.softDelete(task.id);
+    // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
+    await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
     const orphaned = await repos.progress.listXpAwards();
     expect(orphaned).toHaveLength(1);

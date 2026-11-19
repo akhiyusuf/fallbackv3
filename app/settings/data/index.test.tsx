@@ -11,7 +11,9 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockSettingsData: { current: unknown } = { current: undefined };
+const mockDeleted: { current: unknown[] } = { current: [] };
 jest.mock('@/queries', () => ({
+  useRecentlyDeleted: () => ({ data: mockDeleted.current, isLoading: false }),
   useSettings: () => ({ data: mockSettingsData.current, isLoading: mockSettingsData.current === undefined }),
   QUERY_KEYS: { settings: ['settings'] },
 }));
@@ -53,6 +55,23 @@ describe('S47 — Data', () => {
     jest.clearAllMocks();
     mockSettingsData.current = undefined;
     mockParams.current = {};
+    mockDeleted.current = [];
+  });
+
+  it('Recently deleted says how many items wait there and opens its screen', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockDeleted.current = [{ id: 'a' }, { id: 'b' }];
+    const user = userEvent.setup();
+    await renderScreen();
+    expect(screen.getByText('2 items. Kept for 30 days.')).toBeTruthy();
+    await user.press(screen.getByText(S47_COPY.recentlyDeleted));
+    expect(mockPush).toHaveBeenCalledWith('/settings/data/deleted');
+  });
+
+  it('Recently deleted with nothing in it says so', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    await renderScreen();
+    expect(screen.getByText(S47_COPY.recentlyDeletedEmpty)).toBeTruthy();
   });
 
   it('default, no backup yet: shows "No backup yet."', async () => {
