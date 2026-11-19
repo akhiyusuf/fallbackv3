@@ -19,6 +19,8 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 
+import { joinPath, removeFile } from './nodeTempFiles';
+
 type Params = readonly unknown[] | Record<string, unknown> | undefined;
 
 function bindArgs(params: Params): unknown[] {
@@ -82,11 +84,27 @@ export interface ExpoSqliteTestDouble {
   __reset(): void;
 }
 
+export interface ExpoSqliteTestDoubleOptions {
+  /**
+   * When set, every database lives in a real file under this directory and EVERY open is a
+   * NEW connection to that file, as real `expo-sqlite` behaves. A "restart" is then a second
+   * open that sees exactly what the first one committed (WAL included). Left unset, the
+   * default in-memory registry (one shared connection per name) is used, as before.
+   */
+  readonly directory?: string;
+}
+
 /** One independent registry per call — give each test file (or `describe` block) its own. */
-export function createExpoSqliteTestDouble(): ExpoSqliteTestDouble {
+export function createExpoSqliteTestDouble(options: ExpoSqliteTestDoubleOptions = {}): ExpoSqliteTestDouble {
   const registry = new Map<string, DatabaseSync>();
+  const openFileConnections = new Set<DatabaseSync>();
 
   async function openDatabaseAsync(name: string): Promise<FakeSQLiteDatabase> {
+    if (options.directory !== undefined) {
+      const connection = new DatabaseSync(joinPath(options.directory, name));
+      openFileConnections.add(connection);
+      return new FakeSQLiteDatabase(connection);
+    }
     let db = registry.get(name);
     if (!db) {
       db = new DatabaseSync(':memory:');
@@ -96,6 +114,12 @@ export function createExpoSqliteTestDouble(): ExpoSqliteTestDouble {
   }
 
   async function deleteDatabaseAsync(name: string): Promise<void> {
+    if (options.directory !== undefined) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        removeFile(joinPath(options.directory, name + suffix));
+      }
+      return;
+    }
     const db = registry.get(name);
     if (db) {
       // The caller (StoreLifecycle.eraseAll) already closes its own handle first; matching
@@ -110,7 +134,7 @@ export function createExpoSqliteTestDouble(): ExpoSqliteTestDouble {
   }
 
   function __reset(): void {
-    for (const db of registry.values()) {
+    for (const db of [...registry.values(), ...openFileConnections]) {
       try {
         db.close();
       } catch {
@@ -118,6 +142,7 @@ export function createExpoSqliteTestDouble(): ExpoSqliteTestDouble {
       }
     }
     registry.clear();
+    openFileConnections.clear();
   }
 
   return { openDatabaseAsync, deleteDatabaseAsync, __reset };

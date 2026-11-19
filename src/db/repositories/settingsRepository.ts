@@ -107,6 +107,15 @@ const SETTINGS_COLUMNS = `
   sync_enabled, sync_last_synced_at, sync_last_error, last_backup_at, updated_at
 `;
 
+function withoutUndefined<T extends object>(value: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, field] of Object.entries(value)) {
+    if (field === undefined) continue;
+    out[key] = field !== null && typeof field === 'object' && !Array.isArray(field) ? withoutUndefined(field) : field;
+  }
+  return out as T;
+}
+
 const DIGEST_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function createSettingsRepository(db: DbClient) {
@@ -125,8 +134,11 @@ export function createSettingsRepository(db: DbClient) {
       return rowToSettings(row, widgets);
     },
 
-    async patch(patch: Partial<Settings>): Promise<Result<Settings>> {
+    async patch(incoming: Partial<Settings>): Promise<Result<Settings>> {
       try {
+        // An explicit `undefined` means "not part of this change" (a partial update), never a
+        // value to write: left in, it refused the whole save, with the SQLite driver rejecting it.
+        const patch = withoutUndefined(incoming);
         if (patch.notifications?.dailyDigestTime && !DIGEST_TIME_RE.test(patch.notifications.dailyDigestTime)) {
           return err({
             code: 'VALIDATION_FAILED',
@@ -135,21 +147,25 @@ export function createSettingsRepository(db: DbClient) {
           });
         }
 
-        const current = await db.getFirstAsync<SettingsRow>(`SELECT ${SETTINGS_COLUMNS} FROM settings WHERE id = 1`);
-        if (!current) throw new Error('settings singleton missing');
-        const currentWidgets = await readWidgets();
-        const merged = rowToSettings(current, currentWidgets);
-
-        const next: Settings = {
-          ...merged,
-          ...patch,
-          notifications: { ...merged.notifications, ...patch.notifications },
-          assistant: { ...merged.assistant, ...patch.assistant },
-          sync: { ...merged.sync, ...patch.sync },
-          updatedAt: now(),
-        };
-
+        // The read is INSIDE the transaction: with transactions queued (client.ts), this merge
+        // always starts from what the previous save committed, so two quick patches cannot
+        // overwrite each other with a stale copy of the row.
+        let next!: Settings;
         await db.withTransactionAsync(async () => {
+          const current = await db.getFirstAsync<SettingsRow>(`SELECT ${SETTINGS_COLUMNS} FROM settings WHERE id = 1`);
+          if (!current) throw new Error('settings singleton missing');
+          const currentWidgets = await readWidgets();
+          const merged = rowToSettings(current, currentWidgets);
+
+          next = {
+            ...merged,
+            ...patch,
+            notifications: { ...merged.notifications, ...patch.notifications },
+            assistant: { ...merged.assistant, ...patch.assistant },
+            sync: { ...merged.sync, ...patch.sync },
+            updatedAt: now(),
+          };
+
           await db.runAsync(
             `UPDATE settings SET theme=?, accent=?, accent_ext=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
              notif_master=?, notif_routine_due=?, notif_event_starting=?, notif_course_dose=?,
@@ -197,7 +213,8 @@ export function createSettingsRepository(db: DbClient) {
 
         return ok(next);
       } catch (cause) {
-        if (cause && typeof cause === 'object' && 'code' in cause) return err(cause as never);
+        // Every failure here is a write failure. A driver error can carry its own `code` (SQLite's
+        // is "ERR_SQLITE_ERROR"), so it must not be passed through as the Result's code.
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'patch failed', cause });
       }
     },

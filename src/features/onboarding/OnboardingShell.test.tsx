@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { Dimensions, Text as RNText } from 'react-native';
+import { BackHandler, Dimensions, Text as RNText } from 'react-native';
 import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
@@ -119,5 +119,67 @@ describe('OnboardingShell Skip (the save before leaving)', () => {
     await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(ONBOARDING_SHELL_COPY.skipFailure));
     expect(useToastStore.getState().toast?.tone).toBe('warning');
     expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe('OnboardingShell leaving and the phone back button', () => {
+  afterEach(() => jest.restoreAllMocks());
+  beforeEach(() => {
+    mockUpdateSettingsMutateAsync.mockReset();
+    mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: true });
+  });
+
+  it('Skip clears the stack before going to Today, so back from Today cannot return to a step', async () => {
+    const calls: string[] = [];
+    jest.spyOn(router, 'dismissAll').mockImplementation(() => void calls.push('dismissAll'));
+    jest.spyOn(router, 'replace').mockImplementation(() => void calls.push('replace'));
+    const user = userEvent.setup();
+    await renderAt(390, 844, 4);
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    await waitFor(() => expect(calls).toEqual(['dismissAll', 'replace']));
+  });
+
+  it('the phone back button on a step that is alone in the stack (after a resume) goes to the step before', async () => {
+    const handlers: (() => boolean | null | undefined)[] = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
+      handlers.push(h);
+      return { remove: () => undefined };
+    });
+    jest.spyOn(router, 'canGoBack').mockReturnValue(false);
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    await renderAt(390, 844, 4);
+    expect(handlers.map((h) => h())).toContain(true);
+    expect(replace).toHaveBeenCalledWith('/onboarding/types');
+  });
+
+  it('the phone back button is left to the stack when there is a step to go back to, and step 1 does not listen', async () => {
+    const handlers: (() => boolean | null | undefined)[] = [];
+    const add = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
+      handlers.push(h);
+      return { remove: () => undefined };
+    });
+    jest.spyOn(router, 'canGoBack').mockReturnValue(true);
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const view = await renderAt(390, 844, 4);
+    expect(handlers.map((h) => h())).not.toContain(true);
+    expect(replace).not.toHaveBeenCalled();
+    await view.utils.unmount();
+    add.mockClear();
+    await renderAt(390, 844, 1);
+    expect(add).not.toHaveBeenCalled();
+  });
+
+  it('a second Skip tap while the first is saving saves once', async () => {
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    let release: (v: { ok: true }) => void = () => {};
+    mockUpdateSettingsMutateAsync.mockReturnValue(new Promise((r) => (release = r)));
+    const view = await renderAt(390, 844, 4);
+    const user = userEvent.setup();
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    await user.press(screen.getByLabelText('Skip onboarding'));
+    release({ ok: true });
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(1);
+    await view.utils.unmount();
   });
 });

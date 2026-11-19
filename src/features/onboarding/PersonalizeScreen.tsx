@@ -1,5 +1,5 @@
 /** S06 — onboarding step 5. Accent swatches and one reminders row; no dead "Preview" button. */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Check, Palette } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -32,9 +32,23 @@ export function PersonalizeScreen() {
 
   const [saving, setSaving] = useState(false);
 
+  // Take the saved colour once, when it first arrives. Not again after each save: a later reload of
+  // the settings would otherwise put back an older pick if the person tapped quickly.
+  const loadedRef = useRef(false);
   useEffect(() => {
-    if (settingsQuery.data) setAccent(settingsQuery.data.accent);
-  }, [settingsQuery.data?.accent]);
+    if (settingsQuery.data && !loadedRef.current) {
+      loadedRef.current = true;
+      setAccent(settingsQuery.data.accent);
+    }
+  }, [settingsQuery.data, setAccent]);
+
+  // A pick is applied at once AND kept at once, so it survives Skip or a kill before Next. A failed
+  // write here is quiet: Next saves the same choice again and shows the retry toast if that fails too.
+  function pick(patch: { accent: AccentKey } | { theme: ThemeMode }) {
+    if ('accent' in patch) setAccent(patch.accent);
+    else setMode(patch.theme);
+    void updateSettings.mutateAsync(patch).catch(() => undefined);
+  }
 
   async function handleNext() {
     const priorAccent = settingsQuery.data?.accent ?? DEFAULT_ACCENT;
@@ -63,7 +77,7 @@ export function PersonalizeScreen() {
             return (
               <Pressable
                 key={key}
-                onPress={() => setAccent(key)}
+                onPress={() => pick({ accent: key })}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
                 accessibilityLabel={`${ACCENT_LABEL[key]}${selected ? ', selected' : ''}`}
@@ -79,7 +93,7 @@ export function PersonalizeScreen() {
       </View>
       <View style={styles.section}>
         <SectionHeading>{S06_COPY.appearanceSectionLabel}</SectionHeading>
-        <Radio label="" value={mode} options={S06_COPY.appearanceOptions} onChange={(v) => setMode(v as ThemeMode)} />
+        <Radio label="" value={mode} options={S06_COPY.appearanceOptions} onChange={(v) => pick({ theme: v as ThemeMode })} />
       </View>
 
     </OnboardingShell>

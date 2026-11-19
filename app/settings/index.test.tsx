@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { render, screen, userEvent } from '@testing-library/react-native';
+import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import { useEntitlementStore } from '@/app-shell';
@@ -15,6 +15,9 @@ jest.mock('@/queries', () => ({
   useProgress: () => ({ data: mockProgressData.current, isLoading: mockProgressData.current === undefined }),
   useConsistency: () => ({ data: mockConsistencyData.current, isError: !!mockConsistencyData.isError, refetch: jest.fn() }),
 }));
+
+const mockRefreshEntitlement = jest.fn(async () => ({ ok: true, value: undefined }));
+jest.mock('@/services/billing', () => ({ billing: { refreshEntitlement: () => mockRefreshEntitlement() } }));
 
 const mockInitNotificationsBridge = jest.fn();
 jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
@@ -135,5 +138,25 @@ describe('S41 — Settings Home', () => {
     await render(<S41SettingsHome />);
     expect(mockInitNotificationsBridge).toHaveBeenCalled();
     expect(mockInitWidgetsBridge).toHaveBeenCalled();
+  });
+  it('on open, loads the saved subscription, so a subscriber is not shown the free plan after a restart', async () => {
+    mockSettingsData.current = { notifications: { master: false } };
+    mockProgressData.current = { lifetimeXp: 0, level: LEVEL7 };
+    mockConsistencyData.current = { percent: null };
+    mockRefreshEntitlement.mockImplementationOnce(async () => {
+      useEntitlementStore.getState().patchEntitlement({ source: 'subscription', plan: 'annual', status: 'active' });
+      return { ok: true, value: undefined };
+    });
+    await render(<S41SettingsHome />);
+    expect(mockRefreshEntitlement).toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('Active')).toBeTruthy());
+  });
+
+  it('on open, with no saved subscription, the row says Free plan', async () => {
+    mockSettingsData.current = { notifications: { master: false } };
+    mockProgressData.current = { lifetimeXp: 0, level: LEVEL7 };
+    mockConsistencyData.current = { percent: null };
+    await render(<S41SettingsHome />);
+    expect(screen.getByText('Free plan')).toBeTruthy();
   });
 });

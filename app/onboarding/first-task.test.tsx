@@ -1,5 +1,5 @@
 /** House pattern (docs/MODULES.md top matter): @testing-library/react-native, `await render`. */
-import { render, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 jest.mock('expo-secure-store', () => ({
@@ -131,5 +131,25 @@ describe('S08 — Onboarding: First Task', () => {
     expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
     expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(2);
     replace.mockRestore();
+  });
+
+  it('two presses of Save in the same moment create one routine, and finishing clears the stack before Today', async () => {
+    const calls: string[] = [];
+    jest.spyOn(router, 'dismissAll').mockImplementation(() => void calls.push('dismissAll'));
+    const replace = jest.spyOn(router, 'replace').mockImplementation((h) => void calls.push(`replace:${String(h)}`));
+    let release: (v: unknown) => void = () => {};
+    mockCreateTaskMutateAsync.mockReturnValue(new Promise((r) => (release = r)));
+    const user = userEvent.setup();
+    await render(<S08OnboardingFirstTask />);
+    await user.type(screen.getByLabelText(S08_COPY.nameLabel), 'Morning workout');
+    await user.type(screen.getByLabelText(S08_COPY.idealLabel), 'Full workout');
+    await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
+    fireEvent.press(screen.getByLabelText(S08_COPY.save));
+    fireEvent.press(screen.getByLabelText(S08_COPY.save));
+    release({ ok: true, value: 'task-1' });
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+    expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(['dismissAll', 'replace:/today?justAdded=1']);
   });
 });

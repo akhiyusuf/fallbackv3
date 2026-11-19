@@ -23,8 +23,10 @@ const mockSettings: { current: { notifications: Record<string, boolean> } } = {
   current: { notifications: { master: false, routineDue: false, eventStarting: false, courseDose: false, gentleReentry: false } },
 };
 const mockUpdateSettings = jest.fn().mockResolvedValue({ ok: true });
+const mockSettingsLoaded = { current: true };
+const mockRefetch = jest.fn();
 jest.mock('@/queries', () => ({
-  useSettings: () => ({ data: mockSettings.current }),
+  useSettings: () => ({ data: mockSettingsLoaded.current ? mockSettings.current : undefined, refetch: () => mockRefetch() }),
   useUpdateSettings: () => ({ mutateAsync: (args: unknown) => mockUpdateSettings(args) }),
 }));
 
@@ -36,6 +38,7 @@ const REMINDERS_ON = { master: true, routineDue: true, eventStarting: true, cour
 describe('S07 — Notification Permission Primer', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSettingsLoaded.current = true;
     mockSettings.current = { notifications: { master: false, routineDue: false, eventStarting: false, courseDose: false, gentleReentry: false } };
   });
 
@@ -104,6 +107,35 @@ describe('S07 — Notification Permission Primer', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding/first-task'));
     expect(mockReschedule).not.toHaveBeenCalled();
     expect(mockUpdateSettings).not.toHaveBeenCalled();
+    push.mockRestore();
+  });
+
+  it('Allow before the settings have loaded still turns the reminders on (it asks for them again)', async () => {
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    mockSettingsLoaded.current = false;
+    mockRefetch.mockResolvedValue({ data: mockSettings.current });
+    const user = userEvent.setup();
+    await render(<S07NotificationPermissionPrimer />);
+    await user.press(screen.getByLabelText('Allow notifications'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/onboarding/first-task'));
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ notifications: REMINDERS_ON });
+    push.mockRestore();
+  });
+
+  it('a write that fails on Allow or Not now does not trap the person: the tour still goes on', async () => {
+    const push = jest.spyOn(router, 'push').mockImplementation(() => {});
+    mockUpdateSettings.mockRejectedValue(new Error('database closed'));
+    mockSettings.current = { notifications: { ...REMINDERS_ON } };
+    const user = userEvent.setup();
+    const view = await render(<S07NotificationPermissionPrimer />);
+    await user.press(screen.getByLabelText('Not now'));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    await view.unmount();
+    mockSettings.current = { notifications: { master: false, routineDue: false, eventStarting: false, courseDose: false, gentleReentry: false } };
+    await render(<S07NotificationPermissionPrimer />);
+    await user.press(screen.getByLabelText('Allow notifications'));
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(2));
+    mockUpdateSettings.mockResolvedValue({ ok: true });
     push.mockRestore();
   });
 });

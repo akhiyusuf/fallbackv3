@@ -1,5 +1,7 @@
 /** M7. F9 resume-after-kill — see `progress.ts`'s header for the full rationale. */
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
+// The screen's own navigation, read without throwing when there is none (a test renders a step alone).
+import { NavigationContext } from 'expo-router/build/react-navigation/core';
 import { useRouter, type Href } from 'expo-router';
 
 import { clearOnboardingProgress, getOnboardingProgress, markOnboardingProgress } from './progress';
@@ -11,9 +13,13 @@ import { clearOnboardingProgress, getOnboardingProgress, markOnboardingProgress 
  * silently forward the user past it (see `useOnboardingResumeRedirect` below).
  */
 export function useOnboardingStepMarker(ownRoute: string): void {
+  const navigation = useContext(NavigationContext);
   useEffect(() => {
     void markOnboardingProgress(ownRoute);
-  }, [ownRoute]);
+    // Steps stay mounted underneath the next one, so Back to a step does not mount it again:
+    // record it whenever it comes back into view, or a kill would resume on the step left behind.
+    return navigation?.addListener('focus', () => void markOnboardingProgress(ownRoute));
+  }, [ownRoute, navigation]);
 }
 
 /**
@@ -51,4 +57,18 @@ export function useOnboardingResumeRedirect(ownRoute: string): { resuming: boole
 /** Called on Skip (any screen) or S08's successful save — the two ways the tour ends. */
 export async function finishOnboardingProgress(): Promise<void> {
   await clearOnboardingProgress();
+}
+
+/**
+ * Leave the tour for good (Skip, or the first routine saved). The steps the person walked through
+ * are still in the stack under the screen they are leaving, so a plain replace would let the phone's
+ * back button (or gesture) from Today step back into onboarding. Clear the stack first.
+ */
+export function leaveOnboarding(router: { dismissAll?: () => void; replace: (href: Href) => void }, href: Href): void {
+  try {
+    router.dismissAll?.();
+  } catch {
+    // Nothing to dismiss (the tour is the only screen): fine.
+  }
+  router.replace(href);
 }

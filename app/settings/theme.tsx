@@ -3,7 +3,7 @@
  * extra colours. Every theme, named or not, is derived from one seed colour by `@/theme/engine`,
  * so all of them pass the same contrast checks. The preview is the real Today card.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { Check, Dumbbell } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -66,6 +66,13 @@ export default function S43Theme() {
   const setAccent = useThemeStore((s) => s.setAccent);
   const [previewChip, setPreviewChip] = useState<ChipState>('todo');
   const [previewReopened, setPreviewReopened] = useState(false);
+  // The look is saved with the settings row. The splash screen restores it at start-up, but this
+  // screen also restores it when it is the first screen opened, so it never shows a default.
+  const savedMode = settingsQuery.data?.theme;
+  const savedAccent = settingsQuery.data?.accent;
+  useEffect(() => {
+    if (savedMode && savedAccent) useThemeStore.getState().hydrate(savedMode, savedAccent);
+  }, [savedMode, savedAccent]);
 
   function handleBack() {
     router.push('/settings' as Href);

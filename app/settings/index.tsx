@@ -9,6 +9,7 @@ import { useEntitlementStore } from '@/app-shell';
 import { S41_COPY } from '@/features/settings/copy';
 import { useConsistency, useProgress, useSettings } from '@/queries';
 import { initNotificationsBridge } from '@/services/notifications';
+import { billing } from '@/services/billing';
 import { initWidgetsBridge } from '@/services/widgets';
 import { FONT_SIZE, RADIUS, useTheme } from '@/theme';
 import { useSoundStore } from '@/services/sfx';
@@ -67,6 +68,9 @@ export default function S41SettingsHome() {
   useEffect(() => {
     initNotificationsBridge();
     initWidgetsBridge();
+    // The subscription row reads the in-memory entitlement, which is empty after a cold start.
+    // Load it from the store here, so a subscriber does not see "Free plan" until they open S44.
+    void billing.refreshEntitlement();
   }, []);
 
   const soundsOn = useSoundStore((s) => s.on);

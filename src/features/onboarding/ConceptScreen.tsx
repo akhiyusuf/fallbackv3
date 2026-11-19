@@ -18,7 +18,7 @@ export function ConceptScreen() {
   const tight = useOnboardingDensity() === 'tight';
   // The first step is the one that reads the saved place back and forwards a returning person.
   const { resuming } = useOnboardingResumeRedirect('/onboarding/concept');
-  if (resuming) return <View accessibilityLabel="Loading" />;
+  if (resuming) return <View accessibilityLabel="Loading" style={[styles.loading, { backgroundColor: t.color.bg }]} />;
 
   return (
     <OnboardingShell step={1} icon={GitBranch} headline={S03_COPY.headline} body={S03_COPY.body} onNext={() => router.push('/onboarding/hook' as Href)}>
@@ -41,6 +41,7 @@ export function ConceptScreen() {
 }
 
 const styles = StyleSheet.create({
+  loading: { flex: 1 },
   card: { gap: SPACE.s2 + 4 },
   cardTight: { gap: SPACE.s2, padding: SPACE.s2 + 4 },
   privacyTight: { fontSize: 13, lineHeight: 18 },

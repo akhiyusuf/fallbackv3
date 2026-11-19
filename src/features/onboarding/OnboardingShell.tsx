@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 // The screen's own navigation, read without throwing when there is none (a test renders the shell alone).
 import { NavigationContext } from 'expo-router/build/react-navigation/core';
-import { AccessibilityInfo, Animated, Easing, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Animated, BackHandler, Easing, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ import { ONBOARDING_SHELL_COPY } from './copy';
 import { BANNER_ASPECT, BANNER_IMAGES } from './bannerImages';
 import { ONBOARDING_NEEDS } from './onboardingNeeds';
 import { OnboardingPicture, PICTURE_HEIGHT, PICTURE_WIDTH } from './OnboardingPicture';
-import { finishOnboardingProgress } from './useOnboardingResume';
+import { finishOnboardingProgress, leaveOnboarding } from './useOnboardingResume';
 import { Text } from '@/ui/AppText';
 
 export const ONBOARDING_TOTAL_STEPS = 7;
@@ -234,7 +234,17 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
     AccessibilityInfo.announceForAccessibility?.(`Step ${step} of ${ONBOARDING_TOTAL_STEPS}. ${headline}`);
   }, [step, headline]);
 
+  const skipping = useRef(false);
   async function handleSkip() {
+    if (skipping.current) return;
+    skipping.current = true;
+    try {
+      await skip();
+    } finally {
+      skipping.current = false;
+    }
+  }
+  async function skip() {
     // Wait for the save: leaving without it would bring onboarding back on the next launch.
     const saved = await updateSettings.mutateAsync({ onboardingCompletedAt: now() }).catch(() => ({ ok: false as const }));
     if (!saved.ok) {
@@ -242,13 +252,24 @@ export function OnboardingShell({ step, icon: Icon, headline, body, onNext, next
       return;
     }
     await finishOnboardingProgress();
-    router.replace('/today' as Href);
+    leaveOnboarding(router, '/today' as Href);
   }
 
   function handleBack() {
     if (router.canGoBack()) router.back();
     else router.replace((PREVIOUS[step] ?? '/onboarding/concept') as Href);
   }
+  // After a resume the step is the only screen in the stack, so the phone's own back button would
+  // leave the app from step 4. Make it go to the step before, like the on-screen Back.
+  useEffect(() => {
+    if (step === 1) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (router.canGoBack()) return false;
+      router.replace((PREVIOUS[step] ?? '/onboarding/concept') as Href);
+      return true;
+    });
+    return () => sub.remove();
+  }, [router, step]);
 
   return (
     // Step 7 is a form: pad by the keyboard so its fields and Save stay above it (see `Screen`).

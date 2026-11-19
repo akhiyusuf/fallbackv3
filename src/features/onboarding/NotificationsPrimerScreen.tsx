@@ -36,26 +36,43 @@ export function NotificationsPrimerScreen() {
 
   /** "Not now" is an answer too: if reminders were on (the person came back and changed their mind), turn them off. */
   async function handleNotNow() {
-    const prefs = settingsQuery.data?.notifications;
-    if (prefs?.master) await updateSettings.mutateAsync({ notifications: { ...prefs, master: false } });
+    try {
+      const prefs = await currentPrefs();
+      if (prefs?.master) await updateSettings.mutateAsync({ notifications: { ...prefs, master: false } });
+    } catch {
+      // Never trap the person on this step over a failed write: reminders just stay as they were.
+    }
     proceed();
+  }
+
+  /** The saved reminder choices; if the settings have not loaded yet, ask once more rather than guess. */
+  async function currentPrefs() {
+    return settingsQuery.data?.notifications ?? (await settingsQuery.refetch()).data?.notifications;
   }
 
   async function handleAllow() {
     setRequesting(true);
+    try {
+      await allow();
+    } catch {
+      // A failed write must not keep the button spinning or block the tour; reminders stay off.
+    }
+    setRequesting(false);
+    proceed();
+  }
+
+  async function allow() {
     const result = await notifications.requestPermission();
     if (result.ok && result.value) {
       // "Allow" has to mean something: switch on the reminders this screen describes (a nudge
       // when something is due, one invitation back after an off day). Without this the master
       // switch was on with every reminder under it off, so nothing was ever sent.
-      const prefs = settingsQuery.data?.notifications;
+      const prefs = await currentPrefs();
       if (prefs) {
         await updateSettings.mutateAsync({ notifications: { ...prefs, master: true, routineDue: true, eventStarting: true, courseDose: true, gentleReentry: true } });
       }
       void notifications.reschedule();
     }
-    setRequesting(false);
-    proceed();
   }
 
   return (

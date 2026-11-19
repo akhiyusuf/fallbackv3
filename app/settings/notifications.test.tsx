@@ -73,7 +73,7 @@ describe('S42 — Notifications Settings', () => {
     const user = userEvent.setup();
     await render(<S42NotificationsSettings />);
     await user.press(screen.getByLabelText(`${S42_COPY.reminderRows.routineDue}, on`));
-    await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ notifications: { ...ALL_ON, routineDue: false } }));
+    await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ notifications: { routineDue: false } }));
   });
 
   it('a persist failure shows the calm retry toast', async () => {

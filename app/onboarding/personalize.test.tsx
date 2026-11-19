@@ -115,4 +115,24 @@ describe('S06 — Onboarding: Make it yours', () => {
     await waitFor(() => expect(useToastStore.getState().toast?.message).toBe(S06_COPY.saveFailure));
     expect(useThemeStore.getState().accent).toBe(DEFAULT_ACCENT);
   });
+
+  it('a colour or light/dark pick is kept at once, so it survives Skip or a kill before Next', async () => {
+    const user = userEvent.setup();
+    await render(<S06OnboardingMakeItYours />);
+    await user.press(screen.getByLabelText('Indigo'));
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ accent: 'indigo' });
+    await user.press(screen.getByText(S06_COPY.appearanceOptions[2]!.label));
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ theme: S06_COPY.appearanceOptions[2]!.value });
+    expect(useThemeStore.getState().mode).toBe(S06_COPY.appearanceOptions[2]!.value);
+  });
+
+  it('a settings reload after a save does not put an older colour back over a newer pick', async () => {
+    const user = userEvent.setup();
+    const view = await render(<S06OnboardingMakeItYours />);
+    await user.press(screen.getByLabelText('Indigo'));
+    mockSettingsData.current = { ...BASE_SETTINGS, accent: 'indigo' };
+    await user.press(screen.getByLabelText('Forge'));
+    await view.rerender(<S06OnboardingMakeItYours />);
+    expect(useThemeStore.getState().accent).toBe('forge-orange');
+  });
 });

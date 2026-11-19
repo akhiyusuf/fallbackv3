@@ -307,10 +307,16 @@ export function createTaskRepository(db: DbClient) {
 
     async update(id: Id, patch: Partial<Task>, steps?: readonly Step[]): Promise<Result<void>> {
       try {
-        const existing = await db.getFirstAsync<TaskRow>(`SELECT ${TASK_COLUMNS} FROM task WHERE id = ?`, [id]);
-        if (!existing) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
-        const merged: Task = { ...taskRowToTask(existing), ...patch, id };
+        // The read is inside the (queued) transaction so two quick edits merge in order, not
+        // from the same stale row (see settingsRepository.patch).
+        let found = true;
         await db.withTransactionAsync(async () => {
+          const existing = await db.getFirstAsync<TaskRow>(`SELECT ${TASK_COLUMNS} FROM task WHERE id = ?`, [id]);
+          if (!existing) {
+            found = false;
+            return;
+          }
+          const merged: Task = { ...taskRowToTask(existing), ...patch, id };
           await db.runAsync(
             `UPDATE task SET type=?, name=?, note=?, icon=?, color=?, is_as_needed=?, cadence_kind=?,
              cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
@@ -329,6 +335,7 @@ export function createTaskRepository(db: DbClient) {
             }
           }
         });
+        if (!found) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
         return ok(undefined);
       } catch (cause) {
         return err({ code: 'WRITE_FAILED', message: cause instanceof Error ? cause.message : 'update failed', cause });

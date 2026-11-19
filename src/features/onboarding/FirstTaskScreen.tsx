@@ -13,7 +13,7 @@ import type { TaskDraft } from '@/types';
 
 import { S08_COPY } from './copy';
 import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
-import { finishOnboardingProgress, useOnboardingStepMarker } from './useOnboardingResume';
+import { finishOnboardingProgress, leaveOnboarding, useOnboardingStepMarker } from './useOnboardingResume';
 import { Text } from '@/ui/AppText';
 
 export function FirstTaskScreen() {
@@ -32,7 +32,18 @@ export function FirstTaskScreen() {
   const [saving, setSaving] = useState(false);
   const createdRef = useRef(false);
 
+  // A second tap in the same moment must not start a second save (and a second routine).
+  const busyRef = useRef(false);
   async function handleSave() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      await save();
+    } finally {
+      busyRef.current = false;
+    }
+  }
+  async function save() {
     const nextErrors: typeof errors = {};
     if (!name.trim()) nextErrors.name = S08_COPY.nameError;
     if (!ideal.trim()) nextErrors.ideal = S08_COPY.idealError;
@@ -75,7 +86,7 @@ export function FirstTaskScreen() {
     }
     await finishOnboardingProgress();
     setSaving(false);
-    router.replace('/today?justAdded=1' as Href);
+    leaveOnboarding(router, '/today?justAdded=1' as Href);
   }
 
   // No helper line under each field: three of them cost the banner 66 px on every phone, and the

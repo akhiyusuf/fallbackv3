@@ -74,9 +74,21 @@ export class DbClientProxy implements DbClient {
     return this.live().getFirstAsync<T>(sql, params);
   }
 
+  /**
+   * Transactions run one at a time. expo-sqlite's `withTransactionAsync` is NOT exclusive: a
+   * second `BEGIN` issued while the first is still open fails with "cannot start a transaction
+   * within a transaction", so two overlapping saves (two settings switches tapped together)
+   * lost the second one. Queueing them here keeps every transaction whole.
+   * Never call this from inside another transaction's callback: the inner call would wait
+   * for the outer one, which is waiting for it. No repository does today.
+   */
   withTransactionAsync(fn: () => Promise<void>): Promise<void> {
-    return this.live().withTransactionAsync(fn);
+    const run = this.transactionTail.then(() => this.live().withTransactionAsync(fn));
+    this.transactionTail = run.catch(() => undefined);
+    return run;
   }
+
+  private transactionTail: Promise<void> = Promise.resolve();
 
   closeAsync(): Promise<void> {
     return this.live().closeAsync();
