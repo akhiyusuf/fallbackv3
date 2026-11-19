@@ -30,8 +30,8 @@ export default function EventsBrowseScreen() {
 
   const events = tasksQuery.data ?? [];
   const oneOff = events.filter((e) => e.eventDate !== null);
-  const repeating = events.filter((e) => e.eventDate === null && e.cadence !== null && e.endedOn === null);
-  const ended = events.filter((e) => e.endedOn !== null);
+  const repeating = events.filter((e) => e.eventDate === null && e.cadence !== null && !e.endedOn);
+  const ended = events.filter((e) => !!e.endedOn);
 
   const todayEvents = oneOff.filter((e) => e.eventDate === todayDate);
   const upcomingOneOff = oneOff.filter((e) => e.eventDate !== null && e.eventDate > todayDate);

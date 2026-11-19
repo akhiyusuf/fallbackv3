@@ -269,6 +269,7 @@ export function createFakeRepos(): FakeRepos {
       logs.clear();
       offMarks = [];
       asNeeded = [];
+      retiredDays = [];
       xpAwards.clear();
       unlocks.clear();
       cycleRecords = [];

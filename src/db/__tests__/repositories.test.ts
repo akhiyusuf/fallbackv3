@@ -1,4 +1,5 @@
 import './testHarness';
+import { retireDeleted } from '@/queries/internal';
 
 import { newId } from '@/lib/id';
 import type { Task } from '@/types';
@@ -294,6 +295,8 @@ describe('ProgressRepository', () => {
     // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
     await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
+    // S01's expiry sweep (the store no longer deletes anything on open).
+    await retireDeleted(repos, 'expired');
     const orphaned = await repos.progress.listXpAwards();
     expect(orphaned).toHaveLength(1);
     expect(orphaned[0]?.taskId).toBeNull();

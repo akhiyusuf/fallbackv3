@@ -79,7 +79,19 @@ async function coldStart(clockAt: Instant): Promise<App> {
   const app = launch();
   const opened = await app.store.open();
   if (!opened.ok || opened.value !== 'ready') throw new Error(`store did not open ready: ${JSON.stringify(opened)}`);
+  // S01 then removes what is past its 30 days, keeping each one's past days in the record.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { retireDeleted } = require('@/queries/internal') as typeof import('@/queries/internal');
+  const swept = await retireDeleted(app.repos, 'expired', clockAt);
+  if (!swept.ok) throw new Error(`expiry sweep failed: ${JSON.stringify(swept)}`);
   return app;
+}
+
+/** The query-layer removal for good (S01's sweep, Delete all forever), against this launch's repos. */
+async function retire(app: App, which: 'all' | 'expired', nowIso?: Instant) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { retireDeleted } = require('@/queries/internal') as typeof import('@/queries/internal');
+  return retireDeleted(app.repos, which, nowIso);
 }
 
 /** A raw read of the database file, the way the sweep and cascade actually left it. */
@@ -359,7 +371,7 @@ describe('expired items are removed with the split cascade', () => {
 
 /* ------------------------------------------------------------------ 3. restore / deleteForever / purge edges */
 
-describe('restore, deleteForever and purgeDeleted on the wrong item', () => {
+describe('restore, deleteForever and the removal sweep on the wrong item', () => {
   it('on a live task: NOT_FOUND from both, and nothing about the task changes', async () => {
     newDatabaseDir();
     const app = await coldStart(T0);
@@ -376,21 +388,21 @@ describe('restore, deleteForever and purgeDeleted on the wrong item', () => {
     expect(rawCount('SELECT COUNT(*) AS n FROM day_log WHERE task_id = ?', [task.id])).toBe(3);
   });
 
-  it('an unknown id: NOT_FOUND from both, and purge returns 0', async () => {
+  it('an unknown id: NOT_FOUND from both, and the sweep removes nothing', async () => {
     newDatabaseDir();
     const app = await coldStart(T0);
     const ghost = newId() as never;
     expect(await app.repos.tasks.restore(ghost)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
     expect(await app.repos.tasks.deleteForever(ghost)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } });
-    expect(await app.repos.tasks.purgeDeleted(T0)).toEqual({ ok: true, value: 0 });
+    expect(await retire(app, 'expired', T0)).toEqual({ ok: true, value: 0 });
   });
 
-  it('purgeDeleted(null) with nothing deleted returns 0 and leaves live tasks alone', async () => {
+  it('removing all with nothing deleted returns 0 and leaves live tasks alone', async () => {
     newDatabaseDir();
     const app = await coldStart(T0);
     const task = buildTask();
     await seedHistory(app, task);
-    expect(await app.repos.tasks.purgeDeleted(null)).toEqual({ ok: true, value: 0 });
+    expect(await retire(app, 'all')).toEqual({ ok: true, value: 0 });
     expect((await app.repos.tasks.list()).map((t) => t.id)).toEqual([task.id]);
   });
 
@@ -451,7 +463,7 @@ describe('restore, deleteForever and purgeDeleted on the wrong item', () => {
     expect((await app.repos.tasks.deleteForever(task.id)).ok).toBe(false);
   });
 
-  it('purgeDeleted(cutoff) counts only what is older than the cutoff, and a second call returns 0', async () => {
+  it('the expiry sweep counts only what is past its 30 days, and a second call returns 0', async () => {
     newDatabaseDir();
     const app = await coldStart(T0);
     const old = buildTask({ name: 'old' });
@@ -461,12 +473,12 @@ describe('restore, deleteForever and purgeDeleted on the wrong item', () => {
     await app.repos.tasks.softDelete(old.id);
     setClock(t0Plus(20 * DAY_MS));
     await app.repos.tasks.softDelete(fresh.id);
-    expect(await app.repos.tasks.purgeDeleted(t0Plus(10 * DAY_MS))).toEqual({ ok: true, value: 1 });
-    expect(await app.repos.tasks.purgeDeleted(t0Plus(10 * DAY_MS))).toEqual({ ok: true, value: 0 });
+    expect(await retire(app, 'expired', t0Plus(40 * DAY_MS))).toEqual({ ok: true, value: 1 });
+    expect(await retire(app, 'expired', t0Plus(40 * DAY_MS))).toEqual({ ok: true, value: 0 });
     expect((await app.repos.tasks.listDeleted()).map((t) => t.name)).toEqual(['fresh']);
   });
 
-  it('purgeDeleted(null) removes every deleted item, leaves live ones, and keeps XP', async () => {
+  it('removing all takes every deleted item, leaves live ones, and keeps XP', async () => {
     newDatabaseDir();
     const app = await coldStart(T0);
     const a = buildTask({ name: 'a' });
@@ -477,7 +489,7 @@ describe('restore, deleteForever and purgeDeleted on the wrong item', () => {
     await seedHistory(app, live);
     await app.repos.tasks.softDelete(a.id);
     await app.repos.tasks.softDelete(b.id);
-    expect(await app.repos.tasks.purgeDeleted(null)).toEqual({ ok: true, value: 2 });
+    expect(await retire(app, 'all')).toEqual({ ok: true, value: 2 });
     expect((await app.repos.tasks.list({ includeDeleted: true })).map((t) => t.id)).toEqual([live.id]);
     expect(await app.repos.progress.lifetimeXp()).toBe(16 * 3);
   });
@@ -769,7 +781,7 @@ describe('concurrent actions on the same deleted item', () => {
     await seedHistory(app, gone);
     await app.repos.tasks.softDelete(keep.id);
     await app.repos.tasks.softDelete(gone.id);
-    const [restored, purged] = await Promise.all([app.repos.tasks.restore(keep.id), app.repos.tasks.purgeDeleted(null)]);
+    const [restored, purged] = await Promise.all([app.repos.tasks.restore(keep.id), retire(app, 'all')]);
     expect(restored.ok).toBe(true);
     expect(purged.ok).toBe(true);
     expect((await app.repos.tasks.list()).map((t) => t.id)).toEqual([keep.id]);

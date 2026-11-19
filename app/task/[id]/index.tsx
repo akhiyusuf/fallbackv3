@@ -275,7 +275,7 @@ export default function S20ManageTask() {
   const showScheduleEditor = isTrackedTask && parentDays.length > 1 && task.idealSteps.length > 1;
   // Something that keeps coming round can be ended: a routine, a repeating event, a course.
   const canEnd = !isTodo && !task.isAsNeeded && !(task.type === 'event' && task.eventDate !== null);
-  const endedOn = task.endedOn;
+  const endedOn = task.endedOn ?? null;
 
   async function saveSchedule() {
     if (!task) return;

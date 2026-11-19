@@ -62,7 +62,7 @@ export async function resolveTaskOccurrences(
   const notBefore = creationLocalDate(task);
   const from = iterationFrom(task, notBefore);
   // An ended habit has nothing after its last day, not even a day pushed onto the next one.
-  if (task.endedOn !== null && task.endedOn < to) to = task.endedOn;
+  if (task.endedOn && task.endedOn < to) to = task.endedOn;
   if (from > to) return [];
 
   const dueDates = occurrencesBetween(task, from, to, notBefore);
@@ -270,6 +270,8 @@ export async function retireDeleted(repos: Repositories, which: 'all' | 'expired
   let n = 0;
   for (const task of due) {
     const result = await retireForGood(repos, task, today);
+    // Restored (or already removed) since the list was read: not ours to remove any more.
+    if (!result.ok && result.error.code === 'NOT_FOUND') continue;
     if (!result.ok) return result;
     n += 1;
   }

@@ -69,13 +69,17 @@ async function confirm(noun = 'routine') {
 }
 
 describe('Delete sheet: wording', () => {
-  it('says it goes to Recently deleted with its history and can be restored for 30 days', async () => {
+  it('says it goes to Recently deleted for 30 days, that its days still count, and that it can be ended instead', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(CONTEXT, { initialUrl: '/task/task-1', wrapper });
     await screen.findByText('Morning workout');
     const sheet = await openDelete();
     expect(within(sheet).getByText('Delete this routine?')).toBeTruthy();
-    expect(within(sheet).getByText('“Morning workout” goes to Recently deleted with its history. You can restore it for 30 days.')).toBeTruthy();
+    expect(
+      within(sheet).getByText(
+        "“Morning workout” goes to Recently deleted, where you can restore it for 30 days. The days you've logged still count in your consistency. Only stopping? End the routine instead and it stays in your list.",
+      ),
+    ).toBeTruthy();
     expect(within(sheet).queryByText(/can't be undone/)).toBeNull();
   });
 
@@ -85,7 +89,8 @@ describe('Delete sheet: wording', () => {
     await screen.findByText('Call mum');
     const sheet = await openDelete('to-do');
     expect(within(sheet).getByText('Delete this to-do?')).toBeTruthy();
-    expect(within(sheet).getByText('“Call mum” goes to Recently deleted with its history. You can restore it for 30 days.')).toBeTruthy();
+    // A to-do can't be ended, so there is no "End it instead".
+    expect(within(sheet).getByText("“Call mum” goes to Recently deleted, where you can restore it for 30 days. The days you've logged still count in your consistency.")).toBeTruthy();
   });
 });
 

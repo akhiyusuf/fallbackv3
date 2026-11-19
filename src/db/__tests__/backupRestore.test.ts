@@ -1,4 +1,5 @@
 import './testHarness';
+import { retireDeleted } from '@/queries/internal';
 
 jest.mock('expo-file-system/legacy', () => require('../testSupport/fileSystemTestDouble'));
 jest.mock('expo-secure-store', () => ({
@@ -63,7 +64,7 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     );
   });
 
-  it('the written backup file contains exactly the pinned 11 tables — never entitlement, never a raw secret', async () => {
+  it('the written backup file contains exactly the pinned 12 tables (retired_day since schema 8), never entitlement, never a raw secret', async () => {
     const { store } = await freshDb();
     const backupResult = await store.backup();
     expect(backupResult.ok).toBe(true);
@@ -76,7 +77,7 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
 
     expect(envelope.format).toBe('fallback-backup');
     expect(Object.keys(envelope.tables).sort()).toEqual(
-      ['settings', 'task', 'step', 'day_log', 'off_day_mark', 'as_needed_use', 'xp_award', 'achievement_unlock', 'cycle_record', 'cycle_state', 'widget_config'].sort(),
+      ['settings', 'task', 'step', 'day_log', 'off_day_mark', 'as_needed_use', 'xp_award', 'achievement_unlock', 'cycle_record', 'cycle_state', 'widget_config', 'retired_day'].sort(),
     );
     expect(raw).not.toContain('entitlement');
     expect(raw).not.toContain('byo.apiKey');
@@ -240,6 +241,8 @@ describe('backup / restore (F19, SCHEMA §9)', () => {
     await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     // Hard sweep — xp_award.task_id becomes NULL, row survives (SCHEMA §2.3).
     await store.open();
+    // S01's expiry sweep (the store no longer deletes anything on open).
+    await retireDeleted(repos, 'expired');
     const orphaned = await repos.progress.listXpAwards();
     expect(orphaned).toHaveLength(10);
     expect(orphaned.every((a) => a.taskId === null)).toBe(true);

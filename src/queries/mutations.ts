@@ -517,7 +517,7 @@ export function useEndTask() {
     mutationFn: async (id: Id): Promise<Result<LocalDate>> => {
       const task = await liveTask(id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
-      if (task.endedOn !== null) return ok(task.endedOn);
+      if (task.endedOn) return ok(task.endedOn);
       const today = todayLocal();
       const occs = await resolveRecordOccurrences(repos, today, today);
       const doneToday = occs.some((o) => o.taskId === id && o.date === today && (o.outcome === 'ideal' || o.outcome === 'fallback'));
@@ -541,7 +541,7 @@ export function useStartAgain() {
     mutationFn: async (id: Id): Promise<Result<void>> => {
       const task = await liveTask(id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
-      if (task.endedOn === null) return ok(undefined);
+      if (!task.endedOn) return ok(undefined);
       const today = todayLocal();
       const resumed = { ...task, endedOn: null };
       const away = await markAwayDaysOff(repos, resumed, addDays(task.endedOn, 1), addDays(today, -1));

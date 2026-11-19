@@ -29,7 +29,7 @@ export default function CoursesBrowseScreen() {
 
   const all = tasksQuery.data ?? [];
   // A course stopped early with "End course" is finished, the same as one past its end date.
-  const isOver = (c: (typeof all)[number]) => c.endedOn !== null || (c.endDate !== null && c.endDate < todayDate);
+  const isOver = (c: (typeof all)[number]) => !!c.endedOn || (c.endDate !== null && c.endDate < todayDate);
   const active = all.filter((c) => !isOver(c));
   const past = all.filter(isOver);
   const shown = lens === 'active' ? active : past;

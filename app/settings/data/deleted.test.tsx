@@ -311,7 +311,8 @@ describe('Recently deleted: Delete forever', () => {
     const confirm = await openConfirm();
     expect(within(confirm).getByText('Delete “Morning workout” forever?')).toBeTruthy();
     expect(within(confirm).getByText(DELETED_COPY.confirmOneBody)).toBeTruthy();
-    expect(DELETED_COPY.confirmOneBody).toContain('XP you earned with it stays');
+    expect(DELETED_COPY.confirmOneBody).toContain('the XP you earned stays');
+    expect(DELETED_COPY.confirmOneBody).toContain('still count in your consistency');
     // Nothing is removed until it is confirmed.
     expect(await fake.repos.tasks.get('a' as Id)).not.toBeNull();
   });
@@ -400,10 +401,9 @@ describe('Recently deleted: Delete all forever', () => {
     expect(toast()).toBeNull();
   });
 
-  it('a failed purge shows the warning and everything stays', async () => {
+  it('a failed removal shows the warning and everything stays', async () => {
     fake.seedTask(deletedTask('a', 'One', 1));
-    const real = originalTasks.purgeDeleted;
-    fake.repos.tasks.purgeDeleted = async (cutoff) => (cutoff === null ? err({ code: 'WRITE_FAILED', message: 'nope' }) : real(cutoff));
+    fake.repos.tasks.deleteForever = async () => err({ code: 'WRITE_FAILED', message: 'nope' });
     await mount();
     await rows();
     await userEvent.press(screen.getByTestId('deleted-delete-all'));
@@ -415,9 +415,8 @@ describe('Recently deleted: Delete all forever', () => {
 
   it('a double tap runs it once', async () => {
     fake.seedTask(deletedTask('a', 'One', 1));
-    const real = originalTasks.purgeDeleted;
-    const spy = jest.fn(real);
-    fake.repos.tasks.purgeDeleted = spy;
+    const spy = jest.fn(originalTasks.deleteForever);
+    fake.repos.tasks.deleteForever = spy;
     await mount();
     await rows();
     await userEvent.press(screen.getByTestId('deleted-delete-all'));
@@ -427,7 +426,7 @@ describe('Recently deleted: Delete all forever', () => {
       fireEvent.press(button);
     });
     await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
-    // Once for the confirmed purge (cutoff null); the screen's own load purges with a cutoff.
-    expect(spy.mock.calls.filter(([cutoff]) => cutoff === null)).toHaveLength(1);
+    // One removal for the one item; the screen's own load removes nothing (it is not past its time).
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

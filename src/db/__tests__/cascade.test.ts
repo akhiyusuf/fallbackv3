@@ -1,4 +1,5 @@
 import './testHarness';
+import { retireDeleted } from '@/queries/internal';
 
 import { newId } from '@/lib/id';
 import type { Step, Task } from '@/types';
@@ -120,6 +121,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
 
     // Reopen — this is what runs the hard sweep.
     const reopened = await store.open();
+    // S01's expiry sweep (the store no longer deletes anything on open).
+    await retireDeleted(repos, 'expired');
     expect(reopened.ok).toBe(true);
 
     // Task, its steps, logs and off-day mark are gone.
@@ -169,6 +172,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
     // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
     await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
+    // S01's expiry sweep (the store no longer deletes anything on open).
+    await retireDeleted(repos, 'expired');
 
     expect(await repos.asNeeded.listForTask(task.id)).toHaveLength(0);
   });
@@ -183,6 +188,8 @@ describe('delete cascade — SCHEMA.md §2.3 (split, load-bearing)', () => {
     // Deleted long enough ago to be past its 30 days in Recently deleted, so the launch sweep removes it.
     await repos.tasks.update(task.id, { deletedAt: '2000-01-01T00:00:00.000Z' as never });
     await store.open();
+    // S01's expiry sweep (the store no longer deletes anything on open).
+    await retireDeleted(repos, 'expired');
 
     const marks = await repos.offDays.listRange('2026-03-01' as never, '2026-03-01' as never);
     expect(marks).toHaveLength(1);

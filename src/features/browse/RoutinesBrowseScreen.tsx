@@ -35,8 +35,8 @@ export default function RoutinesBrowseScreen() {
   const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(todayWeekday);
 
   const all = tasksQuery.data ?? [];
-  const running = all.filter((tk) => tk.endedOn === null);
-  const ended = all.filter((tk) => tk.endedOn !== null);
+  const running = all.filter((tk) => !tk.endedOn);
+  const ended = all.filter((tk) => !!tk.endedOn);
   const scheduled = running.filter((tk) => !tk.isAsNeeded);
   const asNeeded = running.filter((tk) => tk.isAsNeeded);
   const due = scheduled.filter((tk) => cadenceRunsOnWeekday(tk.cadence, selectedWeekday));

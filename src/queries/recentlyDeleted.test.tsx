@@ -388,7 +388,7 @@ describe('a restored item resolves exactly as it did before deletion', () => {
 /* ------------------------------------------------------------------ 5. while deleted */
 
 describe('while an item is in Recently deleted, the live reads leave it out', () => {
-  it('useToday, aggregate consistency and useTasks do not count it', async () => {
+  it('useToday and useTasks leave it out; aggregate consistency keeps its past days', async () => {
     const task = makeTask({ id: 'gone' as never, name: 'gone' });
     const kept = makeTask({ id: 'kept' as never, name: 'kept' });
     fake.seedTask(task);
@@ -400,17 +400,16 @@ describe('while an item is in Recently deleted, the live reads leave it out', ()
         .map((o) => o.taskId)
         .sort();
     expect(await onToday()).toEqual(['gone', 'kept']);
+    const before = await readNow(() => useConsistency({ scope: 'aggregate', window: 'all-time' }));
 
     await mutate(useDeleteTask, task.id);
 
     expect(await onToday()).toEqual(['kept']);
     expect((await readNow(useTasks)).map((t) => t.id)).toEqual(['kept']);
-    // Aggregate consistency is per day, so compare with a world where the deleted task never existed.
-    const withDeletedGone = await readNow(() => useConsistency({ scope: 'aggregate', window: 'all-time' }));
-    fake.reset();
-    fake.seedTask(kept);
-    const withoutIt = await readNow(() => useConsistency({ scope: 'aggregate', window: 'all-time' }));
-    expect(withDeletedGone).toEqual(withoutIt);
+    // Deleting stops a habit; it does not rewrite the past. The record is what it was (today,
+    // still open when it was deleted, was never counted either way).
+    const after = await readNow(() => useConsistency({ scope: 'aggregate', window: 'all-time' }));
+    expect(after).toEqual(before);
   });
 
   it('achievements already earned stay earned while an item is deleted, and come back unchanged after restore', async () => {
