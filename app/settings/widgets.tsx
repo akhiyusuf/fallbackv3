@@ -49,7 +49,8 @@ export default function S46Widgets() {
   function open(size: WidgetSize) {
     const current = configFor(widgets, size);
     setDraftMode(current.mode);
-    setDraftTaskId(current.fixedTaskId);
+    // A fixed task that is in Recently deleted is not in the list: show it as not chosen, so Save is not offered for a task the picker cannot show.
+    setDraftTaskId(tasks.some((task) => task.id === current.fixedTaskId) ? current.fixedTaskId : null);
     setEditing(size);
   }
 

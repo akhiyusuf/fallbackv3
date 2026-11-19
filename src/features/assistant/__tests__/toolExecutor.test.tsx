@@ -85,7 +85,7 @@ describe('useToolExecutor — tool calls are proposals, never actions', () => {
     const outcome = await result.current.applyToolCall({ id: 'c3b' as never, name: 'delete_task', args: { taskId: 't1' as never } });
     expect(outcome.applied).toBe(true);
     expect(mockDeleteTaskMutateAsync).toHaveBeenCalledWith('t1');
-    expect(outcome.summary).toBe('Deleted Morning workout.');
+    expect(outcome.summary).toBe('Moved Morning workout to Recently deleted. You can restore it for 30 days from Settings, Data.');
     expect(outcome.summary).not.toMatch(/for good|permanent|forever|can't be undone/i);
   });
 

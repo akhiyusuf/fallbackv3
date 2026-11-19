@@ -62,7 +62,7 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, on
         onPress: () =>
           void restoreTask
             .mutateAsync(task.id)
-            .then((r) => showToast(r.ok ? DELETE_COPY.restoredToast(task.name) : "Couldn't restore. Try again from Settings > Data.", r.ok ? 'neutral' : 'warning'))
+            .then((r) => showToast(r.ok ? DELETE_COPY.restoredToast(task.name) : "Couldn't restore. Try again from Settings > Data.", r.ok ? 'success' : 'warning'))
             .catch(() => showToast("Couldn't restore. Try again from Settings > Data.", 'warning')),
       },
     });

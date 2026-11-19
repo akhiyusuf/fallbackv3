@@ -9,7 +9,7 @@
  */
 import { useCallback } from 'react';
 
-import { validateTaskDraft } from '@/domain';
+import { DELETED_KEEP_DAYS, validateTaskDraft } from '@/domain';
 import { useCreateTask, useDeleteTask, useLogState, useTasks, useUpdateTask } from '@/queries';
 import type { AssistantToolCall, AssistantUndoEntry, Id, Step, Task, TaskDraft, TaskWithSteps } from '@/types';
 import { newId } from '@/lib/id';
@@ -153,7 +153,7 @@ export function useToolExecutor() {
           if (!existing) return { applied: false, summary: '' };
           const result = await deleteTask.mutateAsync(call.args.taskId);
           if (!result.ok) return { applied: false, summary: '' };
-          return { applied: true, summary: `Deleted ${existing.name}.`, taskId: existing.id };
+          return { applied: true, summary: `Moved ${existing.name} to Recently deleted. You can restore it for ${DELETED_KEEP_DAYS} days from Settings, Data.`, taskId: existing.id };
         }
 
         case 'log_state': {

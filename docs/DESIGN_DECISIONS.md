@@ -1168,6 +1168,29 @@ is snooze to tomorrow. Instead of snooze to tomorrow do push to tomorrow."**
   Tests C4b, C5, C7, C9 in `src/queries/moveSemantics.test.ts` were rewritten
   to the new rule and C4p added.
 
+### Round 4, twenty-second pass (2026-11-19)
+
+The human: **"Let's not make deleting things final, maybe add a spot things can
+be reverted after a set number of days, in which they can go to permanently
+delete stuff as they please, please run accurate edge case tests on this with
+haiku and sonnet."**
+
+- Deleting a routine, event, course or to-do moves it to **Recently deleted**
+  with its history, kept **30 days** (`DELETED_KEEP_DAYS`, main session's
+  choice of number). Settings > Data > Recently deleted lists them ("Routine ·
+  12 days left", "Last day"); each can be restored or deleted forever, and
+  "Delete all forever" empties it. Expired items go at the next launch or when
+  the screen loads. The delete sheet says where the item goes; the toast after
+  deleting offers Undo. XP is never taken away. "Erase all data" stays final.
+- A task page opened for a deleted task (link, back stack, assistant) shows
+  "“X” was deleted." with Restore / Open Recently deleted; for one deleted for
+  good, "This isn't here any more." Writes to a deleted task are refused.
+- The assistant now replies "Moved X to Recently deleted. You can restore it
+  for 30 days from Settings, Data."
+- Edge-case passes: `review/haiku/12-recently-deleted-data.md` (data layer,
+  80 tests, 4 bugs fixed) and `review/sonnet/13-recently-deleted-ui.md`
+  (screens and cross-feature, 86 tests, 6 bugs fixed).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

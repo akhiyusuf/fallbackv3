@@ -41,6 +41,8 @@ describe('S46 — Widgets', () => {
     expect(screen.getByText(S46_COPY.fixedTask)).toBeTruthy();
     await user.press(screen.getByLabelText(ONE_TASK_ROW));
     expect(screen.getByLabelText('Task, Choose a task')).toBeTruthy();
+    // Save is not offered for a task the picker cannot show.
+    expect(screen.getByLabelText(S46_COPY.save).props.accessibilityState?.disabled).toBe(true);
   });
 
   it('gallery-default: all three widget rows shown, no settings sheet open', async () => {
