@@ -72,7 +72,7 @@ describe('which kinds get "End"', () => {
     ['repeating event', makeTask({ id: ID, type: 'event', name: 'Standup', eventDate: null, cadence: { kind: 'daily' }, idealSteps: [], fallbackSteps: [] }), 'event', true],
     ['course', makeTask({ id: ID, type: 'course', name: 'Spanish', startDate: '2026-07-01' as LocalDate, endDate: '2026-09-01' as LocalDate, ...NOT_ROUTINE }), 'course', true],
     ['to-do', makeTask({ id: ID, type: 'todo', name: 'Call mum', ...NOT_ROUTINE }), 'to-do', false],
-    ['note', makeTask({ id: ID, type: 'todo', isNote: true, name: 'Idea', ...NOT_ROUTINE }), 'to-do', false],
+    ['note', makeTask({ id: ID, type: 'todo', isNote: true, name: 'Idea', ...NOT_ROUTINE }), 'note', false],
     ['as-needed routine', makeTask({ id: ID, isAsNeeded: true, cadence: null, name: 'Emergency plan' }), 'routine', false],
     ['one-off event', makeTask({ id: ID, type: 'event', name: 'Dentist', eventDate: '2026-08-01' as LocalDate, ...NOT_ROUTINE }), 'event', false],
   ])('%s: End offered = %s', async (_k, task, noun, offered) => {
@@ -112,8 +112,8 @@ describe('end confirm sheet', () => {
 
   it('ends today when today is already logged', async () => {
     await open(makeTask({ id: ID }));
-    await userEvent.press(await screen.findByLabelText('Done'));
-    await waitFor(() => expect(screen.getByLabelText('Done')).toBeTruthy());
+    await userEvent.press(await screen.findByLabelText(/^Morning workout: Done/));
+    await waitFor(async () => expect((await fake.repos.occurrences.get(ID, '2026-07-16' as LocalDate))?.outcome).toBe('ideal'));
     await endIt();
     expect(await screen.findByText('Ended Jul 16')).toBeTruthy();
     expect((await stored()).endedOn).toBe('2026-07-16');
@@ -153,7 +153,7 @@ describe('an ended task', () => {
     expect(screen.getByTestId('s20-ended')).toBeTruthy();
     expect(screen.getByText('Ended Jul 10')).toBeTruthy();
     expect(screen.queryByText('Today')).toBeNull();
-    expect(screen.queryByLabelText('Done')).toBeNull();
+    expect(screen.queryByTestId('s20-chip')).toBeNull();
     expect(screen.queryByText('Time')).toBeNull();
     expect(screen.queryByText('Priority')).toBeNull();
   });
@@ -162,7 +162,8 @@ describe('an ended task', () => {
     await open(makeTask({ id: ID }));
     expect(screen.queryByTestId('s20-ended')).toBeNull();
     expect(screen.getByText('Today')).toBeTruthy();
-    expect(screen.getByLabelText('Done')).toBeTruthy();
+    expect(screen.getByLabelText(/^Last seven days/)).toBeTruthy();
+    expect(screen.getByTestId('s20-chip')).toBeTruthy();
   });
 
   it('old data with endedOn undefined behaves as running, no crash', async () => {
@@ -175,16 +176,17 @@ describe('an ended task', () => {
   it('the menu offers Start again instead of End', async () => {
     await open(ended());
     await openMenu();
-    expect(await screen.findByLabelText('Start again')).toBeTruthy();
+    // The Ended card's button and the menu entry.
+    expect(await screen.findAllByLabelText('Start again')).toHaveLength(2);
     expect(screen.queryByLabelText('End routine')).toBeNull();
     expect(screen.getByLabelText('Delete routine')).toBeTruthy();
   });
 
-  it('history cells after the end date do not open the day sheet; before it they do', async () => {
+  it('history stops at the end date and the week strip is gone; a day before it opens the day sheet', async () => {
     clock.today = '2026-07-16';
     await open(ended());
-    await userEvent.press(screen.getByLabelText(/^2026-07-14,/));
-    expect(screen.queryByTestId('s20-day-popover')).toBeNull();
+    expect(screen.queryByLabelText(/^2026-07-1[1-5],/)).toBeNull();
+    expect(screen.queryByLabelText(/^Last seven days/)).toBeNull();
     await userEvent.press(screen.getByLabelText(/^2026-07-08,/));
     expect(await screen.findByTestId('s20-day-popover')).toBeTruthy();
   });
@@ -205,7 +207,9 @@ describe('an ended task', () => {
   it('Start again from the menu works the same', async () => {
     await open(ended());
     await openMenu();
-    await userEvent.press(await screen.findByLabelText('Start again'));
+    const entries = await screen.findAllByLabelText('Start again');
+    expect(entries).toHaveLength(2);
+    await userEvent.press(entries.find((e) => e.props.testID !== 's20-start-again') ?? entries[1]);
     await waitFor(() => expect(screen.queryByTestId('s20-ended')).toBeNull());
     expect(toast()?.message).toBe(END_COPY.startedToast);
   });
@@ -236,7 +240,8 @@ describe('an ended task', () => {
     await open(makeTask({ id: ID, type: 'course', name: 'Spanish', startDate: '2026-07-01' as LocalDate, endDate: '2026-09-01' as LocalDate, endedOn: '2026-07-10' as LocalDate, ...NOT_ROUTINE }));
     expect(screen.getByTestId('s20-ended')).toBeTruthy();
     await openMenu();
-    expect(await screen.findByLabelText('Start again')).toBeTruthy();
+    expect(await screen.findAllByLabelText('Start again')).toHaveLength(2);
+    expect(screen.getByLabelText('Delete course')).toBeTruthy();
   });
 });
 

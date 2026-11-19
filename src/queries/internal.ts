@@ -12,8 +12,9 @@
  * choose between.
  */
 import { addDays, now as clockNow, today as clockToday, toLocalDate } from '@/lib/date';
+import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
-import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
+import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, reconcileAchievements, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
 import { ok } from '@/types';
 import type { DayLog, Instant, LocalDate, Occurrence, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
@@ -258,6 +259,27 @@ export async function retireForGood(repos: Repositories, task: TaskWithSteps, to
 }
 
 /**
+ * Persists `fallback-comeback` BEFORE any habit's days are removed. Its condition is per habit (a
+ * missed day then a showed-up day on the SAME habit), but retired days are anonymous (no task id),
+ * so once a habit's days are retired no later read can see that comeback. Every other badge is
+ * read from dates and totals that retirement keeps, so it is left to the usual reconcile.
+ * Upsert-only, as with every unlock.
+ */
+async function keepBadgesBeforeRetiring(repos: Repositories, today: LocalDate, now: Instant): Promise<void> {
+  const [unlocks, settings, occs] = await Promise.all([
+    repos.progress.listUnlocks(),
+    repos.settings.get(),
+    resolveRecordOccurrences(repos, today, today),
+  ]);
+  const fresh = reconcileAchievements({ occurrences: occs, tenureAnchor: settings.tenureAnchorDate, today, alreadyUnlocked: unlocks, now });
+  for (const u of fresh) {
+    if (u.key !== 'fallback-comeback') continue;
+    const result = await repos.progress.upsertUnlock(u);
+    if (result.ok) emit({ type: 'badge:unlocked', key: u.key });
+  }
+}
+
+/**
  * Deletes for good what is in Recently deleted: everything (`all`), or only what has been there
  * past its time. Each item keeps its past days in the record. Stops at the first failure.
  */
@@ -266,6 +288,7 @@ export async function retireDeleted(repos: Repositories, which: 'all' | 'expired
   const deleted = await repos.tasks.listDeleted();
   const due = which === 'all' ? deleted : deleted.filter((t) => t.deletedAt !== null && t.deletedAt < cutoff);
   const today = todayLocal();
+  if (due.length > 0) await keepBadgesBeforeRetiring(repos, today, nowIso);
   let n = 0;
   for (const task of due) {
     const result = await retireForGood(repos, task, today);
