@@ -65,7 +65,7 @@ export function resolveSnoozeSlot(input: {
   const { todayOccurrence, yesterdayOccurrence, isDueYesterday, isDueToday, taskSnoozable, yesterday } = input;
 
   if (!todayOccurrence || todayOccurrence.outcome === 'not-due') {
-    return { kind: 'snooze', enabled: false, disabledReason: 'Nothing is due today to snooze.' };
+    return { kind: 'snooze', enabled: false, disabledReason: 'Nothing is due today to push.' };
   }
 
   const sourceVacatedYesterday = isDueYesterday && yesterdayOccurrence !== undefined && yesterdayOccurrence.outcome === 'not-due';
@@ -78,7 +78,7 @@ export function resolveSnoozeSlot(input: {
   }
 
   if (!taskSnoozable) {
-    return { kind: 'snooze', enabled: false, disabledReason: 'Snoozing is turned off for this task.' };
+    return { kind: 'snooze', enabled: false, disabledReason: 'This task is set not to move.' };
   }
 
   return { kind: 'snooze', enabled: true };

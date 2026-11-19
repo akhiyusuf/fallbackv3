@@ -16,6 +16,33 @@ import { OnboardingShell, useOnboardingDensity } from './OnboardingShell';
 import { finishOnboardingProgress, leaveOnboarding, useOnboardingStepMarker } from './useOnboardingResume';
 import { Text } from '@/ui/AppText';
 
+type Outcome = { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+/**
+ * One quiet second try: a write that fails for a passing reason (the database busy for a moment)
+ * goes through on the retry, and the person never sees it. Throws count as failures too.
+ */
+async function withOneRetry(run: () => Promise<{ ok: boolean; error?: { message?: string } }>): Promise<Outcome> {
+  let reason = '';
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await run();
+      if (result.ok) return { ok: true };
+      reason = result.error?.message ?? '';
+    } catch (e) {
+      reason = e instanceof Error ? e.message : String(e);
+    }
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return { ok: false, reason };
+}
+
+/** The real reason, short, under the toast: what to report if saving keeps failing on a phone. */
+function reasonOf(outcome: Outcome): string | undefined {
+  if (outcome.ok || !outcome.reason) return undefined;
+  return outcome.reason.length > 90 ? `${outcome.reason.slice(0, 87)}...` : outcome.reason;
+}
+
 export function FirstTaskScreen() {
   const t = useTheme();
   const router = useRouter();
@@ -69,19 +96,19 @@ export function FirstTaskScreen() {
         fallbackSteps: [{ text: fallback.trim(), dueWeekdays: null }],
       };
       // A thrown write must reach the calm retry toast too, or the Save button would spin for ever.
-      const result = await createTask.mutateAsync(draft).catch(() => ({ ok: false as const }));
+      const result = await withOneRetry(() => createTask.mutateAsync(draft));
       if (!result.ok) {
         setSaving(false);
-        showToast(S08_COPY.saveFailure, 'warning');
+        showToast(S08_COPY.saveFailure, 'warning', { detail: reasonOf(result) });
         return;
       }
       createdRef.current = true;
     }
     // Wait for this save too: without it onboarding would start again on the next launch.
-    const finished = await updateSettings.mutateAsync({ onboardingCompletedAt: now() }).catch(() => ({ ok: false as const }));
+    const finished = await withOneRetry(() => updateSettings.mutateAsync({ onboardingCompletedAt: now() }));
     if (!finished.ok) {
       setSaving(false);
-      showToast(S08_COPY.saveFailure, 'warning');
+      showToast(S08_COPY.saveFailure, 'warning', { detail: reasonOf(finished) });
       return;
     }
     await finishOnboardingProgress();

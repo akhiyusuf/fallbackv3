@@ -24,7 +24,10 @@ import { S08_COPY } from '@/features/onboarding/copy';
 describe('S08 — Onboarding: First Task', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCreateTaskMutateAsync.mockResolvedValue({ ok: true, value: 'task-1' });
+    // Reset, not just clear: a one-off answer a test queued and the retry did not use must not
+    // leak into the next test.
+    mockCreateTaskMutateAsync.mockReset().mockResolvedValue({ ok: true, value: 'task-1' });
+    mockUpdateSettingsMutateAsync.mockReset().mockResolvedValue({ ok: true });
   });
 
   // The screen does not disable Save: it stays enabled, and pressing it with an empty field shows
@@ -92,7 +95,7 @@ describe('S08 — Onboarding: First Task', () => {
     await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
     await user.press(screen.getByLabelText(S08_COPY.save));
 
-    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning'));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning', expect.anything()));
     expect(screen.getByLabelText(S08_COPY.save).props.accessibilityState?.disabled).not.toBe(true);
   });
 
@@ -105,14 +108,17 @@ describe('S08 — Onboarding: First Task', () => {
     await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
     await user.press(screen.getByLabelText(S08_COPY.save));
 
-    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning'));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning', expect.anything()));
     expect(screen.getByDisplayValue('Morning workout')).toBeTruthy();
   });
 
   // The routine is saved first, then the "onboarding finished" save. If only that second save fails, the
   // second press must finish onboarding without creating the routine a second time (createdRef).
   it('a failed "onboarding finished" save keeps the screen; the next Save does not create the routine again', async () => {
-    mockUpdateSettingsMutateAsync.mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
+    // Both tries of the first press fail (the save is retried once on its own); the next press works.
+    mockUpdateSettingsMutateAsync
+      .mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } })
+      .mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'boom' } });
     const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S08OnboardingFirstTask />);
@@ -121,7 +127,7 @@ describe('S08 — Onboarding: First Task', () => {
     await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
 
     await user.press(screen.getByLabelText(S08_COPY.save));
-    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning'));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning', expect.anything()));
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue('Morning workout')).toBeTruthy();
     expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
@@ -129,7 +135,7 @@ describe('S08 — Onboarding: First Task', () => {
     await user.press(screen.getByLabelText(S08_COPY.save));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/today?justAdded=1'));
     expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
-    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(2);
+    expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(3);
     replace.mockRestore();
   });
 
@@ -144,12 +150,42 @@ describe('S08 — Onboarding: First Task', () => {
     await user.type(screen.getByLabelText(S08_COPY.nameLabel), 'Morning workout');
     await user.type(screen.getByLabelText(S08_COPY.idealLabel), 'Full workout');
     await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
-    fireEvent.press(screen.getByLabelText(S08_COPY.save));
-    fireEvent.press(screen.getByLabelText(S08_COPY.save));
+    // Awaited (fireEvent is async in this version): left pending, it ran into the next test.
+    await fireEvent.press(screen.getByLabelText(S08_COPY.save));
+    await fireEvent.press(screen.getByLabelText(S08_COPY.save));
     release({ ok: true, value: 'task-1' });
     await waitFor(() => expect(replace).toHaveBeenCalled());
     expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(1);
     expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledTimes(1);
     expect(calls).toEqual(['dismissAll', 'replace:/today?justAdded=1']);
+    jest.restoreAllMocks();
+  });
+
+  it('a save that fails once for a passing reason goes through on its own second try, with no toast', async () => {
+    mockCreateTaskMutateAsync.mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'database is locked' } });
+    const replace = jest.spyOn(router, 'replace').mockImplementation(() => {});
+    const user = userEvent.setup();
+    await render(<S08OnboardingFirstTask />);
+    await user.type(screen.getByLabelText(S08_COPY.nameLabel), 'Morning workout');
+    await user.type(screen.getByLabelText(S08_COPY.idealLabel), 'Full workout');
+    await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
+    await user.press(screen.getByLabelText(S08_COPY.save));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today?justAdded=1'));
+    expect(mockCreateTaskMutateAsync).toHaveBeenCalledTimes(2);
+    expect(mockShowToast).not.toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning', expect.anything());
+    replace.mockRestore();
+  });
+
+  it('when both tries fail, the toast carries the real reason so it can be reported', async () => {
+    mockCreateTaskMutateAsync
+      .mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'NOT NULL constraint failed: task.icon' } })
+      .mockResolvedValueOnce({ ok: false, error: { code: 'WRITE_FAILED', message: 'NOT NULL constraint failed: task.icon' } });
+    const user = userEvent.setup();
+    await render(<S08OnboardingFirstTask />);
+    await user.type(screen.getByLabelText(S08_COPY.nameLabel), 'Morning workout');
+    await user.type(screen.getByLabelText(S08_COPY.idealLabel), 'Full workout');
+    await user.type(screen.getByLabelText(S08_COPY.fallbackLabel), '10 pushups');
+    await user.press(screen.getByLabelText(S08_COPY.save));
+    await waitFor(() => expect(mockShowToast).toHaveBeenCalledWith(S08_COPY.saveFailure, 'warning', { detail: 'NOT NULL constraint failed: task.icon' }));
   });
 });

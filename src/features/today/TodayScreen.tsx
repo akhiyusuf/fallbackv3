@@ -12,8 +12,8 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { roundHalfUp } from '@/lib/number';
 import { useConsistency, useLogState, useMarkOffDay, useProgress } from '@/queries';
-import { useSkipSheetStore } from '@/features/task/skipSheet';
 import { useTakeDayOff } from '@/features/task/useTakeDayOff';
+import { usePushToTomorrow } from '@/features/task/usePushToTomorrow';
 import { ROUTES, withOrigin } from '@/navigation';
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import {
@@ -62,8 +62,8 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   const router = useRouter();
   const openAddMenu = useAddMenuStore((st) => st.show);
   const showToast = useToastStore((s) => s.show);
-  const askSkip = useSkipSheetStore((s) => s.ask);
   const takeDayOff = useTakeDayOff();
+  const pushToTomorrow = usePushToTomorrow();
   const logFeedback = useLogFeedback();
   const params = useLocalSearchParams<{ justAdded?: string; reentry?: string; taskId?: string }>();
   const { date, rows, isLoading, isError, hasAnyTaskEver, refetch } = useTodayRows();
@@ -90,15 +90,6 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
     }
     if (isUndo) return showToast('Undone', 'neutral');
     showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral', { action: { label: 'Undo', onPress: () => void handleToggleOff(!next, true) } });
-  }
-
-  // Skip asks first: the sheet shows what a skip costs and offers taking the day off instead.
-  function onCardLog(row: TodayRow, chip: ChipState) {
-    if (chip === 'skip') {
-      askSkip({ taskId: row.task.id, name: row.task.name, date, onSkip: () => void handleLog(row, 'skip') });
-      return;
-    }
-    void handleLog(row, chip);
   }
 
   async function handleLog(row: TodayRow, chip: ChipState, isUndo = false) {
@@ -209,7 +200,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
               icon={LifeBuoy}
               label={S09_COPY.offToggleLabel}
               sublabel={S09_COPY.offToggleSub}
-              right={<Switch value={allDueOff} onValueChange={handleToggleOff} accessibilityLabel={S09_COPY.offToggleLabel} />}
+              right={<Switch value={allDueOff} onValueChange={handleToggleOff} accessibilityLabel={S09_COPY.offToggleA11y} />}
             />
           </ListGroup>
         )}
@@ -246,8 +237,9 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                   row={row}
                   reopened={reopenedTaskId === row.task.id}
                   onToggleReopen={() => setReopenedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
-                  onLog={(chip) => onCardLog(row, chip)}
+                  onLog={(chip) => void handleLog(row, chip)}
                   onEmergency={() => void takeDayOff(row.task.id, date)}
+                  onPush={() => void pushToTomorrow(row.task.id, date)}
                   onOpen={() => openTask(row.task.id)}
                 />
               ))
@@ -280,6 +272,7 @@ function TaskRow({
   onToggleReopen,
   onLog,
   onEmergency,
+  onPush,
   onOpen,
 }: {
   row: TodayRow;
@@ -287,6 +280,7 @@ function TaskRow({
   onToggleReopen: () => void;
   onLog: (chip: ChipState) => void;
   onEmergency: () => void;
+  onPush: () => void;
   onOpen: () => void;
 }) {
   const chip = row.occurrence.chipState;
@@ -305,6 +299,8 @@ function TaskRow({
       fallbackHint={planSummary(row.task.fallbackSteps)}
       onLog={onLog}
       onEmergency={row.occurrence.outcome === 'off' ? undefined : onEmergency}
+      // Only a habit allowed to move offers the push (its "Can be moved to tomorrow" switch).
+      onPush={row.occurrence.outcome === 'off' || !row.task.snoozable ? undefined : onPush}
       onToggleReopen={onToggleReopen}
       onOpen={onOpen}
     />

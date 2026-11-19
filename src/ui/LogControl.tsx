@@ -9,7 +9,7 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Check, CheckCheck, ChevronDown, LifeBuoy, Minus } from 'lucide-react-native';
+import { ArrowRight, Check, CheckCheck, ChevronDown, LifeBuoy, Minus } from 'lucide-react-native';
 
 import { FONT_SIZE, MIN_TAP_TARGET, mix, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
 import type { ChipState } from '@/types';
@@ -81,15 +81,19 @@ export interface LogButtonsProps {
   readonly fallbackHint?: string | null;
   /** Hide the Fallback button for tasks with no fallback defined. */
   readonly hideFallback?: boolean;
-  /** Hide the quiet "Skip today" link (single doses can only be done or not). */
-  readonly hideSkip?: boolean;
-  /** When given, an "Emergency day off" link sits opposite Skip while nothing is logged. */
+  /** When given, a "Push to tomorrow" link sits under the buttons while nothing is logged. */
+  readonly onPush?: () => void;
+  /** When given, an "Emergency day off" link sits opposite it while nothing is logged. */
   readonly onEmergency?: () => void;
   readonly testID?: string;
 }
 
-/** The Done / Fallback pair and the quiet "Skip today" link. */
-export function LogButtons({ value, onChange, disabled = false, accessibilityLabel, idealHint, fallbackHint, hideFallback = false, hideSkip = false, onEmergency, testID }: LogButtonsProps) {
+/**
+ * The Done / Fallback pair, and under it the quiet links: "Push to tomorrow" and "Emergency day
+ * off" while nothing is logged, "Clear log" once something is. There is no Skip: a day not done
+ * already counts as missed, and a day that truly can't happen is an emergency day off.
+ */
+export function LogButtons({ value, onChange, disabled = false, accessibilityLabel, idealHint, fallbackHint, hideFallback = false, onPush, onEmergency, testID }: LogButtonsProps) {
   const t = useTheme();
   const logged = isLogged(value);
   const renderButton = (state: 'done' | 'fallback', label: string, hint?: string | null) => {
@@ -129,21 +133,22 @@ export function LogButtons({ value, onChange, disabled = false, accessibilityLab
         {renderButton('done', 'Done', idealHint)}
         {hideFallback ? null : renderButton('fallback', 'Fallback', fallbackHint)}
       </View>
-      {hideSkip && !logged && !onEmergency ? null : (
+      {!logged && !onPush && !onEmergency ? null : (
         <View style={styles.quietRow}>
-          {hideSkip ? (
-            <View />
-          ) : (
+          {!logged && onPush ? (
             <Pressable
-              onPress={disabled ? undefined : () => onChange('skip')}
+              onPress={disabled ? undefined : onPush}
               disabled={disabled}
               accessibilityRole="button"
-              accessibilityLabel={`${accessibilityLabel}: Skip today`}
+              accessibilityLabel={`${accessibilityLabel}: Push to tomorrow`}
               hitSlop={8}
-              style={styles.quiet}
+              style={[styles.quiet, styles.quietIconRow]}
             >
-              <Text style={[styles.quietLabel, { color: value === 'skip' ? t.color.offDeep : t.color.textMuted, fontWeight: value === 'skip' ? '700' : '500' }]}>Skip today</Text>
+              <ArrowRight size={14} color={t.color.textMuted} />
+              <Text style={[styles.quietLabel, { color: t.color.textMuted, fontWeight: '500' }]}>Push to tomorrow</Text>
             </Pressable>
+          ) : (
+            <View />
           )}
           {!logged && onEmergency ? (
             <Pressable
@@ -185,7 +190,7 @@ export interface LogControlProps extends LogButtonsProps {
 }
 
 /** Label + chip when logged, buttons when not (task screen, doses, previews). */
-export function LogControl({ label, caption, value, onChange, disabled, accessibilityLabel, idealHint, fallbackHint, hideFallback, hideSkip, loggedLabel, testID }: LogControlProps) {
+export function LogControl({ label, caption, value, onChange, disabled, accessibilityLabel, idealHint, fallbackHint, hideFallback, onPush, onEmergency, loggedLabel, testID }: LogControlProps) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
   const logged = isLogged(value);
@@ -213,7 +218,8 @@ export function LogControl({ label, caption, value, onChange, disabled, accessib
           idealHint={idealHint}
           fallbackHint={fallbackHint}
           hideFallback={hideFallback}
-          hideSkip={hideSkip}
+          onPush={onPush}
+          onEmergency={onEmergency}
         />
       ) : null}
     </View>

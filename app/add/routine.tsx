@@ -108,7 +108,7 @@ export default function S16CreateRoutine() {
           <ListGroup footer="When it's on, a day you can't manage can be moved to tomorrow from the routine's own screen, instead of being missed. Turn it off for something that can't wait.">
             <ListRow
               label="Can be moved to tomorrow"
-              sublabel="Snooze a day instead of missing it"
+              sublabel="Push a day instead of missing it"
               right={<Switch value={snoozable} onValueChange={setSnoozable} accessibilityLabel="Can be moved to tomorrow" testID="routine-snoozable-switch" />}
             />
           </ListGroup>

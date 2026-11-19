@@ -10,6 +10,8 @@ const mockUseConsistency = jest.fn();
 const mockUseProgress = jest.fn();
 const mockLogStateMutateAsync = jest.fn();
 const mockMarkOffDayMutateAsync = jest.fn();
+const mockSnoozeMutateAsync = jest.fn();
+const mockUndoSnoozeMutateAsync = jest.fn();
 
 jest.mock('@/queries', () => ({
   useTasks: () => mockUseTasks(),
@@ -18,6 +20,8 @@ jest.mock('@/queries', () => ({
   useProgress: () => mockUseProgress(),
   useLogState: () => ({ mutateAsync: mockLogStateMutateAsync }),
   useMarkOffDay: () => ({ mutateAsync: mockMarkOffDayMutateAsync }),
+  useSnoozeOccurrence: () => ({ mutateAsync: mockSnoozeMutateAsync }),
+  useUndoSnooze: () => ({ mutateAsync: mockUndoSnoozeMutateAsync }),
 }));
 
 import type { ReactElement } from 'react';
@@ -26,7 +30,6 @@ import { Toast } from '@/ui';
 import { useCelebrationStore } from '@/app-shell';
 import { useToastStore } from '@/app-shell/stores/toast';
 import type { ChipState } from '@/types';
-import { useSkipSheetStore } from '@/features/task/skipSheet';
 
 // `Toast` is a separate host mounted once at the app root (`app/_layout.tsx`) — screens only
 // call `useToastStore.getState().show(...)`. Rendering it alongside the screen here lets these
@@ -108,7 +111,7 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     mockUseToday.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     await render(<TodayScreen />);
-    expect(screen.getByLabelText('Emergency: whole day off')).toBeTruthy();
+    expect(screen.getByLabelText('Emergency day off, the whole day')).toBeTruthy();
     expect(screen.getAllByLabelText('Loading').length).toBeGreaterThan(0);
   });
 
@@ -136,7 +139,7 @@ describe('S09 — Today', () => {
     await render(<TodayScreen />);
     expect(screen.getByText("Couldn't load today's tasks. Your data is safe on this device.")).toBeTruthy();
     // Stat chip and off-toggle still render independently.
-    expect(screen.getByLabelText('Emergency: whole day off')).toBeTruthy();
+    expect(screen.getByLabelText('Emergency day off, the whole day')).toBeTruthy();
   });
 
   it('stat chip: zero-data reads the no-data copy, never "0%"', async () => {
@@ -156,7 +159,8 @@ describe('S09 — Today', () => {
     expect(screen.getByText('Routine · Daily')).toBeTruthy();
     expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
     expect(screen.getByLabelText('Movement: Fallback')).toBeTruthy();
-    expect(screen.getByLabelText('Movement: Skip today')).toBeTruthy();
+    expect(screen.queryByLabelText('Movement: Skip today')).toBeNull(); // no Skip: not done is already a miss
+    expect(screen.getByLabelText('Movement: Push to tomorrow')).toBeTruthy();
   });
 
   it('chip tap: logging Done persists via useLogState, updates the card and offers Undo', async () => {
@@ -220,33 +224,29 @@ describe('S09 — Today', () => {
     expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
   });
 
-  it('chip tap: Skip asks first (the Skip sheet) and logs nothing until the person chooses', async () => {
+  it('Push to tomorrow moves today\'s occurrence to tomorrow, with Undo', async () => {
+    const { today } = jest.requireActual('@/lib/date');
     todayRead();
+    mockSnoozeMutateAsync.mockResolvedValue({ ok: true, value: undefined });
+    mockUndoSnoozeMutateAsync.mockResolvedValue({ ok: true, value: undefined });
     const user = userEvent.setup();
     await render(withToastHost(<TodayScreen />));
-    await user.press(screen.getByLabelText('Movement: Skip today'));
-    expect(useSkipSheetStore.getState().request).toMatchObject({ name: 'Movement' });
+    await user.press(screen.getByLabelText('Movement: Push to tomorrow'));
+    await waitFor(() => expect(mockSnoozeMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today() }));
     expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
-    useSkipSheetStore.getState().close();
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Pushed to tomorrow'));
+    await act(async () => useToastStore.getState().toast?.action?.onPress());
+    await waitFor(() => expect(mockUndoSnoozeMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today() }));
   });
 
-  it('chip tap: a Skip chosen in the sheet commits with no celebration and offers Undo', async () => {
+  it('a habit already pushed once says so calmly and stays on today', async () => {
     todayRead();
-    mockLogStateMutateAsync.mockImplementation(async ({ chip }: { chip: ChipState }) => {
-      board.chip = chip;
-      return { ok: true, value: { outcome: 'missed', xpAwarded: 0, celebrate: 'none', levelUp: null, badgesUnlocked: [] } };
-    });
+    mockSnoozeMutateAsync.mockResolvedValue({ ok: false, error: { code: 'VALIDATION_FAILED', message: 'This occurrence is already snoozed.' } });
     const user = userEvent.setup();
-    const view = await render(withToastHost(<TodayScreen />));
-    await user.press(screen.getByLabelText('Movement: Skip today'));
-    await act(async () => useSkipSheetStore.getState().request?.onSkip());
-    await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ chip: 'skip' })));
-    await view.rerender(withToastHost(<TodayScreen />));
-
-    expect(screen.getByLabelText('Movement, Skipped. Change')).toBeTruthy();
-    expect(useToastStore.getState().toast).toMatchObject({ message: 'Skipped for today', icon: 'skip' });
-    expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
-    expect(useCelebrationStore.getState().queue).toEqual([]);
+    await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText('Movement: Push to tomorrow'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Already pushed once. It stays on today.'));
+    expect(useToastStore.getState().toast?.tone).toBe('neutral');
   });
 
   it('chip tap: Undo on the toast restores the previous (unlogged) state', async () => {
@@ -286,7 +286,7 @@ describe('S09 — Today', () => {
     mockMarkOffDayMutateAsync.mockResolvedValue({ ok: true, value: undefined });
     const user = userEvent.setup();
     await render(withToastHost(<TodayScreen />));
-    await user.press(screen.getByLabelText('Emergency: whole day off'));
+    await user.press(screen.getByLabelText('Emergency day off, the whole day'));
     await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: null, mark: true }));
     await waitFor(() => expect(screen.getByText('Day off. Nothing due today counts against you.')).toBeTruthy());
   });
@@ -297,7 +297,7 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), outcome: 'off', chipState: null })], isLoading: false, isError: false });
     await render(<TodayScreen />);
     expect(screen.getByText('Off today')).toBeTruthy();
-    expect(screen.getByLabelText('Emergency: whole day off').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByLabelText('Emergency day off, the whole day').props.accessibilityState.checked).toBe(true);
   });
 
   it('re-entry state: renders the F14 landing banner with the reworded stat line and the highlighted CTA', async () => {

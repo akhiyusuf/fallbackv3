@@ -56,7 +56,7 @@ describe('S20 Manage Task Sheet', () => {
     await screen.findByText('Morning workout');
 
     expect(screen.getByTestId('s20-snooze')).toBeTruthy();
-    expect(screen.getByText('Snoozing is turned off for this task.')).toBeTruthy();
+    expect(screen.getByText('This task is set not to move.')).toBeTruthy();
     expect(screen.getByTestId('s20-snooze').props.accessibilityState?.disabled).toBe(true);
   });
 
@@ -70,7 +70,7 @@ describe('S20 Manage Task Sheet', () => {
     // shows TODAY, so the row reads "nothing due today", disabled — never "Undo" from here.
     // This is PRD §7's documented open gap, not a defect: undo would be reachable only from
     // tomorrow's own sheet, and only if tomorrow itself isn't naturally due (see the next test).
-    expect(await screen.findByText('Nothing is due today to snooze.')).toBeTruthy();
+    expect(await screen.findByText('Nothing is due today to push.')).toBeTruthy();
     expect(screen.getByTestId('s20-snooze').props.accessibilityState?.disabled).toBe(true);
     expect(screen.queryByTestId('s20-undo-snooze')).toBeNull();
   });
@@ -139,7 +139,7 @@ describe('S20 Manage Task Sheet', () => {
     // Undo restores yesterday's data; today reverts to its genuine off-cadence not-due state
     // (there is no longer a visitor to display), so the row renders "Snooze to tomorrow" disabled
     // again — never "Undo snooze" a second time.
-    expect(await screen.findByText('Nothing is due today to snooze.')).toBeTruthy();
+    expect(await screen.findByText('Nothing is due today to push.')).toBeTruthy();
     expect(screen.queryByTestId('s20-undo-snooze')).toBeNull();
   });
 
@@ -159,8 +159,8 @@ describe('S20 Manage Task Sheet', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
     await screen.findByText('Morning workout');
 
-    await userEvent.press(screen.getByLabelText('Off today, this task only'));
-    expect(await screen.findByText('Off today. Turn the switch below back off to log it.')).toBeTruthy();
+    await userEvent.press(screen.getByLabelText('Emergency day off, this task only'));
+    expect(await screen.findByText('Emergency day off. Turn it off below to log it.')).toBeTruthy();
   });
 
   it('inline name edit persists via the Save name affordance', async () => {
@@ -302,7 +302,7 @@ describe('S20 Manage Task Sheet', () => {
     expect(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Dose 3 of 3: Done')).toBeTruthy();
     expect(within(screen.getByTestId('s20-dose-chip-2')).queryByLabelText(/: Fallback$/)).toBeNull();
     expect(screen.getByLabelText('Whole day: Fallback')).toBeTruthy();
-    expect(screen.getByLabelText('Whole day: Skip today')).toBeTruthy();
+    expect(screen.queryByLabelText('Whole day: Skip today')).toBeNull();
 
     await userEvent.press(within(screen.getByTestId('s20-dose-chip-2')).getByLabelText('Dose 3 of 3: Done'));
     await waitFor(() => {

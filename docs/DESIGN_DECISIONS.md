@@ -1118,6 +1118,34 @@ about an emergency there either."**
   with a life-buoy icon like its neighbours. Its toast reads "Day off. Nothing
   due today counts against you."
 
+### Round 4, twentieth pass (2026-11-19)
+
+The human: **"Skip today and emergency day off are the same thing. Remove skip
+today. Keep it as emergency day off for either the whole day or for just that
+particular task ... The only other thing you can keep with emergency day off
+is snooze to tomorrow. Instead of snooze to tomorrow do push to tomorrow."**
+
+- Skip is gone from every log control (Today's cards, a task's page, past-day
+  popover). A day not done already counts as missed at the end of the day, so
+  Skip only recorded the same miss early; an emergency day off is the excused
+  case. Old skip logs still show as "Skipped" and can be cleared. The Skip
+  sheet (and its consistency preview) is removed: nothing opens it any more.
+- Under Done / Fallback each card has "→ Push to tomorrow" (left, only for a
+  habit allowed to move) and "Emergency day off" (right). Once something is
+  logged, "Clear log" takes that place.
+- "Snooze" is called "push" everywhere a person reads it: "Push to tomorrow",
+  "Undo push", toasts "Pushed to tomorrow" / "Push undone", the routine form's
+  "Push a day instead of missing it". A push that cannot happen says why
+  ("Already pushed once. It stays on today.").
+- The whole-day switch on Today is "Emergency day off", "The whole day. Nothing
+  due today counts against you." The task page's per-task switch is "Emergency
+  day off", "Just this task, today."
+- The first-routine save that failed on the human's phone could not be
+  reproduced (it saves on real SQLite in tests). It now retries once on its
+  own, every database job retries once on a "database is locked" error, and if
+  the first-routine save still fails the toast shows the real reason under
+  "Couldn't save. Try again", so a screenshot names the cause.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

@@ -150,7 +150,6 @@ export default function S23AsNeededRoutineDetail() {
           accessibilityLabel={task.name}
           idealHint={task.idealSteps[0]?.text}
           fallbackHint={task.fallbackSteps[0]?.text}
-          hideSkip
         />
       </Dialog>
 

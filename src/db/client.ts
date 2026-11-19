@@ -45,6 +45,24 @@ export async function deleteDatabaseFile(): Promise<void> {
  * close-delete-reopen inside `eraseAll()`) so no repository ever holds a stale, closed
  * handle.
  */
+/** SQLite's "the file is busy for a moment" errors, which a short wait clears. */
+const BUSY = /database is locked|SQLITE_BUSY|database table is locked|SQLITE_LOCKED/i;
+
+/**
+ * A job that fails only because the database file was busy for a moment (another write, the
+ * phone's own housekeeping of the WAL file) is tried once more after a short wait. A failed
+ * transaction has rolled back, so a second try is safe. Any other error is returned at once.
+ */
+export async function runWithBusyRetry<T>(run: () => Promise<T>, waitMs = 150): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    if (!(e instanceof Error) || !BUSY.test(e.message)) throw e;
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    return run();
+  }
+}
+
 export class DbClientProxy implements DbClient {
   private current: DbClient | null = null;
   /** Every job the proxy runs, chained: each starts only after the one before it has finished. */
@@ -70,7 +88,7 @@ export class DbClientProxy implements DbClient {
    * touches the connection while a transaction is open.
    */
   private serial<T>(job: (client: DbClient) => Promise<T>): Promise<T> {
-    const result = this.queue.then(() => job(this.live()));
+    const result = this.queue.then(() => runWithBusyRetry(() => job(this.live())));
     this.queue = result.catch(() => undefined);
     return result;
   }

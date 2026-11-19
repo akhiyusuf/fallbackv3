@@ -9,7 +9,7 @@ import { play } from '@/services/sfx';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AlarmClock, CalendarDays, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
+import { AlarmClock, CalendarDays, LifeBuoy, Copy, ListTodo, MoreHorizontal, Palette, PencilLine, StickyNote, Trash2, Undo2 } from 'lucide-react-native';
 
 import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import {
@@ -68,7 +68,6 @@ import { PriorityPlaceRow } from '@/features/priorities/PriorityPlaceRow';
 import { formatDateValue } from '@/ui';
 import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
 import { Text } from '@/ui/AppText';
-import { useSkipSheetStore } from '@/features/task/skipSheet';
 
 const ALL_DAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
 const TYPE_TITLE = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' } as const;
@@ -99,7 +98,6 @@ export default function S20ManageTask() {
   const toggleStep = useToggleStep();
   const logDose = useLogDose();
   const markOffDay = useMarkOffDay();
-  const askSkip = useSkipSheetStore((s) => s.ask);
   const duplicateTask = useDuplicateTask();
   const snoozeOccurrence = useSnoozeOccurrence();
   const undoSnooze = useUndoSnooze();
@@ -132,15 +130,6 @@ export default function S20ManageTask() {
     if (!result.ok) return fail();
     if (isUndo) return showToast('Undone', 'neutral');
     logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
-  }
-
-  // Skip asks first (the Skip sheet): it shows the cost and offers taking today off instead.
-  function onTodayLog(chip: ChipState) {
-    if (chip === 'skip' && task) {
-      askSkip({ taskId, name: task.name, date: today, onSkip: () => void onChipChange('skip') });
-      return;
-    }
-    void onChipChange(chip);
   }
 
   async function onDoseChange(index: number, chip: ChipState) {
@@ -195,7 +184,7 @@ export default function S20ManageTask() {
     if (snoozeSlot.kind === 'undo') {
       const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
       if (!result.ok) fail();
-      else showToast('Snooze undone', 'neutral');
+      else showToast('Push undone', 'neutral');
       return;
     }
     if (!snoozeSlot.enabled) return;
@@ -203,7 +192,7 @@ export default function S20ManageTask() {
     if (!result.ok) fail();
     else {
       play('snooze');
-      showToast('Moved to tomorrow', 'neutral', {
+      showToast('Pushed to tomorrow', 'neutral', {
         action: {
           label: 'Undo',
           onPress: () =>
@@ -334,7 +323,7 @@ export default function S20ManageTask() {
             {!dueNow ? (
               <EmptyLine>Not due today.</EmptyLine>
             ) : isOffToday ? (
-              <EmptyLine>Off today. Turn the switch below back off to log it.</EmptyLine>
+              <EmptyLine>Emergency day off. Turn it off below to log it.</EmptyLine>
             ) : isMultiDose ? (
               <>
                 {Array.from({ length: task.dosesPerDay }, (_, i) => i).map((i) => (
@@ -346,7 +335,6 @@ export default function S20ManageTask() {
                     accessibilityLabel={`Dose ${i + 1} of ${task.dosesPerDay}`}
                     loggedLabel="Taken"
                     hideFallback
-                    hideSkip
                     testID={`s20-dose-chip-${i}`}
                   />
                 ))}
@@ -355,14 +343,14 @@ export default function S20ManageTask() {
                   label="Whole day"
                   caption={`${dosesDone} of ${task.dosesPerDay} doses taken. The day logs itself once every dose is handled, or you can set it here.`}
                   value={todayOccurrence?.chipState ?? null}
-                  onChange={onTodayLog}
+                  onChange={(chip) => void onChipChange(chip)}
                   accessibilityLabel="Whole day"
                   testID="s20-day-chip"
                 />
               </>
             ) : (
               <>
-                <LogControl value={todayOccurrence?.chipState ?? null} onChange={onTodayLog} accessibilityLabel={task.name} testID="s20-chip" />
+                <LogControl value={todayOccurrence?.chipState ?? null} onChange={(chip) => void onChipChange(chip)} accessibilityLabel={task.name} testID="s20-chip" />
                 {task.idealSteps.length > 1 ? (
                   <View>
                     <Text style={[styles.caption, { color: t.color.textMuted }]}>Ticking every step logs the day as ideal.</Text>
@@ -387,16 +375,17 @@ export default function S20ManageTask() {
 
           <ListGroup>
             <ListRow
-              label="Off today"
-              sublabel="Just this task. Doesn't count for or against you."
-              right={<Switch value={isOffToday} onValueChange={onToggleOffDay} accessibilityLabel="Off today, this task only" />}
+              icon={LifeBuoy}
+              label="Emergency day off"
+              sublabel="Just this task, today. Doesn't count for or against you."
+              right={<Switch value={isOffToday} onValueChange={onToggleOffDay} accessibilityLabel="Emergency day off, this task only" />}
             />
             {snoozeSlot.kind === 'undo' ? (
-              <ListRow icon={Undo2} label="Undo snooze" sublabel="Move it back to yesterday" onPress={onSnoozeSlotPress} chevron={false} testID="s20-undo-snooze" />
+              <ListRow icon={Undo2} label="Undo push" sublabel="Move it back to yesterday" onPress={onSnoozeSlotPress} chevron={false} testID="s20-undo-snooze" />
             ) : (
               <ListRow
                 icon={AlarmClock}
-                label="Snooze to tomorrow"
+                label="Push to tomorrow"
                 sublabel={snoozeSlot.enabled ? undefined : snoozeSlot.disabledReason}
                 onPress={onSnoozeSlotPress}
                 disabled={!snoozeSlot.enabled}

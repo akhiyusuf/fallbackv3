@@ -24,7 +24,6 @@ jest.mock('@/services/widgets', () => ({ initWidgetsBridge: () => mockInitWidget
 jest.mock('@/ui/Toast', () => ({ Toast: () => null }));
 jest.mock('@/features/progress/CelebrationHost', () => ({ CelebrationHost: () => null }));
 jest.mock('@/features/task/AddMenuHost', () => ({ AddMenuHost: () => null }));
-jest.mock('@/features/task/SkipSheetHost', () => ({ SkipSheetHost: () => null }));
 
 import RootLayout from './_layout';
 
