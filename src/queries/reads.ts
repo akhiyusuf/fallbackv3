@@ -1,6 +1,6 @@
 /** M2. Read hooks. Compose M1's repositories with M2's pure domain engine. */
 import { useQuery } from '@tanstack/react-query';
-import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays, toLocalDate } from '@/lib/date';
+import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays } from '@/lib/date';
 import { repos } from '@/db';
 import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
 import type {

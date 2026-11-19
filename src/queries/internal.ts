@@ -16,8 +16,7 @@ import { newId } from '@/lib/id';
 import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
 import { ok } from '@/types';
-import type { DayLog, Instant, Occurrence, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
-import type { LocalDate } from '@/types';
+import type { DayLog, Instant, LocalDate, Occurrence, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
 
 export function todayLocal(): LocalDate {
   return clockToday();

@@ -1191,6 +1191,39 @@ haiku and sonnet."**
   80 tests, 4 bugs fixed) and `review/sonnet/13-recently-deleted-ui.md`
   (screens and cross-feature, 86 tests, 6 bugs fixed).
 
+### Round 4, twenty-third pass (2026-11-19)
+
+The human: **"Deleted habits should act like routines that one has abruptly
+decided to end... their past consistency should still show up in the app... if
+someone wants to end a routine, it's slightly different from deleting that
+routine. I'll just let you figure it out."**
+
+Main session's resolution (the human left it open):
+
+- **End** ("I'm stopping this"). Task page menu: "End routine" (also repeating
+  events and courses; not to-dos, notes, as-needed routines or one-off events).
+  Its last day is today if today is logged, otherwise yesterday, so ending never
+  makes today a miss. It stays in the app under **Ended** (Routines, Events;
+  an ended course shows under past courses), with its history and an "Ended
+  <date>" card and **Start again**. Starting again marks the ended days off.
+- **Delete** ("take it out of my app"). Hidden everywhere, in Recently deleted
+  for 30 days. Its past days keep counting: every day before the deletion day,
+  and the deletion day only if it was logged. Restoring marks the days away off.
+- **Delete forever** (or after 30 days): name, steps and logs go; each settled
+  past day stays as an anonymous `retired_day` row (date and outcome only), so
+  consistency, the trend, cycle records and badges are unchanged.
+- Neither counts the days after it stopped as misses.
+- Today, the lists and reminders show live habits only; consistency, the trend,
+  badges and cycle records read the whole record (`resolveRecordOccurrences`).
+- The delete sheet now says the days still count, and for things that can be
+  ended: "Only stopping? End the routine instead and it stays in your list."
+
+Data changes (architect): migration 8 adds `task.ended_on` and `retired_day`;
+backups carry `retired_day` (older backups without it still restore).
+`deleteForever(id, keep)` writes the kept days and removes the task in one
+transaction. The store no longer removes anything on open: S01 runs
+`sweepExpiredDeleted()` after the store is ready, which keeps each item's days.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

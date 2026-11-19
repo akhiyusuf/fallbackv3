@@ -95,4 +95,19 @@ describe('groupByImportance (priority order)', () => {
     const groups = groupByImportance([task('ends-today', { type: 'course', endDate: DATE })], DATE);
     expect(names(groups.high)).toEqual(['ends-today']);
   });
+
+  it('drops anything ended (a routine, a repeating event, a course), and keeps it once started again', () => {
+    const ended = { endedOn: '2026-11-10' as LocalDate };
+    const groups = groupByImportance(
+      [
+        task('ended-routine', ended),
+        task('ended-event', { type: 'event', eventDate: null, cadence: { kind: 'daily' }, ...ended }),
+        task('ended-course', { type: 'course', endDate: '2026-12-01' as LocalDate, ...ended }),
+        task('restarted-routine', { endedOn: null }),
+        task('old-data-routine', { endedOn: undefined as unknown as null }),
+      ],
+      DATE,
+    );
+    expect(names(groups.high)).toEqual(['restarted-routine', 'old-data-routine']);
+  });
 });
