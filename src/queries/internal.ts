@@ -265,7 +265,7 @@ export async function retireForGood(repos: Repositories, task: TaskWithSteps, to
  * read from dates and totals that retirement keeps, so it is left to the usual reconcile.
  * Upsert-only, as with every unlock.
  */
-async function keepBadgesBeforeRetiring(repos: Repositories, today: LocalDate, now: Instant): Promise<void> {
+export async function keepBadgesBeforeRetiring(repos: Repositories, today: LocalDate, now: Instant): Promise<void> {
   const [unlocks, settings, occs] = await Promise.all([
     repos.progress.listUnlocks(),
     repos.settings.get(),

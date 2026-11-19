@@ -56,7 +56,7 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
-import { deletionDay, markAwayDaysOff, resolveOneOccurrence, resolveRecordOccurrences, resolveWriteTarget, retireDeleted, retireForGood, todayLocal } from './internal';
+import { deletionDay, keepBadgesBeforeRetiring, markAwayDaysOff, resolveOneOccurrence, resolveRecordOccurrences, resolveWriteTarget, retireDeleted, retireForGood, todayLocal } from './internal';
 
 function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
@@ -480,6 +480,7 @@ export function useDeleteForever() {
     mutationFn: async (id: Id): Promise<Result<void>> => {
       const task = (await repos.tasks.listDeleted()).find((t) => t.id === id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
+      await keepBadgesBeforeRetiring(repos, todayLocal(), now());
       const result = await retireForGood(repos, task);
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });

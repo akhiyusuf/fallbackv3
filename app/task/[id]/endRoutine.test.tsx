@@ -113,7 +113,7 @@ describe('end confirm sheet', () => {
   it('ends today when today is already logged', async () => {
     await open(makeTask({ id: ID }));
     await userEvent.press(await screen.findByLabelText(/^Morning workout: Done/));
-    await waitFor(async () => expect((await fake.repos.occurrences.get(ID, '2026-07-16' as LocalDate))?.outcome).toBe('ideal'));
+    await waitFor(async () => expect((await fake.repos.logs.listForTask(ID, '2026-07-16' as LocalDate, '2026-07-16' as LocalDate)).length).toBe(1));
     await endIt();
     expect(await screen.findByText('Ended Jul 16')).toBeTruthy();
     expect((await stored()).endedOn).toBe('2026-07-16');
@@ -209,7 +209,7 @@ describe('an ended task', () => {
     await openMenu();
     const entries = await screen.findAllByLabelText('Start again');
     expect(entries).toHaveLength(2);
-    await userEvent.press(entries.find((e) => e.props.testID !== 's20-start-again') ?? entries[1]);
+    await userEvent.press(entries.find((e) => e.props.testID !== 's20-start-again') ?? entries[1]!);
     await waitFor(() => expect(screen.queryByTestId('s20-ended')).toBeNull());
     expect(toast()?.message).toBe(END_COPY.startedToast);
   });
@@ -255,7 +255,7 @@ describe('delete sheet wording', () => {
   it('with canEnd it adds the End instead line', async () => {
     await open(makeTask({ id: ID }));
     const sheet = await openDelete('routine');
-    expect(within(sheet).getByText(`${DELETE_COPY.message('Morning workout')} ${DELETE_COPY.endInstead('routine')}`)).toBeTruthy();
+    expect(within(sheet).getByText(`${DELETE_COPY.message("Morning workout")} ${DELETE_COPY.endInstead("routine")}`)).toBeTruthy();
   });
 
   it('without canEnd (a to-do, an as-needed routine, an ended routine) it does not', async () => {

@@ -1224,6 +1224,11 @@ backups carry `retired_day` (older backups without it still restore).
 transaction. The store no longer removes anything on open: S01 runs
 `sweepExpiredDeleted()` after the store is ready, which keeps each item's days.
 
+Edge-case passes: `review/haiku/14-ended-retired-data.md` (real SQLite, 22
+tests; fixed: the per-habit "comeback" badge is now saved before a habit's days
+become anonymous) and `review/sonnet/15-end-routine-ui.md` (screens; fixed: a
+double tap on End or Start again ran it twice). Whole suite: 1210 tests pass.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

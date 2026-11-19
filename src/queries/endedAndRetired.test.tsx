@@ -28,6 +28,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import type { Instant, LocalDate, Step, TaskWithSteps } from '@/types';
 
+import { aggregateConsistency } from '@/domain';
+
+import { resolveRecordOccurrences } from './internal';
 import { fake, repos } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import { useDeleteForever, useDeleteTask, useEmptyRecentlyDeleted, useEndTask, useLogState, useRestoreTask, useStartAgain } from './mutations';
@@ -154,8 +157,11 @@ async function seedHabit(name = 'Walk'): Promise<TaskWithSteps> {
 }
 
 const aggregate = () => readNow(() => useConsistency({ scope: 'aggregate', window: 'all-time' }));
-const lastWeek = (from: string, to: string) =>
-  readNow(() => useConsistency({ scope: 'aggregate', window: { from: from as LocalDate, to: to as LocalDate } }));
+/** Aggregate consistency over a chosen date range, read from the same record the app reads. */
+async function lastWeek(from: string, to: string) {
+  const occs = await resolveRecordOccurrences(repos, clock.today as LocalDate, clock.today as LocalDate);
+  return aggregateConsistency({ occurrences: occs, window: { from: from as LocalDate, to: to as LocalDate }, today: clock.today as LocalDate });
+}
 
 /* ------------------------------------------------------------------ End routine */
 
