@@ -22,5 +22,6 @@ export function purgeCutoff(now: Instant): Instant {
 export function daysLeft(deletedAt: Instant, now: Instant): number {
   const removeAt = new Date(deletedAt).getTime() + DELETED_KEEP_DAYS * DAY_MS;
   const left = (removeAt - new Date(now).getTime()) / DAY_MS;
-  return Math.max(0, Math.ceil(left));
+  // Capped: a deletion stamped ahead of the clock (the device clock was set back) must not read as "31 days left".
+  return Math.min(DELETED_KEEP_DAYS, Math.max(0, Math.ceil(left)));
 }

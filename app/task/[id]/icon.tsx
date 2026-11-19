@@ -8,6 +8,7 @@ import { ACCENTS, FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { Button, EmptyState, Input, Screen, SectionHeading, Skeleton, TaskIcon } from '@/ui';
 import { useTask, useUpdateTask } from '@/queries';
 import { useToastStore } from '@/app-shell/stores/toast';
+import { DeletedTaskNotice, GoneTaskNotice } from '@/features/task/DeletedTaskNotice';
 import { SAVE_FAILED } from '@/features/task/formShared';
 import { filterIconCategories, iconByName } from '@/features/task/iconCatalog';
 import type { Id, TaskColor } from '@/types';
@@ -50,6 +51,8 @@ export default function S21IconAndColorPicker() {
     else showToast(SAVE_FAILED, 'warning');
   }
 
+  if (!taskQuery.isLoading && taskQuery.data === null) return <GoneTaskNotice onBack={close} />;
+
   if (taskQuery.isLoading || !task) {
     return (
       <Screen title="Icon and colour" onBack={close} backIcon="close">
@@ -58,6 +61,8 @@ export default function S21IconAndColorPicker() {
       </Screen>
     );
   }
+
+  if (task.deletedAt) return <DeletedTaskNotice taskId={taskId} name={task.name} onBack={close} />;
 
   return (
     <Screen

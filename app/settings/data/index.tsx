@@ -82,8 +82,13 @@ export default function S47Data() {
   }
 
   const deletedCount = recentlyDeleted.data?.length ?? 0;
+  // No line while it loads or if it could not be read: "Nothing deleted lately." would be a claim we cannot back.
   const recentlyDeletedLine =
-    deletedCount === 0 ? S47_COPY.recentlyDeletedEmpty : `${deletedCount} ${deletedCount === 1 ? 'item' : 'items'}. ${S47_COPY.recentlyDeletedKept}`;
+    recentlyDeleted.data === undefined
+      ? undefined
+      : deletedCount === 0
+        ? S47_COPY.recentlyDeletedEmpty
+        : `${deletedCount} ${deletedCount === 1 ? 'item' : 'items'}. ${S47_COPY.recentlyDeletedKept}`;
   const settings = settingsQuery.data;
   const lastBackup = settings?.lastBackupAt ? `Last backup ${formatInstant(settings.lastBackupAt)}` : S47_COPY.noBackupYet;
 

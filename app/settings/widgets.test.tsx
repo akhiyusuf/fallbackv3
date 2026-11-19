@@ -34,6 +34,15 @@ describe('S46 — Widgets', () => {
     mockUpdateSettingsMutateAsync.mockResolvedValue({ ok: true });
   });
 
+  it('a fixed task that is in Recently deleted (not in the task list) shows the generic label, and its picker asks to choose one — no crash', async () => {
+    const user = userEvent.setup();
+    mockSettingsData.current = { widgets: [{ size: 'small-one-task', mode: 'fixed-task', fixedTaskId: 'deleted-one' }] };
+    await render(<S46Widgets />);
+    expect(screen.getByText(S46_COPY.fixedTask)).toBeTruthy();
+    await user.press(screen.getByLabelText(ONE_TASK_ROW));
+    expect(screen.getByLabelText('Task, Choose a task')).toBeTruthy();
+  });
+
   it('gallery-default: all three widget rows shown, no settings sheet open', async () => {
     await render(<S46Widgets />);
     for (const entry of S46_COPY.gallery) {

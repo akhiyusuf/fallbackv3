@@ -52,6 +52,7 @@ import type {
   Step,
   Task,
   TaskDraft,
+  TaskWithSteps,
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
@@ -222,6 +223,16 @@ interface ReconcileResult {
 }
 
 /**
+ * The task, only while it is live. A task in Recently deleted is not written to: its history waits
+ * there to be restored or removed, and no log, XP award, off day or edit may land on it by way of a
+ * screen that still shows it. Every write below resolves its task through here.
+ */
+async function liveTask(id: Id): Promise<TaskWithSteps | null> {
+  const task = await repos.tasks.get(id);
+  return task && task.deletedAt === null ? task : null;
+}
+
+/**
  * Steps 3-5 of the API.md §3 sequence, for ONE changed (task, date) occurrence.
  *
  * Resolves via `resolveOneOccurrence` — the SAME move-aware resolution `internal.ts` uses for
@@ -239,7 +250,7 @@ interface ReconcileResult {
  * row has one occurrence, so no two occurrences share a key.
  */
 async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: LocalDate): Promise<ReconcileResult> {
-  const task = await repos.tasks.get(taskId);
+  const task = await liveTask(taskId);
   if (!task) return { occurrence: null, xpAwarded: 0, levelUp: null, badgesUnlocked: [] };
   const today = todayLocal();
   const occurrence = await resolveOneOccurrence(repos, task, date, today, pushedFrom);
@@ -387,6 +398,7 @@ export function useUpdateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: Id; patch: Partial<Task>; steps?: readonly Step[] }): Promise<Result<void>> => {
+      if (!(await liveTask(input.id))) return err({ code: 'NOT_FOUND', message: 'Task not found.' });
       const result = await repos.tasks.update(input.id, { ...input.patch, updatedAt: now() }, input.steps);
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: input.id });
@@ -396,10 +408,30 @@ export function useUpdateTask() {
   });
 }
 
+/**
+ * Makes durable the badges the live tasks have earned so far. The achievements read shows badges
+ * computed from live tasks, and a badge is only saved by the next logging mutation; without this,
+ * deleting the task that earned one would take the badge back. Same reconcile as `reconcileOccurrence`.
+ */
+async function persistEarnedBadges(): Promise<void> {
+  const today = todayLocal();
+  const [unlocks, settings, allOccs] = await Promise.all([
+    repos.progress.listUnlocks(),
+    repos.settings.get(),
+    resolveAllOccurrences(repos, today, today),
+  ]);
+  const newUnlocks = reconcileAchievements({ occurrences: allOccs, tenureAnchor: settings.tenureAnchorDate, today, alreadyUnlocked: unlocks, now: now() });
+  for (const u of newUnlocks) {
+    const upsertResult = await repos.progress.upsertUnlock(u);
+    if (upsertResult.ok) emit({ type: 'badge:unlocked', key: u.key });
+  }
+}
+
 export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: Id): Promise<Result<void>> => {
+      await persistEarnedBadges();
       // Moves the task to Recently deleted (soft delete): hidden everywhere, history kept, so it
       // can be restored for DELETED_KEEP_DAYS days. Deliberately does NOT call
       // `reconcileOccurrence` or `retractXpAward`: deletion never touches XP (this file's header,
@@ -454,6 +486,7 @@ export function useDuplicateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: Id): Promise<Result<Id>> => {
+      if (!(await liveTask(id))) return err({ code: 'NOT_FOUND', message: 'Task not found.' });
       const result = await repos.tasks.duplicate(id);
       if (result.ok) emit({ type: 'task:changed', taskId: result.value });
       return result;
@@ -481,7 +514,7 @@ export function useDuplicateTask() {
  * the user tapped, wherever its data physically lives.
  */
 async function logState(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; chip: ChipState }) {
-  const task = await repos.tasks.get(input.taskId);
+  const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
@@ -522,7 +555,7 @@ export function useLogState() {
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
 async function toggleStep(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; stepId: Id }) {
-  const task = await repos.tasks.get(input.taskId);
+  const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
@@ -584,7 +617,7 @@ export function useToggleStep() {
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
 async function logDose(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; dosesCompleted: number }) {
-  const task = await repos.tasks.get(input.taskId);
+  const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
   if (target.carrier.kind === 'none') {
@@ -622,6 +655,7 @@ export function useLogDose() {
 
 /** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
 async function markOffDay(input: { date: LocalDate; taskId: Id | null; mark: boolean }) {
+  if (input.taskId && !(await liveTask(input.taskId))) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   if (input.mark) {
     const priorChipState = input.taskId
       ? ((await repos.logs.listForTask(input.taskId, input.date, input.date))[0]?.chipState ?? null)
@@ -651,6 +685,7 @@ export function useLogAsNeededUse() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { taskId: Id; date: LocalDate; marker: 'ideal' | 'fallback' | null }) => {
+      if (!(await liveTask(input.taskId))) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
       // Reference-only, by construction (SCHEMA.md §5): zero effect on XP of either kind,
       // zero effect on consistency at either scope, no achievement, no celebration — no
       // matter how many times it's logged. NOT routed through `reconcileOccurrence`.
@@ -676,7 +711,7 @@ export function useLogAsNeededUse() {
  */
 async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
   const { taskId, date } = input;
-  const task = await repos.tasks.get(taskId);
+  const task = await liveTask(taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const today = todayLocal();
 
@@ -745,7 +780,7 @@ export function useSnoozeOccurrence() {
  */
 async function undoSnooze(input: { taskId: Id; date: LocalDate }) {
   const { taskId, date } = input;
-  const task = await repos.tasks.get(taskId);
+  const task = await liveTask(taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
 
   const existing = (await repos.logs.listForTask(taskId, date, date))[0] ?? null;

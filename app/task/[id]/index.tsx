@@ -58,6 +58,7 @@ import { taskColor } from '@/features/browse/resolveIcon';
 import { cadenceSummary } from '@/features/task/cadenceLabel';
 import { dayLongLabel } from '@/features/task/dateLabel';
 import { DeleteTaskSheet, TYPE_NOUN } from '@/features/task/DeleteTaskSheet';
+import { DeletedTaskNotice, GoneTaskNotice } from '@/features/task/DeletedTaskNotice';
 import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
 import { iconByName } from '@/features/task/iconCatalog';
 import { useLogFeedback } from '@/features/task/logFeedback';
@@ -104,6 +105,8 @@ export default function S20ManageTask() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Set the moment a delete is confirmed: the screen is on its way out, so it must not flash the "deleted" notice.
+  const [leaving, setLeaving] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -226,6 +229,8 @@ export default function S20ManageTask() {
     setScheduleOpen(true);
   }
 
+  if (!taskQuery.isLoading && taskQuery.data === null) return <GoneTaskNotice onBack={goBack} />;
+
   if (taskQuery.isLoading || !task) {
     return (
       <Screen onBack={goBack} testID="s20-loading">
@@ -235,6 +240,8 @@ export default function S20ManageTask() {
       </Screen>
     );
   }
+
+  if (task.deletedAt && !leaving) return <DeletedTaskNotice taskId={taskId} name={task.name} onBack={goBack} />;
 
   const Icon = iconByName(task.icon);
   const isTodo = task.type === 'todo';
@@ -521,7 +528,7 @@ export default function S20ManageTask() {
         />
       </Dialog>
 
-      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="manage" origin={from} />
+      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="manage" origin={from} onDeleted={() => setLeaving(true)} />
 
       {popoverDate ? (
         <DayLogSheet

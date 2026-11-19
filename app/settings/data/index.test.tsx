@@ -11,7 +11,7 @@ jest.mock('expo-router', () => ({
 }));
 
 const mockSettingsData: { current: unknown } = { current: undefined };
-const mockDeleted: { current: unknown[] } = { current: [] };
+const mockDeleted: { current: unknown[] | undefined } = { current: [] };
 jest.mock('@/queries', () => ({
   useRecentlyDeleted: () => ({ data: mockDeleted.current, isLoading: false }),
   useSettings: () => ({ data: mockSettingsData.current, isLoading: mockSettingsData.current === undefined }),
@@ -66,6 +66,21 @@ describe('S47 — Data', () => {
     expect(screen.getByText('2 items. Kept for 30 days.')).toBeTruthy();
     await user.press(screen.getByText(S47_COPY.recentlyDeleted));
     expect(mockPush).toHaveBeenCalledWith('/settings/data/deleted');
+  });
+
+  it('Recently deleted with one item says "1 item", not "1 items"', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockDeleted.current = [{ id: 'a' }];
+    await renderScreen();
+    expect(screen.getByText('1 item. Kept for 30 days.')).toBeTruthy();
+  });
+
+  it('Recently deleted that has not loaded (or could not be read) does not claim "Nothing deleted lately."', async () => {
+    mockSettingsData.current = { lastBackupAt: null };
+    mockDeleted.current = undefined;
+    await renderScreen();
+    expect(screen.getByText(S47_COPY.recentlyDeleted)).toBeTruthy();
+    expect(screen.queryByText(S47_COPY.recentlyDeletedEmpty)).toBeNull();
   });
 
   it('Recently deleted with nothing in it says so', async () => {

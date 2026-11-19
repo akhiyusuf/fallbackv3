@@ -20,6 +20,7 @@ import { taskColor } from '@/features/browse/resolveIcon';
 import { useAsNeededHistory } from '@/features/task/useAsNeededHistory';
 import { shortDateLabel } from '@/features/task/dateLabel';
 import { DeleteTaskSheet } from '@/features/task/DeleteTaskSheet';
+import { DeletedTaskNotice, GoneTaskNotice } from '@/features/task/DeletedTaskNotice';
 import { SAVE_FAILED } from '@/features/task/formShared';
 import { iconByName } from '@/features/task/iconCatalog';
 import { MetaLine, PlanTiles, metaParts } from '@/features/task/TaskDetails';
@@ -39,6 +40,8 @@ export default function S23AsNeededRoutineDetail() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // Set the moment a delete is confirmed: the screen is on its way out, so it must not flash the "deleted" notice.
+  const [leaving, setLeaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftIdeal, setDraftIdeal] = useState('');
@@ -96,6 +99,8 @@ export default function S23AsNeededRoutineDetail() {
     else void logUsedIt(null);
   }
 
+  if (!taskQuery.isLoading && taskQuery.data === null) return <GoneTaskNotice onBack={goBack} />;
+
   if (taskQuery.isLoading || !task) {
     return (
       <Screen onBack={goBack}>
@@ -105,6 +110,8 @@ export default function S23AsNeededRoutineDetail() {
       </Screen>
     );
   }
+
+  if (task.deletedAt && !leaving) return <DeletedTaskNotice taskId={taskId} name={task.name} onBack={goBack} />;
 
   const history = [...(historyQuery.data ?? [])].sort((a, b) => (a.date < b.date ? 1 : -1));
 
@@ -161,7 +168,7 @@ export default function S23AsNeededRoutineDetail() {
         <ButtonPair primary={{ label: 'Save', onPress: () => void saveEdit(), loading: updateTask.isPending }} secondary={{ label: 'Cancel', onPress: () => setEditing(false) }} />
       </Dialog>
 
-      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="as-needed" origin={from ?? 'routines'} />
+      <DeleteTaskSheet visible={deleteOpen} onClose={() => setDeleteOpen(false)} task={task} openedFrom="as-needed" origin={from ?? 'routines'} onDeleted={() => setLeaving(true)} />
     </Screen>
   );
 }

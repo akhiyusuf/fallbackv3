@@ -78,6 +78,26 @@ describe('useToolExecutor — tool calls are proposals, never actions', () => {
     expect(mockDeleteTaskMutateAsync).not.toHaveBeenCalled();
   });
 
+  it('delete_task on a known task goes through useDeleteTask (Recently deleted, not for good) and never says it is gone for good', async () => {
+    mockTasksData.current = [{ id: 't1', name: 'Morning workout', idealSteps: [], fallbackSteps: [] }];
+    mockDeleteTaskMutateAsync.mockResolvedValue({ ok: true, value: undefined });
+    const { result } = await renderHook(() => useToolExecutor(), { wrapper });
+    const outcome = await result.current.applyToolCall({ id: 'c3b' as never, name: 'delete_task', args: { taskId: 't1' as never } });
+    expect(outcome.applied).toBe(true);
+    expect(mockDeleteTaskMutateAsync).toHaveBeenCalledWith('t1');
+    expect(outcome.summary).toBe('Deleted Morning workout.');
+    expect(outcome.summary).not.toMatch(/for good|permanent|forever|can't be undone/i);
+  });
+
+  it('delete_task whose delete fails is reported as not applied (no "Deleted" line)', async () => {
+    mockTasksData.current = [{ id: 't1', name: 'Morning workout', idealSteps: [], fallbackSteps: [] }];
+    mockDeleteTaskMutateAsync.mockResolvedValue({ ok: false, error: { code: 'WRITE_FAILED', message: 'x' } });
+    const { result } = await renderHook(() => useToolExecutor(), { wrapper });
+    const outcome = await result.current.applyToolCall({ id: 'c3c' as never, name: 'delete_task', args: { taskId: 't1' as never } });
+    expect(outcome.applied).toBe(false);
+    expect(outcome.summary).toBe('');
+  });
+
   it('log_state on an unknown taskId is DROPPED — never calls useLogState', async () => {
     const { result } = await renderHook(() => useToolExecutor(), { wrapper });
     const outcome = await result.current.applyToolCall({

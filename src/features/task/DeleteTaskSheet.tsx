@@ -2,7 +2,7 @@
  * DeleteTaskSheet — S22 delete confirmation as the shared bottom sheet (D3).
  * Names the thing being deleted by its real type (routine / event / course / to-do).
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 
 import { useToastStore } from '@/app-shell';
@@ -27,23 +27,32 @@ export interface DeleteTaskSheetProps {
   readonly task: { readonly id: Id; readonly name: string; readonly type: TaskType };
   readonly openedFrom: 'manage' | 'as-needed';
   readonly origin?: string;
+  /** Called once the delete has gone through, just before leaving the screen. */
+  readonly onDeleted?: () => void;
 }
 
-export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin }: DeleteTaskSheetProps) {
+export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, onDeleted }: DeleteTaskSheetProps) {
   const router = useRouter();
   const deleteTask = useDeleteTask();
   const restoreTask = useRestoreTask();
   const showToast = useToastStore((s) => s.show);
   const [failed, setFailed] = useState(false);
   const noun = TYPE_NOUN[task.type];
+  // A second tap before the sheet re-renders as busy must not run the delete again (it would fail
+  // as "already deleted" and show the retry banner on a task that is, in fact, deleted).
+  const busy = useRef(false);
 
   async function confirmDelete() {
+    if (busy.current) return;
+    busy.current = true;
     setFailed(false);
-    const result = await deleteTask.mutateAsync(task.id);
+    const result = await deleteTask.mutateAsync(task.id).catch(() => ({ ok: false as const }));
+    busy.current = false;
     if (!result.ok) {
       setFailed(true);
       return;
     }
+    onDeleted?.();
     onClose();
     router.replace(confirmedDeleteDestination({ openedFrom, s20Origin: origin, taskType: task.type }) as never);
     // Not final: it is in Recently deleted, and Undo brings it straight back.

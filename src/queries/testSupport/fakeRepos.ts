@@ -6,6 +6,7 @@
  * the preferred, fastest test surface, and react-query's hook layer is the thinnest possible
  * shell around it.
  */
+import { now } from '@/lib/date';
 import { err, ok } from '@/types';
 import type {
   AchievementUnlock,
@@ -112,9 +113,12 @@ export function createFakeRepos(): FakeRepos {
         });
         return ok(undefined);
       },
+      // Mirrors taskRepository.softDelete: only a live task can be deleted, and it is stamped with
+      // the clock, so a second delete never restarts its 30 days.
       softDelete: async (id) => {
         const t = tasks.get(id);
-        if (t) tasks.set(id, { ...t, deletedAt: '2024-01-01T00:00:00.000Z' as Instant });
+        if (!t || t.deletedAt !== null) return err({ code: 'NOT_FOUND', message: 'not found or already deleted' });
+        tasks.set(id, { ...t, deletedAt: now() });
         return ok(undefined);
       },
       listDeleted: async () => [...tasks.values()].filter((t) => t.deletedAt !== null).sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt))),
@@ -146,7 +150,8 @@ export function createFakeRepos(): FakeRepos {
         const t = tasks.get(id);
         if (!t) return err({ code: 'NOT_FOUND', message: 'not found' });
         const copyId = `${id}-copy` as Id;
-        tasks.set(copyId, { ...t, id: copyId });
+        // Mirrors taskRepository.duplicate: the copy is live and has no rank.
+        tasks.set(copyId, { ...t, id: copyId, deletedAt: null, priorityRank: null });
         return ok(copyId);
       },
     },

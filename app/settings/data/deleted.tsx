@@ -3,7 +3,7 @@
  * DELETED_KEEP_DAYS days. From here it can be restored, deleted for good one at a time, or all at
  * once. Past its time it is removed when the app next opens (or when this screen loads).
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { format } from 'date-fns';
@@ -56,20 +56,33 @@ export default function RecentlyDeletedScreen() {
   const items = deletedQuery.data ?? [];
   const nowIso = now();
 
+  // One action at a time: a second tap before the screen shows "busy" would run it again, find the
+  // item already gone, and replace the success message with "Couldn't do that".
+  const busy = useRef(false);
+
   async function handleRestore(task: TaskWithSteps) {
+    if (busy.current) return;
+    busy.current = true;
     setSelected(null);
     const result = await restore.mutateAsync(task.id).catch(() => ({ ok: false as const }));
+    busy.current = false;
     showToast(result.ok ? DELETED_COPY.restoredToast(task.name) : DELETED_COPY.failed, result.ok ? 'success' : 'warning');
   }
 
   async function handleDeleteOne(task: TaskWithSteps) {
+    if (busy.current) return;
+    busy.current = true;
     const result = await deleteForever.mutateAsync(task.id).catch(() => ({ ok: false as const }));
+    busy.current = false;
     setConfirmOne(null);
     showToast(result.ok ? DELETED_COPY.deletedToast : DELETED_COPY.failed, result.ok ? 'neutral' : 'warning');
   }
 
   async function handleDeleteAll() {
+    if (busy.current) return;
+    busy.current = true;
     const result = await emptyAll.mutateAsync().catch(() => ({ ok: false as const }));
+    busy.current = false;
     setConfirmAll(false);
     showToast(result.ok ? DELETED_COPY.deletedToast : DELETED_COPY.failed, result.ok ? 'neutral' : 'warning');
   }
