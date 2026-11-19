@@ -88,6 +88,11 @@ export interface Task {
   readonly necessity: Necessity | null;
   /** The person's own order inside its importance level; lower comes first. Null = not placed yet. */
   readonly priorityRank: number | null;
+  /**
+   * The last day an ended routine was due ("End routine"). Nothing is due after it; its past
+   * days keep counting toward consistency. Null while it is running.
+   */
+  readonly endedOn: LocalDate | null;
 
   /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
   readonly todoDoneAt: Instant | null;

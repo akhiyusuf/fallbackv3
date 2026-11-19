@@ -17,6 +17,7 @@ import { createAssistantRepository } from './repositories/assistantRepository';
 import { createCycleStateRepository } from './repositories/cycleStateRepository';
 import { createLogRepository } from './repositories/logRepository';
 import { createOffDayRepository } from './repositories/offDayRepository';
+import { createRetiredDayRepository } from './repositories/retiredDayRepository';
 import { createProgressRepository } from './repositories/progressRepository';
 import { createSettingsRepository } from './repositories/settingsRepository';
 import { createTaskRepository } from './repositories/taskRepository';
@@ -35,6 +36,7 @@ export const repos: Repositories = {
   settings: createSettingsRepository(proxy),
   assistant: createAssistantRepository(proxy),
   cycleState: createCycleStateRepository(proxy),
+  retiredDays: createRetiredDayRepository(proxy),
 };
 
 export const store = createStoreLifecycle(proxy);

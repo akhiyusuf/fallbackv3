@@ -41,6 +41,7 @@ function baseTask(overrides: Partial<Task> & { id: Id; type: Task['type'] }): Ta
     createdAt: CREATED,
     updatedAt: CREATED,
     deletedAt: null,
+    endedOn: null,
     ...overrides,
   };
 }

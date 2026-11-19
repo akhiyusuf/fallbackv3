@@ -83,6 +83,7 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     createdAt: '2024-06-03T00:00:00.000Z' as Instant, // exactly D1 — the domain floor
     updatedAt: '2024-06-03T00:00:00.000Z' as Instant,
     deletedAt: null,
+    endedOn: null,
     idealSteps: [idealStep],
     fallbackSteps: [fallbackStep],
   };

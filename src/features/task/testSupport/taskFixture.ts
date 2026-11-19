@@ -33,6 +33,7 @@ export function makeTask(patch: Partial<TaskWithSteps> = {}): TaskWithSteps {
     createdAt: '2024-01-01T00:00:00.000Z' as Instant,
     updatedAt: '2024-01-01T00:00:00.000Z' as Instant,
     deletedAt: null,
+    endedOn: null,
     idealSteps,
     fallbackSteps,
     ...patch,

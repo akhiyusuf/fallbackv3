@@ -28,6 +28,7 @@ function makeTask(overrides: Partial<TaskWithSteps> = {}): TaskWithSteps {
     createdAt: '2024-01-01T00:00:00.000Z' as Instant,
     updatedAt: '2024-01-01T00:00:00.000Z' as Instant,
     deletedAt: null,
+    endedOn: null,
     idealSteps: [{ id: 'ideal-1' as never, taskId: 't1' as never, role: 'ideal', text: 'Do it', position: 0, dueWeekdays: null }],
     fallbackSteps: [{ id: 'fallback-1' as never, taskId: 't1' as never, role: 'fallback', text: 'Min version', position: 0, dueWeekdays: null }],
     ...overrides,

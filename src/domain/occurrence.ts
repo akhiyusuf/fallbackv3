@@ -67,6 +67,8 @@ function cadenceDue(cadence: Cadence, date: LocalDate): boolean {
 export function isDue(task: TaskWithSteps, date: LocalDate, notBefore?: LocalDate): boolean {
   if (task.type === 'todo') return false;
   if (task.isAsNeeded) return false; // F27 — never due, by construction (no cadence, no occurrence set)
+  // An ended habit ("End routine", or one deleted on that day) is due on nothing after its last day.
+  if (task.endedOn != null && isAfter(date, task.endedOn)) return false;
 
   if (task.type === 'event' && task.eventDate !== null) {
     // one-off Event: exactly one occurrence, its own date — the date itself IS the whole

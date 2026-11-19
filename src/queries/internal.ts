@@ -14,7 +14,7 @@
 import { addDays, today as clockToday, toLocalDate } from '@/lib/date';
 import { designateCarrier, isDue, occurrencesBetween, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
-import type { DayLog, Occurrence, Repositories, TaskWithSteps } from '@/types';
+import type { DayLog, Occurrence, Repositories, RetiredDay, TaskWithSteps } from '@/types';
 import type { LocalDate } from '@/types';
 
 export function todayLocal(): LocalDate {
@@ -178,4 +178,49 @@ export async function resolveAllOccurrences(repos: Repositories, to: LocalDate, 
   const tasks = await repos.tasks.list();
   const perTask = await Promise.all(tasks.map((t) => resolveTaskOccurrences(repos, t, to, today)));
   return perTask.flat();
+}
+
+/**
+ * The day a deleted task was deleted, on the device's calendar. Its record runs up to the day
+ * before; the deletion day itself counts only if it was already logged (deleting a habit you
+ * have not done yet today never counts that day as missed).
+ */
+export function deletionDay(task: TaskWithSteps): LocalDate | null {
+  return task.deletedAt ? toLocalDate(new Date(task.deletedAt)) : null;
+}
+
+/** A deleted task's past occurrences, as they stood when it was deleted. */
+export async function resolveDeletedTaskRecord(repos: Repositories, task: TaskWithSteps, to: LocalDate, today: LocalDate): Promise<Occurrence[]> {
+  const day = deletionDay(task);
+  if (!day) return [];
+  const upTo = day < to ? day : to;
+  const occs = await resolveTaskOccurrences(repos, task, upTo, today);
+  return occs.filter((o) => o.date < day || (o.date === day && (o.outcome === 'ideal' || o.outcome === 'fallback')));
+}
+
+/** A retired day as an occurrence, for the record only (it belongs to no task anywhere). */
+function retiredAsOccurrence(day: RetiredDay, index: number): Occurrence {
+  return {
+    taskId: `retired:${index}` as Occurrence['taskId'],
+    date: day.date,
+    outcome: day.outcome,
+    dueIdealStepIds: [],
+    completedStepIds: [],
+    chipState: day.outcome === 'ideal' ? 'done' : day.outcome === 'fallback' ? 'fallback' : null,
+    dosesRequired: 1,
+    dosesCompleted: 0,
+  };
+}
+
+/**
+ * The person's RECORD: everything that ever counted, up to `to`. Live tasks (ended ones up to
+ * their last day), deleted ones up to the day they were deleted, and the anonymous days of those
+ * deleted for good. Consistency, trend, records and badges read this; Today and the lists read
+ * `resolveAllOccurrences` (live tasks only).
+ */
+export async function resolveRecordOccurrences(repos: Repositories, to: LocalDate, today: LocalDate): Promise<Occurrence[]> {
+  const [live, deleted, retired] = await Promise.all([resolveAllOccurrences(repos, to, today), repos.tasks.listDeleted(), repos.retiredDays.list()]);
+  const fromDeleted = (await Promise.all(deleted.map((t) => resolveDeletedTaskRecord(repos, t, to, today)))).flat();
+  const fromRetired = retired.filter((d) => d.date <= to).map(retiredAsOccurrence);
+  return [...live, ...fromDeleted, ...fromRetired];
 }

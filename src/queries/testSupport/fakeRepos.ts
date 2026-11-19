@@ -9,6 +9,7 @@
 import { now } from '@/lib/date';
 import { err, ok } from '@/types';
 import type {
+  RetiredDay,
   AchievementUnlock,
   AsNeededUse,
   CycleRecord,
@@ -88,6 +89,7 @@ export function createFakeRepos(): FakeRepos {
   const unlocks = new Map<string, AchievementUnlock>();
   let cycleRecords: CycleRecord[] = [];
   let cycleState: CycleState | null = null;
+  let retiredDays: RetiredDay[] = [];
   let settings: Settings = defaultSettings();
   let failAppendOnce = false;
   let failAppendCycleRecordAtCall: number | null = null;
@@ -249,6 +251,13 @@ export function createFakeRepos(): FakeRepos {
       listMessages: async () => [],
       upsertConversation: async () => ok(undefined),
       appendMessage: async () => ok(undefined),
+    },
+    retiredDays: {
+      list: async () => [...retiredDays].sort((a, b) => a.date.localeCompare(b.date)),
+      add: async (days) => {
+        retiredDays = [...retiredDays, ...days];
+        return ok(undefined);
+      },
     },
     cycleState: {
       get: async () => cycleState,

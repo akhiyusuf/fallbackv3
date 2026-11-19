@@ -35,9 +35,13 @@ export const BACKUP_TABLES = [
   'cycle_record',
   'cycle_state',
   'widget_config',
+  'retired_day',
 ] as const;
 
 export type BackupTableName = (typeof BACKUP_TABLES)[number];
+
+/** Tables that older backups do not have, with the schema version that added them. */
+const TABLES_ADDED_IN: readonly (readonly [BackupTableName, number])[] = [['retired_day', 8]];
 
 /** Children-first, the safe order to DELETE in under `PRAGMA foreign_keys = ON`. */
 const DELETE_ORDER: readonly BackupTableName[] = [...BACKUP_TABLES].reverse();
@@ -107,6 +111,11 @@ export function validateBackupEnvelope(value: unknown): Result<BackupEnvelope> {
     return err({ code: 'VALIDATION_FAILED', message: 'missing tables' });
   }
   const tables = v.tables as Record<string, unknown>;
+  // Tables added after a backup was made are simply empty in it (a version-7 backup has no
+  // retired days): fill them in rather than refusing an otherwise good backup.
+  for (const [table, since] of TABLES_ADDED_IN) {
+    if ((v.schemaVersion as number) < since && tables[table] === undefined) tables[table] = [];
+  }
   for (const table of BACKUP_TABLES) {
     if (!Array.isArray(tables[table])) {
       return err({ code: 'VALIDATION_FAILED', message: `backup missing table "${table}"` });

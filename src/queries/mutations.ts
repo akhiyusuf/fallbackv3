@@ -377,6 +377,7 @@ export function useCreateTask() {
         snoozable: draft.snoozable ?? true, // CR-4
         isNote: draft.type === 'todo' ? (draft.isNote ?? false) : false,
         priorityRank: null,
+        endedOn: null,
         createdAt: nowIso,
         updatedAt: nowIso,
         deletedAt: null,

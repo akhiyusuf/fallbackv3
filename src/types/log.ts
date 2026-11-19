@@ -85,3 +85,10 @@ export interface Occurrence {
    */
   readonly pushedFrom?: LocalDate;
 }
+
+/** One past day of a habit that was deleted for good: the outcome only, kept for the consistency record. */
+export interface RetiredDay {
+  readonly date: LocalDate;
+  readonly outcome: 'ideal' | 'fallback' | 'missed' | 'off';
+  readonly retiredAt: Instant;
+}

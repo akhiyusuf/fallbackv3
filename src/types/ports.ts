@@ -10,7 +10,7 @@ import type {
   AssistantEvent,
   AssistantMessage,
 } from './assistant';
-import type { AsNeededUse, DayLog, OffDayMark } from './log';
+import type { AsNeededUse, DayLog, OffDayMark, RetiredDay } from './log';
 import type { AchievementUnlock, CycleRecord, CycleState, XpAward } from './progress';
 import type { Id, Instant, LocalDate, Result } from './primitives';
 import type { Settings } from './settings';
@@ -47,6 +47,12 @@ export interface OffDayRepository {
   listRange(from: LocalDate, to: LocalDate): Promise<readonly OffDayMark[]>;
   mark(mark: OffDayMark): Promise<Result<void>>;
   unmark(date: LocalDate, taskId: Id | null): Promise<Result<void>>;
+}
+
+/** The anonymous past days a habit leaves when it is deleted for good. */
+export interface RetiredDayRepository {
+  list(): Promise<readonly RetiredDay[]>;
+  add(days: readonly RetiredDay[]): Promise<Result<void>>;
 }
 
 export interface AsNeededRepository {
@@ -107,6 +113,7 @@ export interface Repositories {
   readonly settings: SettingsRepository;
   readonly assistant: AssistantRepository;
   readonly cycleState: CycleStateRepository;
+  readonly retiredDays: RetiredDayRepository;
 }
 
 /* ------------------------------------------------------------------ M1: store lifecycle */
