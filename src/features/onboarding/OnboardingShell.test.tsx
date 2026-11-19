@@ -142,7 +142,7 @@ describe('OnboardingShell leaving and the phone back button', () => {
   it('the phone back button on a step that is alone in the stack (after a resume) goes to the step before', async () => {
     const handlers: (() => boolean | null | undefined)[] = [];
     jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
-      handlers.push(h);
+      handlers.push(h as () => boolean | null | undefined);
       return { remove: () => undefined };
     });
     jest.spyOn(router, 'canGoBack').mockReturnValue(false);
@@ -155,7 +155,7 @@ describe('OnboardingShell leaving and the phone back button', () => {
   it('the phone back button is left to the stack when there is a step to go back to, and step 1 does not listen', async () => {
     const handlers: (() => boolean | null | undefined)[] = [];
     const add = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, h) => {
-      handlers.push(h);
+      handlers.push(h as () => boolean | null | undefined);
       return { remove: () => undefined };
     });
     jest.spyOn(router, 'canGoBack').mockReturnValue(true);

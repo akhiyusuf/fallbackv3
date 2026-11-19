@@ -18,7 +18,8 @@ export interface DbClient {
   runAsync(sql: string, params?: SqlParams): Promise<RunResult>;
   getAllAsync<T>(sql: string, params?: SqlParams): Promise<T[]>;
   getFirstAsync<T>(sql: string, params?: SqlParams): Promise<T | null>;
-  withTransactionAsync(fn: () => Promise<void>): Promise<void>;
+  /** `fn` receives the connection to run its statements on (inside a transaction, never the proxy). */
+  withTransactionAsync(fn: (tx: DbClient) => Promise<void>): Promise<void>;
   closeAsync(): Promise<void>;
 }
 
@@ -46,6 +47,8 @@ export async function deleteDatabaseFile(): Promise<void> {
  */
 export class DbClientProxy implements DbClient {
   private current: DbClient | null = null;
+  /** Every job the proxy runs, chained: each starts only after the one before it has finished. */
+  private queue: Promise<unknown> = Promise.resolve();
 
   setClient(client: DbClient | null): void {
     this.current = client;
@@ -58,39 +61,46 @@ export class DbClientProxy implements DbClient {
     return this.current;
   }
 
+  /**
+   * Runs one database job after every job queued before it. expo-sqlite's `withTransactionAsync`
+   * is NOT exclusive: any statement issued on the connection while a transaction is open runs
+   * inside it, so a neighbouring write that reported success was rolled back when that
+   * transaction failed (a deleted task came back), and a second `BEGIN` failed outright ("cannot
+   * start a transaction within a transaction"). Serialising every job here means nothing else
+   * touches the connection while a transaction is open.
+   */
+  private serial<T>(job: (client: DbClient) => Promise<T>): Promise<T> {
+    const result = this.queue.then(() => job(this.live()));
+    this.queue = result.catch(() => undefined);
+    return result;
+  }
+
   execAsync(sql: string): Promise<void> {
-    return this.live().execAsync(sql);
+    return this.serial((client) => client.execAsync(sql));
   }
 
   runAsync(sql: string, params?: SqlParams): Promise<RunResult> {
-    return this.live().runAsync(sql, params);
+    return this.serial((client) => client.runAsync(sql, params));
   }
 
   getAllAsync<T>(sql: string, params?: SqlParams): Promise<T[]> {
-    return this.live().getAllAsync<T>(sql, params);
+    return this.serial((client) => client.getAllAsync<T>(sql, params));
   }
 
   getFirstAsync<T>(sql: string, params?: SqlParams): Promise<T | null> {
-    return this.live().getFirstAsync<T>(sql, params);
+    return this.serial((client) => client.getFirstAsync<T>(sql, params));
   }
 
   /**
-   * Transactions run one at a time. expo-sqlite's `withTransactionAsync` is NOT exclusive: a
-   * second `BEGIN` issued while the first is still open fails with "cannot start a transaction
-   * within a transaction", so two overlapping saves (two settings switches tapped together)
-   * lost the second one. Queueing them here keeps every transaction whole.
-   * Never call this from inside another transaction's callback: the inner call would wait
-   * for the outer one, which is waiting for it. No repository does today.
+   * The callback gets the live connection, NOT this proxy. A statement issued through the proxy
+   * from inside the callback would queue behind the very transaction waiting for it (a hang), so
+   * everything a transaction does goes through the `tx` it is handed.
    */
-  withTransactionAsync(fn: () => Promise<void>): Promise<void> {
-    const run = this.transactionTail.then(() => this.live().withTransactionAsync(fn));
-    this.transactionTail = run.catch(() => undefined);
-    return run;
+  withTransactionAsync(fn: (tx: DbClient) => Promise<void>): Promise<void> {
+    return this.serial((client) => client.withTransactionAsync(() => fn(client)));
   }
 
-  private transactionTail: Promise<void> = Promise.resolve();
-
   closeAsync(): Promise<void> {
-    return this.live().closeAsync();
+    return this.serial((client) => client.closeAsync());
   }
 }

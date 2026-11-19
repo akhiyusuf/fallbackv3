@@ -166,16 +166,16 @@ export async function applyBackupEnvelope(db: DbClient, envelope: BackupEnvelope
     const columnsResult = await validateBackupColumns(db, envelope);
     if (!columnsResult.ok) return columnsResult;
 
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const table of DELETE_ORDER) {
-        await db.execAsync(`DELETE FROM ${table};`);
+        await tx.execAsync(`DELETE FROM ${table};`);
       }
       for (const table of BACKUP_TABLES) {
         for (const row of envelope.tables[table]) {
           const columns = Object.keys(row);
           if (columns.length === 0) continue;
           const placeholders = columns.map(() => '?').join(',');
-          await db.runAsync(
+          await tx.runAsync(
             `INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders})`,
             columns.map((c) => row[c]) as unknown[],
           );

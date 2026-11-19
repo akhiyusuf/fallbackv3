@@ -119,8 +119,8 @@ function withoutUndefined<T extends object>(value: T): T {
 const DIGEST_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export function createSettingsRepository(db: DbClient) {
-  async function readWidgets(): Promise<WidgetConfig[]> {
-    const rows = await db.getAllAsync<WidgetConfigRow>(`SELECT size, mode, fixed_task_id FROM widget_config`);
+  async function readWidgets(client: DbClient = db): Promise<WidgetConfig[]> {
+    const rows = await client.getAllAsync<WidgetConfigRow>(`SELECT size, mode, fixed_task_id FROM widget_config`);
     return rows.map(rowToWidgetConfig);
   }
 
@@ -151,10 +151,10 @@ export function createSettingsRepository(db: DbClient) {
         // always starts from what the previous save committed, so two quick patches cannot
         // overwrite each other with a stale copy of the row.
         let next!: Settings;
-        await db.withTransactionAsync(async () => {
-          const current = await db.getFirstAsync<SettingsRow>(`SELECT ${SETTINGS_COLUMNS} FROM settings WHERE id = 1`);
+        await db.withTransactionAsync(async (tx) => {
+          const current = await tx.getFirstAsync<SettingsRow>(`SELECT ${SETTINGS_COLUMNS} FROM settings WHERE id = 1`);
           if (!current) throw new Error('settings singleton missing');
-          const currentWidgets = await readWidgets();
+          const currentWidgets = await readWidgets(tx);
           const merged = rowToSettings(current, currentWidgets);
 
           next = {
@@ -166,7 +166,7 @@ export function createSettingsRepository(db: DbClient) {
             updatedAt: now(),
           };
 
-          await db.runAsync(
+          await tx.runAsync(
             `UPDATE settings SET theme=?, accent=?, accent_ext=?, onboarding_completed_at=?, tenure_anchor_date=?, cycle_cadence=?,
              notif_master=?, notif_routine_due=?, notif_event_starting=?, notif_course_dose=?,
              notif_course_ending_soon=?, notif_gentle_reentry=?, notif_milestone_reached=?, notif_daily_digest=?,
@@ -200,9 +200,9 @@ export function createSettingsRepository(db: DbClient) {
           );
 
           if (patch.widgets) {
-            await db.runAsync(`DELETE FROM widget_config`);
+            await tx.runAsync(`DELETE FROM widget_config`);
             for (const widget of patch.widgets) {
-              await db.runAsync(`INSERT INTO widget_config (size, mode, fixed_task_id) VALUES (?,?,?)`, [
+              await tx.runAsync(`INSERT INTO widget_config (size, mode, fixed_task_id) VALUES (?,?,?)`, [
                 widget.size,
                 widget.mode,
                 widget.fixedTaskId,

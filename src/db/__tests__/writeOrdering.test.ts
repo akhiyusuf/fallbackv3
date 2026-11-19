@@ -6,7 +6,7 @@
  * could roll back a neighbour's write. These cases run on a real SQLite file (file-backed
  * double) and check that every overlapping save either lands whole or fails alone.
  */
-import { joinPath, makeTempDir, removeDir, removeFile, writeTextFile } from '../testSupport/nodeTempFiles';
+import { makeTempDir, removeDir } from '../testSupport/nodeTempFiles';
 
 const createdDirs: string[] = [];
 afterAll(() => {
@@ -42,6 +42,7 @@ type App = typeof import('@/db');
 
 function launch(): App {
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@/db') as App;
 }
 
@@ -111,6 +112,30 @@ describe('task edits started back to back', () => {
 });
 
 describe('a failed save does not disturb a neighbour', () => {
+  it('a task deletion that reported success is not undone by a settings save that fails, whatever the timing', async () => {
+    newDatabaseDir();
+    const app = await coldStart();
+    const taskId = newId();
+    await app.repos.tasks.insert(buildTask(taskId), []);
+
+    // The plain write is started at every offset from the start of the failing transaction.
+    // Before the proxy serialised jobs, offsets 1-7 landed inside the open transaction and were
+    // rolled back with it while still reporting ok.
+    for (let offset = 0; offset < 12; offset++) {
+      await app.repos.tasks.update(taskId, { deletedAt: null });
+      const failing = app.repos.settings.patch({
+        theme: 'dark',
+        widgets: [{ size: 'small-today', mode: 'fixed-task', fixedTaskId: newId() }],
+      });
+      for (let step = 0; step < offset; step++) await Promise.resolve();
+      const deleted = await app.repos.tasks.softDelete(taskId);
+      expect(deleted.ok).toBe(true);
+      expect((await failing).ok).toBe(false);
+
+      expect((await app.repos.tasks.get(taskId))?.deletedAt).not.toBeNull();
+    }
+  });
+
   it('a settings save that fails rolls back alone; a save started with it still lands', async () => {
     newDatabaseDir();
     const app = await coldStart();

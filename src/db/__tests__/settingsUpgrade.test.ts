@@ -5,7 +5,7 @@
  * to version N are applied and the settings row is written with that version's columns only.
  * Then the current app is launched against that file. Every saved value must still be there.
  */
-import { joinPath, makeTempDir, removeDir, removeFile, writeTextFile } from '../testSupport/nodeTempFiles';
+import { makeTempDir, removeDir } from '../testSupport/nodeTempFiles';
 
 const createdDirs: string[] = [];
 afterAll(() => {
@@ -43,6 +43,7 @@ type App = typeof import('@/db');
 
 function launch(): App {
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@/db') as App;
 }
 
@@ -55,6 +56,7 @@ async function coldStart(): Promise<App> {
 
 /** A raw connection to the same file, for seeding an older schema and inspecting the result. */
 async function openRaw(): Promise<DbClient> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const sqlite = require('expo-sqlite') as typeof import('expo-sqlite');
   return (await sqlite.openDatabaseAsync('fallback.db')) as unknown as DbClient;
 }

@@ -6,7 +6,7 @@
  * the same file. Nothing is closed first, which is what a killed app leaves behind: the WAL
  * file carries whatever was committed, and the next launch must read all of it.
  */
-import { joinPath, makeTempDir, removeDir, removeFile, writeTextFile } from '../testSupport/nodeTempFiles';
+import { makeTempDir, removeDir } from '../testSupport/nodeTempFiles';
 
 const createdDirs: string[] = [];
 afterAll(() => {
@@ -45,6 +45,7 @@ type App = typeof import('@/db');
 /** A new app launch: fresh modules, a new connection, nothing closed first (like a killed app). */
 function launch(): App {
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@/db') as App;
 }
 
@@ -212,6 +213,7 @@ describe('settings durability across a restart', () => {
     expect((await second.repos.settings.get()).accent).toBe('indigo');
 
     // The raw row agrees: the named colour is in `accent` and the custom slot is empty.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const raw = (await (require('expo-sqlite') as typeof import('expo-sqlite')).openDatabaseAsync('fallback.db')) as unknown as {
       getFirstAsync<T>(sql: string): Promise<T | null>;
       closeAsync(): Promise<void>;
@@ -378,6 +380,39 @@ describe('two updates started back to back', () => {
   });
 });
 
+describe('settings through a backup file', () => {
+  it('a custom colour, assistant prefs, notifications and widgets come back exactly after backup, erase and restore', async () => {
+    newDatabaseDir();
+    const app = await coldStart();
+    await app.repos.settings.patch({
+      theme: 'dark',
+      accent: 'hue-200',
+      assistant: { language: 'ja-JP', voice: 'brisk' },
+      notifications: { ...ALL_ON, dailyDigestTime: '18:20' },
+      widgets: [{ size: 'medium-up-next', mode: 'smart-next-due', fixedTaskId: null }],
+    });
+    const before = await app.repos.settings.get();
+
+    const backup = await app.store.backup();
+    expect(backup.ok).toBe(true);
+    if (!backup.ok) return;
+    expect(await app.store.eraseAll()).toMatchObject({ ok: true });
+    expect((await app.repos.settings.get()).accent).toBe('forge-orange');
+
+    const restored = await app.store.restore(backup.value.uri);
+    expect(restored.ok).toBe(true);
+
+    const after = await app.repos.settings.get();
+    expect(after).toMatchObject({
+      theme: before.theme,
+      accent: 'hue-200',
+      assistant: { language: 'ja-JP', voice: 'brisk' },
+      notifications: { ...ALL_ON, dailyDigestTime: '18:20' },
+      widgets: before.widgets,
+    });
+  });
+});
+
 describe('a save interrupted before it commits', () => {
   it('a killed app leaves the previously saved settings, not the half-written change', async () => {
     newDatabaseDir();
@@ -386,6 +421,7 @@ describe('a save interrupted before it commits', () => {
 
     // The process dies in the middle of a save: BEGIN and an UPDATE have run, COMMIT never does.
     // Closing the connection without a commit is what the OS leaves behind for a killed app.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const sqlite = require('expo-sqlite') as typeof import('expo-sqlite');
     const interrupted = (await sqlite.openDatabaseAsync('fallback.db')) as unknown as {
       execAsync(sql: string): Promise<void>;

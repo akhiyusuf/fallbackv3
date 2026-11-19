@@ -14,8 +14,10 @@ import { createElement } from 'react';
 jest.mock('expo-sqlite', () => {
   const g = globalThis as { __fallbackColdStartDir?: string };
   if (!g.__fallbackColdStartDir) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     g.__fallbackColdStartDir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'fallback-coldstart-'));
   }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   return (require('../src/db/testSupport/expoSqliteTestDouble') as typeof import('../src/db/testSupport/expoSqliteTestDouble')).createExpoSqliteTestDouble({
     directory: g.__fallbackColdStartDir,
   });

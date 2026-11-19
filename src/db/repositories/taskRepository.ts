@@ -287,13 +287,13 @@ export function createTaskRepository(db: DbClient) {
 
     async insert(task: Task, steps: readonly Step[]): Promise<Result<Id>> {
       try {
-        await db.withTransactionAsync(async () => {
-          await db.runAsync(
+        await db.withTransactionAsync(async (tx) => {
+          await tx.runAsync(
             `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(task),
           );
           for (const step of steps) {
-            await db.runAsync(
+            await tx.runAsync(
               `INSERT INTO step (id, task_id, role, text, position, due_weekdays) VALUES (?,?,?,?,?,?)`,
               [step.id, task.id, step.role, step.text, step.position, step.dueWeekdays === null ? null : toJsonArray(step.dueWeekdays)],
             );
@@ -310,14 +310,14 @@ export function createTaskRepository(db: DbClient) {
         // The read is inside the (queued) transaction so two quick edits merge in order, not
         // from the same stale row (see settingsRepository.patch).
         let found = true;
-        await db.withTransactionAsync(async () => {
-          const existing = await db.getFirstAsync<TaskRow>(`SELECT ${TASK_COLUMNS} FROM task WHERE id = ?`, [id]);
+        await db.withTransactionAsync(async (tx) => {
+          const existing = await tx.getFirstAsync<TaskRow>(`SELECT ${TASK_COLUMNS} FROM task WHERE id = ?`, [id]);
           if (!existing) {
             found = false;
             return;
           }
           const merged: Task = { ...taskRowToTask(existing), ...patch, id };
-          await db.runAsync(
+          await tx.runAsync(
             `UPDATE task SET type=?, name=?, note=?, icon=?, color=?, is_as_needed=?, cadence_kind=?,
              cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
              cadence_anchor_date=?, event_date=?, time_of_day=?, start_date=?, end_date=?,
@@ -326,9 +326,9 @@ export function createTaskRepository(db: DbClient) {
             [...taskParams(merged).slice(1), id],
           );
           if (steps) {
-            await db.runAsync(`DELETE FROM step WHERE task_id = ?`, [id]);
+            await tx.runAsync(`DELETE FROM step WHERE task_id = ?`, [id]);
             for (const step of steps) {
-              await db.runAsync(
+              await tx.runAsync(
                 `INSERT INTO step (id, task_id, role, text, position, due_weekdays) VALUES (?,?,?,?,?,?)`,
                 [step.id, id, step.role, step.text, step.position, step.dueWeekdays === null ? null : toJsonArray(step.dueWeekdays)],
               );
@@ -369,13 +369,13 @@ export function createTaskRepository(db: DbClient) {
         const newTaskId = newId();
         const copy: Task = { ...sourceTask, id: newTaskId, createdAt: timestamp, updatedAt: timestamp, deletedAt: null, priorityRank: null };
         const newSteps: Step[] = (stepsByTask.get(id) ?? []).map((s) => ({ ...s, id: newId(), taskId: newTaskId }));
-        await db.withTransactionAsync(async () => {
-          await db.runAsync(
+        await db.withTransactionAsync(async (tx) => {
+          await tx.runAsync(
             `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(copy),
           );
           for (const step of newSteps) {
-            await db.runAsync(
+            await tx.runAsync(
               `INSERT INTO step (id, task_id, role, text, position, due_weekdays) VALUES (?,?,?,?,?,?)`,
               [step.id, newTaskId, step.role, step.text, step.position, step.dueWeekdays === null ? null : toJsonArray(step.dueWeekdays)],
             );
