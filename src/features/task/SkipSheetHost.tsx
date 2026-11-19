@@ -11,15 +11,13 @@
 import { LifeBuoy, Minus } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
-import { useToastStore } from '@/app-shell';
-import { useMarkOffDay, useSkipPreview } from '@/queries';
-import { play } from '@/services/sfx';
+import { useSkipPreview } from '@/queries';
 import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import { Dialog, ListGroup, ListRow, TaskIcon } from '@/ui';
 import { Text } from '@/ui/AppText';
 
 import { useSkipSheetStore } from './skipSheet';
-import { SAVE_FAILED } from './formShared';
+import { DAY_OFF_COPY, useTakeDayOff } from './useTakeDayOff';
 
 export const SKIP_COPY = {
   title: (name: string) => `Skip ${name} today?`,
@@ -28,8 +26,8 @@ export const SKIP_COPY = {
   skipCostPlain: 'Counts as a miss in your consistency.',
   offLabel: 'Take today off',
   offBody: "Something came up? Today won't count for or against you.",
-  offToast: 'Taken off today',
-  offToastDetail: "Won't count",
+  offToast: DAY_OFF_COPY.toast,
+  offToastDetail: DAY_OFF_COPY.toastDetail,
 } as const;
 
 export function SkipSheetHost() {
@@ -37,8 +35,7 @@ export function SkipSheetHost() {
   const request = useSkipSheetStore((s) => s.request);
   const close = useSkipSheetStore((s) => s.close);
   const preview = useSkipPreview(request ? { taskId: request.taskId, date: request.date } : null);
-  const markOffDay = useMarkOffDay();
-  const showToast = useToastStore((s) => s.show);
+  const takeDayOff = useTakeDayOff();
 
   const now = preview.data?.now ?? null;
   const next = preview.data?.ifSkipped ?? null;
@@ -56,24 +53,7 @@ export function SkipSheetHost() {
     if (!request) return;
     const { taskId, date } = request;
     close();
-    const result = await markOffDay.mutateAsync({ date, taskId, mark: true }).catch(() => ({ ok: false as const }));
-    if (!result.ok) {
-      showToast(SAVE_FAILED, 'warning');
-      return;
-    }
-    play('log_skip');
-    showToast(SKIP_COPY.offToast, 'neutral', {
-      icon: 'skip',
-      detail: SKIP_COPY.offToastDetail,
-      action: {
-        label: 'Undo',
-        onPress: () =>
-          void markOffDay
-            .mutateAsync({ date, taskId, mark: false })
-            .then((undone) => showToast(undone.ok ? 'Undone' : SAVE_FAILED, undone.ok ? 'neutral' : 'warning'))
-            .catch(() => showToast(SAVE_FAILED, 'warning')),
-      },
-    });
+    await takeDayOff(taskId, date);
   }
 
   return (

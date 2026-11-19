@@ -9,7 +9,7 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Check, CheckCheck, ChevronDown, Minus } from 'lucide-react-native';
+import { Check, CheckCheck, ChevronDown, LifeBuoy, Minus } from 'lucide-react-native';
 
 import { FONT_SIZE, MIN_TAP_TARGET, mix, RADIUS, SPACE, useTheme, type Theme } from '@/theme';
 import type { ChipState } from '@/types';
@@ -83,11 +83,13 @@ export interface LogButtonsProps {
   readonly hideFallback?: boolean;
   /** Hide the quiet "Skip today" link (single doses can only be done or not). */
   readonly hideSkip?: boolean;
+  /** When given, an "Emergency day off" link sits opposite Skip while nothing is logged. */
+  readonly onEmergency?: () => void;
   readonly testID?: string;
 }
 
 /** The Done / Fallback pair and the quiet "Skip today" link. */
-export function LogButtons({ value, onChange, disabled = false, accessibilityLabel, idealHint, fallbackHint, hideFallback = false, hideSkip = false, testID }: LogButtonsProps) {
+export function LogButtons({ value, onChange, disabled = false, accessibilityLabel, idealHint, fallbackHint, hideFallback = false, hideSkip = false, onEmergency, testID }: LogButtonsProps) {
   const t = useTheme();
   const logged = isLogged(value);
   const renderButton = (state: 'done' | 'fallback', label: string, hint?: string | null) => {
@@ -127,7 +129,7 @@ export function LogButtons({ value, onChange, disabled = false, accessibilityLab
         {renderButton('done', 'Done', idealHint)}
         {hideFallback ? null : renderButton('fallback', 'Fallback', fallbackHint)}
       </View>
-      {hideSkip && !logged ? null : (
+      {hideSkip && !logged && !onEmergency ? null : (
         <View style={styles.quietRow}>
           {hideSkip ? (
             <View />
@@ -143,6 +145,19 @@ export function LogButtons({ value, onChange, disabled = false, accessibilityLab
               <Text style={[styles.quietLabel, { color: value === 'skip' ? t.color.offDeep : t.color.textMuted, fontWeight: value === 'skip' ? '700' : '500' }]}>Skip today</Text>
             </Pressable>
           )}
+          {!logged && onEmergency ? (
+            <Pressable
+              onPress={disabled ? undefined : onEmergency}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`${accessibilityLabel}: Emergency day off. Today won't count for or against you.`}
+              hitSlop={8}
+              style={[styles.quiet, styles.quietIconRow]}
+            >
+              <LifeBuoy size={14} color={t.color.textMuted} />
+              <Text style={[styles.quietLabel, { color: t.color.textMuted, fontWeight: '500' }]}>Emergency day off</Text>
+            </Pressable>
+          ) : null}
           {logged ? (
             <Pressable
               onPress={disabled ? undefined : () => onChange('todo')}
@@ -237,6 +252,7 @@ const styles = StyleSheet.create({
   quietRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   quiet: { minHeight: 28, justifyContent: 'center', paddingHorizontal: SPACE.s1 },
   quietLabel: { fontSize: FONT_SIZE.sm },
+  quietIconRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   disabled: { opacity: 0.5 },
   controlRoot: { gap: SPACE.s2 },
   controlHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: SPACE.s2 },

@@ -7,12 +7,13 @@
 import { play } from '@/services/sfx';
 import { useMemo, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
-import { Bell, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
+import { Bell, LifeBuoy, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { roundHalfUp } from '@/lib/number';
 import { useConsistency, useLogState, useMarkOffDay, useProgress } from '@/queries';
 import { useSkipSheetStore } from '@/features/task/skipSheet';
+import { useTakeDayOff } from '@/features/task/useTakeDayOff';
 import { ROUTES, withOrigin } from '@/navigation';
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import {
@@ -62,6 +63,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   const openAddMenu = useAddMenuStore((st) => st.show);
   const showToast = useToastStore((s) => s.show);
   const askSkip = useSkipSheetStore((s) => s.ask);
+  const takeDayOff = useTakeDayOff();
   const logFeedback = useLogFeedback();
   const params = useLocalSearchParams<{ justAdded?: string; reentry?: string; taskId?: string }>();
   const { date, rows, isLoading, isError, hasAnyTaskEver, refetch } = useTodayRows();
@@ -204,8 +206,9 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
               onPress={() => router.push(ROUTES.priorities as Href)}
             />
             <ListRow
+              icon={LifeBuoy}
               label={S09_COPY.offToggleLabel}
-              sublabel="Nothing due counts against you."
+              sublabel={S09_COPY.offToggleSub}
               right={<Switch value={allDueOff} onValueChange={handleToggleOff} accessibilityLabel={S09_COPY.offToggleLabel} />}
             />
           </ListGroup>
@@ -244,6 +247,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                   reopened={reopenedTaskId === row.task.id}
                   onToggleReopen={() => setReopenedTaskId((cur) => (cur === row.task.id ? null : row.task.id))}
                   onLog={(chip) => onCardLog(row, chip)}
+                  onEmergency={() => void takeDayOff(row.task.id, date)}
                   onOpen={() => openTask(row.task.id)}
                 />
               ))
@@ -275,12 +279,14 @@ function TaskRow({
   reopened,
   onToggleReopen,
   onLog,
+  onEmergency,
   onOpen,
 }: {
   row: TodayRow;
   reopened: boolean;
   onToggleReopen: () => void;
   onLog: (chip: ChipState) => void;
+  onEmergency: () => void;
   onOpen: () => void;
 }) {
   const chip = row.occurrence.chipState;
@@ -298,6 +304,7 @@ function TaskRow({
       idealHint={planSummary(row.task.idealSteps)}
       fallbackHint={planSummary(row.task.fallbackSteps)}
       onLog={onLog}
+      onEmergency={row.occurrence.outcome === 'off' ? undefined : onEmergency}
       onToggleReopen={onToggleReopen}
       onOpen={onOpen}
     />

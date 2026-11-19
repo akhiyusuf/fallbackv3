@@ -1102,6 +1102,22 @@ The human:
   No limit on how often it can be used: main session's choice, flagged to the
   human.
 
+### Round 4, nineteenth pass (2026-11-19)
+
+The human: **"Let it be unlimited, some people have really rough lives. Also let
+it be present on the Today page as well; I see that it doesn't state anything
+about an emergency there either."**
+
+- The emergency day off stays unlimited.
+- Each card on Today shows "Emergency day off" (life-buoy icon) opposite "Skip
+  today" while nothing is logged. One tap takes just that habit off today (no
+  effect on consistency), with the same toast and Undo as the Skip sheet's
+  "Take today off" (shared in `useTakeDayOff`).
+- The whole-day switch on Today was "Mark today off"; it is now "Emergency:
+  whole day off", "Something came up? Nothing due today counts against you.",
+  with a life-buoy icon like its neighbours. Its toast reads "Day off. Nothing
+  due today counts against you."
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

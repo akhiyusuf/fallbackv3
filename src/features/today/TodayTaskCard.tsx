@@ -29,11 +29,13 @@ export interface TodayTaskCardProps {
   readonly idealHint?: string | null;
   readonly fallbackHint?: string | null;
   readonly onLog: (chip: ChipState) => void;
+  /** Takes this habit off today (the emergency choice). */
+  readonly onEmergency?: () => void;
   readonly onToggleReopen: () => void;
   readonly onOpen?: () => void;
 }
 
-export function TodayTaskCard({ name, icon, color, meta, chip, reopened = false, isOff = false, offLabel = 'Off today', idealHint, fallbackHint, onLog, onToggleReopen, onOpen }: TodayTaskCardProps) {
+export function TodayTaskCard({ name, icon, color, meta, chip, reopened = false, isOff = false, offLabel = 'Off today', idealHint, fallbackHint, onLog, onEmergency, onToggleReopen, onOpen }: TodayTaskCardProps) {
   const t = useTheme();
   const logged = isLogged(chip);
   const showButtons = !isOff && (!logged || reopened);
@@ -79,7 +81,7 @@ export function TodayTaskCard({ name, icon, color, meta, chip, reopened = false,
           </Pressable>
         ) : null}
       </View>
-      {showButtons ? <LogButtons value={chip} onChange={onLog} accessibilityLabel={name} idealHint={idealHint ?? undefined} fallbackHint={fallbackHint ?? undefined} /> : null}
+      {showButtons ? <LogButtons value={chip} onChange={onLog} onEmergency={onEmergency} accessibilityLabel={name} idealHint={idealHint ?? undefined} fallbackHint={fallbackHint ?? undefined} /> : null}
     </PopIn>
   );
 }

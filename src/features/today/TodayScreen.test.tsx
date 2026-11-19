@@ -108,7 +108,7 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     mockUseToday.mockReturnValue({ data: undefined, isLoading: true, isError: false });
     await render(<TodayScreen />);
-    expect(screen.getByLabelText('Mark today off')).toBeTruthy();
+    expect(screen.getByLabelText('Emergency: whole day off')).toBeTruthy();
     expect(screen.getAllByLabelText('Loading').length).toBeGreaterThan(0);
   });
 
@@ -136,7 +136,7 @@ describe('S09 — Today', () => {
     await render(<TodayScreen />);
     expect(screen.getByText("Couldn't load today's tasks. Your data is safe on this device.")).toBeTruthy();
     // Stat chip and off-toggle still render independently.
-    expect(screen.getByLabelText('Mark today off')).toBeTruthy();
+    expect(screen.getByLabelText('Emergency: whole day off')).toBeTruthy();
   });
 
   it('stat chip: zero-data reads the no-data copy, never "0%"', async () => {
@@ -207,6 +207,19 @@ describe('S09 — Today', () => {
     await waitFor(() => expect(useCelebrationStore.getState().queue).toEqual([{ kind: 'badge', badgeKey: 'tenure-30' }]));
   });
 
+  it('each card offers an Emergency day off that takes just that habit off today, with Undo', async () => {
+    const { today } = jest.requireActual('@/lib/date');
+    todayRead();
+    mockMarkOffDayMutateAsync.mockResolvedValue({ ok: true, value: undefined });
+    const user = userEvent.setup();
+    await render(withToastHost(<TodayScreen />));
+    await user.press(screen.getByLabelText("Movement: Emergency day off. Today won't count for or against you."));
+    await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: 't1', mark: true }));
+    expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Taken off today'));
+    expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
+  });
+
   it('chip tap: Skip asks first (the Skip sheet) and logs nothing until the person chooses', async () => {
     todayRead();
     const user = userEvent.setup();
@@ -273,9 +286,9 @@ describe('S09 — Today', () => {
     mockMarkOffDayMutateAsync.mockResolvedValue({ ok: true, value: undefined });
     const user = userEvent.setup();
     await render(withToastHost(<TodayScreen />));
-    await user.press(screen.getByLabelText('Mark today off'));
+    await user.press(screen.getByLabelText('Emergency: whole day off'));
     await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: null, mark: true }));
-    await waitFor(() => expect(screen.getByText('Today marked off. Nothing due counts against your %.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Day off. Nothing due today counts against you.')).toBeTruthy());
   });
 
   it('whole-day off, currently off: every row reads "Off today" and its chip is disabled', async () => {
@@ -284,7 +297,7 @@ describe('S09 — Today', () => {
     mockUseToday.mockReturnValue({ data: [occurrence({ date: today(), outcome: 'off', chipState: null })], isLoading: false, isError: false });
     await render(<TodayScreen />);
     expect(screen.getByText('Off today')).toBeTruthy();
-    expect(screen.getByLabelText('Mark today off').props.accessibilityState.checked).toBe(true);
+    expect(screen.getByLabelText('Emergency: whole day off').props.accessibilityState.checked).toBe(true);
   });
 
   it('re-entry state: renders the F14 landing banner with the reworded stat line and the highlighted CTA', async () => {
