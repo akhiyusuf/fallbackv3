@@ -13,6 +13,7 @@ import { useConversation, useTasks } from '@/queries';
 import type { AssistantMessage, Id } from '@/types';
 import { SPACE } from '@/theme';
 import { IconButton, InlineRetryBanner, Input, ListGroup, ListRow, Screen, Skeleton, TaskIcon } from '@/ui';
+import { markInAppOpening } from '@/features/assistant/inAppOpening';
 
 function modalityLabel(m: 'voice' | 'text' | 'voice+text'): string {
   return m === 'voice' ? 'Voice' : m === 'text' ? 'Text' : 'Voice and text';
@@ -42,6 +43,7 @@ export default function S35AssistantReopenedConversation() {
   }, [id]);
 
   function handleContinue(listen = false) {
+    if (continueText) markInAppOpening(continueText);
     const qs = new URLSearchParams({ opening: continueText, listen: listen ? '1' : '', continueId: id ?? '' }).toString();
     router.push(`/assistant/chat?${qs}` as Href);
   }

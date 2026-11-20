@@ -113,7 +113,7 @@ describe('static: network calls', () => {
     expect([...new Set(hits.map((h) => h.file))].sort()).toEqual(
       [
         'app/assistant/mic-primer.tsx', // Linking.openSettings, to the phone's own settings (local)
-        'app/settings/data/index.tsx', // Share.share of the backup file the person just made
+        'src/features/data/offerBackupFile.ts', // the backup file the person just made: saved to a folder they pick (Android) or the share sheet
         'app/settings/help.tsx', // Linking.openURL of the Play Store listing, on the person's tap
         'app/settings/subscription.tsx', // store subscription page, on the person's tap
       ].sort(),

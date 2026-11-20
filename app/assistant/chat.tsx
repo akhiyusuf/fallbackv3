@@ -26,6 +26,7 @@ import type { Id } from '@/types';
 import { FONT_SIZE, SPACE, useTheme } from '@/theme';
 import { Button, Dialog, IconButton, Input, InlineRetryBanner, Screen, Skeleton } from '@/ui';
 import { Text } from '@/ui/AppText';
+import { takeInAppOpening } from '@/features/assistant/inAppOpening';
 
 export default function S32AssistantConversation() {
   const t = useTheme();
@@ -93,10 +94,11 @@ export default function S32AssistantConversation() {
 
   useEffect(() => {
     // A prompt that arrives in the link (any app can open fallback://) is only put in the box; the
-    // person reads it and taps Send themselves.
+    // person reads it and taps Send themselves. One marked by a button inside the app is sent now.
     if (params.opening && !sentOpeningRef.current) {
       sentOpeningRef.current = true;
-      setText(params.opening);
+      if (takeInAppOpening(params.opening)) void sendMessage(params.opening);
+      else setText(params.opening);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.opening]);

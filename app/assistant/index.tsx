@@ -10,6 +10,7 @@ import { useEntitlementAndMic } from '@/features/assistant/useEntitlementAndMic'
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { IconButton, InlineRetryBanner, Input, Screen, SectionHeading, Skeleton, VoiceMark } from '@/ui';
 import { Text } from '@/ui/AppText';
+import { markInAppOpening } from '@/features/assistant/inAppOpening';
 
 export default function S31AssistantHome() {
   const t = useTheme();
@@ -18,6 +19,8 @@ export default function S31AssistantHome() {
   const [text, setText] = useState('');
 
   function goToConversation(opening?: string, listenImmediately = false) {
+    // Sent straight away on arrival because it comes from a button here, not from a link.
+    if (opening) markInAppOpening(opening);
     const qs = new URLSearchParams({ opening: opening ?? '', listen: listenImmediately ? '1' : '' }).toString();
     router.push(`/assistant/chat?${qs}` as Href);
   }
