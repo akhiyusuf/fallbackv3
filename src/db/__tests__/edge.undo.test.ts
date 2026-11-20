@@ -125,7 +125,7 @@ beforeAll(async () => {
   directory = makeTempDir('fallback-undo-real-');
   createdDirs.push(directory);
   (globalThis as { __undoDir?: string }).__undoDir = directory;
-  setClock('2024-06-01');
+  setClock('2024-06-01' as LocalDate);
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   dbName = (require('../client') as typeof import('../client')).DB_NAME;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -192,14 +192,6 @@ const env: UndoEnv = {
   },
 };
 
-const dumps: Array<{ scenario: string; variant: string; diffs: string[]; badges: string[] }> = [];
-afterAll(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fs = require('fs') as typeof import('fs');
-  const out = process.env.UNDO_DUMP_REAL;
-  if (out) fs.writeFileSync(out, JSON.stringify(dumps, null, 2));
-});
-
 describe.each(SCENARIOS.map((s) => [s.name, s] as const))('real SQLite undo pair: %s', (_name, scenario) => {
   it('has a classification entry', () => {
     expect(ALLOWED[scenario.name]).toBeDefined();
@@ -209,7 +201,6 @@ describe.each(SCENARIOS.map((s) => [s.name, s] as const))('real SQLite undo pair
     const badges = diffs.filter(isBadgeLine);
     const rest = diffs.filter((l) => !isBadgeLine(l));
     const { unknown, disallowed } = explain(scenario.name, rest, variant.midnight);
-    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: rest, badges });
     // A badge, once earned, is never taken back (upsert-only, see edge.logging's badge test).
     expect(badges.filter((l) => l.includes(' - '))).toEqual([]);
     // Everything else must be a known kind for this pair: a residue row or a named record change.

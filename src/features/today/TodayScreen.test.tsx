@@ -339,7 +339,7 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen justAddedOverride />);
-    expect(screen.getByText('Your first task is set.')).toBeTruthy();
+    expect(screen.getByText('Your first habit is set.')).toBeTruthy();
     expect(screen.getByText('Do the ideal or the fallback today. Either one counts.')).toBeTruthy();
   });
 

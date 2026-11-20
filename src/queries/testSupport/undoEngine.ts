@@ -85,8 +85,6 @@ export interface Ctx {
   readonly ids: Map<string, string>;
   /** real id -> label (tasks and steps), used to normalise snapshots. */
   readonly labels: Map<string, string>;
-  /** Last result of each action, keyed by action, for scenarios that need what an earlier call returned. */
-  readonly last: Map<string, unknown>;
 }
 
 export interface Scenario {
@@ -109,10 +107,6 @@ export interface Scenario {
 }
 
 /* ------------------------------------------------------------------ helpers */
-
-function dayOf(c: Ctx): LocalDate {
-  return c.day;
-}
 
 export function setDay(c: Ctx, day: LocalDate): void {
   c.day = day;
@@ -247,7 +241,7 @@ export async function snapshot(c: Ctx): Promise<Snapshot> {
   for (const [name, rows] of Object.entries(raw)) tables[name] = rows.map((r) => normalise(r, c.labels));
 
   const repos = c.env.repos;
-  const today = dayOf(c);
+  const today = c.day;
   const record = await resolveRecordOccurrences(repos, today, today);
   const todayList = await resolveAllOccurrences(repos, today, today);
   const start = (await recordStartDate(repos)) ?? today;
@@ -316,7 +310,7 @@ export function isBadgeLine(line: string): boolean {
  */
 export async function runSide(env: UndoEnv, scenario: Scenario, variant: Variant, side: 'control' | 'treatment'): Promise<Snapshot> {
   await env.reset();
-  const c: Ctx = { env, day: START_DAY, actionDay: START_DAY, ids: new Map(), labels: new Map(), last: new Map() };
+  const c: Ctx = { env, day: START_DAY, actionDay: START_DAY, ids: new Map(), labels: new Map() };
   await seed(c);
   if (scenario.setup) await scenario.setup(c);
   const treat = side === 'treatment';
