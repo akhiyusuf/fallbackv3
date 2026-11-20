@@ -65,7 +65,7 @@ export function useDayRollover(intervalMs = 60_000): LocalDate {
 
     return () => {
       clearInterval(interval);
-      subscription.remove();
+      subscription?.remove();
     };
   }, [intervalMs, queryClient]);
 

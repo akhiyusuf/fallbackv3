@@ -1229,6 +1229,43 @@ tests; fixed: the per-habit "comeback" badge is now saved before a habit's days
 become anonymous) and `review/sonnet/15-end-routine-ui.md` (screens; fixed: a
 double tap on End or Start again ran it twice). Whole suite: 1210 tests pass.
 
+### Round 4, twenty-fourth pass (2026-11-20): edge-case campaign
+
+The human: **"I'll need rigorous edge case tests done right now, use haiku and
+sonnet all over, I'm going to test the app for the week."** Eight agents, one
+area each (`review/EDGE-BRIEF.md`), reports `review/haiku/16, 17, 19, 22` and
+`review/sonnet/18, 20, 21, 23`. About 450 new tests; whole suite 1660 passing.
+
+Fixed (by the agents in their areas, or by the main session where marked):
+- Reminders: only for habits still pending that day (not logged, not off);
+  only times still ahead (main session: Android fires a past DATE trigger at
+  once, and rescheduling runs after every log); capped at 64; re-arms
+  serialized; no "slipped by" nudge for a habit ended yesterday. The widget
+  refreshes when the app comes back.
+- Logging: XP restored when a day off is lifted; ending keeps a logged day that
+  was pushed; pushing an ended habit's last day refused; XP reported is what a
+  write actually added (main session); a cycle's first log goes to the new cycle
+  and cycles catch up on launch and on Progress (main session).
+- Storage: a store from a newer app version is left untouched; backups are one
+  consistent snapshot; damaged or wrongly typed restores refused; busy retry
+  works for native errors; a failed open no longer leaks a connection.
+- Screens: double taps run once (Today cards, task page, forms, Duplicate,
+  to-dos, as-needed, End/Start again); Today moves to the new day at midnight
+  while open; thrown saves show a toast; splash steps each best-effort;
+  blank steps dropped and names trimmed; course end before start rejected in
+  the domain (main session); courses ended early or not started read right;
+  search shows Ended; Progress falls back when the chosen habit is deleted.
+- Assistant: invalid dates, states and types refused before any write; a change
+  it could not apply is said plainly; a dropped stream shows the offline banner;
+  a BYO base URL with a trailing slash works.
+
+Open with the human:
+- With a BYO key the assistant is not sent the habit list, so it can only create.
+- A bad BYO key reads as "offline"; chat history is not in backups.
+- Recovery offers Reset (behind a confirm) even for a store from a newer version.
+- The "couldn't save" seen once on the phone was not reproduced; the toast now
+  carries the real reason.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

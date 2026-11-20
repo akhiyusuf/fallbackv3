@@ -171,10 +171,10 @@ describe('Today: due, off, pushed', () => {
     expect(screen.getByText('0 of 2 done')).toBeTruthy();
     const dones = screen.getAllByLabelText('Movement: Done');
     expect(dones).toHaveLength(2);
-    await user.press(dones[0]);
+    await user.press(dones[0]!);
     await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledTimes(1));
     expect(mockLogStateMutateAsync.mock.calls[0][0].pushedFrom).toBeUndefined();
-    await user.press(dones[1]);
+    await user.press(dones[1]!);
     await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenCalledTimes(2));
     expect(mockLogStateMutateAsync.mock.calls[1][0].pushedFrom).toBe('2026-07-15');
   });
@@ -186,8 +186,8 @@ describe('Today: due, off, pushed', () => {
     const user = userEvent.setup();
     await render(<TodayScreen />);
     const dones = screen.getAllByLabelText('Movement: Done');
-    await user.press(dones[0]);
-    await user.press(dones[1]);
+    await user.press(dones[0]!);
+    await user.press(dones[1]!);
     expect(mockLogStateMutateAsync).toHaveBeenCalledTimes(2);
     await act(async () => release({ ok: true, value: { xpAwarded: 0, levelUp: null, badgesUnlocked: [] } }));
   });
@@ -414,9 +414,9 @@ describe('sound timing: rewards wait for a playing sound and never stack', () =>
     for (const n of ['badge_earned', 'badge_earned', 'badge_earned', 'level_up']) schedule(n, 300, () => started.push([n, Date.now() - t0]));
     jest.advanceTimersByTime(30_000);
     expect(started.map((s) => s[0])).toEqual(['log_ideal', 'badge_earned', 'badge_earned', 'badge_earned', 'level_up']);
-    expect(started[1][1]).toBeGreaterThanOrEqual(SOUND_MS.log_ideal + REWARD_GAP_MS);
+    expect(started[1]![1]).toBeGreaterThanOrEqual(SOUND_MS.log_ideal + REWARD_GAP_MS);
     for (let i = 2; i < started.length; i++) {
-      expect(started[i][1] - started[i - 1][1]).toBeGreaterThanOrEqual(SOUND_MS[started[i - 1][0]] + REWARD_GAP_MS);
+      expect(started[i]![1] - started[i - 1]![1]).toBeGreaterThanOrEqual(SOUND_MS[started[i - 1]![0]] + REWARD_GAP_MS);
     }
   });
 
@@ -445,7 +445,7 @@ describe('sound timing: rewards wait for a playing sound and never stack', () =>
     schedule('log_ideal', 0, () => started.push(['log_ideal', Date.now() - t0]));
     schedule('day_complete', 650, () => started.push(['day_complete', Date.now() - t0]));
     jest.advanceTimersByTime(10_000);
-    expect(started[1][1]).toBeGreaterThanOrEqual(SOUND_MS.log_ideal + REWARD_GAP_MS);
+    expect(started[1]![1]).toBeGreaterThanOrEqual(SOUND_MS.log_ideal + REWARD_GAP_MS);
   });
 
   it('a tap during the gap pushes a waiting reward back, and rewards are still in order', () => {
