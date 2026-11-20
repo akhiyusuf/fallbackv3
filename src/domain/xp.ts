@@ -52,7 +52,9 @@ export function xpForOccurrence(o: Occurrence): number {
 /** Walks the level ladder from lifetime XP. Never negative, never decays. */
 export function levelFor(lifetimeXp: number): LevelInfo {
   let level = 1;
-  let remaining = Math.max(0, lifetimeXp);
+  // A non-finite or negative input is treated as zero XP: Infinity would spin the loop forever and
+  // NaN would render as NaN in the level screen (review 34, fuzzing).
+  let remaining = Number.isFinite(lifetimeXp) && lifetimeXp > 0 ? lifetimeXp : 0;
   while (remaining >= xpForLevel(level)) {
     remaining -= xpForLevel(level);
     level++;

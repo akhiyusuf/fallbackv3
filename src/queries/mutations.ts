@@ -56,9 +56,21 @@ import type {
 } from '@/types';
 import { err, ok } from '@/types';
 import { QUERY_KEYS } from './index';
+import { serialWrite } from './writeQueue';
 import { deletionDay, keepBadgesBeforeRetiring, markAwayDaysOff, resolveOneOccurrence, resolveRecordOccurrences, resolveWriteTarget, retireDeleted, retireForGood, todayLocal } from './internal';
 
-function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id) {
+/** Every read root a write can change. */
+const AFFECTED_ROOTS: ReadonlySet<unknown> = new Set(['tasks', 'today', 'consistency', 'taskOccurrences', 'trend', 'progress', 'achievements', 'records']);
+
+/**
+ * A read that is already running when a write lands may have looked at the data BEFORE the write.
+ * If that read has nothing cached yet (a screen that has just opened), TanStack hands the
+ * invalidation's refetch the same running promise, so the old answer would be stored and shown as
+ * current. Cancelling the running reads first makes the refetch start from the new data. The cancel
+ * is awaited (it settles on a microtask); the refetches themselves are not.
+ */
+async function invalidateCommon(qc: ReturnType<typeof useQueryClient>, taskId?: Id): Promise<void> {
+  await qc.cancelQueries({ predicate: (q) => AFFECTED_ROOTS.has(q.queryKey[0]) });
   // review pass 1, item 9: predicate-based so BOTH `['tasks']` and `['tasks','includeDeleted']`
   // (and every `['taskOccurrences', taskId, from, to]` variant) are covered without hardcoding
   // every parameterised key shape here.
@@ -152,9 +164,9 @@ async function archiveCycleWindow(w: CycleWindow, recordEndDate: LocalDate, isSh
  * archive is also safe to retry.
  */
 /** Catches the cycle pointer up to today (archiving each cycle that ended). Safe to call any time. */
-export async function catchUpCycles(): Promise<void> {
+export const catchUpCycles = serialWrite(async (): Promise<void> => {
   await reconcileCycleBoundaries().catch(() => undefined);
-}
+});
 
 async function reconcileCycleBoundaries(): Promise<Result<void>> {
   const settings = await repos.settings.get();
@@ -349,6 +361,15 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
   return { occurrence, xpAwarded, levelUp, badgesUnlocked };
 }
 
+/** The writes that reconcile XP, badges or cycles run one at a time (see writeQueue.ts). */
+const logState = serialWrite(logStateRaw);
+const toggleStep = serialWrite(toggleStepRaw);
+const logDose = serialWrite(logDoseRaw);
+const markOffDay = serialWrite(markOffDayRaw);
+const snoozeOccurrence = serialWrite(snoozeOccurrenceRaw);
+const undoSnooze = serialWrite(undoSnoozeRaw);
+const updateSettings = serialWrite(updateSettingsRaw);
+
 /* ------------------------------------------------------------------ task CRUD */
 
 export function useCreateTask() {
@@ -433,8 +454,8 @@ async function persistEarnedBadges(): Promise<void> {
 
 export function useDeleteTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: Id): Promise<Result<void>> => {
+  return useMutation<Result<void>, Error, Id>({
+    mutationFn: serialWrite(async (id: Id): Promise<Result<void>> => {
       await persistEarnedBadges();
       // Moves the task to Recently deleted (soft delete): hidden everywhere, history kept, so it
       // can be restored for DELETED_KEEP_DAYS days. Deliberately does NOT call
@@ -444,7 +465,7 @@ export function useDeleteTask() {
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
-    },
+    }),
     onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
@@ -471,8 +492,8 @@ async function markAwayPushedDayOff(task: TaskWithSteps, lastDay: LocalDate, awa
  */
 export function useRestoreTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: Id): Promise<Result<void>> => {
+  return useMutation<Result<void>, Error, Id>({
+    mutationFn: serialWrite(async (id: Id): Promise<Result<void>> => {
       const task = (await repos.tasks.listDeleted()).find((t) => t.id === id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
       const deletedOn = deletionDay(task);
@@ -489,7 +510,7 @@ export function useRestoreTask() {
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
-    },
+    }),
     onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
@@ -497,8 +518,8 @@ export function useRestoreTask() {
 /** Removes one item in Recently deleted for good. Its past days stay in the record; its XP stays (SCHEMA §2.3). */
 export function useDeleteForever() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: Id): Promise<Result<void>> => {
+  return useMutation<Result<void>, Error, Id>({
+    mutationFn: serialWrite(async (id: Id): Promise<Result<void>> => {
       const task = (await repos.tasks.listDeleted()).find((t) => t.id === id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
       await keepBadgesBeforeRetiring(repos, todayLocal(), now());
@@ -506,7 +527,7 @@ export function useDeleteForever() {
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
-    },
+    }),
     onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
@@ -514,8 +535,8 @@ export function useDeleteForever() {
 /** Removes everything in Recently deleted for good; their past days stay in the record. */
 export function useEmptyRecentlyDeleted() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (): Promise<Result<number>> => retireDeleted(repos, 'all'),
+  return useMutation<Result<number>, Error, void>({
+    mutationFn: serialWrite(async (): Promise<Result<number>> => retireDeleted(repos, 'all')),
     onSuccess: () => invalidateCommon(qc),
   });
 }
@@ -524,9 +545,9 @@ export function useEmptyRecentlyDeleted() {
  * Removes for good what has been in Recently deleted past its time, keeping each one's past days
  * in the record. Run once the store is open; never throws.
  */
-export async function sweepExpiredDeleted(): Promise<void> {
+export const sweepExpiredDeleted = serialWrite(async (): Promise<void> => {
   await retireDeleted(repos, 'expired').catch(() => undefined);
-}
+});
 
 /** Clears the push on `date`'s row when the pushed occurrence holds a logged day (ideal or fallback). */
 async function bringBackLoggedPush(task: TaskWithSteps, date: LocalDate): Promise<void> {
@@ -545,8 +566,8 @@ async function bringBackLoggedPush(task: TaskWithSteps, date: LocalDate): Promis
  */
 export function useEndTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: Id): Promise<Result<LocalDate>> => {
+  return useMutation<Result<LocalDate>, Error, Id>({
+    mutationFn: serialWrite(async (id: Id): Promise<Result<LocalDate>> => {
       const task = await liveTask(id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
       if (task.endedOn) return ok(task.endedOn);
@@ -563,7 +584,7 @@ export function useEndTask() {
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(endedOn);
-    },
+    }),
     onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
@@ -574,8 +595,8 @@ export function useEndTask() {
  */
 export function useStartAgain() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: Id): Promise<Result<void>> => {
+  return useMutation<Result<void>, Error, Id>({
+    mutationFn: serialWrite(async (id: Id): Promise<Result<void>> => {
       const task = await liveTask(id);
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
       if (!task.endedOn) return ok(undefined);
@@ -587,7 +608,7 @@ export function useStartAgain() {
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
       return ok(undefined);
-    },
+    }),
     onSuccess: (_r, id) => invalidateCommon(qc, id),
   });
 }
@@ -623,7 +644,7 @@ export function useDuplicateTask() {
  * key on `input.date` (T-3, unchanged): the XP award and `day:logged` are about the occurrence
  * the user tapped, wherever its data physically lives.
  */
-async function logState(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; chip: ChipState }) {
+async function logStateRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; chip: ChipState }) {
   const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
@@ -664,7 +685,7 @@ export function useLogState() {
 }
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
-async function toggleStep(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; stepId: Id }) {
+async function toggleStepRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; stepId: Id }) {
   const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
@@ -726,7 +747,7 @@ export function useToggleStep() {
 }
 
 /** See `logState`'s doc comment — same T-1/T-2/T-3 reasoning, extracted for the invariant harness. */
-async function logDose(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; dosesCompleted: number }) {
+async function logDoseRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: LocalDate; dosesCompleted: number }) {
   const task = await liveTask(input.taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   const target = await resolveWriteTarget(repos, task, input.date, todayLocal(), input.pushedFrom);
@@ -764,7 +785,7 @@ export function useLogDose() {
 /* ------------------------------------------------------------------ off days (F4) */
 
 /** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
-async function markOffDay(input: { date: LocalDate; taskId: Id | null; mark: boolean }) {
+async function markOffDayRaw(input: { date: LocalDate; taskId: Id | null; mark: boolean }) {
   if (input.taskId && !(await liveTask(input.taskId))) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
   if (input.mark) {
     const priorChipState = input.taskId
@@ -843,7 +864,7 @@ export function useLogAsNeededUse() {
  * redirect-inbound-pointers write branch (reachable only via chains, which are now
  * unreachable by construction — `|inbound(D)| ≤ 1` is a storage invariant).
  */
-async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
+async function snoozeOccurrenceRaw(input: { taskId: Id; date: LocalDate }) {
   const { taskId, date } = input;
   const task = await liveTask(taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
@@ -917,7 +938,7 @@ export function useSnoozeOccurrence() {
  * occurrence's own date always reads not-due via R-2), and `task.snoozable` is irrelevant —
  * turning it off must never strand an already-snoozed occurrence.
  */
-async function undoSnooze(input: { taskId: Id; date: LocalDate }) {
+async function undoSnoozeRaw(input: { taskId: Id; date: LocalDate }) {
   const { taskId, date } = input;
   const task = await liveTask(taskId);
   if (!task) return err({ code: 'NOT_FOUND' as const, message: 'Task not found.' });
@@ -951,7 +972,7 @@ export function useUndoSnooze() {
 /* ------------------------------------------------------------------ settings */
 
 /** See `logState`'s doc comment — same reasoning, extracted for the invariant harness. */
-async function updateSettings(patch: Partial<Settings>): Promise<Result<Settings>> {
+async function updateSettingsRaw(patch: Partial<Settings>): Promise<Result<Settings>> {
   // Review pass 1, blocking item 1: a cadence change finalises the in-progress cycle
   // BEFORE the patch takes effect — archive always precedes the switch.
   if (patch.cycleCadence) {

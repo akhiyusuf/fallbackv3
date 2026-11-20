@@ -17,6 +17,7 @@ jest.mock('@/app-shell', () => {
     useThemeStore: (selector: (s: { mode: string; accent: string }) => unknown) => selector({ mode: 'auto', accent: 'forge-orange' }),
   };
 });
+jest.mock('@/app-shell/repairs', () => ({ useForegroundRepairs: () => undefined }));
 const mockInitNotificationsBridge = jest.fn();
 jest.mock('@/services/notifications', () => ({ initNotificationsBridge: () => mockInitNotificationsBridge() }));
 const mockInitWidgetsBridge = jest.fn();

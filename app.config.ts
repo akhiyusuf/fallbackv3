@@ -60,6 +60,29 @@ const config: ExpoConfig = {
       'com.google.android.gms.permission.AD_ID',
       // "Draw over other apps": merged in by a library, used by nothing in Fallback.
       'android.permission.SYSTEM_ALERT_WINDOW',
+      // Legacy external storage (API 24-32). Fallback exports through the share sheet from app-private
+      // files (FileSystemFileProvider) and imports through the system document picker, so it never
+      // touches shared storage. Merged in by expo-file-system; no code path reads or writes it.
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      // Launcher badge counts. Fallback never sets a badge count (no setBadgeCountAsync), so these
+      // vendor permissions are declared by expo-notifications and used by nothing.
+      'android.permission.READ_APP_BADGE',
+      'com.sec.android.provider.badge.permission.READ',
+      'com.sec.android.provider.badge.permission.WRITE',
+      'com.htc.launcher.permission.READ_SETTINGS',
+      'com.htc.launcher.permission.UPDATE_SHORTCUT',
+      'com.sonyericsson.home.permission.BROADCAST_BADGE',
+      'com.sonymobile.home.permission.PROVIDER_INSERT_BADGE',
+      'com.anddoes.launcher.permission.UPDATE_COUNT',
+      'com.majeur.launcher.permission.UPDATE_BADGE',
+      'com.huawei.android.launcher.permission.CHANGE_BADGE',
+      'com.huawei.android.launcher.permission.READ_SETTINGS',
+      'com.huawei.android.launcher.permission.WRITE_SETTINGS',
+      'com.oppo.launcher.permission.READ_SETTINGS',
+      'com.oppo.launcher.permission.WRITE_SETTINGS',
+      'me.everything.badger.permission.BADGE_COUNT_READ',
+      'me.everything.badger.permission.BADGE_COUNT_WRITE',
     ],
   },
 
@@ -120,8 +143,9 @@ const config: ExpoConfig = {
 
     // F20 cloud sync, Android half. `expo-auth-session` cannot start a Drive
     // `appDataFolder` flow without an OAuth client ID, and none is provisioned yet.
-    // Declared explicitly as null so SyncProvider.isAvailable() can key off a real value
-    // instead of the gap being invisible. See ARCHITECTURE.md §9.2.1 (KNOWN GAP).
+    // Declared here so the gap is visible in config. NOTE: nothing in src/ or app/ reads this
+    // value yet (sync availability is decided in src/services/sync/index.ts), so setting it has
+    // no effect today. See ARCHITECTURE.md §9.2.1 (KNOWN GAP).
     // The iOS half additionally needs a native iCloud module that does not exist yet.
     googleOAuthClientId: process.env.FALLBACK_GOOGLE_OAUTH_CLIENT_ID ?? null,
 

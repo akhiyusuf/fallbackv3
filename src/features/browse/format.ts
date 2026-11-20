@@ -40,7 +40,7 @@ export function taskTypeLabel(type: TaskType): string {
  * contiguous 2-day run, e.g. "Sat·Sun" per S10's own Yoga-flow fixture) is dot-joined.
  */
 export function formatWeekdaySet(weekdays: readonly Weekday[]): string {
-  const sorted = [...weekdays].sort((a, b) => a - b);
+  const sorted = [...new Set(weekdays)].sort((a, b) => a - b);
   const isContiguous = sorted.every((d, i) => i === 0 || d === (sorted[i - 1] as Weekday) + 1);
   if (isContiguous && sorted.length >= 3) {
     return `${WEEKDAY_ABBR[sorted[0] as Weekday]} to ${WEEKDAY_ABBR[sorted[sorted.length - 1] as Weekday]}`;

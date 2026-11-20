@@ -88,13 +88,19 @@ export function validateBackupEnvelope(value: unknown): Result<BackupEnvelope> {
   }
   const v = value as Record<string, unknown>;
   if (v.format !== BACKUP_FORMAT) {
-    return err({ code: 'VALIDATION_FAILED', message: `unrecognised backup format: ${String(v.format)}` });
+    const shown = typeof v.format === 'string' ? v.format : typeof v.format;
+    return err({ code: 'VALIDATION_FAILED', message: `unrecognised backup format: ${shown}` });
   }
-  if (typeof v.formatVersion !== 'number') {
-    return err({ code: 'VALIDATION_FAILED', message: 'missing formatVersion' });
+  // Only the envelope version this build writes is readable; anything else (a string "1", 0, or a
+  // future version) is refused up front rather than half-read (review 34, fuzzing).
+  if (v.formatVersion !== BACKUP_FORMAT_VERSION) {
+    return err({ code: 'VALIDATION_FAILED', message: `unsupported backup formatVersion ${String(v.formatVersion)}` });
   }
   if (typeof v.schemaVersion !== 'number') {
     return err({ code: 'VALIDATION_FAILED', message: 'missing schemaVersion' });
+  }
+  if (!Number.isInteger(v.schemaVersion) || v.schemaVersion < 1) {
+    return err({ code: 'VALIDATION_FAILED', message: `backup schemaVersion ${String(v.schemaVersion)} is not a valid schema version` });
   }
   // A backup from a future schema version fails deterministically here, rather than only
   // incidentally on some unrecognised column deep inside the transaction (review note 4).
@@ -117,8 +123,13 @@ export function validateBackupEnvelope(value: unknown): Result<BackupEnvelope> {
     if ((v.schemaVersion as number) < since && tables[table] === undefined) tables[table] = [];
   }
   for (const table of BACKUP_TABLES) {
-    if (!Array.isArray(tables[table])) {
+    const rows = tables[table];
+    if (!Array.isArray(rows)) {
       return err({ code: 'VALIDATION_FAILED', message: `backup missing table "${table}"` });
+    }
+    // Every row is a record of columns. A bare null, number, string or array is not a row.
+    if (rows.some((row) => typeof row !== 'object' || row === null || Array.isArray(row))) {
+      return err({ code: 'VALIDATION_FAILED', message: `backup table "${table}" has a row that is not a record` });
     }
   }
 

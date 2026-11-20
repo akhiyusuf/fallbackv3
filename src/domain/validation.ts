@@ -22,8 +22,15 @@ const WEEKDAY_NAMES: Record<Weekday, string> = {
 function subSchedulableWeekdays(cadence: Cadence | null | undefined): readonly Weekday[] | null {
   if (!cadence) return null;
   if (cadence.kind === 'daily') return [1, 2, 3, 4, 5, 6, 7];
-  if (cadence.kind === 'specific-weekdays') return cadence.weekdays;
+  if (cadence.kind === 'specific-weekdays') return Array.isArray(cadence.weekdays) ? cadence.weekdays : null;
   return null;
+}
+
+/** A step covers a weekday when it is due every day, or lists that weekday. Malformed entries cover nothing. */
+function stepCovers(step: StepDraft | null | undefined, wd: Weekday): boolean {
+  if (step == null) return false;
+  if (step.dueWeekdays === null) return true;
+  return Array.isArray(step.dueWeekdays) && step.dueWeekdays.includes(wd);
 }
 
 function requiresIdealFallback(draft: TaskDraft): boolean {
@@ -38,25 +45,32 @@ export function emptyRunOccurrences(draft: TaskDraft): string[] {
   const parentWeekdays = subSchedulableWeekdays(draft.cadence ?? null);
   if (!parentWeekdays) return [];
 
-  const idealSteps: readonly StepDraft[] = draft.idealSteps;
+  const idealSteps: readonly StepDraft[] = Array.isArray(draft.idealSteps) ? draft.idealSteps : [];
   const offending: string[] = [];
   for (const wd of parentWeekdays) {
-    const covered = idealSteps.some((s) => s.dueWeekdays === null || s.dueWeekdays.includes(wd));
+    const covered = idealSteps.some((s) => stepCovers(s, wd));
     if (!covered) offending.push(WEEKDAY_NAMES[wd]);
   }
   return offending;
 }
 
 export function validateTaskDraft(draft: TaskDraft): Result<TaskDraft> {
+  // Never throws, whatever shape arrives: a missing or wrongly typed field is a validation
+  // failure, not a crash in the save path (review 34, fuzzing).
+  if (typeof draft !== 'object' || draft === null) {
+    return err({ code: 'VALIDATION_FAILED', message: 'Task draft failed validation.', fields: {} });
+  }
   const fields: Record<string, string> = {};
 
-  if (draft.name.trim().length === 0) {
+  if (typeof draft.name !== 'string' || draft.name.trim().length === 0) {
     fields.name = 'Name cannot be empty.';
   }
 
   if (requiresIdealFallback(draft)) {
-    if (draft.idealSteps.length === 0) fields.idealSteps = 'Add at least one ideal step.';
-    if (draft.fallbackSteps.length === 0) fields.fallbackSteps = 'Add at least one fallback step.';
+    const ideal = Array.isArray(draft.idealSteps) ? draft.idealSteps : [];
+    const fallback = Array.isArray(draft.fallbackSteps) ? draft.fallbackSteps : [];
+    if (ideal.length === 0) fields.idealSteps = 'Add at least one ideal step.';
+    if (fallback.length === 0) fields.fallbackSteps = 'Add at least one fallback step.';
   }
 
   const needsCadence =
@@ -68,7 +82,7 @@ export function validateTaskDraft(draft: TaskDraft): Result<TaskDraft> {
     fields.cadence = 'Choose how often this repeats.';
   }
 
-  if (draft.cadence?.kind === 'specific-weekdays' && draft.cadence.weekdays.length === 0) {
+  if (draft.cadence?.kind === 'specific-weekdays' && (!Array.isArray(draft.cadence.weekdays) || draft.cadence.weekdays.length === 0)) {
     fields.cadence = 'Choose at least one day of the week.';
   }
 

@@ -7,7 +7,7 @@
  * returns `{ applied: false }` so the caller can drop it and restate — never a half-written
  * task.
  */
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { DELETED_KEEP_DAYS, validateTaskDraft } from '@/domain';
 import { useCreateTask, useDeleteTask, useLogState, useTasks, useUpdateTask } from '@/queries';
@@ -22,7 +22,12 @@ export interface ToolApplyResult {
   readonly undo?: AssistantUndoEntry;
   /** Present only for `create_task`/`update_task` — powers the inline task-created card. */
   readonly task?: TaskWithSteps;
+  /** Why a call was refused, when the person should hear something more specific than "could not do that". */
+  readonly reason?: 'name-not-said';
 }
+
+/** True for the five tools the app can apply; anything else the model invents is "not something I can do here". */
+export const SUPPORTED_TOOL_NAMES: readonly string[] = ['create_task', 'update_task', 'delete_task', 'log_state', 'ask_clarification'];
 
 const TASK_TYPES: readonly string[] = ['routine', 'event', 'course', 'todo'];
 const CHIP_STATES: readonly string[] = ['todo', 'done', 'fallback', 'skip'];
@@ -43,6 +48,26 @@ function isRealLocalDate(value: unknown): boolean {
 export function personNamedHabit(personSaid: string, habitName: string): boolean {
   const needle = habitName.trim().toLowerCase();
   return needle.length > 0 && personSaid.toLowerCase().includes(needle);
+}
+
+/**
+ * The tool schema tells the model to OMIT `dueWeekdays` for a step due every day, but a step draft
+ * means "every day" as `null`. Left as `undefined` the validator reads such a step as due on no day
+ * and refuses every routine the model creates. Steps that are not objects with text are dropped.
+ */
+function normalizeSteps(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  return raw
+    .filter((s): s is { text: string; dueWeekdays?: unknown } => !!s && typeof s === 'object' && typeof (s as { text?: unknown }).text === 'string')
+    .map((s) => ({ ...s, dueWeekdays: Array.isArray(s.dueWeekdays) ? s.dueWeekdays : null }));
+}
+
+function normalizeDraft<T extends object>(draft: T): T {
+  const d = draft as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...d };
+  if ('idealSteps' in d) out.idealSteps = normalizeSteps(d.idealSteps);
+  if ('fallbackSteps' in d) out.fallbackSteps = normalizeSteps(d.fallbackSteps);
+  return out as T;
 }
 
 function draftFromTask(task: TaskWithSteps): TaskDraft {
@@ -82,13 +107,34 @@ export function useToolExecutor() {
   const deleteTask = useDeleteTask();
   const logState = useLogState();
 
+  // The list as of the latest render, not as of the render this callback was made in: a chat opened
+  // from the home screen sends its first message before the list has loaded, and a reply that
+  // creates a habit and then edits it needs the new habit.
+  const tasksRef = useRef(tasksQuery.data);
+  tasksRef.current = tasksQuery.data;
+  const refetchRef = useRef(tasksQuery.refetch);
+  refetchRef.current = tasksQuery.refetch;
+
+  const findTask = useCallback(async (taskId: unknown): Promise<TaskWithSteps | undefined> => {
+    if (typeof taskId !== 'string') return undefined;
+    const known = tasksRef.current?.find((t) => t.id === taskId);
+    if (known) return known;
+    if (typeof refetchRef.current !== 'function') return undefined;
+    try {
+      const fresh = await refetchRef.current();
+      return fresh.data?.find((t) => t.id === taskId);
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   const applyToolCall = useCallback(
     async (call: AssistantToolCall, context?: { readonly personSaid?: string }): Promise<ToolApplyResult> => {
       switch (call.name) {
         case 'create_task': {
           // The model can send anything: a type outside the four, or no object at all, is dropped here.
           if (!call.args || typeof call.args !== 'object' || !TASK_TYPES.includes(call.args.type as string)) return { applied: false, summary: '' };
-          const validated = validateTaskDraft(call.args);
+          const validated = validateTaskDraft(normalizeDraft(call.args));
           if (!validated.ok) return { applied: false, summary: '' };
           const result = await createTask.mutateAsync(validated.value);
           if (!result.ok) return { applied: false, summary: '' };
@@ -109,11 +155,13 @@ export function useToolExecutor() {
         }
 
         case 'update_task': {
-          const existing = tasksQuery.data?.find((t) => t.id === call.args.taskId);
+          if (!call.args || typeof call.args !== 'object') return { applied: false, summary: '' };
+          const existing = await findTask(call.args.taskId);
           if (!existing) return { applied: false, summary: '' };
+          if (call.args.patch !== undefined && (call.args.patch === null || typeof call.args.patch !== 'object' || Array.isArray(call.args.patch))) return { applied: false, summary: '' };
           if (call.args.patch?.type !== undefined && !TASK_TYPES.includes(call.args.patch.type as string)) return { applied: false, summary: '' };
           const previousDraft = draftFromTask(existing);
-          const merged: TaskDraft = { ...previousDraft, ...call.args.patch };
+          const merged: TaskDraft = { ...previousDraft, ...normalizeDraft(call.args.patch) };
           const validated = validateTaskDraft(merged);
           if (!validated.ok) return { applied: false, summary: '' };
           const steps = stepsFromDraft(validated.value, existing.id);
@@ -173,10 +221,11 @@ export function useToolExecutor() {
         }
 
         case 'delete_task': {
-          const existing = tasksQuery.data?.find((t) => t.id === call.args.taskId);
+          if (!call.args || typeof call.args !== 'object') return { applied: false, summary: '' };
+          const existing = await findTask(call.args.taskId);
           if (!existing) return { applied: false, summary: '' };
           // Only when the caller says what the person typed: the chat always does (see useAssistantChat).
-          if (context?.personSaid !== undefined && !personNamedHabit(context.personSaid, existing.name)) return { applied: false, summary: '' };
+          if (context?.personSaid !== undefined && !personNamedHabit(context.personSaid, existing.name)) return { applied: false, summary: '', reason: 'name-not-said' };
           const result = await deleteTask.mutateAsync(call.args.taskId);
           if (!result.ok) return { applied: false, summary: '' };
           return { applied: true, summary: `Moved ${existing.name} to Recently deleted. You can restore it for ${DELETED_KEEP_DAYS} days from Settings, Data.`, taskId: existing.id };
@@ -185,7 +234,7 @@ export function useToolExecutor() {
         case 'log_state': {
           // A made-up date or state must never reach the log: refuse it before any write.
           if (!call.args || !isRealLocalDate(call.args.date) || !CHIP_STATES.includes(call.args.state as string)) return { applied: false, summary: '' };
-          const existing = tasksQuery.data?.find((t) => t.id === call.args.taskId);
+          const existing = await findTask(call.args.taskId);
           if (!existing) return { applied: false, summary: '' };
           const result = await logState.mutateAsync({
             taskId: call.args.taskId,
@@ -204,7 +253,7 @@ export function useToolExecutor() {
           return { applied: false, summary: '' };
       }
     },
-    [tasksQuery.data, createTask, updateTask, deleteTask, logState],
+    [findTask, tasksQuery.data, createTask, updateTask, deleteTask, logState],
   );
 
   return { applyToolCall };

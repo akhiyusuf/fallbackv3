@@ -12,10 +12,10 @@ import { useRouter } from 'expo-router';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { useThemeStore } from '@/app-shell';
+import { runStartupRepairs } from '@/app-shell/repairs';
 import { billing } from '@/services/billing';
 import { takePendingTapRoute } from '@/services/notifications';
 import { store, repos } from '@/db';
-import { catchUpCycles, healMissingXp, sweepExpiredDeleted } from '@/queries';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
 import { SPACE, useTheme } from '@/theme';
@@ -41,7 +41,7 @@ export default function S01Splash() {
         const elapsed = Date.now() - startedAt;
         const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
         if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-        if (cancelled || navigatedRef.current) return;
+        if (navigatedRef.current) return;
 
         // Store read throws / detects a corrupt store -> S50, never a crash or infinite spinner.
         if (!result.ok || result.value === 'corrupt' || result.value === 'uninitialised') {
@@ -55,15 +55,9 @@ export default function S01Splash() {
         // Nothing below the settings read may send a working store to recovery: the sweep, the look,
         // the plan check and the reminder-tap route are each best-effort, on their own.
         // What has been in Recently deleted past its time goes for good, its past days kept in the record.
-        try {
-          void Promise.resolve(sweepExpiredDeleted()).catch(() => undefined);
-          // Cycles that ended while the app was closed are archived now, not at the next log.
-          void Promise.resolve(catchUpCycles()).catch(() => undefined);
-          // A log whose XP never landed (the app was killed between the two writes) gets it now.
-          void Promise.resolve(healMissingXp(repos)).catch(() => undefined);
-        } catch {
-          /* the sweep never blocks start-up */
-        }
+        // Runs the sweep, the cycle catch-up and the XP heal in order, never twice at once; the same
+        // pass runs again on each foreground (`useForegroundRepairs`). It never throws.
+        void runStartupRepairs();
         // The look the person chose (light or dark, and the colour) is kept with their settings;
         // put it back before the first real screen draws.
         try {
@@ -81,14 +75,15 @@ export default function S01Splash() {
           /* the plan is checked again later */
         }
         navigatedRef.current = true;
+        // A reminder tap that opened the app goes where it pointed (e.g. the re-entry banner). It is taken
+        // whether or not onboarding is finished, so a route from a tap cannot wait around for a later launch.
+        let tapRoute: string | null = null;
+        try {
+          tapRoute = takePendingTapRoute();
+        } catch {
+          /* no reminder route: go to Today */
+        }
         if (settings.onboardingCompletedAt) {
-          // A reminder tap that opened the app goes where it pointed (e.g. the re-entry banner).
-          let tapRoute: string | null = null;
-          try {
-            tapRoute = takePendingTapRoute();
-          } catch {
-            /* no reminder route: go to Today */
-          }
           router.replace((tapRoute ?? '/today') as never);
         } else {
           router.replace('/onboarding/concept');

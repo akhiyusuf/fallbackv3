@@ -7,12 +7,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useAssistantSessionStore } from '@/app-shell';
-import { getAssistantProvider, appendMessage, listMessages, upsertConversation } from '@/services/ai';
+import { getAssistantProvider, appendMessage, getConversation, listMessages, upsertConversation } from '@/services/ai';
 import { newId } from '@/lib/id';
 import { now } from '@/lib/date';
-import type { AssistantMessage, AssistantModality, AssistantToolCall, Id, TaskWithSteps } from '@/types';
+import type { AssistantConversation, AssistantMessage, AssistantModality, AssistantToolCall, Id, TaskWithSteps } from '@/types';
 
-import { useToolExecutor } from './toolExecutor';
+import { SUPPORTED_TOOL_NAMES, useToolExecutor } from './toolExecutor';
 
 export type TranscriptItem =
   | { readonly id: string; readonly kind: 'user'; readonly text: string }
@@ -38,6 +38,33 @@ export interface UseAssistantChatOptions {
 
 export const DROPPED_CALL_LINE = "I couldn't do that one. It may have ended, been deleted, or not been something I could set up. Nothing was changed.";
 
+export const UNSUPPORTED_CALL_LINE =
+  "I can't do that one from here yet. To end a routine, push it to tomorrow or take the day off, open the routine and use End routine, Push to tomorrow or Emergency day off. Nothing was changed.";
+
+export const DELETE_NEEDS_NAME_LINE = 'To delete a habit, say its name, like "delete Morning run". Nothing was changed.';
+
+/** How many of the latest messages go to the model on each turn. A very long chat is trimmed, never sent whole. */
+export const HISTORY_LIMIT = 40;
+
+/** The last `HISTORY_LIMIT` messages, starting on one the person wrote (a reply with no question before it confuses a model). */
+export function trimHistory(messages: readonly AssistantMessage[]): readonly AssistantMessage[] {
+  if (messages.length <= HISTORY_LIMIT) return messages;
+  const tail = messages.slice(messages.length - HISTORY_LIMIT);
+  const firstUser = tail.findIndex((m) => m.role === 'user');
+  return firstUser <= 0 ? tail : tail.slice(firstUser);
+}
+
+/** A clarification the model sent must be a question and a list of options with ids, or it is dropped (never a crash). */
+function parseClarification(args: unknown): ClarificationState | null {
+  if (!args || typeof args !== 'object') return null;
+  const { question, options } = args as { question?: unknown; options?: unknown };
+  if (typeof question !== 'string' || !Array.isArray(options)) return null;
+  const valid = options.filter(
+    (o): o is { taskId: Id; label: string } => !!o && typeof o === 'object' && typeof (o as { taskId?: unknown }).taskId === 'string' && typeof (o as { label?: unknown }).label === 'string',
+  );
+  return valid.length === 0 ? null : { question, options: valid };
+}
+
 export function useAssistantChat(options?: UseAssistantChatOptions) {
   const { applyToolCall } = useToolExecutor();
   const [items, setItems] = useState<TranscriptItem[]>([]);
@@ -52,17 +79,43 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   // B9 — the running turn history sent to the provider on every request. Seeded from
   // persisted messages when resuming a conversation; otherwise starts empty.
   const historyRef = useRef<AssistantMessage[]>([]);
+  // A resumed conversation keeps its first start time, its modality and the habits it touched earlier.
+  const resumedRef = useRef<{ startedAt: AssistantConversation['startedAt']; modality: AssistantModality } | null>(null);
+  // One model turn at a time: a second message sent while the first reply is still streaming waits its turn.
+  const turnChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  // A resumed chat loads its earlier messages first; a turn never starts (or sends history) before that lands.
+  const seedRef = useRef<Promise<void>>(Promise.resolve());
+  const enqueueTurn = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
+    const guarded = async () => {
+      await seedRef.current;
+      return job();
+    };
+    const run = turnChainRef.current.then(guarded, guarded);
+    turnChainRef.current = run.catch(() => undefined);
+    return run;
+  }, []);
   const session = useAssistantSessionStore();
 
   useEffect(() => {
     if (!options?.conversationId) return;
     let alive = true;
-    void (async () => {
+    seedRef.current = (async () => {
       const existing = await listMessages(options.conversationId as Id);
+      let prior: Awaited<ReturnType<typeof getConversation>> = null;
+      try {
+        prior = await getConversation(options.conversationId as Id);
+      } catch {
+        prior = null;
+      }
       if (!alive) return;
+      if (prior) {
+        resumedRef.current = { startedAt: prior.startedAt, modality: prior.modality };
+        for (const id of prior.taskIdsTouched) touchedTaskIds.current.add(id);
+      }
       historyRef.current = [...existing];
-      setItems(existing.map((m) => ({ id: m.id, kind: m.role, text: m.text })));
-    })();
+      // Anything the person already typed (an opening message) stays below the earlier lines.
+      setItems((prev) => [...existing.map((m): TranscriptItem => ({ id: m.id, kind: m.role, text: m.text })), ...prev]);
+    })().catch(() => undefined);
     return () => {
       alive = false;
     };
@@ -80,9 +133,9 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   const finalizeConversation = useCallback(async (summary: string) => {
     await upsertConversation({
       id: conversationId,
-      startedAt: startedAtRef.current,
+      startedAt: resumedRef.current?.startedAt ?? startedAtRef.current,
       updatedAt: now(),
-      modality: options?.initialModality ?? 'text',
+      modality: resumedRef.current?.modality ?? options?.initialModality ?? 'text',
       summary,
       taskIdsTouched: [...touchedTaskIds.current],
     });
@@ -91,7 +144,13 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   const handleToolCall = useCallback(
     async (call: AssistantToolCall) => {
       if (call.name === 'ask_clarification') {
-        setClarification({ question: call.args.question, options: call.args.options });
+        const parsed = parseClarification(call.args);
+        if (parsed) setClarification(parsed);
+        else appendItem({ id: newId(), kind: 'assistant', text: DROPPED_CALL_LINE });
+        return;
+      }
+      if (!SUPPORTED_TOOL_NAMES.includes(call.name as string)) {
+        appendItem({ id: newId(), kind: 'assistant', text: UNSUPPORTED_CALL_LINE });
         return;
       }
       // The person's own latest words, so a delete can be checked against what they named (see toolExecutor).
@@ -99,7 +158,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       if (!result.applied) {
         // Dropped: malformed, invalid, or aimed at something that is gone or ended. Never a
         // half-written task, and never silence either: say so, calmly.
-        appendItem({ id: newId(), kind: 'assistant', text: DROPPED_CALL_LINE });
+        appendItem({ id: newId(), kind: 'assistant', text: result.reason === 'name-not-said' ? DELETE_NEEDS_NAME_LINE : DROPPED_CALL_LINE });
         return;
       }
       if (result.taskId) touchedTaskIds.current.add(result.taskId);
@@ -140,6 +199,8 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   // `resolveClarification` (B8) so a clarification resolution goes through the exact same
   // real application path as a normal turn — never a hand-rolled "logged" string.
   const streamAndApply = useCallback(async () => {
+    // A later turn that starts clears a banner left by an earlier failed one.
+    setOffline(false);
     setIsStreaming(true);
     session.setStreaming(true);
     try {
@@ -149,7 +210,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       // person: the same calm banner and Try again, never an unhandled rejection out of a tap.
       try {
         const provider = await getAssistantProvider();
-        for await (const event of provider.streamChat({ conversationId: conversationId, messages: historyRef.current, signal: undefined })) {
+        for await (const event of provider.streamChat({ conversationId: conversationId, messages: trimHistory(historyRef.current), signal: undefined })) {
           if (event.type === 'text-delta') {
             assistantText += event.delta;
           } else if (event.type === 'tool-call') {
@@ -196,22 +257,24 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
     async (text: string) => {
       if (!text.trim()) return;
       setOffline(false);
-      lastUserTextRef.current = text;
-      const userItemId = newId();
-      appendItem({ id: userItemId, kind: 'user', text });
-      const userMessage: AssistantMessage = {
-        id: newId(),
-        conversationId: conversationId,
-        role: 'user',
-        text,
-        toolCalls: [],
-        createdAt: now(),
-      };
-      historyRef.current = [...historyRef.current, userMessage];
-      await persistTurn(userMessage);
-      await streamAndApply();
+      // The person's words show at once; the model turn itself waits for any reply still streaming.
+      appendItem({ id: newId(), kind: 'user', text });
+      await enqueueTurn(async () => {
+        lastUserTextRef.current = text;
+        const userMessage: AssistantMessage = {
+          id: newId(),
+          conversationId: conversationId,
+          role: 'user',
+          text,
+          toolCalls: [],
+          createdAt: now(),
+        };
+        historyRef.current = [...historyRef.current, userMessage];
+        await persistTurn(userMessage);
+        await streamAndApply();
+      });
     },
-    [appendItem, persistTurn, streamAndApply],
+    [appendItem, enqueueTurn, persistTurn, streamAndApply],
   );
 
   const resolveClarification = useCallback(
@@ -231,12 +294,15 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
         toolCalls: [],
         createdAt: now(),
       };
-      lastUserTextRef.current = resolutionMessage.text;
-      historyRef.current = [...historyRef.current, resolutionMessage];
-      await persistTurn(resolutionMessage);
-      await streamAndApply();
+      await enqueueTurn(async () => {
+        lastUserTextRef.current = resolutionMessage.text;
+        // Two habits can share a name, so the model is told WHICH one by id; the saved transcript keeps the plain words.
+        historyRef.current = [...historyRef.current, { ...resolutionMessage, text: `${resolutionMessage.text} (task id: ${option.taskId})` }];
+        await persistTurn(resolutionMessage);
+        await streamAndApply();
+      });
     },
-    [clarification, persistTurn, streamAndApply],
+    [clarification, enqueueTurn, persistTurn, streamAndApply],
   );
 
   const dismissClarification = useCallback(() => {
@@ -249,8 +315,8 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
   const retryLast = useCallback(() => {
     if (!lastUserTextRef.current) return;
     setOffline(false);
-    void streamAndApply();
-  }, [streamAndApply]);
+    void enqueueTurn(streamAndApply);
+  }, [enqueueTurn, streamAndApply]);
 
   const taskCards = items.filter((i): i is Extract<TranscriptItem, { kind: 'task-card' }> => i.kind === 'task-card');
   const editBanners = items.filter((i): i is Extract<TranscriptItem, { kind: 'edit-undo' }> => i.kind === 'edit-undo');
