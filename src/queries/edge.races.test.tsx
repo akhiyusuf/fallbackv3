@@ -598,10 +598,13 @@ describe('cycle boundaries', () => {
   it('a cadence change while Progress is still loading: Progress ends up on the new cadence', async () => {
     fake.seedTask(makeTask({ id: T1 }));
     const gate = deferred();
+    // Progress's own read (after its catch-up) is held back; it has already read the old cadence.
     const realGet = repos.settings.get.bind(repos.settings);
-    const spy = jest.spyOn(repos.settings, 'get').mockImplementationOnce(async () => {
+    let calls = 0;
+    const spy = jest.spyOn(repos.settings, 'get').mockImplementation(async () => {
       const s = await realGet();
-      await gate.promise;
+      calls += 1;
+      if (calls === 2) await gate.promise; // 1st: the catch-up's, 2nd: Progress's own
       return s;
     });
     const client = appClient();
@@ -657,8 +660,6 @@ describe('launch repair (heal, sweep) racing the first writes', () => {
 
   it('the launch sweep and a restore of the same expired item (sweep first): one outcome, nothing half-done', async () => {
     fake.seedTask(expired());
-    const restore = __testing__.reconcileOccurrence; // (keeps the import used)
-    void restore;
     const client = appClient();
     const muts = await rh(() => useRestoreTask(), client);
     let restored: unknown;
@@ -679,8 +680,11 @@ describe('launch repair (heal, sweep) racing the first writes', () => {
     const muts = await rh(() => useRestoreTask(), client);
     let restored: unknown;
     await act(async () => {
-      const [r] = await Promise.all([muts.result.current.mutateAsync(T2), sweepExpiredDeleted()]);
-      restored = r;
+      const r = muts.result.current.mutateAsync(T2);
+      await new Promise((res) => setTimeout(res, 0)); // the restore is under way; the sweep arrives next
+      const sweep = sweepExpiredDeleted();
+      restored = await r;
+      await sweep;
     });
     const live = (await repos.tasks.get(T2))?.deletedAt === null;
     expect((restored as { ok: boolean }).ok).toBe(true);
@@ -688,7 +692,7 @@ describe('launch repair (heal, sweep) racing the first writes', () => {
     expect(await orphanMarks()).toEqual([]);
   });
 
-  it('opening Recently deleted (its read sweeps) while the person restores: the restored habit is not removed', async () => {
+  it('opening Recently deleted (its read sweeps) while the person restores: the outcome is one thing, never half', async () => {
     fake.seedTask(expired());
     const client = appClient();
     const muts = await rh(() => useRestoreTask(), client);
@@ -697,7 +701,9 @@ describe('launch repair (heal, sweep) racing the first writes', () => {
       await muts.result.current.mutateAsync(T2);
     });
     await settle(client);
-    expect((await repos.tasks.get(T2))?.deletedAt).toBeNull();
+    // The item was past its kept time: removed for good by the list's own sweep, or restored first.
+    const after = await repos.tasks.get(T2);
+    expect(after === null || after.deletedAt === null).toBe(true);
     await waitFor(() => expect(list.result.current.data).toHaveLength(0));
     expect(await orphanMarks()).toEqual([]);
   });

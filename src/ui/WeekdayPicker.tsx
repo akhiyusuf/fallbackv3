@@ -82,7 +82,8 @@ const styles = StyleSheet.create({
   root: { gap: SPACE.s1 + 2 },
   label: { fontSize: FONT_SIZE.sm, fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
-  chip: { width: MIN_TAP_TARGET, height: MIN_TAP_TARGET, borderRadius: RADIUS.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  // flexShrink: seven 44pt chips are 308pt wide, more than the row on a 320pt phone, so they may narrow a little.
+  chip: { width: MIN_TAP_TARGET, flexShrink: 1, minWidth: 36, height: MIN_TAP_TARGET, borderRadius: RADIUS.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipLabel: { fontSize: FONT_SIZE.sm, fontWeight: '700' },
   mark: { position: 'absolute', bottom: 5, width: 4, height: 4, borderRadius: RADIUS.pill },
   error: { fontSize: FONT_SIZE.sm },

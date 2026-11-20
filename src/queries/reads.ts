@@ -1,5 +1,6 @@
 /** M2. Read hooks. Compose M1's repositories with M2's pure domain engine. */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { on } from '@/lib/events';
 import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays } from '@/lib/date';
 import { repos } from '@/db';
 import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
@@ -20,8 +21,8 @@ import type {
   XpState,
 } from '@/types';
 import { QUERY_KEYS } from './index';
-import { catchUpCycles } from './mutations';
-import { recordStartDate, resolveAllOccurrences, retireDeleted, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
+import { catchUpCycles, retireExpiredDeleted } from './mutations';
+import { recordStartDate, resolveAllOccurrences, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
 
 /**
  * Review pass 1, blocking item 5: the type filter is applied client-side via `select`, on ONE
@@ -46,7 +47,8 @@ export function useRecentlyDeleted() {
   return useQuery({
     queryKey: QUERY_KEYS.recentlyDeleted,
     queryFn: async () => {
-      await retireDeleted(repos, 'expired');
+      // In the write queue: the sweep deletes for good, so it must not run beside a restore.
+      await retireExpiredDeleted();
       return repos.tasks.listDeleted();
     },
   });
@@ -249,11 +251,20 @@ export function useTrend() {
 
 /** F13/F31 — lifetime XP + level, cycling XP, current cycle window. */
 export function useProgress() {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: QUERY_KEYS.progress,
     queryFn: async (): Promise<XpState> => {
-      // After weeks away the pointer may name a cycle long over: bring it up to today first.
-      await catchUpCycles();
+      // After weeks away the pointer may name a cycle long over: bring it up to today first. Each
+      // cycle it archives is a new Records entry that no mutation announced to the cache.
+      let archived = 0;
+      const stop = on('cycle:finalized', () => void (archived += 1));
+      try {
+        await catchUpCycles();
+      } finally {
+        stop();
+      }
+      if (archived > 0) void qc.invalidateQueries({ queryKey: QUERY_KEYS.records });
       const settings = await repos.settings.get();
       const today = todayLocal();
       const pointer = await repos.cycleState.get();

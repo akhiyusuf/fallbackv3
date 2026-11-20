@@ -549,6 +549,9 @@ export const sweepExpiredDeleted = serialWrite(async (): Promise<void> => {
   await retireDeleted(repos, 'expired').catch(() => undefined);
 });
 
+/** The same sweep for the Recently deleted read, which must show a failure rather than hide it. */
+export const retireExpiredDeleted = serialWrite(async (): Promise<unknown> => retireDeleted(repos, 'expired'));
+
 /** Clears the push on `date`'s row when the pushed occurrence holds a logged day (ideal or fallback). */
 async function bringBackLoggedPush(task: TaskWithSteps, date: LocalDate): Promise<void> {
   const row = (await repos.logs.listForTask(task.id, date, date))[0] ?? null;
@@ -989,12 +992,15 @@ export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: updateSettings,
-    onSuccess: (result, patch) => {
+    onSuccess: async (result, patch) => {
+      // A settings or Progress read already running has the OLD values (see `invalidateCommon`).
+      const cadenceChanged = result.ok && !!patch.cycleCadence;
+      await qc.cancelQueries({ predicate: (q) => q.queryKey[0] === 'settings' || (cadenceChanged && (q.queryKey[0] === 'records' || q.queryKey[0] === 'progress')) });
       qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       // `Settings.cycleCadence` is always present on `result` (it's non-optional) — check the
       // MUTATION'S INPUT for whether this call actually touched it, not the always-populated
       // output, or these would fire on every settings change.
-      if (result.ok && patch.cycleCadence) {
+      if (cadenceChanged) {
         qc.invalidateQueries({ queryKey: QUERY_KEYS.records });
         qc.invalidateQueries({ queryKey: QUERY_KEYS.progress });
       }

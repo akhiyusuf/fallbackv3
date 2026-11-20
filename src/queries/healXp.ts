@@ -10,8 +10,12 @@ import { now } from '@/lib/date';
 import type { Repositories } from '@/types';
 
 import { resolveAllOccurrences, todayLocal } from './internal';
+import { serialWrite } from './writeQueue';
 
-export async function healMissingXp(repos: Repositories): Promise<number> {
+/** Runs in the one-write-at-a-time queue (writeQueue.ts): beside the first log it would read the XP totals mid-write. */
+export const healMissingXp = serialWrite(healMissingXpNow);
+
+async function healMissingXpNow(repos: Repositories): Promise<number> {
   const pointer = await repos.cycleState.get();
   if (!pointer) return 0; // no cycle to stamp an award with yet: nothing has been logged
   const today = todayLocal();

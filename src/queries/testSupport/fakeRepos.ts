@@ -217,7 +217,8 @@ export function createFakeRepos(): FakeRepos {
         unlocks.set(u.key, u);
         return ok(undefined);
       },
-      listCycleRecords: async () => cycleRecords,
+      // A copy, as a database read is: handing out the live array would let a cached read change by itself.
+      listCycleRecords: async () => [...cycleRecords],
       getCycleRecord: async (id) => cycleRecords.find((r) => r.id === id) ?? null,
       appendCycleRecord: async (r) => {
         appendCycleRecordCallCount += 1;
