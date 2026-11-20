@@ -54,3 +54,13 @@ simulations with invariants, real-database runs, whole journeys through several 
 zones, scale, accessibility, settings and billing, privacy. Read the round-1 report for your
 area first and do not repeat it; build on it. Reports are numbered 24-31. The file ownership in
 your own brief overrides round 1's.
+
+## Round 3 (2026-11-20, "do more tests" again)
+Rounds 1 and 2 (reports 16-31) tested areas and cross-area journeys. Round 3 tests the TESTS
+and the parts nothing has touched yet: mutation testing, the real rendered app in a browser,
+fuzzing, native/Android configuration, whole assistant conversations, spec coverage, races
+between screens and the cache, and app lifecycle (background, foreground, rollover). Read the
+reports for your area (`review/haiku/*.md`, `review/sonnet/*.md`) and do not repeat them.
+Reports are numbered 32-39. File ownership in your own brief overrides earlier rounds.
+The full suite is now ~2140 tests; never run it whole while other agents work (it takes
+over 10 minutes under load): run only your files.
