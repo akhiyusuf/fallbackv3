@@ -258,7 +258,7 @@ async function gentleReentryRequest(tasks: Awaited<ReturnType<typeof repos.tasks
     // canonical `src/queries/internal.ts`'s `creationLocalDate`), or a task created TODAY gets
     // a fabricated "missed yesterday" occurrence — daily/specific-weekdays cadences carry no
     // natural start anchor of their own (`src/domain/occurrence.ts`'s `notBefore` doc comment).
-    const notBefore = toLocalDate(new Date(task.createdAt));
+    const notBefore = task.createdOn ?? toLocalDate(new Date(task.createdAt));
     const occurrence = resolveOccurrence({
       task,
       date: yesterday,

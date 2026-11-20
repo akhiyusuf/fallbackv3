@@ -41,7 +41,7 @@ export function GoneTaskNotice({ onBack }: { readonly onBack: () => void }) {
         {GONE_NOTICE_COPY.headline}
       </Text>
       <Text style={[styles.body, { color: t.color.textMuted }]}>{GONE_NOTICE_COPY.body}</Text>
-      <Button label={GONE_NOTICE_COPY.today} variant="secondary" onPress={() => router.replace(ROUTES.today as Href)} fullWidth />
+      <Button label={GONE_NOTICE_COPY.today} variant="secondary" onPress={() => router.dismissTo(ROUTES.today as Href)} fullWidth />
     </Screen>
   );
 }

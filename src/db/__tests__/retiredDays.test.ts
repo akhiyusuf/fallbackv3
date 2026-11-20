@@ -48,7 +48,7 @@ jest.mock('@/lib/date', () => {
 import { DatabaseSync } from 'node:sqlite';
 
 import { DB_NAME } from '../client';
-import { MIGRATIONS } from '../migrations';
+import { CURRENT_SCHEMA_VERSION, MIGRATIONS } from '../migrations';
 import { newId } from '@/lib/id';
 import type { Id, Instant, LocalDate, RetiredDay, Step, Task, TaskWithSteps } from '@/types';
 
@@ -251,7 +251,7 @@ describe('migration 8 on an existing v7 store', () => {
     // Migration 8 applied.
     const check = rawConnection();
     try {
-      expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(8);
+      expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(CURRENT_SCHEMA_VERSION);
       const cols = (check.prepare(`SELECT name FROM pragma_table_info('task')`).all() as { name: string }[]).map((c) => c.name);
       expect(cols).toContain('ended_on');
       const retiredCols = (check.prepare(`SELECT name FROM pragma_table_info('retired_day')`).all() as { name: string }[]).map((c) => c.name);
@@ -280,7 +280,7 @@ describe('migration 8 on an existing v7 store', () => {
     expect(await app.repos.retiredDays.list()).toEqual([]);
     const check = rawConnection();
     try {
-      expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(8);
+      expect((check.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(CURRENT_SCHEMA_VERSION);
     } finally {
       check.close();
     }
@@ -564,7 +564,7 @@ describe('backup -> erase -> restore keeps retired days and ended habits', () =>
     const fs = fileSystem();
     const envelope = JSON.parse(await fs.readAsStringAsync(backup.value.uri));
     delete envelope.tables.retired_day;
-    expect(envelope.schemaVersion).toBe(8);
+    expect(envelope.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     const badUri = 'file:///test-documents/v8-missing-retired.fallbackbak';
     await fs.writeAsStringAsync(badUri, JSON.stringify(envelope));
 

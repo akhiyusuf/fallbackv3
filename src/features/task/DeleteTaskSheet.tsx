@@ -59,7 +59,7 @@ export function DeleteTaskSheet({ visible, onClose, task, openedFrom, origin, on
     }
     onDeleted?.();
     onClose();
-    router.replace(confirmedDeleteDestination({ openedFrom, s20Origin: origin, taskType: task.type }) as never);
+    router.dismissTo(confirmedDeleteDestination({ openedFrom, s20Origin: origin, taskType: task.type }) as never);
     // Not final: it is in Recently deleted, and Undo brings it straight back.
     showToast(DELETE_COPY.movedToast, 'neutral', {
       action: {

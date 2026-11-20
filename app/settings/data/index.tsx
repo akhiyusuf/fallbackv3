@@ -41,7 +41,7 @@ export default function S47Data() {
   }, [confirmErase]);
 
   function handleBack() {
-    router.replace('/settings' as Href);
+    router.dismissTo('/settings' as Href);
   }
 
   async function handleBackUpNow() {

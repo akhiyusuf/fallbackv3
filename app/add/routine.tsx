@@ -77,7 +77,7 @@ export default function S16CreateRoutine() {
 
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {
-      router.replace(ROUTES.today);
+      router.dismissTo(ROUTES.today);
       showToast('Routine saved', 'success');
     } else {
       showToast(SAVE_FAILED, 'warning');

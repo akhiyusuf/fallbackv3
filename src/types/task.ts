@@ -93,6 +93,12 @@ export interface Task {
    * days keep counting toward consistency. Null while it is running.
    */
   readonly endedOn: LocalDate | null;
+  /**
+   * The device-local day the task was created / deleted, fixed when it happened (migration 9).
+   * Optional: absent on objects built before it existed; readers fall back to the instant.
+   */
+  readonly createdOn?: LocalDate | null;
+  readonly deletedOn?: LocalDate | null;
 
   /** F11 To-do: plain binary completion. Never a StateChip, never XP-eligible. */
   readonly todoDoneAt: Instant | null;

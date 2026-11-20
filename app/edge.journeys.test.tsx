@@ -21,7 +21,7 @@ jest.mock('@tanstack/react-query', () => {
   class CapturingClient extends actual.QueryClient {
     constructor(...args: ConstructorParameters<typeof actual.QueryClient>) {
       super(...args);
-      mockClients.push(this);
+      mockClients.push(this as never);
     }
   }
   return { ...actual, QueryClient: CapturingClient };
@@ -141,32 +141,12 @@ function rootStack(): string[] {
   while (state && state.routes.length === 1 && state.routes[0]!.name === '__root') state = state.routes[0]!.state;
   return (state?.routes ?? []).map((r) => r.name);
 }
-/** Which tab the tab group is on (its focused route), whatever sits above it on the root stack. */
-function tabName(): string | undefined {
-  type S = { index?: number; routes: { name: string; state?: S }[] };
-  let state = routerStore.state as S | undefined;
-  while (state && state.routes.length === 1 && state.routes[0]!.name === '__root') state = state.routes[0]!.state;
-  const tabs = state?.routes.find((r) => r.name === '(tabs)')?.state;
-  return tabs ? tabs.routes[tabs.index ?? 0]?.name : undefined;
-}
 async function advance(ms: number) {
   await act(async () => {
     jest.advanceTimersByTime(ms);
   });
 }
 const toast = () => useToastStore.getState().toast;
-function texts(): string[] {
-  const out: string[] = [];
-  const walk = (n: unknown) => {
-    if (!n) return;
-    if (typeof n === 'string') return void out.push(n);
-    if (Array.isArray(n)) return n.forEach(walk);
-    const node = n as { children?: unknown };
-    walk(node.children);
-  };
-  walk(screen.toJSON());
-  return out;
-}
 
 
 
@@ -496,8 +476,6 @@ async function tapReminder(data: Record<string, unknown>) {
 }
 
 describe('journey 6: a reminder tap for a habit that is gone', () => {
-  const reentryUrl = (id: string) => `/today?reentry=1&taskId=${id}`;
-
   it.each([
     ['deleted', { deletedAt: at('2026-07-15') as never }],
     ['ended', { endedOn: '2026-07-14' as LocalDate }],
@@ -644,7 +622,7 @@ describe('journey 7b: the back stack does not grow when a screen leaves by its o
   // Each of these screens leaves with `router.push` or `router.replace` to a screen that is already on
   // the stack, which stacks a second copy on top; the phone back button then walks back through copies.
   // The right call is `router.dismissTo` (as `useOriginAwareBack` now does). Marked failing until fixed.
-  it.failing('Settings > Back (to Today) leaves Today alone on the stack', async () => {
+  it('Settings > Back (to Today) leaves Today alone on the stack', async () => {
     fake.seedTask(routine('a', 'Stretch'));
     await launch('/today');
     await userEvent.press(await screen.findByLabelText('Settings'));
@@ -655,7 +633,7 @@ describe('journey 7b: the back stack does not grow when a screen leaves by its o
     expect(rootStack()).toEqual(['(tabs)']);
   });
 
-  it.failing('Settings > Data > Recently deleted > Back, Back leaves exactly the screens that were below', async () => {
+  it('Settings > Data > Recently deleted > Back, Back leaves exactly the screens that were below', async () => {
     fake.seedTask(routine('a', 'Stretch'));
     await launch('/today');
     await screen.findByText('Stretch');
@@ -672,7 +650,7 @@ describe('journey 7b: the back stack does not grow when a screen leaves by its o
     expect(rootStack()).toEqual(stackAtDeleted.slice(0, 2));
   });
 
-  it.failing('Today > Add task > Routine > Save leaves Today alone on the stack', async () => {
+  it('Today > Add task > Routine > Save leaves Today alone on the stack', async () => {
     fake.seedTask(routine('a', 'Stretch'));
     await launch('/today');
     await screen.findByText('Stretch');
@@ -689,7 +667,7 @@ describe('journey 7b: the back stack does not grow when a screen leaves by its o
     expect(rootStack()).toEqual(['(tabs)']);
   });
 
-  it.failing('Today > a task > Delete leaves Today alone on the stack', async () => {
+  it('Today > a task > Delete leaves Today alone on the stack', async () => {
     fake.seedTask(routine('a', 'Stretch'));
     await launch('/today');
     await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
@@ -703,7 +681,7 @@ describe('journey 7b: the back stack does not grow when a screen leaves by its o
 
 /** What another screen's delete does to the shared data: the write, then every open query refreshes. */
 async function deleteElsewhere(id: string) {
-  const result = await fake.repos.tasks.softDelete(id as Id, at(clock.today) as never);
+  const result = await fake.repos.tasks.softDelete(id as Id);
   expect(result.ok).toBe(true);
   await act(async () => {
     await Promise.all(mockClients.map((c) => (c as unknown as { invalidateQueries(): Promise<void> }).invalidateQueries()));
@@ -813,7 +791,7 @@ describe('journey 9: a task screen left on the back stack while that task is del
     await launch('/task/a/icon');
     await userEvent.press(await screen.findByLabelText('Indigo'));
     // The delete happens in the store but this screen has not heard yet (no refresh): Save is still on screen.
-    expect((await fake.repos.tasks.softDelete('a' as Id, at(clock.today) as never)).ok).toBe(true);
+    expect((await fake.repos.tasks.softDelete('a' as Id)).ok).toBe(true);
     await userEvent.press(await screen.findByLabelText('Save'));
     await waitFor(() => expect(toast()?.tone).toBe('warning'));
     expect(toast()?.message).toBe("Couldn't save that. Try again.");
@@ -826,7 +804,7 @@ describe('journey 9: a task screen left on the back stack while that task is del
     await userEvent.press(await screen.findByLabelText(/^Gym session, .*Opens the task/));
     await waitFor(() => expect(path()).toBe('/task/a'));
     const done = await screen.findByLabelText('Gym session: Done');
-    expect((await fake.repos.tasks.softDelete('a' as Id, at(clock.today) as never)).ok).toBe(true);
+    expect((await fake.repos.tasks.softDelete('a' as Id)).ok).toBe(true);
     await userEvent.press(done);
     await waitFor(() => expect(toast()?.tone).toBe('warning'));
     expect(fake.logsFor('a' as Id)).toHaveLength(0);

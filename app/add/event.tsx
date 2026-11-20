@@ -76,7 +76,7 @@ export default function S17CreateEvent() {
 
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {
-      router.replace(ROUTES.today);
+      router.dismissTo(ROUTES.today);
       showToast('Event saved', 'success');
     } else {
       showToast(SAVE_FAILED, 'warning');

@@ -190,21 +190,23 @@ describe('travel between creating a habit and the next day (creation-day bound, 
     expect(occs.map(([d]) => d)).toEqual(['2026-11-20']);
   });
 
-  it.failing('BUG (internal.ts creationLocalDate): habit created 20 Nov in Fiji must not show a missed 19 Nov after travelling to Honolulu', () => {
+  // Fixed: the day a habit was created is stored as the device saw it then (task.created_on,
+  // migration 9), so the Fiji phone wrote 20 Nov and Honolulu reads 20 Nov.
+  it('habit created 20 Nov in Fiji does not show a missed 19 Nov after travelling to Honolulu', () => {
     const dates = runInZone<string[]>(
       'Pacific/Honolulu',
       `
       const internal = require('@/queries/internal');
       const { createFakeRepos } = require('@/queries/testSupport/fakeRepos');
       const f = createFakeRepos();
-      const task = mk({ createdAt: '${CREATED_FIJI_0030}' });
+      const task = mk({ createdAt: '${CREATED_FIJI_0030}', createdOn: '2026-11-20' });
       return (await internal.resolveTaskOccurrences(f.repos, task, '2026-11-20', '2026-11-20')).map((o) => o.date);
       `,
     );
     expect(dates).not.toContain('2026-11-19');
   });
 
-  it.failing('BUG (internal.ts creationLocalDate): habit created 19 Nov at 23:30 in Honolulu must keep 19 Nov as its first day in Fiji', () => {
+  it('habit created 19 Nov at 23:30 in Honolulu keeps 19 Nov as its first day in Fiji', () => {
     // 23:30 Honolulu on 19 Nov is 09:30Z on 20 Nov, which is 21:30 on 20 Nov in Fiji.
     const dates = runInZone<string[]>(
       'Pacific/Fiji',
@@ -212,7 +214,7 @@ describe('travel between creating a habit and the next day (creation-day bound, 
       const internal = require('@/queries/internal');
       const { createFakeRepos } = require('@/queries/testSupport/fakeRepos');
       const f = createFakeRepos();
-      const task = mk({ createdAt: '2026-11-20T09:30:00.000Z' });
+      const task = mk({ createdAt: '2026-11-20T09:30:00.000Z', createdOn: '2026-11-19' });
       return (await internal.resolveTaskOccurrences(f.repos, task, '2026-11-20', '2026-11-20')).map((o) => o.date);
       `,
     );
@@ -240,14 +242,14 @@ describe('travel between creating a habit and the next day (creation-day bound, 
 describe('deletion day (deletionDay / deletedRecordOf) after a zone change', () => {
   // Routine created 17 Nov 2026 (UTC instant), done on 18 Nov, not done on 19 or 20 Nov.
   const CREATED = '2026-11-17T09:00:00.000Z';
-  const probeRecord = (zone: string, deletedAt: string) =>
+  const probeRecord = (zone: string, deletedAt: string, deletedOn?: string) =>
     runInZone<{ day: string | null; record: Array<[string, string]> }>(
       zone,
       `
       const internal = require('@/queries/internal');
       const { createFakeRepos } = require('@/queries/testSupport/fakeRepos');
       const f = createFakeRepos();
-      const task = mk({ createdAt: '${CREATED}', deletedAt: '${deletedAt}' });
+      const task = mk({ createdAt: '${CREATED}', deletedAt: '${deletedAt}'${deletedOn ? `, deletedOn: '${deletedOn}'` : ''} });
       f.seedTask(task);
       await log(f, task, '2026-11-18', 'done');
       const day = internal.deletionDay(task);
@@ -263,19 +265,20 @@ describe('deletion day (deletionDay / deletedRecordOf) after a zone change', () 
     expect(r.record).toEqual([['2026-11-19', 'missed']]);
   });
 
-  it.failing('BUG (internal.ts deletionDay): the same deletion read in Auckland (UTC+13) must not add a missed 20th', () => {
+  // Fixed: the deletion day is stored as the deleting phone saw it (task.deleted_on, migration 9).
+  it('the same deletion read in Auckland (UTC+13) does not add a missed 20th', () => {
     // Same instant: it is 17:00 on 21 Nov in Auckland, so the deletion day moves to the 21st and
     // the 20th, a day the person was still in, now counts as a settled missed day.
-    const ny = probeRecord('America/New_York', '2026-11-21T04:00:00.000Z');
-    const auckland = probeRecord('Pacific/Auckland', '2026-11-21T04:00:00.000Z');
+    const ny = probeRecord('America/New_York', '2026-11-21T04:00:00.000Z', '2026-11-20');
+    const auckland = probeRecord('Pacific/Auckland', '2026-11-21T04:00:00.000Z', '2026-11-20');
     expect(auckland.record).toEqual(ny.record);
   });
 
-  it.failing('BUG (internal.ts deletionDay): deleted at 00:30 on 21 Nov in Auckland must still count the missed 20th when read in New York', () => {
+  it('deleted at 00:30 on 21 Nov in Auckland still counts the missed 20th when read in New York', () => {
     // 11:30Z on 20 Nov: 00:30 on 21 Nov in Auckland, but 06:30 on 20 Nov in New York, so the
     // 20th is treated as the deletion day and its missed outcome is dropped.
-    const auckland = probeRecord('Pacific/Auckland', '2026-11-20T11:30:00.000Z');
-    const ny = probeRecord('America/New_York', '2026-11-20T11:30:00.000Z');
+    const auckland = probeRecord('Pacific/Auckland', '2026-11-20T11:30:00.000Z', '2026-11-21');
+    const ny = probeRecord('America/New_York', '2026-11-20T11:30:00.000Z', '2026-11-21');
     expect(auckland.record).toContainEqual(['2026-11-20', 'missed']);
     expect(ny.record).toEqual(auckland.record);
   });
@@ -294,7 +297,7 @@ describe('deletion day (deletionDay / deletedRecordOf) after a zone change', () 
     }
   });
 
-  it.failing('BUG (internal.ts deletedRecordOf, clock set back): a habit deleted "in the future" must not count today as a settled missed day', () => {
+  it('clock set back: a habit deleted "in the future" does not count today as a settled missed day', () => {
     // The device clock was set back to 19 Nov (NY) after deleting at 23:00 on 20 Nov. Today is the 19th
     // and has not been done, so it must not be a missed day: it is not over yet.
     const r = runInZone<Array<[string, string]>>(

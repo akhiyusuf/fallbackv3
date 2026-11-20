@@ -98,7 +98,7 @@ function dueDatesBetween(task: TaskWithSteps, from: LocalDate, to: LocalDate, no
  * reads the `Date` object's LOCAL getters.
  */
 function creationLocalDate(task: TaskWithSteps): LocalDate {
-  return toLocalDate(new Date(task.createdAt));
+  return task.createdOn ?? toLocalDate(new Date(task.createdAt));
 }
 
 /**
@@ -343,14 +343,20 @@ export async function resolveAllOccurrences(repos: Repositories, to: LocalDate, 
  * have not done yet today never counts that day as missed).
  */
 export function deletionDay(task: TaskWithSteps): LocalDate | null {
-  return task.deletedAt ? toLocalDate(new Date(task.deletedAt)) : null;
+  if (!task.deletedAt) return null;
+  return task.deletedOn ?? toLocalDate(new Date(task.deletedAt));
 }
 
-/** Keeps what a deleted task's record shows: days before its deletion day, and that day only if logged. */
-function deletedRecordOf(task: TaskWithSteps, occs: readonly Occurrence[]): Occurrence[] {
+/**
+ * Keeps what a deleted task's record shows: days before its deletion day, and that day only if
+ * logged. A day from today on also counts only if logged: after the phone's clock is set back, a
+ * deletion day can be "in the future", and today must not turn into a settled miss.
+ */
+function deletedRecordOf(task: TaskWithSteps, occs: readonly Occurrence[], today: LocalDate): Occurrence[] {
   const day = deletionDay(task);
   if (!day) return [];
-  return occs.filter((o) => o.date < day || (o.date === day && (o.outcome === 'ideal' || o.outcome === 'fallback')));
+  const logged = (o: Occurrence) => o.outcome === 'ideal' || o.outcome === 'fallback';
+  return occs.filter((o) => (o.date < day && o.date < today) || ((o.date === day || o.date >= today) && logged(o)));
 }
 
 /** A deleted task's past occurrences, as they stood when it was deleted. */
@@ -358,7 +364,7 @@ export async function resolveDeletedTaskRecord(repos: Repositories, task: TaskWi
   const day = deletionDay(task);
   if (!day) return [];
   const upTo = day < to ? day : to;
-  return deletedRecordOf(task, await resolveTaskOccurrences(repos, task, upTo, today));
+  return deletedRecordOf(task, await resolveTaskOccurrences(repos, task, upTo, today), today);
 }
 
 /** A retired day as an occurrence, for the record only (it belongs to no task anywhere). */
@@ -393,7 +399,7 @@ export async function resolveRecordOccurrences(repos: Repositories, to: LocalDat
   // One pair of range reads for every habit, live and deleted.
   const resolved = await resolveMany(repos, items, today, floor);
   const fromLive = resolved.slice(0, live.length).flat();
-  const fromDeleted = deleted.flatMap((task, i) => deletedRecordOf(task, resolved[live.length + i] ?? []));
+  const fromDeleted = deleted.flatMap((task, i) => deletedRecordOf(task, resolved[live.length + i] ?? [], today));
   // Ids are the position among the days up to `to` (not among the trimmed ones), so a trimmed
   // read gives each retired day the id it would have had in the whole record.
   const fromRetired = retired
@@ -411,7 +417,7 @@ export async function recordStartDate(repos: Repositories): Promise<LocalDate | 
   const [live, deleted, retired] = await Promise.all([repos.tasks.list(), repos.tasks.listDeleted(), repos.retiredDays.list()]);
   let earliest: LocalDate | null = null;
   for (const t of [...live, ...deleted]) {
-    const created = toLocalDate(new Date(t.createdAt));
+    const created = t.createdOn ?? toLocalDate(new Date(t.createdAt));
     if (earliest === null || created < earliest) earliest = created;
   }
   for (const d of retired) if (earliest === null || d.date < earliest) earliest = d.date;

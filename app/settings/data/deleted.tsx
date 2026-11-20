@@ -89,7 +89,7 @@ export default function RecentlyDeletedScreen() {
   }
 
   return (
-    <Screen title={DELETED_COPY.title} onBack={() => router.replace(ROUTES.settingsData as Href)}>
+    <Screen title={DELETED_COPY.title} onBack={() => router.dismissTo(ROUTES.settingsData as Href)}>
       {/* Said once: the empty line already explains what this place is. */}
       {deletedQuery.isSuccess && items.length === 0 ? null : <Text style={[styles.intro, { color: t.color.textMuted }]}>{DELETED_COPY.intro}</Text>}
 

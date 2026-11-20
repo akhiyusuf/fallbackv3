@@ -11,7 +11,7 @@
  * hand-written copy of it in application code.
  */
 import { newId } from '@/lib/id';
-import { now } from '@/lib/date';
+import { now, toLocalDate } from '@/lib/date';
 import { err, ok } from '@/types';
 import type {
   Cadence,
@@ -64,6 +64,8 @@ interface TaskRow {
   readonly is_note: number;
   readonly priority_rank: number | null;
   readonly ended_on: string | null;
+  readonly created_on?: string | null;
+  readonly deleted_on?: string | null;
 }
 
 interface StepRow {
@@ -186,6 +188,8 @@ function taskRowToTask(row: TaskRow): Task {
     isNote: row.is_note === 1,
     priorityRank: row.priority_rank ?? null,
     endedOn: (row.ended_on ?? null) as LocalDate | null,
+    createdOn: (row.created_on ?? null) as LocalDate | null,
+    deletedOn: (row.deleted_on ?? null) as LocalDate | null,
   };
 }
 
@@ -212,7 +216,8 @@ const TASK_COLUMNS = `
   id, type, name, note, icon, color, is_as_needed, cadence_kind, cadence_weekdays,
   cadence_weekday, cadence_day_of_month, cadence_month, cadence_anchor_date, event_date,
   time_of_day, start_date, end_date, doses_per_day, is_tracked, importance, necessity,
-  todo_done_at, created_at, updated_at, deleted_at, snoozable, is_note, priority_rank, ended_on
+  todo_done_at, created_at, updated_at, deleted_at, snoozable, is_note, priority_rank, ended_on,
+  created_on, deleted_on
 `;
 
 function taskParams(task: Task): unknown[] {
@@ -247,6 +252,9 @@ function taskParams(task: Task): unknown[] {
     task.isNote ? 1 : 0,
     task.priorityRank ?? null,
     task.endedOn ?? null,
+    // The local days, fixed now if the caller did not supply them (the device's zone at this moment).
+    task.createdOn ?? toLocalDate(new Date(task.createdAt)),
+    task.deletedAt ? (task.deletedOn ?? toLocalDate(new Date(task.deletedAt))) : null,
   ];
 }
 
@@ -294,7 +302,7 @@ export function createTaskRepository(db: DbClient) {
       try {
         await db.withTransactionAsync(async (tx) => {
           await tx.runAsync(
-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(task),
           );
           for (const step of steps) {
@@ -322,12 +330,16 @@ export function createTaskRepository(db: DbClient) {
             return;
           }
           const merged: Task = { ...taskRowToTask(existing), ...patch, id };
+          // A changed instant re-derives its local day unless the patch fixes the day itself.
+          if ('createdAt' in patch && !('createdOn' in patch)) (merged as { createdOn?: LocalDate | null }).createdOn = null;
+          if ('deletedAt' in patch && !('deletedOn' in patch)) (merged as { deletedOn?: LocalDate | null }).deletedOn = null;
           await tx.runAsync(
             `UPDATE task SET type=?, name=?, note=?, icon=?, color=?, is_as_needed=?, cadence_kind=?,
              cadence_weekdays=?, cadence_weekday=?, cadence_day_of_month=?, cadence_month=?,
              cadence_anchor_date=?, event_date=?, time_of_day=?, start_date=?, end_date=?,
              doses_per_day=?, is_tracked=?, importance=?, necessity=?, todo_done_at=?,
-             created_at=?, updated_at=?, deleted_at=?, snoozable=?, is_note=?, priority_rank=?, ended_on=? WHERE id=?`,
+             created_at=?, updated_at=?, deleted_at=?, snoozable=?, is_note=?, priority_rank=?, ended_on=?,
+             created_on=?, deleted_on=? WHERE id=?`,
             [...taskParams(merged).slice(1), id],
           );
           if (steps) {
@@ -350,10 +362,13 @@ export function createTaskRepository(db: DbClient) {
     // Split cascade — SCHEMA.md §2.3. Soft delete only; removal for good (which reproduces the
     // pinned split via FK actions) is `deleteForever`, after 30 days or when the person asks.
     async softDelete(id: Id): Promise<Result<void>> {
+      const at = now();
       try {
-        const result = await db.runAsync(`UPDATE task SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, [
-          now(),
-          now(),
+        const result = await db.runAsync(`UPDATE task SET deleted_at = ?, deleted_on = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`, [
+          at,
+          // The device's day at that same instant, fixed now (it must not move if the phone travels).
+          toLocalDate(new Date(at)),
+          at,
           id,
         ]);
         if (result.changes === 0) return err({ code: 'NOT_FOUND', message: `task ${id} not found or already deleted` });
@@ -374,7 +389,7 @@ export function createTaskRepository(db: DbClient) {
 
     async restore(id: Id): Promise<Result<void>> {
       try {
-        const result = await db.runAsync(`UPDATE task SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL`, [now(), id]);
+        const result = await db.runAsync(`UPDATE task SET deleted_at = NULL, deleted_on = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL`, [now(), id]);
         if (result.changes === 0) return err({ code: 'NOT_FOUND', message: `task ${id} is not in Recently deleted` });
         return ok(undefined);
       } catch (cause) {
@@ -415,11 +430,11 @@ export function createTaskRepository(db: DbClient) {
         const sourceTask = taskRowToTask(source);
         const timestamp = now();
         const newTaskId = newId();
-        const copy: Task = { ...sourceTask, id: newTaskId, createdAt: timestamp, updatedAt: timestamp, deletedAt: null, priorityRank: null, endedOn: null };
+        const copy: Task = { ...sourceTask, id: newTaskId, createdAt: timestamp, updatedAt: timestamp, deletedAt: null, priorityRank: null, endedOn: null, createdOn: null, deletedOn: null };
         const newSteps: Step[] = (stepsByTask.get(id) ?? []).map((s) => ({ ...s, id: newId(), taskId: newTaskId }));
         await db.withTransactionAsync(async (tx) => {
           await tx.runAsync(
-            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO task (${TASK_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             taskParams(copy),
           );
           for (const step of newSteps) {

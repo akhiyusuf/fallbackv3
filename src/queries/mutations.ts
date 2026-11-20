@@ -450,6 +450,22 @@ export function useDeleteTask() {
 }
 
 /**
+ * A day pushed to the next one is a second occurrence that lives on the day AFTER the push, which is
+ * not always a day the habit is naturally due. When it was pushed on its last day (deleted or ended
+ * there) and nobody did it, the pushed occurrence falls inside the days away: it must be marked off
+ * like the days around it, or coming back would turn it into a miss. A pushed day that was logged
+ * keeps its logged state (an off mark would hide it).
+ */
+async function markAwayPushedDayOff(task: TaskWithSteps, lastDay: LocalDate, awayTo: LocalDate): Promise<Result<void>> {
+  const row = (await repos.logs.listForTask(task.id, lastDay, lastDay))[0] ?? null;
+  const target = row?.movedToDate ?? null;
+  if (!row || target === null || target <= lastDay || target > awayTo) return ok(undefined);
+  const pushed = await resolveOneOccurrence(repos, task, target, todayLocal(), lastDay);
+  if (pushed.outcome === 'ideal' || pushed.outcome === 'fallback' || pushed.outcome === 'off') return ok(undefined);
+  return repos.offDays.mark({ id: newId(), date: target, taskId: task.id, priorChipState: null, createdAt: now() });
+}
+
+/**
  * Back from Recently deleted, with its history and settings. The days it was away are marked off
  * first (the deletion day too, unless it was already logged), so they are never counted as missed.
  */
@@ -466,6 +482,8 @@ export function useRestoreTask() {
         const logged = occ.outcome === 'ideal' || occ.outcome === 'fallback';
         const away = await markAwayDaysOff(repos, task, logged ? addDays(deletedOn, 1) : deletedOn, addDays(today, -1));
         if (!away.ok) return away;
+        const awayPush = await markAwayPushedDayOff(task, deletedOn, addDays(today, -1));
+        if (!awayPush.ok) return awayPush;
       }
       const result = await repos.tasks.restore(id);
       if (!result.ok) return result;

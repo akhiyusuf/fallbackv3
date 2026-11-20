@@ -82,7 +82,7 @@ export default function S41SettingsHome() {
       : 'No data yet';
 
   return (
-    <Screen title={S41_COPY.title} onBack={() => router.push('/today' as Href)}>
+    <Screen title={S41_COPY.title} onBack={() => router.dismissTo('/today' as Href)}>
       {loading ? (
         <Skeleton height={76} radius={16} />
       ) : (

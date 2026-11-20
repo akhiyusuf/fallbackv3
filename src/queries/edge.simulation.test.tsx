@@ -24,6 +24,8 @@
  *  settled-lost      ending, deleting, restoring, deleting for good, a cadence change, a new habit
  *                    or the clock moving never loses a settled past day (ideal, fallback, missed,
  *                    off counted per date)
+ *  missed-appeared   ending, starting again, deleting, restoring, deleting for good or a cadence change
+ *                    never turns a past day into a miss
  *  cycle-records     records are disjoint, contiguous, each archived once, in the past
  *  cycle-pointer     after the app is opened, the pointer window holds today and follows the records
  *  log-rows          one log row per (task, date); a push points exactly one day ahead; no row
@@ -79,6 +81,7 @@ const D = (s: string) => s as LocalDate;
 const START = '2024-01-15'; // the year crosses a leap day, every month end and the year end
 const DAYS = 365;
 const SEEDS = Number(process.env.SIM_SEEDS ?? 50);
+const FROM = Number(process.env.SIM_FROM ?? 1);
 
 /* ------------------------------------------------------------------ the operations (plain data) */
 
@@ -406,13 +409,13 @@ interface Snapshot {
 }
 
 function settledByDate(rec: readonly Occurrence[], today: string): Map<string, string> {
-  const per = new Map<string, [number, number, number, number]>();
+  const per = new Map<string, number[]>();
   for (const o of rec) {
     if (o.date >= today) continue;
-    const i = o.outcome === 'ideal' ? 0 : o.outcome === 'fallback' ? 1 : o.outcome === 'missed' ? 2 : o.outcome === 'off' ? 3 : -1;
+    const i: number = o.outcome === 'ideal' ? 0 : o.outcome === 'fallback' ? 1 : o.outcome === 'missed' ? 2 : o.outcome === 'off' ? 3 : -1;
     if (i < 0) continue;
     const row = per.get(o.date) ?? [0, 0, 0, 0];
-    row[i]! += 1;
+    row[i] = (row[i] ?? 0) + 1;
     per.set(o.date, row);
   }
   return new Map([...per].map(([d, v]) => [d, v.join(',')]));
@@ -432,6 +435,8 @@ async function snapshot(): Promise<Snapshot> {
 
 const MAY_RETRACT = new Set<Op['k']>(['log', 'step', 'dose', 'push', 'unpush']);
 const KEEPS_SETTLED = new Set<Op['k']>(['advance', 'open', 'create', 'end', 'start', 'delete', 'restore', 'forever', 'cadence', 'rename']);
+
+const NO_NEW_MISSES = new Set<Op['k']>(['end', 'start', 'delete', 'restore', 'forever', 'cadence', 'rename']);
 
 /** Invariant names a run is allowed to hit (each one documented in review/sonnet/24-simulation.md). */
 const KNOWN_OPEN = new Set<string>(
@@ -508,6 +513,13 @@ async function check(op: Op, before: Snapshot, rescheduled: Set<Id>): Promise<vo
       const settledB = b[0]! + b[1]! + b[2]! + b[3]!;
       const settledA = a[0]! + a[1]! + a[2]! + a[3]!;
       if (a[0]! < b[0]! || a[1]! < b[1]! || settledA < settledB) throw new Broken('settled-lost', `${date} was [${row}] now [${a.join(',')}] after ${op.k}`);
+      // Nothing that only changes a habit's life (not the clock, not a new habit) may turn a day into a miss.
+      if (NO_NEW_MISSES.has(op.k) && a[2]! > b[2]!) throw new Broken('missed-appeared', `${date} had ${b[2]} missed, now ${a[2]} after ${op.k}`);
+    }
+    if (NO_NEW_MISSES.has(op.k)) {
+      for (const [date, row] of now) {
+        if (!before.settled.has(date) && Number(row.split(',')[2]) > 0) throw new Broken('missed-appeared', `${date} reads [${row}] but had nothing settled before ${op.k}`);
+      }
     }
   }
 
@@ -657,7 +669,15 @@ describe('a year in the life: seeded random driver, invariants after every step'
     expect(kinds.size).toBeGreaterThan(8);
   });
 
-  for (let seed = 1; seed <= SEEDS; seed++) {
+  // Replays a printed minimal case: SIM_REPLAY='[{"k":"create",...}]' npx jest ... -t replay
+  if (process.env.SIM_REPLAY) {
+    it('replay', async () => {
+      const f = await simulate(JSON.parse(process.env.SIM_REPLAY as string) as Op[]);
+      expect(f).toBeNull();
+    });
+  }
+
+  for (let seed = FROM; seed < FROM + SEEDS; seed++) {
     it(`seed ${seed}`, async () => {
       await simulateSeed(seed);
     });

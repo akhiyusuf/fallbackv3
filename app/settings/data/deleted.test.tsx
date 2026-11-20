@@ -13,8 +13,9 @@ jest.mock('@/lib/date', () => {
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockDismissTo = jest.fn();
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ replace: mockReplace, push: mockPush, canGoBack: () => true, back: jest.fn() }),
+  useRouter: () => ({ replace: mockReplace, push: mockPush, dismissTo: mockDismissTo, canGoBack: () => true, back: jest.fn() }),
   useLocalSearchParams: () => ({}),
 }));
 
@@ -153,10 +154,11 @@ describe('Recently deleted: states', () => {
     expect(await screen.findByText(long)).toBeTruthy();
   });
 
-  it('back goes to Settings > Data', async () => {
+  it('back goes to Settings > Data (back to it, not a second copy on the stack)', async () => {
     await mount();
     await userEvent.press(await screen.findByLabelText('Back'));
-    expect(mockReplace).toHaveBeenCalledWith('/settings/data');
+    expect(mockDismissTo).toHaveBeenCalledWith('/settings/data');
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });
 

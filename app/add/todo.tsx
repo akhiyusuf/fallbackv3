@@ -39,7 +39,7 @@ export default function S19CreateToDoNote() {
     if (!validated.ok) return;
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {
-      router.replace((isNote ? `${ROUTES.todos}?lens=notes` : ROUTES.todos) as Href);
+      router.dismissTo((isNote ? `${ROUTES.todos}?lens=notes` : ROUTES.todos) as Href);
       showToast(isNote ? 'Note saved' : 'To-do saved', 'success');
     } else {
       showToast(SAVE_FAILED, 'warning');

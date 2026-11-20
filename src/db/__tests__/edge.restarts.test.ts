@@ -53,7 +53,7 @@ jest.mock('@/lib/date', () => {
 
 import { DatabaseSync } from 'node:sqlite';
 
-import { MIGRATIONS } from '../migrations';
+import { CURRENT_SCHEMA_VERSION, MIGRATIONS } from '../migrations';
 import { newId } from '@/lib/id';
 import { reconcileAchievements } from '@/domain';
 import type { Instant, LocalDate, Occurrence, Step, Task, TaskWithSteps } from '@/types';
@@ -1056,7 +1056,7 @@ describe('upgrade from a v7 store with real data, then on to v8', () => {
 
     useDir(upgradeDir);
     const up = await launch(clockAt('2026-11-02', 10));
-    expect(rawAll<{ user_version: number }>('PRAGMA user_version')[0]?.user_version).toBe(8);
+    expect(rawAll<{ user_version: number }>('PRAGMA user_version')[0]?.user_version).toBe(CURRENT_SCHEMA_VERSION);
     const upSnap = await snapshot(up, '2026-11-02' as LocalDate);
     expect(upSnap.tables).toEqual(twinSnap.tables);
     expect(upSnap.record).toEqual(twinSnap.record);
