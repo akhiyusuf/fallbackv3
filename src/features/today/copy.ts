@@ -54,12 +54,22 @@ export const S09_COPY = {
   firstHabitBannerSuffix: '',
 } as const;
 
-/** Builds the stat-chip primary display: "{pct}% · {x} of the last {n} days →". */
-export function statLine(percent: number, x: number, windowDays: number): string {
-  return `${x} of the last ${windowDays} days`;
+/**
+ * "{x} of the last {n} days", or "{x} of {counted} days in the last {n}" when only some of those
+ * days had something due. The percent beside it is x / counted, so the words must name `counted`:
+ * "17 of the last 30 days" next to 83% reads as a mistake.
+ */
+function daysPhrase(x: number, counted: number, windowDays: number): string {
+  const c = Math.round(counted);
+  return c >= windowDays ? `${x} of the last ${windowDays} days` : `${x} of ${c} ${c === 1 ? 'day' : 'days'} in the last ${windowDays}`;
+}
+
+/** Builds the stat-chip detail line. */
+export function statLine(x: number, counted: number, windowDays: number): string {
+  return daysPhrase(x, counted, windowDays);
 }
 
 /** Builds the re-entry-state re-worded stat line — see this file's header note. */
-export function reentryStatLine(percent: number, x: number, windowDays: number): string {
-  return `${S09_COPY.reentryStatPrefix}${percent}% · ${x} of the last ${windowDays} days${S09_COPY.reentryStatSuffix}`;
+export function reentryStatLine(percent: number, x: number, counted: number, windowDays: number): string {
+  return `${S09_COPY.reentryStatPrefix}${percent}% · ${daysPhrase(x, counted, windowDays)}${S09_COPY.reentryStatSuffix}`;
 }

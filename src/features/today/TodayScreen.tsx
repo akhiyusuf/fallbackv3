@@ -175,7 +175,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                 <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>{S09_COPY.reentrySubcopy}</Text>
                 {percent !== null && consistency.data ? (
                   <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>
-                    {reentryStatLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
+                    {reentryStatLine(percent, roundHalfUp(consistency.data.numerator), consistency.data.denominator, STAT_WINDOW_DAYS)}
                   </Text>
                 ) : null}
               </View>
@@ -192,7 +192,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
             percent={percent}
             loading={consistency.isLoading}
             label={S09_COPY.statLabel}
-            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(percent, roundHalfUp(consistency.data.numerator), STAT_WINDOW_DAYS)}
+            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(roundHalfUp(consistency.data.numerator), consistency.data.denominator, STAT_WINDOW_DAYS)}
             onPress={() => router.push(ROUTES.progress as Href)}
             accessibilityLabel={`${S09_COPY.statLabel}: ${percent === null ? S09_COPY.noDataStat : `${percent} percent`}. ${S09_COPY.statHelper}`}
           />
