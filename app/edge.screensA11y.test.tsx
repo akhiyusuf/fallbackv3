@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- routes are loaded one by one, so a file another agent is editing reports itself instead of failing the suite */
 /**
  * Screen-level accessibility (round 4, edge campaign). Every main screen is rendered through its real
  * route file with sample data (tasks of each kind, logs, an empty and a loaded history), and the
@@ -38,7 +39,7 @@ import { useAddMenuStore, useCelebrationStore, useToastStore } from '@/app-shell
 import { makeTask } from '@/features/task/testSupport/taskFixture';
 import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
-import type { DayLog, Id, Instant, LocalDate, Step, TaskWithSteps } from '@/types';
+import type { Id, Instant, LocalDate, Step, TaskWithSteps } from '@/types';
 
 const loadErrors: string[] = [];
 function safe(path: string): React.ComponentType {
