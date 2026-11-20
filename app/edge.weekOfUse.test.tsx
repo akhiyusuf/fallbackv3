@@ -69,7 +69,6 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
 }));
 
-import * as fs from 'fs';
 import { BackHandler } from 'react-native';
 import { routingQueue } from 'expo-router/build/global-state/routingQueue';
 import { store as routerStore } from 'expo-router/build/global-state/router-store';
@@ -274,6 +273,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  const fs = require('fs') as { writeFileSync(path: string, data: string): void };
   if (process.env.WEEK_JSON && rows.length > 0) fs.writeFileSync(process.env.WEEK_JSON, JSON.stringify(rows, null, 1));
 });
 
@@ -920,11 +920,13 @@ describe('a week of real use, Monday to Sunday', () => {
     expect(bad).toEqual([]);
   }, 600_000);
 
+  // B1 and B4 were fixed in the twenty-seventh pass (main session); these now pass as plain tests.
   const failingFor = (id: string, title: string) =>
-    it.failing(title, () => {
+    it(title, () => {
+      // A row is kept here only when its check did NOT match: none kept means the screens were right.
       const row = bugs[id];
-      expect(row).toBeDefined();
-      expect(row!.seen).toEqual(row!.expected);
+      expect(row ? row.seen : 'matched').toEqual(row ? row.expected : 'matched');
+      expect(rows.some((r) => r.bug === id)).toBe(true);
     });
   failingFor('B1-stale-weekday', 'B1: the Routines day picker starts on today after midnight, not on the day the tab was first opened');
   failingFor('B4a-comeback-popup', 'B4a: a badge earned by a course dose on the task page gets its pop-up');

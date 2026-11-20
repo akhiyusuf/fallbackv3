@@ -158,7 +158,7 @@ describe('journey 1: first launch to Progress', () => {
   it('splash, the tour, the first routine, Today, log it, the badge, Progress', async () => {
     await launch('/');
     await waitFor(() => expect(path()).toBe('/onboarding/concept'), { timeout: 5000 });
-    expect(screen.getByText('A plan A and a plan B for every task.')).toBeTruthy();
+    expect(screen.getByText('a plan A and a plan B for every habit.')).toBeTruthy();
     for (const next of ['/onboarding/hook', '/onboarding/types', '/onboarding/consistency', '/onboarding/personalize', '/onboarding/notifications-primer']) {
       await press('Next');
       await waitFor(() => expect(path()).toBe(next));
@@ -187,7 +187,7 @@ describe('journey 1: first launch to Progress', () => {
     await waitFor(() => expect(screen.queryByText("You've reached First day.")).toBeNull());
     expect(useCelebrationStore.getState().queue).toHaveLength(0);
     // Open Progress from the stat card on Today.
-    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     expect(await screen.findByText('Your consistency')).toBeTruthy();
     expect((await screen.findAllByLabelText(/^100 percent showed up/)).length).toBeGreaterThan(0);
@@ -313,7 +313,7 @@ describe('journey 3: end a routine, find it under Ended, start it again', () => 
     expect(await screen.findByText('0 of 2 done')).toBeTruthy();
     expect(screen.getByText('Stretch')).toBeTruthy();
     // The days it was ended did not become misses: the record has nothing missed for it.
-    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     expect(await screen.findByText('Your consistency')).toBeTruthy();
   });
@@ -355,7 +355,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await screen.findByText('Stretch');
 
     // The record before anything is deleted.
-    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     const before = await allTimeCountedDays();
     expect(before).toMatch(/of \d+ counted days/);

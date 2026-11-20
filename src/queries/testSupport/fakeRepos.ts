@@ -135,6 +135,12 @@ export function createFakeRepos(): FakeRepos {
         if (!t || t.deletedAt === null) return err({ code: 'NOT_FOUND', message: 'not in Recently deleted' });
         tasks.delete(id);
         for (const k of [...logs.keys()]) if (k.startsWith(`${id}:`)) logs.delete(k);
+        // Mirrors the schema's ON DELETE SET NULL on xp_award.task_id: the XP stays, its task link goes.
+        for (const [k, a] of [...xpAwards.entries()]) {
+          if (a.taskId !== id) continue;
+          xpAwards.delete(k);
+          xpAwards.set(`null:${a.id}`, { ...a, taskId: null });
+        }
         retiredDays = [...retiredDays, ...keep];
         return ok(undefined);
       },
@@ -209,7 +215,9 @@ export function createFakeRepos(): FakeRepos {
           failAppendOnce = false;
           return err({ code: 'WRITE_FAILED', message: 'forced test failure' });
         }
-        const key = `${award.taskId ?? 'null'}:${award.date}`;
+        // An award whose task was removed for good keeps its row with no task (SCHEMA §2.3): keyed by
+        // its own id, as the database's UNIQUE(task_id, date) allows any number of NULL task rows.
+        const key = award.taskId === null ? `null:${award.id}` : `${award.taskId}:${award.date}`;
         const existing = xpAwards.get(key);
         // Mirrors `progressRepository.ts`'s real SQL exactly: `ON CONFLICT (task_id, date) DO
         // UPDATE SET kind = excluded.kind, amount = excluded.amount, cycle_id =

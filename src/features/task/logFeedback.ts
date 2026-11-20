@@ -19,6 +19,27 @@ export interface LogResultLike {
 
 export const LOG_SAVE_FAILED = "Couldn't save that. Try again.";
 
+type PushCelebration = ReturnType<typeof useCelebrationStore.getState>['push'];
+
+function queueMilestones(result: Pick<LogResultLike, 'levelUp' | 'badgesUnlocked'>, push: PushCelebration): void {
+  if (result.levelUp) {
+    void repos.progress
+      .lifetimeXp()
+      .then((lifetimeXp) => push({ kind: 'level-up', lifetimeXp }))
+      .catch(() => undefined);
+  }
+  for (const badgeKey of result.badgesUnlocked) push({ kind: 'badge', badgeKey });
+}
+
+/**
+ * The milestone pop-ups alone, for a log that shows its own (or no) toast: a course dose, a past day
+ * set from the history. A badge or a level reached that way is celebrated like any other.
+ */
+export function useMilestoneFeedback() {
+  const pushCelebration = useCelebrationStore((s) => s.push);
+  return useCallback((result: Pick<LogResultLike, 'levelUp' | 'badgesUnlocked'>) => queueMilestones(result, pushCelebration), [pushCelebration]);
+}
+
 export function useLogFeedback() {
   const showToast = useToastStore((s) => s.show);
   const pushCelebration = useCelebrationStore((s) => s.push);
@@ -35,13 +56,7 @@ export function useLogFeedback() {
       else if (chip === 'skip') showToast('Skipped for today.', 'neutral', { icon: 'skip', action });
       else showToast('Log cleared.', 'neutral');
 
-      if (result.levelUp) {
-        void repos.progress
-          .lifetimeXp()
-          .then((lifetimeXp) => pushCelebration({ kind: 'level-up', lifetimeXp }))
-          .catch(() => undefined);
-      }
-      for (const badgeKey of result.badgesUnlocked) pushCelebration({ kind: 'badge', badgeKey });
+      queueMilestones(result, pushCelebration);
     },
     [showToast, pushCelebration],
   );

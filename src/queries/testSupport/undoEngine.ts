@@ -100,6 +100,8 @@ export interface Scenario {
   undo?(c: Ctx): Promise<void>;
   /** Irreversible scenarios: the undo attempt runs in both runs (it must do nothing). */
   undoInBoth?: boolean;
+  /** False when the undo has no Undo of its own on screen (a tick): a second press is another tap, not an undo. */
+  repeatUndo?: boolean;
   /** Same in both runs, after the undo: what the person does next. */
   after?(c: Ctx): Promise<void>;
   /** Records the reason a difference is expected, shown in the report. */
@@ -327,7 +329,7 @@ export async function runSide(env: UndoEnv, scenario: Scenario, variant: Variant
   }
   if (scenario.undo && (treat || scenario.undoInBoth)) {
     await scenario.undo(c);
-    if (variant.twice) await scenario.undo(c);
+    if (variant.twice && scenario.repeatUndo !== false) await scenario.undo(c);
   }
   if (scenario.after) await scenario.after(c);
   return snapshot(c);

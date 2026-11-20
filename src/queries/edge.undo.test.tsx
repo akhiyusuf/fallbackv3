@@ -33,7 +33,7 @@ import type { LocalDate } from '@/types';
 import { fake, repos } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import { compareScenario, isBadgeLine, type Action, type UndoEnv, VARIANTS } from './testSupport/undoEngine';
-import { SCENARIOS } from './testSupport/undoScenarios';
+import { ALLOWED, explain, SCENARIOS } from './testSupport/undoScenarios';
 import {
   useCreateTask,
   useDeleteForever,
@@ -50,7 +50,6 @@ import {
   useUndoSnooze,
   useUpdateTask,
 } from './mutations';
-import { resolveAllOccurrences } from './internal';
 
 /* ------------------------------------------------------------------ the env: fake repos through the hooks */
 
@@ -148,9 +147,6 @@ afterAll(async () => {
   await env.dispose();
 });
 
-// Silence unused-import lint for helpers kept for future scenarios.
-void resolveAllOccurrences;
-
 /* ------------------------------------------------------------------ the pairs */
 
 const dumps: Array<{ scenario: string; variant: string; diffs: string[]; badges: string[] }> = [];
@@ -164,9 +160,19 @@ afterAll(() => {
 });
 
 describe.each(SCENARIOS.map((s) => [s.name, s] as const))('undo pair: %s', (_name, scenario) => {
+  it('has a classification entry', () => {
+    expect(ALLOWED[scenario.name]).toBeDefined();
+  });
   it.each(VARIANTS.map((v) => [v.name, v] as const))('%s', async (_variantName, variant) => {
     const { diffs } = await compareScenario(env, scenario, variant);
-    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: diffs.filter((l) => !isBadgeLine(l)), badges: diffs.filter(isBadgeLine) });
-    expect(diffs.length).toBeGreaterThanOrEqual(0);
+    const badges = diffs.filter(isBadgeLine);
+    const rest = diffs.filter((l) => !isBadgeLine(l));
+    const { unknown, disallowed } = explain(scenario.name, rest, variant.midnight);
+    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: rest, badges });
+    // A badge, once earned, is never taken back (upsert-only, see edge.logging's badge test).
+    expect(badges.filter((l) => l.includes(' - '))).toEqual([]);
+    // Everything else must be a known kind for this pair: a residue row or a named record change.
+    expect(unknown).toEqual([]);
+    expect(disallowed).toEqual([]);
   });
 });

@@ -44,17 +44,32 @@ import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DatabaseSync } from 'node:sqlite';
 
-import { DB_NAME } from '../client';
 import type { LocalDate } from '@/types';
 import { compareScenario, isBadgeLine, type Action, type UndoEnv, VARIANTS } from '@/queries/testSupport/undoEngine';
-import { SCENARIOS } from '@/queries/testSupport/undoScenarios';
+import { ALLOWED, explain, SCENARIOS } from '@/queries/testSupport/undoScenarios';
 
 type App = typeof import('@/db');
 type Mutations = typeof import('@/queries/mutations');
 
 const KEEP_TABLES = new Set(['settings']);
 
+/** The fake repositories' names for the tables, so the same classifier reads both. */
+const TABLE_NAMES: Record<string, string> = {
+  task: 'tasks',
+  step: 'steps',
+  day_log: 'logs',
+  off_day_mark: 'offDays',
+  as_needed_use: 'asNeeded',
+  xp_award: 'xpAwards',
+  achievement_unlock: 'unlocks',
+  cycle_record: 'cycleRecords',
+  cycle_state: 'cycleState',
+  retired_day: 'retiredDays',
+};
+
 let directory = '';
+/** The store's file name. Read after the directory is set: importing the client first would load expo-sqlite too early. */
+let dbName = '';
 let app: App;
 let mutations: Mutations;
 let client: QueryClient;
@@ -62,7 +77,7 @@ let mounted: { current: Record<string, { mutateAsync: (a: unknown) => Promise<un
 let unmountHook: (() => void) | null = null;
 
 function rawConnection(): DatabaseSync {
-  return new DatabaseSync(joinPath(directory, DB_NAME));
+  return new DatabaseSync(joinPath(directory, dbName));
 }
 
 function tableNames(connection: DatabaseSync): string[] {
@@ -112,6 +127,8 @@ beforeAll(async () => {
   (globalThis as { __undoDir?: string }).__undoDir = directory;
   setClock('2024-06-01');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
+  dbName = (require('../client') as typeof import('../client')).DB_NAME;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   app = require('@/db') as App;
   const opened = await app.store.open();
   if (!opened.ok || opened.value !== 'ready') throw new Error(`store did not open: ${JSON.stringify(opened)}`);
@@ -143,11 +160,16 @@ const env: UndoEnv = {
   },
   setClock,
   async tables() {
+    // Raw rows, under the same table and column names the fake repositories use, so one classifier
+    // reads both. Columns are only renamed (snake_case to camelCase); every value is what SQLite holds.
     const connection = rawConnection();
     try {
       const out: Record<string, Record<string, unknown>[]> = {};
       for (const name of tableNames(connection)) {
-        out[name] = connection.prepare(`SELECT * FROM "${name}"`).all() as Record<string, unknown>[];
+        const rows = connection.prepare(`SELECT * FROM "${name}"`).all() as Record<string, unknown>[];
+        out[TABLE_NAMES[name] ?? name] = rows.map((row) =>
+          Object.fromEntries(Object.entries(row).map(([k, v]) => [k.replace(/_([a-z])/g, (_m, c: string) => c.toUpperCase()), v])),
+        );
       }
       return out;
     } finally {
@@ -179,9 +201,19 @@ afterAll(() => {
 });
 
 describe.each(SCENARIOS.map((s) => [s.name, s] as const))('real SQLite undo pair: %s', (_name, scenario) => {
+  it('has a classification entry', () => {
+    expect(ALLOWED[scenario.name]).toBeDefined();
+  });
   it.each(VARIANTS.map((v) => [v.name, v] as const))('%s', async (_variantName, variant) => {
     const { diffs } = await compareScenario(env, scenario, variant);
-    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: diffs.filter((l) => !isBadgeLine(l)), badges: diffs.filter(isBadgeLine) });
-    expect(diffs.length).toBeGreaterThanOrEqual(0);
+    const badges = diffs.filter(isBadgeLine);
+    const rest = diffs.filter((l) => !isBadgeLine(l));
+    const { unknown, disallowed } = explain(scenario.name, rest, variant.midnight);
+    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: rest, badges });
+    // A badge, once earned, is never taken back (upsert-only, see edge.logging's badge test).
+    expect(badges.filter((l) => l.includes(' - '))).toEqual([]);
+    // Everything else must be a known kind for this pair: a residue row or a named record change.
+    expect(unknown).toEqual([]);
+    expect(disallowed).toEqual([]);
   });
 });

@@ -33,7 +33,11 @@ export default function RoutinesBrowseScreen() {
   const loggedToday = todayRows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback');
   const nextUp = todayRows.find((r) => r.occurrence.chipState !== 'done' && r.occurrence.chipState !== 'fallback' && r.occurrence.chipState !== 'skip');
   const idealToday = loggedToday.filter((r) => r.occurrence.chipState === 'done').length;
-  const [selectedWeekday, setSelectedWeekday] = useState<Weekday>(todayWeekday);
+  // A day the person picks belongs to the day they picked it on: once midnight passes (the tab stays
+  // mounted), the filter goes back to the new today instead of showing yesterday's "Due" list.
+  const [pick, setPick] = useState<{ readonly day: Weekday; readonly on: Weekday }>({ day: todayWeekday, on: todayWeekday });
+  const selectedWeekday = pick.on === todayWeekday ? pick.day : todayWeekday;
+  const setSelectedWeekday = (day: Weekday) => setPick({ day, on: todayWeekday });
 
   const all = tasksQuery.data ?? [];
   const running = all.filter((tk) => !tk.endedOn);

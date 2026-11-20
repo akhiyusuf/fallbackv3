@@ -66,7 +66,7 @@ import { DeleteTaskSheet, TYPE_NOUN } from '@/features/task/DeleteTaskSheet';
 import { DeletedTaskNotice, GoneTaskNotice } from '@/features/task/DeletedTaskNotice';
 import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
 import { iconByName } from '@/features/task/iconCatalog';
-import { useLogFeedback } from '@/features/task/logFeedback';
+import { useLogFeedback, useMilestoneFeedback } from '@/features/task/logFeedback';
 import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
 import { PlanTiles, metaParts } from '@/features/task/TaskDetails';
 import { TaskHero } from '@/features/task/TaskHero';
@@ -87,6 +87,7 @@ export default function S20ManageTask() {
   const goBack = useOriginAwareBack(ROUTES.today);
   const showToast = useToastStore((s) => s.show);
   const logFeedback = useLogFeedback();
+  const celebrateMilestones = useMilestoneFeedback();
 
   useDayTick();
   const taskQuery = useTask(taskId);
@@ -179,6 +180,7 @@ export default function S20ManageTask() {
     const dosesCompleted = chip === 'todo' ? Math.min(current, index) : Math.max(current, index + 1);
     const result = await logDose.mutateAsync({ taskId, date: today, dosesCompleted });
     if (!result.ok) fail();
+    else celebrateMilestones(result.value);
   }
 
   async function onToggleStep(stepId: Id) {
@@ -666,10 +668,15 @@ function DayLogSheet({
   readonly onFail: () => void;
 }) {
   const t = useTheme();
+  const celebrateMilestones = useMilestoneFeedback();
   async function onChange(chip: ChipState) {
     const result = await logState.mutateAsync({ taskId, date, chip });
     if (!result.ok) onFail();
-    else onClose();
+    else {
+      onClose();
+      // A past day set late can still earn a badge (a comeback) or a level: celebrate it.
+      celebrateMilestones(result.value);
+    }
   }
   const label = dayLongLabel(date);
   return (
