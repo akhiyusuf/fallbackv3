@@ -55,12 +55,19 @@ export function freshCycleWindow(cadence: CycleCadence, startDate: LocalDate): C
  * caller does the archive/reset/persist for each entry, in order, one transaction per
  * boundary.
  */
+/** More cycles than any real gap could hold (a weekly cycle over 100 years is about 5,200). */
+const MAX_ELAPSED_CYCLES = 10_000;
+
 export function cyclesElapsedSince(w: CycleWindow, today: LocalDate): CycleWindow[] {
   const out: CycleWindow[] = [];
   let cur = w;
-  while (isBefore(cur.endDate, today)) {
+  // Each next window must start after the one before; a window that does not move (a bad end date)
+  // would otherwise loop forever and freeze the app. Stop instead.
+  while (isBefore(cur.endDate, today) && out.length < MAX_ELAPSED_CYCLES) {
     out.push(cur);
-    cur = nextCycleWindow(cur);
+    const next = nextCycleWindow(cur);
+    if (!isBefore(cur.startDate, next.startDate)) break;
+    cur = next;
   }
   return out;
 }

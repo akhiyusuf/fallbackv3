@@ -88,3 +88,11 @@ describe('freshCycleWindow — review pass 2, blocking item N3', () => {
     expect(a.id).toBe(b.id);
   });
 });
+
+describe('cyclesElapsedSince never loops forever', () => {
+  it('stops on a window that does not move forward instead of hanging', () => {
+    const stuck = { id: 'c' as never, cadence: 'weekly' as const, startDate: '2026-01-05' as never, endDate: '2026-01-04' as never };
+    const out = cyclesElapsedSince(stuck, '2026-03-01' as never);
+    expect(out.length).toBeLessThan(10_001);
+  });
+});
