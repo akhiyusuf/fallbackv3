@@ -33,8 +33,9 @@ Key facts:
   `src/queries/endedAndRetired.test.tsx`), real SQLite (`src/db/__tests__/retiredDays.test.ts`,
   `recentlyDeleted.test.ts`), screens (`app/task/[id]/endRoutine.test.tsx`,
   `app/settings/data/deleted.test.tsx`).
-- Run only your own files, with few workers, because seven other agents share the machine:
-  `timeout 500 npx jest --selectProjects app <path> --maxWorkers=2 --forceExit 2>&1 | tail -60`
+- Run only your own files, with few workers, because seven other agents share the machine. PUT THE
+  PATH FIRST (after `--selectProjects` jest reads it as a project name and runs everything):
+  `timeout 500 npx jest <path> --selectProjects app --maxWorkers=1 --testTimeout=60000 --forceExit 2>&1 | tail -60`
   (domain-only tests: `--selectProjects domain`). Run `npx tsc --noEmit` before finishing; it must
   have no errors in your files.
 - Think like a real person using the app all week: midnight passing with the app open, logging
@@ -46,3 +47,10 @@ Write `review/<haiku|sonnet>/<number>-<area>.md`: every test (one line each, gro
 result, each bug with cause, fix and file:line (or why you left it), and what you could not test
 (say plainly what needs a real phone). Reply with a short summary: tests added, bugs fixed, bugs
 left for the main session.
+
+## Round 2 (2026-11-20, "do more tests")
+Round 1 (reports 16-23) covered each area on its own. Round 2 looks ACROSS areas: long random
+simulations with invariants, real-database runs, whole journeys through several screens, time
+zones, scale, accessibility, settings and billing, privacy. Read the round-1 report for your
+area first and do not repeat it; build on it. Reports are numbered 24-31. The file ownership in
+your own brief overrides round 1's.
