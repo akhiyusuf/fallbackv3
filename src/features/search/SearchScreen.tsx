@@ -180,7 +180,7 @@ function ResultRow({ task: tk, onPress }: { task: TaskWithSteps; onPress: () => 
     <TaskCard
       task={tk}
       meta={metaParts({ schedule: tk.type === 'todo' && tk.isNote ? 'Note' : taskTypeLabel(tk.type), importance: tk.importance, necessity: tk.necessity, compact: true })}
-      status={tk.isAsNeeded ? <StatusPill label={S14_COPY.asNeededTag} /> : undefined}
+      status={tk.endedOn ? <StatusPill label="Ended" /> : tk.isAsNeeded ? <StatusPill label={S14_COPY.asNeededTag} /> : undefined}
       showPlan={false}
       onPress={onPress}
     />

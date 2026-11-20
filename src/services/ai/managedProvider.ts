@@ -76,11 +76,16 @@ export function createManagedAssistantProvider(deps: ManagedProviderDeps): Assis
         return;
       }
 
-      for await (const payload of parseEventStream(response.body)) {
-        const event = payload as AssistantEvent;
-        if (event && typeof event === 'object' && 'type' in event) {
-          yield event;
+      try {
+        for await (const payload of parseEventStream(response.body)) {
+          const event = payload as AssistantEvent;
+          if (event && typeof event === 'object' && 'type' in event) {
+            yield event;
+          }
         }
+      } catch {
+        // The connection dropped part way through the reply: a calm error event, never a throw.
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Could not reach the assistant.' };
       }
     },
 

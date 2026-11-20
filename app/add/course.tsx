@@ -13,7 +13,7 @@ import { today as todayFn } from '@/lib/date';
 import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
 import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
-import { SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
+import { SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
 import { isValidLocalDateString } from '@/features/task/dateValidation';
 import { useToastStore } from '@/app-shell/stores/toast';
 
@@ -44,10 +44,11 @@ export default function S18CreateCourse() {
   const showSubStepGrid = (cadence.kind === 'daily' || cadence.kind === 'specific-weekdays') && parentDays.length > 1 && idealSteps.length > 1;
 
   function buildDraft(): TaskDraft {
-    return { type: 'course', name, startDate, endDate: endDate || null, dosesPerDay: doses, cadence, idealSteps, fallbackSteps };
+    return { type: 'course', name: name.trim(), startDate, endDate: endDate || null, dosesPerDay: doses, cadence, idealSteps: withoutBlankSteps(idealSteps), fallbackSteps: withoutBlankSteps(fallbackSteps) };
   }
 
-  async function onSave() {
+  const onSave = useSingleFlightSave(save, () => showToast(SAVE_FAILED, 'warning'));
+  async function save() {
     const draft = buildDraft();
     const validated = validateTaskDraft(draft);
     setNameError(draft.name.trim().length === 0 ? 'Give this course a name to save it.' : undefined);
@@ -58,9 +59,9 @@ export default function S18CreateCourse() {
     const endBeforeStart = !startDateInvalid && !endDateInvalid && endDate !== '' && endDate < startDate;
     setEndDateError(!draft.endDate ? 'Set an end date. A course runs for a fixed span.' : endDateInvalid ? 'Pick an end date.' : endBeforeStart ? 'The end date is before the start date.' : undefined);
     setCadenceError(draft.cadence?.kind === 'specific-weekdays' && draft.cadence.weekdays.length === 0 ? 'Pick at least one day this course runs.' : undefined);
-    const idealEmpty = idealSteps.length === 0;
+    const idealEmpty = draft.idealSteps.length === 0;
     setIdealError(idealEmpty ? 'Add at least one ideal step to save this course.' : undefined);
-    setFallbackError(fallbackSteps.length === 0 ? 'Add a fallback: the smallest version for a hard day.' : undefined);
+    setFallbackError(draft.fallbackSteps.length === 0 ? 'Add a fallback: the smallest version for a hard day.' : undefined);
     const offending = !idealEmpty ? emptyRunOccurrences(draft) : [];
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));

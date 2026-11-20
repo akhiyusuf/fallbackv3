@@ -52,21 +52,40 @@ export default function S01Splash() {
 
         const settings = await repos.settings.get();
         if (cancelled || navigatedRef.current) return;
+        // Nothing below the settings read may send a working store to recovery: the sweep, the look,
+        // the plan check and the reminder-tap route are each best-effort, on their own.
         // What has been in Recently deleted past its time goes for good, its past days kept in the record.
-        void sweepExpiredDeleted();
+        try {
+          void Promise.resolve(sweepExpiredDeleted()).catch(() => undefined);
+        } catch {
+          /* the sweep never blocks start-up */
+        }
         // The look the person chose (light or dark, and the colour) is kept with their settings;
         // put it back before the first real screen draws.
-        useThemeStore.getState().hydrate(settings.theme, settings.accent);
+        try {
+          useThemeStore.getState().hydrate(settings.theme, settings.accent);
+        } catch {
+          /* the default look is fine */
+        }
         // The plan (subscription) is asked of the app store in the background, so Settings and the
         // assistant show the right one from the start. It never holds up the first screen.
-        void billing
-          .init()
-          .then(() => billing.refreshEntitlement())
-          .catch(() => undefined);
+        try {
+          void Promise.resolve(billing.init())
+            .then(() => billing.refreshEntitlement())
+            .catch(() => undefined);
+        } catch {
+          /* the plan is checked again later */
+        }
         navigatedRef.current = true;
         if (settings.onboardingCompletedAt) {
           // A reminder tap that opened the app goes where it pointed (e.g. the re-entry banner).
-          router.replace((takePendingTapRoute() ?? '/today') as never);
+          let tapRoute: string | null = null;
+          try {
+            tapRoute = takePendingTapRoute();
+          } catch {
+            /* no reminder route: go to Today */
+          }
+          router.replace((tapRoute ?? '/today') as never);
         } else {
           router.replace('/onboarding/concept');
         }

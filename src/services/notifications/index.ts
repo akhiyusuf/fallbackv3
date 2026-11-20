@@ -102,7 +102,71 @@ async function hasPermission(): Promise<boolean> {
   }
 }
 
-async function reschedule(): Promise<Result<void>> {
+/**
+ * iOS keeps at most 64 pending local notifications per app and silently drops the rest. The
+ * soonest reminders are the ones worth keeping, so the batch is sorted by fire time first.
+ */
+const PENDING_LIMIT = 64;
+
+interface PendingRequest {
+  readonly identifier: string;
+  readonly content: { readonly title: string; readonly body: string; readonly data?: Record<string, unknown> };
+  readonly fireAt: Date;
+}
+
+/**
+ * Re-arms are triggered in bursts (a log, a settings toggle, an app foreground, a task edit). Each
+ * one reads data and then cancels and re-adds. Run one at a time, so an older run that read the
+ * settings before a toggle cannot finish after a newer run that cancelled, and re-arm reminders
+ * the person has just switched off.
+ */
+let rescheduleChain: Promise<unknown> = Promise.resolve();
+
+function reschedule(): Promise<Result<void>> {
+  const run = rescheduleChain.then(() => rescheduleOnce());
+  rescheduleChain = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * Occurrences in the 7-day horizon that are already settled, keyed `taskId:date`: logged (done,
+ * fallback or missed), marked off, or vacated by a snooze. `buildRollingSchedule` must not
+ * remind for these. The occurrence itself is resolved through `resolveOccurrence`, the same
+ * function Today uses, so a snoozed-in visitor and a snoozed-away source are judged the same way
+ * everywhere. A pending occurrence is the only kind that still needs a reminder.
+ */
+function settledOccurrences(
+  tasks: Awaited<ReturnType<typeof repos.tasks.list>>,
+  logs: Awaited<ReturnType<typeof repos.logs.listRange>>,
+  offMarks: Awaited<ReturnType<typeof repos.offDays.listRange>>,
+  todayDate: LocalDate,
+): Set<string> {
+  const logByKey = new Map(logs.map((l) => [`${l.taskId}:${l.date}`, l] as const));
+  const movedInByKey = new Map<string, (typeof logs)[number]>();
+  for (const l of logs) {
+    if (l.movedToDate !== null) movedInByKey.set(`${l.taskId}:${l.movedToDate}`, l);
+  }
+  const settled = new Set<string>();
+  for (const task of tasks) {
+    if (task.deletedAt) continue;
+    for (let i = 0; i < NOTIFICATION_HORIZON_DAYS; i++) {
+      const date = addDays(todayDate, i);
+      const key = `${task.id}:${date}`;
+      const occurrence = resolveOccurrence({
+        task,
+        date,
+        today: todayDate,
+        log: logByKey.get(key) ?? null,
+        offMarks,
+        movedInLog: movedInByKey.get(key) ?? null,
+      });
+      if (occurrence.outcome !== 'pending') settled.add(key);
+    }
+  }
+  return settled;
+}
+
+async function rescheduleOnce(): Promise<Result<void>> {
   try {
     // Idempotent re-arm: clear, then rebuild from current data — never additive (API.md §8).
     await Notifications.cancelAllScheduledNotificationsAsync();
@@ -113,43 +177,46 @@ async function reschedule(): Promise<Result<void>> {
 
     await ensureChannel();
     const tasks = await repos.tasks.list();
-    // SCHEMA §4.2's standing principle (review pass 1, blocking item 3): `buildRollingSchedule`
-    // is cadence-only (`isDue`), so a date the user snoozed AWAY (its own `day_log` row has
-    // `movedToDate` set — carrier `none`) still needs to be excluded here, or a vacated
-    // occurrence gets a "routine due" reminder it should never fire. One extra range read
-    // across the horizon, keyed `taskId:date`, passed in as data — never a second carrier
-    // implementation.
-    const horizonEnd = addDays(today(), NOTIFICATION_HORIZON_DAYS - 1);
-    const horizonLogs = await repos.logs.listRange(today(), horizonEnd);
-    const vacatedDates = new Set(horizonLogs.filter((l) => l.movedToDate !== null).map((l) => `${l.taskId}:${l.date}`));
-    const schedule = buildRollingSchedule({ tasks, prefs: settings.notifications, today: today(), vacatedDates });
+    const todayDate = today();
+    const horizonEnd = addDays(todayDate, NOTIFICATION_HORIZON_DAYS - 1);
+    // One range read each for the horizon. Yesterday's rows are included so a snoozed-in visitor
+    // (its source row sits on the day before) is seen too.
+    const [horizonLogs, horizonOffMarks] = await Promise.all([
+      repos.logs.listRange(addDays(todayDate, -1), horizonEnd),
+      repos.offDays.listRange(todayDate, horizonEnd),
+    ]);
+    const settled = settledOccurrences(tasks, horizonLogs, horizonOffMarks, todayDate);
+    const schedule = buildRollingSchedule({ tasks, prefs: settings.notifications, today: todayDate, vacatedDates: settled });
 
-    for (const reminder of schedule) {
-      await Notifications.scheduleNotificationAsync({
-        identifier: `${REMINDER_PREFIX}${reminder.id}`,
-        content: { title: reminder.title, body: reminder.body, data: { kind: reminder.kind, taskId: reminder.taskId } },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
-          channelId: CHANNEL_ID,
-          date: triggerDateFor(reminder.date, reminder.timeOfDay),
-        },
-      });
-    }
+    const requests: PendingRequest[] = schedule.map((reminder) => ({
+      identifier: `${REMINDER_PREFIX}${reminder.id}`,
+      content: { title: reminder.title, body: reminder.body, data: { kind: reminder.kind, taskId: reminder.taskId } },
+      fireAt: triggerDateFor(reminder.date, reminder.timeOfDay),
+    }));
 
     if (settings.notifications.gentleReentry) {
-      await scheduleGentleReentry(tasks);
+      const nudge = await gentleReentryRequest(tasks);
+      if (nudge) requests.push(nudge);
     }
 
     if (settings.notifications.dailyDigest) {
-      for (let i = 0; i < 7; i++) {
-        const date = addDays(today(), i);
-        await Notifications.scheduleNotificationAsync({
+      for (let i = 0; i < NOTIFICATION_HORIZON_DAYS; i++) {
+        const date = addDays(todayDate, i);
+        requests.push({
           identifier: `${REMINDER_PREFIX}daily-digest:${date}`,
           content: { title: 'Your day, at a glance', body: "Check in on today's habits." },
-          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE,
-          channelId: CHANNEL_ID, date: triggerDateFor(date, settings.notifications.dailyDigestTime) },
+          fireAt: triggerDateFor(date, settings.notifications.dailyDigestTime),
         });
       }
+    }
+
+    requests.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+    for (const request of requests.slice(0, PENDING_LIMIT)) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: request.identifier,
+        content: request.content,
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, channelId: CHANNEL_ID, date: request.fireAt },
+      });
     }
 
     return ok(undefined);
@@ -166,7 +233,7 @@ async function reschedule(): Promise<Result<void>> {
  * deep-links to. An off day yesterday is deliberately NOT a re-entry trigger (PRD F4: off
  * days are a sanctioned rest, never a lapse to be nudged back from).
  */
-async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.tasks.list>>): Promise<void> {
+async function gentleReentryRequest(tasks: Awaited<ReturnType<typeof repos.tasks.list>>): Promise<PendingRequest | null> {
   const yesterday = addDays(today(), -1);
   const dayBeforeYesterday = addDays(yesterday, -1);
   // SCHEMA §4.2's standing principle: a visiting occurrence snoozed INTO yesterday (a
@@ -181,7 +248,8 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
   const movedInByTask = new Map(priorLogs.filter((l) => l.movedToDate === yesterday).map((l) => [l.taskId, l]));
 
   for (const task of tasks) {
-    if (task.deletedAt || task.isAsNeeded || task.type === 'todo') continue;
+    // An ended habit is no longer part of the plan, so yesterday's miss on it is not a nudge to return to.
+    if (task.deletedAt || task.isAsNeeded || task.type === 'todo' || task.endedOn != null) continue;
     // Review pass 2, blocking item 1: the creation-day lower bound (same conversion as the
     // canonical `src/queries/internal.ts`'s `creationLocalDate`), or a task created TODAY gets
     // a fabricated "missed yesterday" occurrence — daily/specific-weekdays cadences carry no
@@ -197,19 +265,19 @@ async function scheduleGentleReentry(tasks: Awaited<ReturnType<typeof repos.task
       notBefore,
     });
     if (occurrence.outcome === 'missed') {
-      await Notifications.scheduleNotificationAsync({
+      // One invitation, not one per missed task (ARCHITECTURE §9.3's own wording): the first match returns.
+      return {
         identifier: `${REMINDER_PREFIX}gentle-reentry:${yesterday}`,
         content: {
           title: 'A quiet invitation back',
           body: 'Yesterday slipped by. Today is a fresh one. Even the fallback counts.',
           data: { kind: 'gentle-reentry', taskId: task.id },
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE,
-          channelId: CHANNEL_ID, date: triggerDateFor(today(), '09:00') },
-      });
-      return; // one invitation, not one per missed task (ARCHITECTURE §9.3's own wording).
+        fireAt: triggerDateFor(today(), '09:00'),
+      };
     }
   }
+  return null;
 }
 
 async function cancelAll(): Promise<Result<void>> {

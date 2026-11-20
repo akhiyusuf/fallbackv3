@@ -15,7 +15,8 @@ function ordinal(n: number): string {
 /** Contiguous run of every selected weekday -> "Mon–Sat"; otherwise comma-abbreviated. */
 function weekdaysLabel(days: readonly Weekday[]): string {
   if (days.length === 0) return 'No days selected';
-  const sorted = [...days].sort((a, b) => a - b);
+  // A repeated weekday must not repeat in the label ("Mon/Mon/Tue"), so de-duplicate first.
+  const sorted = [...new Set(days)].sort((a, b) => a - b);
   const isContiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1]! + 1);
   if (isContiguous && sorted.length > 1) return `${WEEKDAY_ABBR[sorted[0]!]}–${WEEKDAY_ABBR[sorted[sorted.length - 1]!]}`;
   return sorted.map((d) => WEEKDAY_ABBR[d]).join('/');

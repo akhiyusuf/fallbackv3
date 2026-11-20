@@ -20,6 +20,11 @@ import { TOOL_DEFINITIONS } from './toolSchemas';
 
 const FALLBACK_MODEL = 'gpt-4o-mini';
 
+/** A base URL typed or pasted with a trailing slash must not produce `//chat/completions`. */
+function endpoint(config: ByoConfig, path: string): string {
+  return `${config.baseUrl.replace(/\/+$/, '')}${path}`;
+}
+
 function authedHeaders(config: ByoConfig): Record<string, string> {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` };
 }
@@ -49,7 +54,7 @@ export function createByoAssistantProvider(): AssistantProvider {
 
       let response: Response;
       try {
-        response = await fetch(`${config.baseUrl}/chat/completions`, {
+        response = await fetch(endpoint(config, '/chat/completions'), {
           method: 'POST',
           headers: authedHeaders(config),
           signal,
@@ -85,8 +90,15 @@ export function createByoAssistantProvider(): AssistantProvider {
       // across the whole stream and flush only once a call is actually complete, instead of
       // dropping every tool call by only reading `text-delta`/`done`.
       const pendingToolCalls = new Map<number, PendingToolCall>();
-      for await (const chunk of parseEventStream(response.body)) {
-        for (const event of processOpenAiChunk(chunk, pendingToolCalls)) yield event;
+      // A connection that drops part way through the reply ends in a calm error event, never a
+      // thrown rejection out of the chat.
+      try {
+        for await (const chunk of parseEventStream(response.body)) {
+          for (const event of processOpenAiChunk(chunk, pendingToolCalls)) yield event;
+        }
+      } catch {
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Could not reach your AI endpoint.' };
+        return;
       }
       for (const event of flushPendingToolCalls(pendingToolCalls)) yield event;
     },
@@ -103,7 +115,7 @@ export function createByoAssistantProvider(): AssistantProvider {
         const form = new FormData();
         form.append('file', { uri, name: 'audio.m4a', type: 'audio/m4a' } as unknown as Blob);
         form.append('model', 'whisper-1');
-        const response = await fetch(`${config.baseUrl}/audio/transcriptions`, {
+        const response = await fetch(endpoint(config, '/audio/transcriptions'), {
           method: 'POST',
           headers: { Authorization: `Bearer ${config.apiKey}` },
           body: form,

@@ -46,9 +46,13 @@ export default function S21IconAndColorPicker() {
   }
 
   async function save() {
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { icon: currentIconName, color: currentColor } });
-    if (result.ok) close();
-    else showToast(SAVE_FAILED, 'warning');
+    try {
+      const result = await updateTask.mutateAsync({ id: taskId, patch: { icon: currentIconName, color: currentColor } });
+      if (result.ok) close();
+      else showToast(SAVE_FAILED, 'warning');
+    } catch {
+      showToast(SAVE_FAILED, 'warning');
+    }
   }
 
   if (!taskQuery.isLoading && taskQuery.data === null) return <GoneTaskNotice onBack={close} />;

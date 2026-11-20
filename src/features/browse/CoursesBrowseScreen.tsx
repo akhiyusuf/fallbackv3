@@ -96,7 +96,9 @@ export default function CoursesBrowseScreen() {
 
 function CourseRow({ task: tk, today: todayDate, isPast, onPress }: { task: TaskWithSteps; today: LocalDate; isPast: boolean; onPress: () => void }) {
   const start = tk.startDate ?? todayDate;
-  const end = tk.endDate ?? todayDate;
+  // A course stopped early finished on the day it was ended, not on its planned last day.
+  const plannedEnd = tk.endDate ?? todayDate;
+  const end = tk.endedOn && tk.endedOn < plannedEnd ? tk.endedOn : plannedEnd;
   const totalDays = Math.max(1, diffDays(end, start) + 1);
   const elapsedDays = Math.min(totalDays, Math.max(0, diffDays(todayDate, start) + 1));
   const percent = isPast ? 100 : Math.round(Math.min(1, elapsedDays / totalDays) * 100);
@@ -106,7 +108,7 @@ function CourseRow({ task: tk, today: todayDate, isPast, onPress }: { task: Task
   return (
     <TaskCard
       task={tk}
-      meta={metaParts({ schedule: isPast ? `${totalDays} days` : `Day ${elapsedDays} of ${totalDays}`, extra, importance: tk.importance, necessity: tk.necessity, compact: true })}
+      meta={metaParts({ schedule: isPast ? `${totalDays} ${totalDays === 1 ? 'day' : 'days'}` : elapsedDays === 0 ? `Starts ${format(parseLocalDate(start), 'MMM d')}` : `Day ${elapsedDays} of ${totalDays}`, extra, importance: tk.importance, necessity: tk.necessity, compact: true })}
       metaLeading={isPast ? undefined : <ProgressRing percent={percent} size={18} strokeWidth={4} accessibilityLabel={`${percent} percent through the course`} />}
       status={isPast ? <StatusPill label={`${S12_COPY.completedPrefix} ${format(parseLocalDate(end), 'MMM d')}`} tone="done" /> : undefined}
       onPress={onPress}

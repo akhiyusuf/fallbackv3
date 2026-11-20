@@ -13,7 +13,7 @@ import { today as todayFn } from '@/lib/date';
 import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
 import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
-import { SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
+import { SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
 import { isValidLocalDateString } from '@/features/task/dateValidation';
 import { useToastStore } from '@/app-shell/stores/toast';
 
@@ -44,12 +44,12 @@ export default function S17CreateEvent() {
   function buildDraft(): TaskDraft {
     return {
       type: 'event',
-      name,
+      name: name.trim(),
       eventDate: repeats ? null : eventDate,
       timeOfDay: timeOfDay || null,
       cadence: repeats ? cadence : null,
-      idealSteps: tracking ? idealSteps : [],
-      fallbackSteps: tracking ? fallbackSteps : [],
+      idealSteps: tracking ? withoutBlankSteps(idealSteps) : [],
+      fallbackSteps: tracking ? withoutBlankSteps(fallbackSteps) : [],
     };
   }
 
@@ -59,7 +59,8 @@ export default function S17CreateEvent() {
     if (next && fallbackSteps.length === 0) setFallbackSteps([{ text: '', dueWeekdays: null }]);
   }
 
-  async function onSave() {
+  const onSave = useSingleFlightSave(save, () => showToast(SAVE_FAILED, 'warning'));
+  async function save() {
     const draft = buildDraft();
     const validated = validateTaskDraft(draft);
     setNameError(draft.name.trim().length === 0 ? 'Give this event a name to save it.' : undefined);

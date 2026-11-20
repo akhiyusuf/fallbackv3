@@ -8,7 +8,7 @@ import { ROUTES, useOriginAwareBack } from '@/navigation';
 import { validateTaskDraft } from '@/domain';
 import { useCreateTask } from '@/queries';
 import type { Importance, Necessity, TaskDraft } from '@/types';
-import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED } from '@/features/task/formShared';
+import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED, useSingleFlightSave } from '@/features/task/formShared';
 import { useToastStore } from '@/app-shell/stores/toast';
 
 const KIND_ITEMS = [
@@ -31,8 +31,9 @@ export default function S19CreateToDoNote() {
   const [nameError, setNameError] = useState<string | undefined>();
   const isNote = kind === 'note';
 
-  async function onSave() {
-    const draft: TaskDraft = { type: 'todo', name, note: note.trim() ? note : null, isNote, importance, necessity, idealSteps: [], fallbackSteps: [] };
+  const onSave = useSingleFlightSave(save, () => showToast(SAVE_FAILED, 'warning'));
+  async function save() {
+    const draft: TaskDraft = { type: 'todo', name: name.trim(), note: note.trim() ? note : null, isNote, importance, necessity, idealSteps: [], fallbackSteps: [] };
     const validated = validateTaskDraft(draft);
     setNameError(draft.name.trim().length === 0 ? (isNote ? 'Give this note a title to save it.' : 'Give this a name to save it.') : undefined);
     if (!validated.ok) return;

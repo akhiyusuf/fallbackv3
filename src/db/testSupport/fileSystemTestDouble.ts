@@ -31,6 +31,18 @@ export async function moveAsync(options: { from: string; to: string }): Promise<
   files.delete(options.from);
 }
 
+/** Test-only: the bytes currently stored at `uri` (throws when there is no such file). */
+export function __read(uri: string): string {
+  const content = files.get(uri);
+  if (content === undefined) throw new Error(`ENOENT: no such file: ${uri}`);
+  return content;
+}
+
+/** Test-only: replaces (or creates) the bytes at `uri`, as if an outside tool had written them. */
+export function __write(uri: string, contents: string): void {
+  files.set(uri, contents);
+}
+
 export function __reset(): void {
   files.clear();
 }

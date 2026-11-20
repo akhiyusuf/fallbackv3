@@ -8,7 +8,8 @@
  * (never re-deriving due-ness itself — that stays M2's) to get exactly "today's due
  * occurrences". See this module's build report for the upstream contract note.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { today as clockToday } from '@/lib/date';
 import { useTasks, useToday } from '@/queries';
@@ -19,7 +20,30 @@ export interface TodayRow {
   readonly occurrence: Occurrence;
 }
 
+/** How often an open Today checks whether midnight has passed. */
+const DAY_CHECK_MS = 30_000;
+
+/**
+ * Keeps a screen that reads the day on every render rendering across midnight, even when no query
+ * result changes (every habit already logged): a timer, and a check on coming back to the app.
+ */
+export function useDayTick(): void {
+  const [, setSeen] = useState<LocalDate>(() => clockToday());
+  useEffect(() => {
+    const check = () => setSeen(clockToday());
+    const id = setInterval(check, DAY_CHECK_MS);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') check();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, []);
+}
+
 export function useTodayRows() {
+  useDayTick();
   const date: LocalDate = clockToday();
   const tasksQuery = useTasks();
   const todayQuery = useToday(date);

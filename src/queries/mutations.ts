@@ -507,6 +507,16 @@ export async function sweepExpiredDeleted(): Promise<void> {
   await retireDeleted(repos, 'expired').catch(() => undefined);
 }
 
+/** Clears the push on `date`'s row when the pushed occurrence holds a logged day (ideal or fallback). */
+async function bringBackLoggedPush(task: TaskWithSteps, date: LocalDate): Promise<void> {
+  const row = (await repos.logs.listForTask(task.id, date, date))[0] ?? null;
+  if (!row || row.movedToDate === null) return;
+  const pushed = await resolveOneOccurrence(repos, task, row.movedToDate, todayLocal(), date);
+  if (pushed.outcome !== 'ideal' && pushed.outcome !== 'fallback') return;
+  const result = await repos.logs.upsert({ ...row, movedToDate: null, updatedAt: now() });
+  if (result.ok) await reconcileOccurrence(task.id, date);
+}
+
 /**
  * "End routine": the habit stops, its past stays. Its last day is today if today is already
  * logged, otherwise yesterday, so ending never turns an unlogged today into a miss. It moves to
@@ -520,9 +530,14 @@ export function useEndTask() {
       if (!task) return err({ code: 'NOT_FOUND', message: `task ${id} not found` });
       if (task.endedOn) return ok(task.endedOn);
       const today = todayLocal();
+      // A day that was logged and then pushed would land after its last day and drop out of the
+      // record with its log. Ending brings such a day back to where it was (an unlogged push is
+      // left alone: it was a deliberate "not now", and vanishing is kinder than a miss).
+      await bringBackLoggedPush(task, today);
       const occs = await resolveRecordOccurrences(repos, today, today);
       const doneToday = occs.some((o) => o.taskId === id && o.date === today && (o.outcome === 'ideal' || o.outcome === 'fallback'));
       const endedOn = doneToday ? today : addDays(today, -1);
+      if (endedOn !== today) await bringBackLoggedPush(task, endedOn);
       const result = await repos.tasks.update(id, { endedOn });
       if (!result.ok) return result;
       emit({ type: 'task:changed', taskId: id });
@@ -741,8 +756,32 @@ async function markOffDay(input: { date: LocalDate; taskId: Id | null; mark: boo
     if (!result.ok) return err(result.error);
   }
   emit({ type: 'offday:changed', date: input.date });
-  if (input.taskId) await reconcileOccurrence(input.taskId, input.date);
+  await reconcileOffDayChange(input.date, input.taskId);
   return ok(undefined);
+}
+
+/**
+ * A day going off, or coming back, changes what every occurrence on that date reads: the day's own
+ * AND one pushed onto it from the day before. Anything logged while the day was off earns its XP
+ * the moment the day is lifted, so each occurrence that has a log row is reconciled (for a
+ * whole-day mark, every habit that has one), not only the habit's own occurrence. Habits with no row
+ * on the date cannot hold XP for it, so they are skipped; the badges are still re-read once.
+ */
+async function reconcileOffDayChange(date: LocalDate, taskId: Id | null): Promise<void> {
+  const prior = addDays(date, -1);
+  const [onDate, onPrior] = await Promise.all([repos.logs.listForDate(date), repos.logs.listForDate(prior)]);
+  const pairs = new Map<string, { taskId: Id; pushedFrom?: LocalDate }>();
+  for (const l of onDate) if (taskId === null || l.taskId === taskId) pairs.set(`${l.taskId}:own`, { taskId: l.taskId });
+  for (const l of onPrior) {
+    if (l.movedToDate === date && (taskId === null || l.taskId === taskId)) pairs.set(`${l.taskId}:pushed`, { taskId: l.taskId, pushedFrom: prior });
+  }
+  // A habit's own occurrence is always reconciled for a task-level mark, row or no row (as before).
+  if (taskId !== null) pairs.set(`${taskId}:own`, { taskId });
+  if (pairs.size === 0) {
+    await persistEarnedBadges();
+    return;
+  }
+  for (const p of pairs.values()) await reconcileOccurrence(p.taskId, date, p.pushedFrom);
 }
 
 export function useMarkOffDay() {
@@ -803,6 +842,11 @@ async function snoozeOccurrence(input: { taskId: Id; date: LocalDate }) {
   }
   if (!task.snoozable) {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'This task is not snoozable.' });
+  }
+  // An ended habit is due on nothing after its last day, so a day pushed past it would vanish from
+  // the record along with whatever was logged on it. Pushing its last day is refused.
+  if (task.endedOn && addDays(date, 1) > task.endedOn) {
+    return err({ code: 'VALIDATION_FAILED' as const, message: 'This ended on that day, so it cannot be pushed.' });
   }
   if (target.carrier.kind === 'visitor') {
     return err({ code: 'VALIDATION_FAILED' as const, message: 'This occurrence is already snoozed.' });

@@ -36,6 +36,8 @@ export interface UseAssistantChatOptions {
   readonly onEntitlementError?: (code: 'ENTITLEMENT_REQUIRED' | 'ENTITLEMENT_EXPIRED') => void;
 }
 
+export const DROPPED_CALL_LINE = "I couldn't do that one. It may have ended, been deleted, or not been something I could set up. Nothing was changed.";
+
 export function useAssistantChat(options?: UseAssistantChatOptions) {
   const { applyToolCall } = useToolExecutor();
   const [items, setItems] = useState<TranscriptItem[]>([]);
@@ -93,7 +95,12 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
         return;
       }
       const result = await applyToolCall(call);
-      if (!result.applied) return; // dropped — malformed/invalid, never a half-written task
+      if (!result.applied) {
+        // Dropped: malformed, invalid, or aimed at something that is gone or ended. Never a
+        // half-written task, and never silence either: say so, calmly.
+        appendItem({ id: newId(), kind: 'assistant', text: DROPPED_CALL_LINE });
+        return;
+      }
       if (result.taskId) touchedTaskIds.current.add(result.taskId);
       if (result.task && call.name === 'create_task') {
         appendItem({ id: newId(), kind: 'task-card', task: result.task });
@@ -135,27 +142,33 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
     setIsStreaming(true);
     session.setStreaming(true);
     try {
-      const provider = await getAssistantProvider();
       let assistantText = '';
       let lastSummary = '';
-      for await (const event of provider.streamChat({ conversationId: conversationId, messages: historyRef.current, signal: undefined })) {
-        if (event.type === 'text-delta') {
-          assistantText += event.delta;
-        } else if (event.type === 'tool-call') {
-          await handleToolCall(event.call);
-        } else if (event.type === 'refusal') {
-          assistantText += (assistantText ? '\n' : '') + event.text;
-        } else if (event.type === 'error') {
-          // B4 — an entitlement error mid-chat is NOT "offline": route to the paywall per
-          // API.md §4's client-behaviour table instead of rendering the offline footer.
-          if (event.code === 'ENTITLEMENT_REQUIRED' || event.code === 'ENTITLEMENT_EXPIRED') {
-            options?.onEntitlementError?.(event.code);
-          } else {
-            setOffline(true);
+      // A provider that cannot even start, or a stream that throws part way, is "offline" to the
+      // person: the same calm banner and Try again, never an unhandled rejection out of a tap.
+      try {
+        const provider = await getAssistantProvider();
+        for await (const event of provider.streamChat({ conversationId: conversationId, messages: historyRef.current, signal: undefined })) {
+          if (event.type === 'text-delta') {
+            assistantText += event.delta;
+          } else if (event.type === 'tool-call') {
+            await handleToolCall(event.call);
+          } else if (event.type === 'refusal') {
+            assistantText += (assistantText ? '\n' : '') + event.text;
+          } else if (event.type === 'error') {
+            // B4 — an entitlement error mid-chat is NOT "offline": route to the paywall per
+            // API.md §4's client-behaviour table instead of rendering the offline footer.
+            if (event.code === 'ENTITLEMENT_REQUIRED' || event.code === 'ENTITLEMENT_EXPIRED') {
+              options?.onEntitlementError?.(event.code);
+            } else {
+              setOffline(true);
+            }
+          } else if (event.type === 'done') {
+            lastSummary = event.summary;
           }
-        } else if (event.type === 'done') {
-          lastSummary = event.summary;
         }
+      } catch {
+        setOffline(true);
       }
       if (assistantText) {
         appendItem({ id: newId(), kind: 'assistant', text: assistantText });

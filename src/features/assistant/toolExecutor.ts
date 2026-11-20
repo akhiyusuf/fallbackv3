@@ -24,6 +24,17 @@ export interface ToolApplyResult {
   readonly task?: TaskWithSteps;
 }
 
+const TASK_TYPES: readonly string[] = ['routine', 'event', 'course', 'todo'];
+const CHIP_STATES: readonly string[] = ['todo', 'done', 'fallback', 'skip'];
+
+/** A real calendar day written YYYY-MM-DD ("2024-02-30" and "tomorrow" are not). */
+function isRealLocalDate(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  return probe.getUTCFullYear() === y && probe.getUTCMonth() === m - 1 && probe.getUTCDate() === d;
+}
+
 function draftFromTask(task: TaskWithSteps): TaskDraft {
   return {
     type: task.type,
@@ -65,6 +76,8 @@ export function useToolExecutor() {
     async (call: AssistantToolCall): Promise<ToolApplyResult> => {
       switch (call.name) {
         case 'create_task': {
+          // The model can send anything: a type outside the four, or no object at all, is dropped here.
+          if (!call.args || typeof call.args !== 'object' || !TASK_TYPES.includes(call.args.type as string)) return { applied: false, summary: '' };
           const validated = validateTaskDraft(call.args);
           if (!validated.ok) return { applied: false, summary: '' };
           const result = await createTask.mutateAsync(validated.value);
@@ -88,6 +101,7 @@ export function useToolExecutor() {
         case 'update_task': {
           const existing = tasksQuery.data?.find((t) => t.id === call.args.taskId);
           if (!existing) return { applied: false, summary: '' };
+          if (call.args.patch?.type !== undefined && !TASK_TYPES.includes(call.args.patch.type as string)) return { applied: false, summary: '' };
           const previousDraft = draftFromTask(existing);
           const merged: TaskDraft = { ...previousDraft, ...call.args.patch };
           const validated = validateTaskDraft(merged);
@@ -157,6 +171,8 @@ export function useToolExecutor() {
         }
 
         case 'log_state': {
+          // A made-up date or state must never reach the log: refuse it before any write.
+          if (!call.args || !isRealLocalDate(call.args.date) || !CHIP_STATES.includes(call.args.state as string)) return { applied: false, summary: '' };
           const existing = tasksQuery.data?.find((t) => t.id === call.args.taskId);
           if (!existing) return { applied: false, summary: '' };
           const result = await logState.mutateAsync({

@@ -75,6 +75,7 @@ export function validateTaskDraft(draft: TaskDraft): Result<TaskDraft> {
   if (draft.type === 'course') {
     if (!draft.startDate) fields.startDate = 'Choose a start date.';
     if (!draft.endDate) fields.endDate = 'Choose an end date.';
+    else if (draft.startDate && draft.endDate < draft.startDate) fields.endDate = 'The end date must be on or after the start date.';
     if ((draft.dosesPerDay ?? 1) < 1) fields.dosesPerDay = 'Must be at least 1 dose a day.';
   }
 

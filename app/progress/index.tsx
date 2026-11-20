@@ -46,8 +46,10 @@ export default function S25ConsistencyDashboard() {
   const tasksQuery = useTasks();
   const trackableTasks = (tasksQuery.data ?? []).filter((task) => task.type !== 'todo' && !task.isAsNeeded);
 
-  // Until the person picks a task, the first trackable one is the one shown.
-  const activeTaskId: Id | null = selectedTaskId ?? trackableTasks[0]?.id ?? null;
+  // Until the person picks a task, the first trackable one is the one shown. A picked task that
+  // is gone from the list (deleted elsewhere) falls back the same way, so a chip is always lit.
+  const pickedStillThere = selectedTaskId !== null && trackableTasks.some((task) => task.id === selectedTaskId);
+  const activeTaskId: Id | null = pickedStillThere ? selectedTaskId : (trackableTasks[0]?.id ?? null);
 
   const consistencyQuery = useConsistency({ scope, window, taskId: scope === 'per-task' ? (activeTaskId ?? undefined) : undefined });
   const isLoading = consistencyQuery.isLoading || (scope === 'per-task' && tasksQuery.isLoading);

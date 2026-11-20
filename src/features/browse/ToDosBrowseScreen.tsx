@@ -1,6 +1,6 @@
 /** M3 — S13 To-dos. Segmented To-dos/Notes (D9); rows in one grouped list (D7). */
 import { play } from '@/services/sfx';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Check, StickyNote } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -46,7 +46,18 @@ export default function ToDosBrowseScreen() {
     router.push(withOrigin(`/task/${id}`, 'todos') as Href);
   }
 
+  // A quick double tap must not run the same write twice (two "Done" toasts, a doubled sound).
+  const toggling = useRef<Set<string>>(new Set());
   async function toggleDone(tk: TaskWithSteps) {
+    if (toggling.current.has(tk.id)) return;
+    toggling.current.add(tk.id);
+    try {
+      await toggleDoneNow(tk);
+    } finally {
+      toggling.current.delete(tk.id);
+    }
+  }
+  async function toggleDoneNow(tk: TaskWithSteps) {
     const wasDone = !!tk.todoDoneAt;
     // A write that throws is a failed save like any other: say so instead of leaving the box unchanged in silence.
     const write = (todoDoneAt: Instant | null) => updateTask.mutateAsync({ id: tk.id as Id, patch: { todoDoneAt } }).catch(() => ({ ok: false as const }));

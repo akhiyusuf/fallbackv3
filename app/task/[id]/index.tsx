@@ -70,6 +70,7 @@ import { useLogFeedback } from '@/features/task/logFeedback';
 import { resolveSnoozeSlot } from '@/features/task/snoozeSlot';
 import { PlanTiles, metaParts } from '@/features/task/TaskDetails';
 import { TaskHero } from '@/features/task/TaskHero';
+import { useDayTick } from '@/features/today/useTodayRows';
 import { PriorityPlaceRow } from '@/features/priorities/PriorityPlaceRow';
 import { formatDateValue } from '@/ui';
 import type { ChipState, Id, Importance, LocalDate, Necessity, Occurrence, Weekday } from '@/types';
@@ -87,6 +88,7 @@ export default function S20ManageTask() {
   const showToast = useToastStore((s) => s.show);
   const logFeedback = useLogFeedback();
 
+  useDayTick();
   const taskQuery = useTask(taskId);
   const today = todayFn();
   const yesterday = addDays(today, -1);
@@ -137,21 +139,39 @@ export default function S20ManageTask() {
     showToast(SAVE_FAILED, 'warning');
   }
 
-  async function onChipChange(chip: ChipState, isUndo = false) {
-    const previous: ChipState = todayOccurrence?.chipState ?? 'todo';
-    const result = await logState.mutateAsync({ taskId, date: today, chip });
-    if (!result.ok) return fail();
-    if (isUndo) return showToast('Undone', 'neutral');
-    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
+  // A second tap before the first save has come back must not log twice (two sounds, two toasts).
+  const logging = useRef(new Set<string>());
+  async function guarded(key: string, run: () => Promise<void>) {
+    if (logging.current.has(key)) return;
+    logging.current.add(key);
+    try {
+      await run();
+    } catch {
+      fail();
+    } finally {
+      logging.current.delete(key);
+    }
   }
 
-  async function onPushedChange(chip: ChipState, isUndo = false) {
-    if (!pushedToday?.pushedFrom) return;
-    const previous: ChipState = pushedToday.chipState ?? 'todo';
-    const result = await logState.mutateAsync({ taskId, date: today, chip, pushedFrom: pushedToday.pushedFrom });
-    if (!result.ok) return fail();
-    if (isUndo) return showToast('Undone', 'neutral');
-    logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onPushedChange(previous, true));
+  function onChipChange(chip: ChipState, isUndo = false): Promise<void> {
+    return guarded('own', async () => {
+      const previous: ChipState = todayOccurrence?.chipState ?? 'todo';
+      const result = await logState.mutateAsync({ taskId, date: today, chip });
+      if (!result.ok) return fail();
+      if (isUndo) return showToast('Undone', 'neutral');
+      logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
+    });
+  }
+
+  function onPushedChange(chip: ChipState, isUndo = false): Promise<void> {
+    return guarded('pushed', async () => {
+      if (!pushedToday?.pushedFrom) return;
+      const previous: ChipState = pushedToday.chipState ?? 'todo';
+      const result = await logState.mutateAsync({ taskId, date: today, chip, pushedFrom: pushedToday.pushedFrom });
+      if (!result.ok) return fail();
+      if (isUndo) return showToast('Undone', 'neutral');
+      logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onPushedChange(previous, true));
+    });
   }
 
   async function onDoseChange(index: number, chip: ChipState) {
@@ -175,8 +195,12 @@ export default function S20ManageTask() {
     if (!task) return;
     const next = nameDraft.trim();
     if (next.length === 0 || next === task.name) return setRenameOpen(false);
-    const result = await updateTask.mutateAsync({ id: taskId, patch: { name: next } });
-    if (!result.ok) return fail();
+    try {
+      const result = await updateTask.mutateAsync({ id: taskId, patch: { name: next } });
+      if (!result.ok) return fail();
+    } catch {
+      return fail();
+    }
     setRenameOpen(false);
   }
 
@@ -218,12 +242,22 @@ export default function S20ManageTask() {
     }
   }
 
+  // A second tap before the first copy is made must not make a second copy.
+  const duplicating = useRef(false);
   async function onDuplicate() {
-    const result = await duplicateTask.mutateAsync(taskId);
-    if (result.ok) {
-      showToast('Duplicated. You are now on the copy.', 'success');
-      router.replace(`/task/${result.value}` as never);
-    } else fail();
+    if (duplicating.current) return;
+    duplicating.current = true;
+    try {
+      const result = await duplicateTask.mutateAsync(taskId);
+      if (result.ok) {
+        showToast('Duplicated. You are now on the copy.', 'success');
+        router.replace(`/task/${result.value}` as never);
+      } else fail();
+    } catch {
+      fail();
+    } finally {
+      duplicating.current = false;
+    }
   }
 
   const snoozeSlot = task
@@ -300,9 +334,13 @@ export default function S20ManageTask() {
       return;
     }
     const newSteps = [...task.idealSteps.map((s) => ({ ...s, dueWeekdays: scheduleDraft[s.id] ?? null })), ...task.fallbackSteps];
-    const result = await updateTask.mutateAsync({ id: taskId, patch: {}, steps: newSteps });
-    if (result.ok) setScheduleOpen(false);
-    else fail();
+    try {
+      const result = await updateTask.mutateAsync({ id: taskId, patch: {}, steps: newSteps });
+      if (result.ok) setScheduleOpen(false);
+      else fail();
+    } catch {
+      fail();
+    }
   }
 
   const monthLabel = new Date(Number(monthFrom.slice(0, 4)), Number(monthFrom.slice(5, 7)) - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

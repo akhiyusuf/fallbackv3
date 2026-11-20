@@ -12,7 +12,7 @@ import { useCreateTask } from '@/queries';
 import type { Cadence, Importance, Necessity, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
 import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
-import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED, parentDaysFor } from '@/features/task/formShared';
+import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
 import { useToastStore } from '@/app-shell/stores/toast';
 import { Text } from '@/ui/AppText';
 
@@ -46,19 +46,20 @@ export default function S16CreateRoutine() {
   function buildDraft(): TaskDraft {
     return {
       type: 'routine',
-      name,
+      name: name.trim(),
       isAsNeeded,
       cadence: isAsNeeded ? null : cadence,
       timeOfDay: isAsNeeded ? null : timeOfDay || null,
       importance,
       necessity,
       snoozable: isAsNeeded ? false : snoozable,
-      idealSteps: isAsNeeded ? idealSteps.filter((s) => s.text.trim().length > 0) : idealSteps,
-      fallbackSteps: isAsNeeded ? fallbackSteps.filter((s) => s.text.trim().length > 0) : fallbackSteps,
+      idealSteps: withoutBlankSteps(idealSteps),
+      fallbackSteps: withoutBlankSteps(fallbackSteps),
     };
   }
 
-  async function onSave() {
+  const onSave = useSingleFlightSave(save, () => showToast(SAVE_FAILED, 'warning'));
+  async function save() {
     const draft = buildDraft();
     const validated = validateTaskDraft(draft);
     const requiresIdeal = !isAsNeeded;

@@ -5,7 +5,7 @@
  * empty (D15).
  */
 import { play } from '@/services/sfx';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Bell, LifeBuoy, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -81,6 +81,21 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   const isJustAdded = (justAddedOverride ?? params.justAdded === '1') && !justAddedDismissed;
   const allDueOff = rows.length > 0 && rows.every((r) => r.occurrence.outcome === 'off');
   const doneCount = rows.filter((r) => r.occurrence.chipState === 'done' || r.occurrence.chipState === 'fallback').length;
+
+  // A second tap before the first save has come back must not run the action twice (two sounds,
+  // two toasts, a doubled "Already pushed" notice). One action at a time per card.
+  const busy = useRef(new Set<string>());
+  async function once(key: string, run: () => Promise<void>) {
+    if (busy.current.has(key)) return;
+    busy.current.add(key);
+    try {
+      await run();
+    } catch {
+      showToast(LOG_SAVE_FAILED, 'warning');
+    } finally {
+      busy.current.delete(key);
+    }
+  }
 
   async function handleToggleOff(next: boolean, isUndo = false) {
     const result = await markOffDay.mutateAsync({ date, taskId: null, mark: next });
@@ -200,7 +215,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
               icon={LifeBuoy}
               label={S09_COPY.offToggleLabel}
               sublabel={S09_COPY.offToggleSub}
-              right={<Switch value={allDueOff} onValueChange={handleToggleOff} accessibilityLabel={S09_COPY.offToggleA11y} />}
+              right={<Switch value={allDueOff} onValueChange={(next) => void once('whole-day-off', () => handleToggleOff(next))} accessibilityLabel={S09_COPY.offToggleA11y} />}
             />
           </ListGroup>
         )}
@@ -237,9 +252,9 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                   row={row}
                   reopened={reopenedTaskId === rowKey(row)}
                   onToggleReopen={() => setReopenedTaskId((cur) => (cur === rowKey(row) ? null : rowKey(row)))}
-                  onLog={(chip) => void handleLog(row, chip)}
-                  onEmergency={() => void takeDayOff(row.task.id, date)}
-                  onPush={() => void pushToTomorrow(row.task.id, date)}
+                  onLog={(chip) => void once(rowKey(row), () => handleLog(row, chip))}
+                  onEmergency={() => void once(rowKey(row), () => takeDayOff(row.task.id, date))}
+                  onPush={() => void once(rowKey(row), () => pushToTomorrow(row.task.id, date))}
                   onOpen={() => openTask(row.task.id)}
                 />
               ))

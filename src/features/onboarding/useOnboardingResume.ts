@@ -22,6 +22,17 @@ export function useOnboardingStepMarker(ownRoute: string): void {
   }, [ownRoute, navigation]);
 }
 
+/** The steps a saved pointer may name. Anything else (a leftover from another build, a damaged value) starts the tour clean. */
+const STEP_ROUTES: ReadonlySet<string> = new Set([
+  '/onboarding/concept',
+  '/onboarding/hook',
+  '/onboarding/types',
+  '/onboarding/consistency',
+  '/onboarding/personalize',
+  '/onboarding/notifications-primer',
+  '/onboarding/first-task',
+]);
+
 /**
  * S02-only. Resolves the saved progress pointer before rendering S02's own content: if the
  * user had gotten further before the app was killed, silently forwards them there instead —
@@ -38,7 +49,7 @@ export function useOnboardingResumeRedirect(ownRoute: string): { resuming: boole
     (async () => {
       const saved = await getOnboardingProgress();
       if (cancelled) return;
-      if (saved && saved !== ownRoute) {
+      if (saved && saved !== ownRoute && STEP_ROUTES.has(saved)) {
         router.replace(saved as Href);
         return; // stays `resuming: true` — S02 never paints before the redirect takes over.
       }

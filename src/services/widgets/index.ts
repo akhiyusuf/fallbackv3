@@ -18,7 +18,7 @@
  * back to `Paths.document` if the App Group entry isn't present (e.g. no provisioned iCloud/
  * App Group container yet, or under test) so a publish never fails outright over it.
  */
-import { Appearance } from 'react-native';
+import { AppState, Appearance, type AppStateStatus } from 'react-native';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { resolveOccurrence } from '@/domain';
@@ -143,10 +143,18 @@ export function initWidgetsBridge(): () => void {
     on('store:ready', () => void publishSnapshot()),
   ];
 
+  // A snapshot is only as current as its last publish. Nothing else fires at local midnight, so a
+  // person who leaves the app in the background across midnight would otherwise see yesterday's
+  // counts on the home screen. Republishing on every foreground keeps "today" true.
+  const appStateSub = AppState.addEventListener('change', (state: AppStateStatus) => {
+    if (state === 'active') void publishSnapshot();
+  });
+
   void publishSnapshot();
 
   return () => {
     unsubscribers.forEach((unsub) => unsub());
+    appStateSub.remove();
     bridgeInitialized = false;
   };
 }
