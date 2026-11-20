@@ -1,0 +1,7 @@
+expo.modules.exactalarm.exact-alarm-pngs-0 /home/user/fallbackv3/modules/exact-alarm/android/build/generated/res/pngs/release
+expo.modules.exactalarm.exact-alarm-resValues-1 /home/user/fallbackv3/modules/exact-alarm/android/build/generated/res/resValues/release
+expo.modules.exactalarm.exact-alarm-mergeReleaseResources-2 /home/user/fallbackv3/modules/exact-alarm/android/build/intermediates/incremental/release/mergeReleaseResources/merged.dir
+expo.modules.exactalarm.exact-alarm-mergeReleaseResources-3 /home/user/fallbackv3/modules/exact-alarm/android/build/intermediates/incremental/release/mergeReleaseResources/stripped.dir
+expo.modules.exactalarm.exact-alarm-release-4 /home/user/fallbackv3/modules/exact-alarm/android/build/intermediates/merged_res/release/mergeReleaseResources
+expo.modules.exactalarm.exact-alarm-main-5 /home/user/fallbackv3/modules/exact-alarm/android/src/main/res
+expo.modules.exactalarm.exact-alarm-release-6 /home/user/fallbackv3/modules/exact-alarm/android/src/release/res

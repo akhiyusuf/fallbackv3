@@ -454,7 +454,7 @@ describe('fuzz: consistency', () => {
   // Found by this fuzzing round (review 34). consistency.ts promises that the rounded breakdown
   // "keeps ideal + fallback + missed reconciling against the rounded denominator". A day with one
   // ideal task and one fallback task is one counted day, but each half rounds up to 1.
-  it.failing('aggregate breakdown reconciles: one counted day split ideal and fallback sums to 1, not 2', () => {
+  it('aggregate breakdown reconciles: one counted day split ideal and fallback sums to 1, not 2', () => {
     const today = '2026-05-10' as LocalDate;
     const row = (taskId: string, outcome: OccurrenceOutcome) =>
       ({ taskId, date: '2026-05-09', outcome, dueIdealStepIds: [], completedStepIds: [], chipState: null, dosesRequired: 1, dosesCompleted: 0 }) as unknown as Occurrence;

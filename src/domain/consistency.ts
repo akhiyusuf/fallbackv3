@@ -96,6 +96,22 @@ export function perTaskConsistency(input: {
 
 /* ------------------------------------------------------------------ aggregate scope (§6.3) */
 
+/**
+ * Splits `total` whole days among shares that add up to it (within floating error): each share is
+ * rounded down, then the days left over go to the shares cut the most, the earlier share first on a
+ * tie. The result always sums to `total`.
+ */
+export function apportion(shares: readonly number[], total: number): number[] {
+  const clean = shares.map((x) => Math.max(0, Math.round(x * 1e9) / 1e9));
+  const out = clean.map((x) => Math.floor(x));
+  let left = total - out.reduce((a, b) => a + b, 0);
+  const order = clean
+    .map((x, i) => ({ i, frac: x - Math.floor(x) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+  for (let k = 0; left > 0 && order.length > 0; k = (k + 1) % order.length, left--) out[order[k]!.i]! += 1;
+  return out;
+}
+
 function groupByDate(occurrences: readonly Occurrence[]): Map<LocalDate, Occurrence[]> {
   const map = new Map<LocalDate, Occurrence[]>();
   for (const o of occurrences) {
@@ -158,14 +174,12 @@ export function aggregateConsistency(input: {
   }
 
   const numerator = idealCreditSum + fallbackCreditSum; // Σ f(D), carried at full precision
-  const breakdown: ConsistencyBreakdown = {
-    ideal: roundHalfUp(idealCreditSum),
-    fallback: roundHalfUp(fallbackCreditSum),
-    off: offDayCount,
-    // Display rounding (§6.5): the remainder, not a direct per-day sum — keeps
-    // ideal + fallback + missed reconciling against the rounded denominator.
-    missed: roundHalfUp(denom - numerator),
-  };
+  // Display rounding (twenty-seventh pass, the human's call): ideal + fallback + missed always add up
+  // to the days counted. Rounding each on its own could not promise that (a day split between an
+  // ideal and a fallback read "1 ideal, 1 fallback" out of 1 day), so whole days are shared out by
+  // largest remainder.
+  const [ideal, fallback, missed] = apportion([idealCreditSum, fallbackCreditSum, denom - numerator], denom);
+  const breakdown: ConsistencyBreakdown = { ideal, fallback, off: offDayCount, missed };
 
   return {
     scope: 'aggregate',

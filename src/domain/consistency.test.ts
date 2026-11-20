@@ -1,6 +1,6 @@
 import type { LocalDate, Occurrence } from '@/types';
 import { addDays } from './dateMath';
-import { aggregateConsistency, dayFractions, perTaskConsistency } from './consistency';
+import { aggregateConsistency, apportion, dayFractions, perTaskConsistency } from './consistency';
 
 const d = (s: string) => s as LocalDate;
 const TASK = 'task-1' as Occurrence['taskId'];
@@ -152,7 +152,10 @@ describe('ARCHITECTURE.md §6.6 golden table — aggregate scope (mandatory)', (
     expect(r.breakdown.off).toBe(2);
   });
 
-  test('display rounding: Ideal/Fallback are each round-half-up of their own credit sum; Missed is the rounded remainder', () => {
+  // Changed in the twenty-seventh pass on the human's word: the old rule rounded each count on its own
+  // (this case read 2 ideal + 2 missed out of 3 days). Whole days are now shared by largest
+  // remainder, so the three counts always add up to the days counted.
+  test('display rounding: Ideal, Fallback and Missed always add up to the counted days (largest remainder)', () => {
     // 3 counted days, each a two-task day with one ideal + one missed => f=0.5 each day.
     const occs: Occurrence[] = [];
     for (const day of ['2024-07-01', '2024-07-02', '2024-07-03']) {
@@ -161,9 +164,11 @@ describe('ARCHITECTURE.md §6.6 golden table — aggregate scope (mandatory)', (
     const r = aggregateConsistency({ occurrences: occs, window: 'all-time', today: d('2024-07-03') });
     expect(r.denominator).toBe(3);
     expect(r.numerator).toBeCloseTo(1.5, 9);
-    expect(r.breakdown.ideal).toBe(2); // roundHalfUp(1.5)
+    // 1.5 / 0 / 1.5: each rounds down to 1 / 0 / 1, and the one day left goes to the first tied share.
+    expect(r.breakdown.ideal).toBe(2);
     expect(r.breakdown.fallback).toBe(0);
-    expect(r.breakdown.missed).toBe(2); // roundHalfUp(3 - 1.5) = roundHalfUp(1.5) = 2
+    expect(r.breakdown.missed).toBe(1);
+    expect(r.breakdown.ideal + r.breakdown.fallback + r.breakdown.missed).toBe(r.denominator);
   });
 });
 
@@ -213,5 +218,25 @@ describe('dayFractions — powers S25 disclosure table', () => {
     expect(rows.map((r) => r.date)).toEqual(['2024-05-01', '2024-05-02']);
     expect(rows[0]!.fraction).toBe(1);
     expect(rows[1]!.fraction).toBeCloseTo(1 / 3, 9);
+  });
+});
+
+describe('apportion (largest remainder)', () => {
+  test('always sums to the total, and never takes from a share to give to another', () => {
+    for (const [shares, total] of [
+      [[0.5, 0.5, 0], 1],
+      [[1.5, 0, 1.5], 3],
+      [[2.333333, 1.333333, 0.333334], 4],
+      [[0, 0, 0], 0],
+      [[7, 0, 0], 7],
+      [[0.1, 0.1, 9.8], 10],
+    ] as const) {
+      const out = apportion(shares, total);
+      expect(out.reduce((a, b) => a + b, 0)).toBe(total);
+      out.forEach((n, i) => {
+        expect(n).toBeGreaterThanOrEqual(Math.floor(shares[i]!));
+        expect(n).toBeLessThanOrEqual(Math.ceil(shares[i]!));
+      });
+    }
   });
 });
