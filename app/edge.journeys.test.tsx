@@ -39,6 +39,7 @@ jest.mock('expo-notifications', () => ({
 
 import { BackHandler } from 'react-native';
 import { router } from 'expo-router';
+import { routingQueue } from 'expo-router/build/global-state/routingQueue';
 import { store as routerStore } from 'expo-router/build/global-state/router-store';
 import { renderRouter, screen } from 'expo-router/testing-library';
 import { act, userEvent, waitFor, within } from '@testing-library/react-native';
@@ -109,13 +110,14 @@ function pressBack(): { exited: boolean } {
 }
 
 beforeEach(() => {
+  routingQueue.queue = [];
   backListeners = [];
   mockTapListener = null;
-  if (process.env.NOSPY !== '1') jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_event: string, listener: BackListener) => {
+  jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_event: string, listener: BackListener) => {
     backListeners.push(listener);
     return { remove: () => void (backListeners = backListeners.filter((l) => l !== listener)) };
   }) as never);
-  // mockClients.forEach((c) => c.clear());
+  mockClients.forEach((c) => c.clear());
   fake.reset();
   // A person who installed today: the tenure marks start from today, not from the fake's 2024.
   fake.seedSettings({ tenureAnchorDate: D1 as LocalDate });
