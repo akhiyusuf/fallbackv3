@@ -11,12 +11,27 @@
  */
 let tail: Promise<unknown> = Promise.resolve();
 
+/**
+ * A write that never settles (a hung native call) must not freeze every save after it: once a
+ * write has run this long, the next one may start. The stalled one is not cancelled; it still
+ * finishes (or not) on its own.
+ */
+export const STALL_MS = 10_000;
+
 export function serialWrite<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
   return (...args: A) => {
-    const run = tail.then(() => fn(...args));
-    tail = run.then(
-      () => undefined,
-      () => undefined,
+    const previous = tail;
+    const run = previous.then(() => fn(...args));
+    tail = previous.then(
+      () =>
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, STALL_MS);
+          const done = () => {
+            clearTimeout(timer);
+            resolve();
+          };
+          run.then(done, done);
+        }),
     );
     return run;
   };
