@@ -81,13 +81,9 @@ export default function S43Theme() {
   async function handleModeChange(next: ThemeMode) {
     const prior = mode;
     setMode(next);
-    const saved = await updateSettings.mutateAsync({ theme: next }).then(
-      (r) => r.ok,
-      () => false,
-    );
-    if (!saved) {
-      // Undo only if the screen still shows this choice; a later tap has already replaced it.
-      if (useThemeStore.getState().mode === next) setMode(prior);
+    const result = await updateSettings.mutateAsync({ theme: next });
+    if (!result.ok) {
+      setMode(prior);
       showToast(S43_COPY.errorToast, 'warning');
     }
   }
@@ -95,12 +91,9 @@ export default function S43Theme() {
   async function handleAccentChange(next: AccentKey) {
     const prior = accent;
     setAccent(next);
-    const saved = await updateSettings.mutateAsync({ accent: next }).then(
-      (r) => r.ok,
-      () => false,
-    );
-    if (!saved) {
-      if (useThemeStore.getState().accent === next) setAccent(prior);
+    const result = await updateSettings.mutateAsync({ accent: next });
+    if (!result.ok) {
+      setAccent(prior);
       showToast(S43_COPY.errorToast, 'warning');
     }
   }

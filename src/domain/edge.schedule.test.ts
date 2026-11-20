@@ -482,7 +482,7 @@ describe('cadence labels read correctly (no em dashes)', () => {
 
   test('one label per cadence kind', () => {
     expect(cadenceSummary(base({ cadence: { kind: 'daily' } }))).toBe('Routine · Daily');
-    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5, 6] } }))).toBe('Routine · Mon–Sat');
+    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5, 6] } }))).toBe('Routine · Mon to Sat');
     expect(cadenceSummary(base({ cadence: { kind: 'weekly', weekday: 3, anchorDate: '2024-01-03' } }))).toBe('Routine · Weekly · Wed');
     expect(cadenceSummary(base({ cadence: { kind: 'bi-weekly', weekday: 7, anchorDate: '2024-01-07' } }))).toBe('Routine · Bi-weekly · Sun');
     expect(cadenceSummary(base({ cadence: { kind: 'monthly', dayOfMonth: 1, anchorDate: '2024-01-01' } }))).toBe('Routine · Monthly · 1st');
@@ -515,8 +515,8 @@ describe('cadence labels read correctly (no em dashes)', () => {
   });
 
   test('weekday ranges: a full week, a contiguous pair, a wrap-around pair, and a single day', () => {
-    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5, 6, 7] } }))).toBe('Routine · Mon–Sun');
-    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [6, 7] } }))).toBe('Routine · Sat–Sun');
+    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5, 6, 7] } }))).toBe('Routine · Mon to Sun');
+    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [6, 7] } }))).toBe('Routine · Sat to Sun');
     expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [7, 1] } }))).toBe('Routine · Mon/Sun');
     expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [3] } }))).toBe('Routine · Wed');
   });
@@ -526,7 +526,7 @@ describe('cadence labels read correctly (no em dashes)', () => {
   });
 
   test('duplicate weekdays do not repeat in the label', () => {
-    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 1, 2] } }))).toBe('Routine · Mon–Tue');
+    expect(cadenceSummary(base({ cadence: { kind: 'specific-weekdays', weekdays: [1, 1, 2] } }))).toBe('Routine · Mon to Tue');
   });
 
   test('event, course, to-do and as-needed labels', () => {

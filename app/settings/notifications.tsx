@@ -48,11 +48,8 @@ export default function S42NotificationsSettings() {
   async function patchPrefs(patch: Partial<NotificationPrefs>) {
     // Send only the key that changed. The repository merges it into the saved row, so a toggle
     // pressed before the screen has refetched cannot undo an earlier one by sending a stale copy.
-    const saved = await updateSettings.mutateAsync({ notifications: patch as NotificationPrefs }).then(
-      (r) => r.ok,
-      () => false,
-    );
-    if (!saved) showToast(S42_COPY.errorToast, 'warning');
+    const result = await updateSettings.mutateAsync({ notifications: patch as NotificationPrefs });
+    if (!result.ok) showToast(S42_COPY.errorToast, 'warning');
   }
 
   const prefs = settingsQuery.data?.notifications;

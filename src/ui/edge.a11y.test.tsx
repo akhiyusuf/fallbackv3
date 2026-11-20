@@ -294,19 +294,18 @@ describe('a11y: every rendered string is clean wording', () => {
   });
 });
 
-describe('a11y: known en dash placeholders outside this round\'s files', () => {
-  // StatHero (src/features/today/StatHero.tsx), app/records/[cycleId].tsx, app/records/index.tsx and
-  // app/settings/subscription.tsx show a bare en dash for "no value". The wording sweep excludes
-  // exactly that string in the gallery, and this KNOWN test records the open item. Once those
-  // sites use a plain hyphen (or a words-based "No data yet"), this turns red: make it a plain it().
-  it.failing('KNOWN: StatHero with no value shows no en dash', async () => {
+describe('a11y: the "no value" mark', () => {
+  // Main-session decision: a missing number shows one short dash (–), the same mark on the Today
+  // ring, the consistency ring, the trend table, records and the subscription screen. It is a mark,
+  // not wording; ranges in wording read "Mon to Fri". This pins the mark so it stays consistent.
+  it('StatHero with no value shows the same short dash as the rings', async () => {
     await render(
       <ThemeContext.Provider value={buildTheme('light')}>
         <StatHero percent={null} label="Showing up" detail="No data yet" accessibilityLabel="Showing up, no data" />
       </ThemeContext.Provider>,
     );
     const strings = spokenAndVisibleStrings(hostNodes(screen.toJSON() as ReactTestRendererJSON));
-    expect(strings.filter((s) => /\u2013/.test(s))).toEqual([]);
+    expect(strings).toContain('\u2013');
   });
 });
 

@@ -6,9 +6,9 @@ function baseTask(patch: Partial<Task>): Pick<Task, 'type' | 'cadence' | 'isAsNe
 }
 
 describe('cadenceSummary', () => {
-  it('matches the S20 fixture verbatim: "Routine · Mon–Sat"', () => {
+  it('matches the S20 fixture verbatim: "Routine · Mon to Sat"', () => {
     const t = baseTask({ type: 'routine', cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5, 6] } });
-    expect(cadenceSummary(t)).toBe('Routine · Mon–Sat');
+    expect(cadenceSummary(t)).toBe('Routine · Mon to Sat');
   });
 
   it('a to-do carries no cadence text', () => {

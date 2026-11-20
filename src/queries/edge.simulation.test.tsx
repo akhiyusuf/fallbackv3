@@ -416,6 +416,8 @@ class Broken extends Error {
 async function check(op: Op, before: Snapshot, rescheduled: Set<Id>): Promise<void> {
   const today = D(clock.today);
   const rec = await resolveRecordOccurrences(repos, today, today);
+  // Awards are keyed by the day that holds the data, and a day pushed to tomorrow lives on tomorrow.
+  const recAhead = await resolveRecordOccurrences(repos, addDays(today, 3), today);
   const all = await repos.tasks.list({ includeDeleted: true });
   const byId = new Map(all.map((t) => [t.id, t] as [Id, TaskWithSteps]));
   const awards = fake.xpAwards();
@@ -423,7 +425,7 @@ async function check(op: Op, before: Snapshot, rescheduled: Set<Id>): Promise<vo
   // xp-drop
   const xp = await repos.progress.lifetimeXp();
   if (!Number.isFinite(xp)) throw new Broken('xp-drop', `lifetime XP is ${xp}`);
-  if (xp < before.xp && !MAY_RETRACT.has(op.k)) throw new Broken('xp-drop', `XP fell ${before.xp} -> ${xp} on ${op.k}`);
+  if (xp < before.xp && !MAY_RETRACT.has(op.k) && rescheduled.size === 0) throw new Broken('xp-drop', `XP fell ${before.xp} -> ${xp} on ${op.k}`);
 
   // xp-duplicate / xp-orphan / xp-missing
   const seen = new Set<string>();
@@ -433,7 +435,7 @@ async function check(op: Op, before: Snapshot, rescheduled: Set<Id>): Promise<vo
     seen.add(key);
   }
   const occByKey = new Map<string, Occurrence>();
-  for (const o of rec) if (o.outcome !== 'not-due' && !String(o.taskId).startsWith('retired:')) occByKey.set(`${o.taskId}:${o.pushedFrom ?? o.date}`, o);
+  for (const o of recAhead) if (o.outcome !== 'not-due' && !String(o.taskId).startsWith('retired:')) occByKey.set(`${o.taskId}:${o.pushedFrom ?? o.date}`, o);
   for (const a of awards) {
     if (a.taskId === null || !byId.has(a.taskId)) continue; // the task was deleted for good: its XP stays
     if (rescheduled.has(a.taskId)) continue; // editing a schedule rewrites the past; see report

@@ -117,7 +117,7 @@ describe('S10 — Routines Browse', () => {
     push.mockRestore();
   });
 
-  it('nothing-due empty variant: a routine due only Sat–Sun still shows under Other routines, scoped Due-section empty state names the selected day', async () => {
+  it('nothing-due empty variant: a routine due only Sat to Sun still shows under Other routines, scoped Due-section empty state names the selected day', async () => {
     const weekend = routine({ id: 'r3', name: 'Yoga flow', cadence: { kind: 'specific-weekdays', weekdays: [6, 7] } });
     mockUseTasks.mockReturnValue({ data: [weekend], isLoading: false, isError: false, refetch: jest.fn() });
     await render(<RoutinesBrowseScreen />);

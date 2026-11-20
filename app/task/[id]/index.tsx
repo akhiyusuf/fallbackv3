@@ -613,7 +613,7 @@ export default function S20ManageTask() {
           />
         ))}
         {scheduleError ? (
-          <Text accessibilityRole="alert" style={[styles.caption, { color: t.color.danger }]}>
+          <Text accessibilityRole="alert" style={[styles.caption, { color: t.color.dangerDeep }]}>
             {scheduleError}
           </Text>
         ) : null}

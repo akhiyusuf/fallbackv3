@@ -88,7 +88,7 @@ export function StepListEditor({ label, itemLabel, helper, steps, onChange, addL
       })}
       {schedule?.footnote ? <Text style={[styles.helper, { color: t.color.textMuted }]}>{schedule.footnote}</Text> : null}
       {error ? (
-        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.danger }]}>
+        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.dangerDeep }]}>
           {error}
         </Text>
       ) : null}

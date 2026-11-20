@@ -1,4 +1,4 @@
-/** M4 — S20's header meta `Tag`, e.g. "Routine · Mon–Sat" (verbatim fixture, S20 Contents). */
+/** M4 — S20's header meta `Tag`, e.g. "Routine · Mon to Sat" (verbatim fixture, S20 Contents). */
 import type { Cadence, Task, TaskType, Weekday } from '@/types';
 
 const TYPE_LABEL: Record<TaskType, string> = { routine: 'Routine', event: 'Event', course: 'Course', todo: 'To-do' };
@@ -12,13 +12,13 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-/** Contiguous run of every selected weekday -> "Mon–Sat"; otherwise comma-abbreviated. */
+/** Contiguous run of every selected weekday -> "Mon to Sat"; otherwise slash-joined. */
 function weekdaysLabel(days: readonly Weekday[]): string {
   if (days.length === 0) return 'No days selected';
   // A repeated weekday must not repeat in the label ("Mon/Mon/Tue"), so de-duplicate first.
   const sorted = [...new Set(days)].sort((a, b) => a - b);
   const isContiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1]! + 1);
-  if (isContiguous && sorted.length > 1) return `${WEEKDAY_ABBR[sorted[0]!]}–${WEEKDAY_ABBR[sorted[sorted.length - 1]!]}`;
+  if (isContiguous && sorted.length > 1) return `${WEEKDAY_ABBR[sorted[0]!]} to ${WEEKDAY_ABBR[sorted[sorted.length - 1]!]}`;
   return sorted.map((d) => WEEKDAY_ABBR[d]).join('/');
 }
 

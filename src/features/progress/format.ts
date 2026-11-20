@@ -18,14 +18,14 @@ export function formatMonthDay(d: LocalDate): string {
   return format(parseLocalDate(d), 'MMM d');
 }
 
-/** "July 2026" (monthly) / "Week of Apr 6–12, 2026" (weekly) — matches S29/S30's own convention. */
+/** "July 2026" (monthly) / "Week of Apr 6 to 12, 2026" (weekly) — matches S29/S30's own convention. */
 export function formatCycleLabel(window: Pick<CycleWindow, 'cadence' | 'startDate' | 'endDate'>): string {
   if (window.cadence === 'monthly') {
     return format(parseLocalDate(window.startDate), 'MMMM yyyy');
   }
   const start = parseLocalDate(window.startDate);
   const end = parseLocalDate(window.endDate);
-  return `Week of ${format(start, 'MMM d')}–${format(end, 'd, yyyy')}`;
+  return `Week of ${format(start, 'MMM d')} to ${format(end, 'd, yyyy')}`;
 }
 
 export function cadenceLabel(cadence: CycleCadence): string {

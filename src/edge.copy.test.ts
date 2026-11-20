@@ -221,13 +221,8 @@ describe('copy sweep: label builders outside the copy files', () => {
     expect(bad).toEqual([]);
   });
 
-  // Known, out of this round's file ownership (src/features/browse/format.ts and
-  // src/features/task/cadenceLabel.ts). Each joins a contiguous weekday run with an en dash, e.g.
-  // "Mon–Sat". Written as it.failing so the suite stays green; once the main session replaces the
-  // dash with "to" (or a hyphen) in both files, this turns red and must be changed to a plain it().
-  // Their existing assertions (src/domain/edge.schedule.test.ts, 'Mon–Sat' / 'Mon–Sun' / 'Sat–Sun'
-  // / 'Mon–Tue') encode the en dash and need the same change.
-  it.failing('KNOWN: contiguous weekday ranges use an en dash (formatWeekdaySet, cadenceLabel)', () => {
+  // Contiguous weekday runs read "Mon to Sat" (the human dislikes dashes in wording).
+  it('contiguous weekday ranges use words, not an en dash (formatWeekdaySet, cadenceLabel)', () => {
     const bad = collect().filter((o) => /–/.test(o.text));
     expect(bad).toEqual([]);
   });

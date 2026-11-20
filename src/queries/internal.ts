@@ -11,7 +11,7 @@
  * (`UNIQUE(task_id, date)` + the one-hop `CHECK`), so there is never more than one candidate to
  * choose between.
  */
-import { addDays, now as clockNow, today as clockToday, toLocalDate } from '@/lib/date';
+import { now as clockNow, today as clockToday, toLocalDate } from '@/lib/date';
 import { emit } from '@/lib/events';
 import { newId } from '@/lib/id';
 import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, reconcileAchievements, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
@@ -21,6 +21,73 @@ import type { DayLog, Instant, LocalDate, Occurrence, OffDayMark, Repositories, 
 
 export function todayLocal(): LocalDate {
   return clockToday();
+}
+
+const DAY_MS = 86_400_000;
+
+/** Plain UTC arithmetic; the slow path, for dates outside the table below. */
+function addDaysArithmetic(date: LocalDate, n: number): LocalDate {
+  const ms = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))) + n * DAY_MS;
+  return new Date(ms).toISOString().slice(0, 10) as LocalDate;
+}
+
+/**
+ * Every calendar date from 1990 to 2070, in order, built once (it is pure calendar data: it can
+ * never go stale). A read shifts dates by a day tens of thousands of times (every day of every
+ * habit's history); a table lookup beats both `@/lib/date`'s `addDays` (a local `Date` through
+ * date-fns each time) and arithmetic with a `Date` per step.
+ */
+const TABLE_FIRST_YEAR = 1990;
+const TABLE_LAST_YEAR = 2070;
+let calendar: { readonly dates: LocalDate[]; readonly index: Map<LocalDate, number> } | null = null;
+
+function calendarTable() {
+  if (calendar) return calendar;
+  const dates: LocalDate[] = [];
+  const index = new Map<LocalDate, number>();
+  for (let y = TABLE_FIRST_YEAR; y <= TABLE_LAST_YEAR; y++) {
+    const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    for (let m = 1; m <= 12; m++) {
+      const dim = m === 2 ? (leap ? 29 : 28) : m === 4 || m === 6 || m === 9 || m === 11 ? 30 : 31;
+      const prefix = `${y}-${m < 10 ? '0' : ''}${m}-`;
+      for (let d = 1; d <= dim; d++) {
+        const date = `${prefix}${d < 10 ? '0' : ''}${d}` as LocalDate;
+        index.set(date, dates.length);
+        dates.push(date);
+      }
+    }
+  }
+  calendar = { dates, index };
+  return calendar;
+}
+
+/** `date + n` calendar days. The same answer as `@/lib/date`'s `addDays`, much faster. */
+function addDays(date: LocalDate, n: number): LocalDate {
+  const { dates, index } = calendarTable();
+  const i = index.get(date);
+  if (i === undefined) return addDaysArithmetic(date, n);
+  return dates[i + n] ?? addDaysArithmetic(date, n);
+}
+
+/**
+ * Every date in `[from, to]` the task is due on: the domain's `occurrencesBetween`, with the same
+ * `isDue` per day but a cheap day step (the domain's own step re-parses the date every time).
+ */
+function dueDatesBetween(task: TaskWithSteps, from: LocalDate, to: LocalDate, notBefore: LocalDate): LocalDate[] {
+  const out: LocalDate[] = [];
+  if (from > to) return out;
+  const { dates, index } = calendarTable();
+  const start = index.get(from);
+  const end = index.get(to);
+  if (start === undefined || end === undefined) {
+    // Outside the table (never in real use): the domain's own walk.
+    return occurrencesBetween(task, from, to, notBefore);
+  }
+  for (let i = start; i <= end; i++) {
+    const cur = dates[i] as LocalDate;
+    if (isDue(task, cur, notBefore)) out.push(cur);
+  }
+  return out;
 }
 
 /**
@@ -93,7 +160,7 @@ function resolveSpan(
   offByDate: ReadonlyMap<LocalDate, readonly OffDayMark[]>,
 ): Occurrence[] {
   const { notBefore, from, to } = span;
-  const dueDates = occurrencesBetween(task, from, to, notBefore);
+  const dueDates = dueDatesBetween(task, from, to, notBefore);
   const logByDate = new Map(logs.map((l) => [l.date, l]));
 
   const allDates = new Set<LocalDate>(dueDates);

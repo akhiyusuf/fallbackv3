@@ -1,5 +1,5 @@
 /** S47 — Data. Backup and restore as list rows (D7); erase is a clear red row that opens a confirm sheet (D3). */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { format } from 'date-fns';
@@ -9,7 +9,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { S47_COPY } from '@/features/data/copy';
 import { EraseDataSheet } from '@/features/data/EraseDataSheet';
-import { emit } from '@/lib/events';
 import { createBackup, restoreBackup } from '@/services/data';
 import { QUERY_KEYS, useRecentlyDeleted, useSettings } from '@/queries';
 import { ROUTES } from '@/navigation';
@@ -33,8 +32,6 @@ export default function S47Data() {
   const [restoring, setRestoring] = useState(false);
   const [restoreFailed, setRestoreFailed] = useState(false);
   const [eraseOpen, setEraseOpen] = useState(false);
-  // Taps in the same moment, before the row has re-rendered as busy, must not start a second backup or a second picker.
-  const busy = useRef(false);
 
   useEffect(() => {
     if (confirmErase === '1') setEraseOpen(true);
@@ -45,13 +42,10 @@ export default function S47Data() {
   }
 
   async function handleBackUpNow() {
-    if (busy.current) return;
-    busy.current = true;
     setBackingUp(true);
-    const result = await createBackup().catch(() => null);
-    busy.current = false;
+    const result = await createBackup();
     setBackingUp(false);
-    if (!result || !result.ok) {
+    if (!result.ok) {
       showToast(S47_COPY.backupFailureToast, 'warning');
       return;
     }
@@ -65,16 +59,6 @@ export default function S47Data() {
   }
 
   async function pickAndRestore() {
-    if (busy.current) return;
-    busy.current = true;
-    try {
-      await pickAndRestoreInner();
-    } finally {
-      busy.current = false;
-    }
-  }
-
-  async function pickAndRestoreInner() {
     const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/octet-stream', '*/*'] }).catch(() => null);
     if (!picked) {
       // The phone's file picker itself failed: show the same calm "could not restore" state.
@@ -84,14 +68,12 @@ export default function S47Data() {
     if (picked.canceled || !picked.assets?.[0]) return;
     setRestoring(true);
     setRestoreFailed(false);
-    const result = await restoreBackup(picked.assets[0].uri).catch(() => null);
+    const result = await restoreBackup(picked.assets[0].uri);
     setRestoring(false);
-    if (!result || !result.ok) {
+    if (!result.ok) {
       setRestoreFailed(true);
       return;
     }
-    // The restored tasks and settings are not what the reminders and widgets were built from.
-    emit({ type: 'store:ready' });
     await qc.invalidateQueries();
     // A backup carries its own look (light or dark, and the colour): show it straight away.
     const restored = qc.getQueryData<Settings>(QUERY_KEYS.settings);

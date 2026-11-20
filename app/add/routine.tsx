@@ -137,7 +137,7 @@ export default function S16CreateRoutine() {
       />
 
       {!showSubStepGrid && bannerDay ? (
-        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.danger }]}>{`${bannerDay} has no ideal step due.`}</Text>
+        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.dangerDeep }]}>{`${bannerDay} has no ideal step due.`}</Text>
       ) : null}
 
       <StepListEditor

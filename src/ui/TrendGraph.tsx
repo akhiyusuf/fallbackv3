@@ -139,11 +139,11 @@ export function TrendGraph({ points, accessibilityLabel, height = 180 }: TrendGr
               accessibilityLabel={`${p.label}: ${p.percent === null ? 'no data' : `${p.percent} percent`}, ideal ${p.breakdown?.ideal ?? 0}, fallback ${p.breakdown?.fallback ?? 0}, off ${p.breakdown?.off ?? 0}, missed ${p.breakdown?.missed ?? 0}`}
             >
               <Text style={[styles.tableFirst, { color: t.color.text }]}>{p.shortLabel ?? p.label}</Text>
-              <Text style={[styles.tableCell, { color: t.color.text, fontWeight: '600' }]}>{p.percent === null ? '-' : `${p.percent}%`}</Text>
-              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.ideal ?? '-'}</Text>
-              <Text style={[styles.tableWide, { color: t.color.text }]}>{p.breakdown?.fallback ?? '-'}</Text>
-              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.off ?? '-'}</Text>
-              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.missed ?? '-'}</Text>
+              <Text style={[styles.tableCell, { color: t.color.text, fontWeight: '600' }]}>{p.percent === null ? '–' : `${p.percent}%`}</Text>
+              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.ideal ?? '–'}</Text>
+              <Text style={[styles.tableWide, { color: t.color.text }]}>{p.breakdown?.fallback ?? '–'}</Text>
+              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.off ?? '–'}</Text>
+              <Text style={[styles.tableCell, { color: t.color.text }]}>{p.breakdown?.missed ?? '–'}</Text>
             </View>
           ))}
         </View>

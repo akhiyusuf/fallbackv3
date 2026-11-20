@@ -27,6 +27,16 @@ jest.mock('@tanstack/react-query', () => {
   return { ...actual, QueryClient: CapturingClient };
 });
 
+// The reminder tap: the app registers one listener for it; the test calls that listener.
+let mockTapListener: ((response: unknown) => void) | null = null;
+jest.mock('expo-notifications', () => ({
+  ...jest.requireActual('expo-notifications'),
+  addNotificationResponseReceivedListener: jest.fn((listener: (response: unknown) => void) => {
+    mockTapListener = listener;
+    return { remove: () => undefined };
+  }),
+}));
+
 import { BackHandler } from 'react-native';
 import { router } from 'expo-router';
 import { store as routerStore } from 'expo-router/build/global-state/router-store';
@@ -100,11 +110,12 @@ function pressBack(): { exited: boolean } {
 
 beforeEach(() => {
   backListeners = [];
-  jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_event: string, listener: BackListener) => {
+  mockTapListener = null;
+  if (process.env.NOSPY !== '1') jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_event: string, listener: BackListener) => {
     backListeners.push(listener);
     return { remove: () => void (backListeners = backListeners.filter((l) => l !== listener)) };
   }) as never);
-  mockClients.forEach((c) => c.clear());
+  // mockClients.forEach((c) => c.clear());
   fake.reset();
   // A person who installed today: the tenure marks start from today, not from the fake's 2024.
   fake.seedSettings({ tenureAnchorDate: D1 as LocalDate });
@@ -220,6 +231,8 @@ describe('journey 2: create on the Routines tab, push to tomorrow, next day', ()
   it('creates, opens, pushes, backs out to Routines, and logs both cards the next day', async () => {
     fake.seedTask(routine('old', 'Stretch'));
     await launch('/today');
+    await advance(500);
+    console.log('DBG', path(), JSON.stringify(screen.queryAllByText(/./).map((n) => n.props.children)), JSON.stringify(screen.toJSON())?.slice(0, 200));
     await screen.findByText('Stretch');
     await openTab('Routines');
     await waitFor(() => expect(path()).toBe('/routines'));
@@ -474,5 +487,78 @@ describe('journey 5: Search, open a task, edit its schedule, Back to Search', ()
     await press('Back to Today');
     await waitFor(() => expect(path()).toBe('/today'));
     expect(rootStack()).toEqual(['(tabs)']);
+  });
+});
+
+function tapReminder(data: Record<string, unknown>) {
+  if (!mockTapListener) throw new Error('the app has not registered a reminder tap listener');
+  act(() => mockTapListener!({ notification: { request: { content: { data } } } }));
+}
+
+describe('journey 6: a reminder tap for a habit that is gone', () => {
+  const reentryUrl = (id: string) => `/today?reentry=1&taskId=${id}`;
+
+  it.each([
+    ['deleted', { deletedAt: at('2026-07-15') as never }],
+    ['ended', { endedOn: '2026-07-14' as LocalDate }],
+  ])('a re-entry tap for a %s habit opens Today with the banner and no crash; its button opens a live habit', async (_kind, patch) => {
+    fake.seedTask(routine('a', 'Stretch'));
+    fake.seedTask(routine('gone', 'Old habit', patch));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    await waitFor(() => expect(params()).toMatchObject({ reentry: '1', taskId: 'gone' }));
+    expect(path()).toBe('/today');
+    // The tap did not add a second Today on the stack.
+    expect(rootStack()).toEqual(['(tabs)']);
+    expect(await screen.findByText("No workout yesterday. That's okay.")).toBeTruthy();
+    expect(screen.queryByText('Old habit')).toBeNull();
+    await press('Even the fallback counts');
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    expect(await screen.findByText('Stretch')).toBeTruthy();
+  });
+
+  it('with nothing live at all the banner has no button, and Dismiss clears it', async () => {
+    fake.seedTask(routine('gone', 'Old habit', { deletedAt: at('2026-07-15') as never }));
+    await launch('/today');
+    await screen.findByText('Nothing planned for today yet.');
+    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    expect(await screen.findByText("No workout yesterday. That's okay.")).toBeTruthy();
+    expect(screen.queryByLabelText('Even the fallback counts')).toBeNull();
+    await press('Dismiss');
+    await waitFor(() => expect(screen.queryByText("No workout yesterday. That's okay.")).toBeNull());
+  });
+
+  it('a tap while the app is still starting is handed to the splash, which opens it once the store is ready', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    fake.seedSettings({ onboardingCompletedAt: at('2026-07-01') as never });
+    const { store } = require('@/queries/testSupport/dbMock') as typeof import('@/queries/testSupport/dbMock');
+    await launch('/');
+    // The layout has armed the tap listener; the store is not ready yet when the tap arrives.
+    const status = jest.spyOn(store, 'status').mockReturnValue('closed' as never);
+    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    status.mockRestore();
+    expect(path()).toBe('/splash');
+    await waitFor(() => expect(path()).toBe('/today'), { timeout: 5000 });
+    expect(params()).toMatchObject({ reentry: '1', taskId: 'gone' });
+    expect(rootStack()).toEqual(['(tabs)']);
+    expect(await screen.findByText("No workout yesterday. That's okay.")).toBeTruthy();
+    // A second launch does not replay the tap (it was taken once).
+  });
+
+  it.each([
+    ['deleted', { deletedAt: at('2026-07-15') as never }, /deleted|Recently deleted/i],
+    ['gone for good', null, /./],
+  ])('a link straight to a %s task shows a notice, and both Backs leave sensibly', async (_kind, patch, notice) => {
+    if (patch) fake.seedTask(routine('gone', 'Old habit', patch));
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/task/gone');
+    await waitFor(() => expect(screen.queryByTestId('s20-loading')).toBeNull());
+    expect(screen.getAllByText(notice).length).toBeGreaterThan(0);
+    expect(rootStack()).toEqual(['task/[id]/index']);
+    // On-screen Back with nothing behind it goes to Today.
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/today'));
+    expect(await screen.findByText('Stretch')).toBeTruthy();
   });
 });

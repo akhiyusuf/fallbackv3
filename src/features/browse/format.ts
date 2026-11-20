@@ -36,14 +36,14 @@ export function taskTypeLabel(type: TaskType): string {
 
 /**
  * Compresses a weekday set into the design's two display conventions: a contiguous run of
- * three or more days reads as a dash range ("Mon–Fri"); everything else (including a
+ * three or more days reads as a dash range ("Mon to Fri"); everything else (including a
  * contiguous 2-day run, e.g. "Sat·Sun" per S10's own Yoga-flow fixture) is dot-joined.
  */
 export function formatWeekdaySet(weekdays: readonly Weekday[]): string {
   const sorted = [...weekdays].sort((a, b) => a - b);
   const isContiguous = sorted.every((d, i) => i === 0 || d === (sorted[i - 1] as Weekday) + 1);
   if (isContiguous && sorted.length >= 3) {
-    return `${WEEKDAY_ABBR[sorted[0] as Weekday]}–${WEEKDAY_ABBR[sorted[sorted.length - 1] as Weekday]}`;
+    return `${WEEKDAY_ABBR[sorted[0] as Weekday]} to ${WEEKDAY_ABBR[sorted[sorted.length - 1] as Weekday]}`;
   }
   return sorted.map((d) => WEEKDAY_ABBR[d]).join('·');
 }
