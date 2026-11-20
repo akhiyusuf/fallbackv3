@@ -132,7 +132,7 @@ describe('render cost with 150 habits', () => {
     // Exactly one strip changed (habit 007, today ticked as ideal); the other 149 read the same.
     const changed = labelsAfter.map((l, i) => (l === labelsBefore[i] ? -1 : i)).filter((i) => i >= 0);
     expect(changed).toHaveLength(1);
-    expect(labelsAfter[changed[0]]).toMatch(/ ideal$/);
+    expect(labelsAfter[changed[0] as number]).toMatch(/ ideal$/);
   }, 120000);
 
   it('Routines: the batched strips say exactly what a card reading its own strip says', async () => {
@@ -155,7 +155,7 @@ describe('render cost with 150 habits', () => {
       );
       await waitFor(() => expect(screen.getAllByLabelText(/^Last seven days/).length).toBeGreaterThan(0));
       await settle(100);
-      own.push(String(screen.getAllByLabelText(/^Last seven days/)[0].props.accessibilityLabel));
+      own.push(String(screen.getAllByLabelText(/^Last seven days/)[0]?.props.accessibilityLabel));
       await view.unmount();
     }
     expect([...batched].sort()).toEqual([...own].sort());
@@ -165,7 +165,7 @@ describe('render cost with 150 habits', () => {
   it('Routines: a card outside the list (Search) still reads its own strip', async () => {
     seed(1);
     const r = reads();
-    const [t] = await repos.tasks.list();
+    const t = (await repos.tasks.list())[0] as TaskWithSteps;
     await render(
       <QueryClientProvider client={client()}>
         <TaskCard task={t} meta={['x']} onPress={() => {}} />

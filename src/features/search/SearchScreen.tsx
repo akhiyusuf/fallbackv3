@@ -98,7 +98,7 @@ export default function SearchScreen() {
             placeholder={S14_COPY.searchPlaceholder}
             value={query}
             onChangeText={setQuery}
-            right={<View style={styles.searchIcon}><SearchIcon size={18} color={t.color.textDim} /></View>}
+            right={<View style={styles.searchIcon} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><SearchIcon size={18} color={t.color.textDim} /></View>}
           />
         </View>
       }

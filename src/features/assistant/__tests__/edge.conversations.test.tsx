@@ -580,7 +580,7 @@ describe('two habits called "Run"', () => {
     await say('I did my run');
     await screen.findByText('Which?');
     await userEvent.press(screen.getByLabelText('Dismiss'));
-    expect(await screen.findByText(/No worries/)).toBeTruthy();
+    expect(await screen.findByText(/Okay\. Tell me/)).toBeTruthy();
     expect(await logsFor(a.id)).toEqual([]);
     expect(await logsFor(b.id)).toEqual([]);
     await say('never mind, hello');

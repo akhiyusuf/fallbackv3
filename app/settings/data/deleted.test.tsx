@@ -245,7 +245,7 @@ describe('Recently deleted: Restore', () => {
     fake.seedTask(deletedTask('a', 'Morning workout', 6));
     await mount();
     await userEvent.press(await openRestore());
-    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout"'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout".'));
     expect(toast()?.tone).toBe('success');
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt).toBeNull();
     expect(await screen.findByText(DELETED_COPY.empty)).toBeTruthy();
@@ -295,7 +295,7 @@ describe('Recently deleted: Restore', () => {
       fireEvent.press(button);
       fireEvent.press(button);
     });
-    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout"'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout".'));
     expect(spy).toHaveBeenCalledTimes(1);
     expect(toast()?.tone).toBe('success');
   });

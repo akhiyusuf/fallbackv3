@@ -215,7 +215,7 @@ async function finalizeCycleForCadenceChange(newCadence: CycleCadence): Promise<
 
   const today = todayLocal();
   const { state, persisted } = await getOrInitCycleState(settings); // re-read: may have just advanced above
-  if (!persisted) return err({ code: 'WRITE_FAILED', message: 'Could not establish the current cycle pointer.' });
+  if (!persisted) return err({ code: 'WRITE_FAILED', message: 'Couldn\'t establish the current cycle pointer.' });
   const liveWindow = stateToWindow(state);
 
   const shortCycleEnd = addDays(today, -1);
@@ -654,12 +654,28 @@ async function logStateRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: Lo
   }
   const existing = target.existing;
   const nowIso = now();
+  // Edge round 4 (undo everywhere). A chip the day already shows automatically is not an override.
+  // Taking a tap back ("Undo" on a log sends the chip the day had before) or tapping "to do" on an
+  // untouched day must leave the day automatic again, so the next dose or ticked step is counted
+  // like any other. Storing it as an override pinned the day: a dose habit un-logged to "to do"
+  // then stayed "to do" after a dose was taken (`logDoseRaw` keeps the flag). Same chip, same
+  // outcome today; only the later behaviour differs.
+  const autoChip = autoChipState({
+    taskId: input.taskId,
+    date: input.date,
+    outcome: 'pending',
+    dueIdealStepIds: dueIdealStepIds(task, input.date),
+    completedStepIds: existing?.completedStepIds ?? [],
+    chipState: null,
+    dosesRequired: task.dosesPerDay,
+    dosesCompleted: existing?.dosesCompleted ?? 0,
+  });
   const persistResult = await repos.logs.upsert({
     id: existing?.id ?? newId(),
     taskId: input.taskId,
     date: target.targetDate,
     chipState: input.chip,
-    isManualOverride: true,
+    isManualOverride: input.chip !== autoChip,
     completedStepIds: existing?.completedStepIds ?? [],
     dosesCompleted: existing?.dosesCompleted ?? 0,
     movedToDate: existing?.movedToDate ?? null, // T-2: preserves a visitor row's own pointer; own rows always had null here anyway

@@ -128,7 +128,7 @@ export function createSettingsRepository(db: DbClient) {
     async get(): Promise<Settings> {
       const row = await db.getFirstAsync<SettingsRow>(`SELECT ${SETTINGS_COLUMNS} FROM settings WHERE id = 1`);
       if (!row) {
-        throw new Error('settings singleton missing — StoreLifecycle.open() must seed it before any read');
+        throw new Error('settings singleton missing: StoreLifecycle.open() must seed it before any read');
       }
       const widgets = await readWidgets();
       return rowToSettings(row, widgets);

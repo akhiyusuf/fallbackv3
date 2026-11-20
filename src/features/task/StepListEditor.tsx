@@ -92,7 +92,7 @@ export function StepListEditor({ label, itemLabel, helper, steps, onChange, addL
           {error}
         </Text>
       ) : null}
-      <Button label={addLabel} onPress={add} variant="secondary" icon={<Plus size={18} color={t.color.text} />} accessibilityLabel={addLabel} fullWidth />
+      <Button label={addLabel} onPress={add} variant="secondary" icon={<Plus size={18} color={t.color.text} />} accessibilityLabel={itemLabel ? `${addLabel}: ${itemLabel}` : addLabel} fullWidth />
     </View>
   );
 }

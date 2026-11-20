@@ -177,7 +177,7 @@ describe('S09 — Today', () => {
     await view.rerender(withToastHost(<TodayScreen />));
 
     expect(screen.getByLabelText('Movement, Ideal done. Change')).toBeTruthy();
-    expect(useToastStore.getState().toast).toMatchObject({ message: 'Ideal done', tone: 'success', detail: '+10 XP' });
+    expect(useToastStore.getState().toast).toMatchObject({ message: 'Ideal done.', tone: 'success', detail: '+10 XP' });
     expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
     expect(useCelebrationStore.getState().queue).toEqual([]);
   });
@@ -195,7 +195,7 @@ describe('S09 — Today', () => {
     await view.rerender(withToastHost(<TodayScreen />));
 
     expect(screen.getByLabelText('Movement, Fallback done. Change')).toBeTruthy();
-    expect(useToastStore.getState().toast).toMatchObject({ message: 'Fallback done', icon: 'fallback', detail: '+6 XP' });
+    expect(useToastStore.getState().toast).toMatchObject({ message: 'Fallback done.', icon: 'fallback', detail: '+6 XP' });
     expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
   });
 

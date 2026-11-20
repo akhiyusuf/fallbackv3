@@ -299,7 +299,7 @@ describe('BYO provider: key handling and failures', () => {
     await setByoConfig({ baseUrl: 'https://llm.example.org/v1', apiKey: KEY, supportsTranscription: false });
     fetchMock.mockRejectedValue(new TypeError('Network request failed'));
     const events = await collect(createByoAssistantProvider().streamChat(turn));
-    expect(events).toEqual([{ type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach your AI endpoint. Try again.' }]);
+    expect(events).toEqual([{ type: 'error', code: 'NETWORK_UNAVAILABLE', message: "Couldn't reach your AI endpoint. Try again." }]);
   });
 
   it('the connection dropping mid-stream ends in an error event, not a thrown rejection', async () => {

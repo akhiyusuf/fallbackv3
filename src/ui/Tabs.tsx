@@ -16,6 +16,8 @@ import { useReduceMotion } from './motion';
 export interface TabItem {
   readonly value: string;
   readonly label: string;
+  /** The name a screen reader gives the tab, when the visible label alone is not enough (for example it repeats a bottom tab's name). */
+  readonly accessibilityLabel?: string;
 }
 
 export interface TabsProps {
@@ -122,7 +124,7 @@ export function Tabs({ items, value, onChange, accessibilityLabel, disabled = fa
             disabled={disabled}
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
-            accessibilityLabel={item.label}
+            accessibilityLabel={item.accessibilityLabel ?? item.label}
             // The tab is 36 tall inside a 44 bar: the slop makes its touch target 44.
             hitSlop={{ top: 4, bottom: 4 }}
             // Before the bar has measured itself the chosen option draws its own highlight.

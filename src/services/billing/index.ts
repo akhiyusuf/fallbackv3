@@ -93,7 +93,7 @@ async function requestBiometricConfirmation(): Promise<Result<void>> {
       cancelLabel: 'Cancel',
     });
   } catch (cause) {
-    return err({ code: 'CANCELLED', message: 'Couldn't start biometric confirmation. Try again.', cause: 'biometric' });
+    return err({ code: 'CANCELLED', message: "Couldn't start biometric confirmation. Try again.", cause: 'biometric' });
   }
   if (!result.success) {
     // `cause: 'biometric'` tells the screen this was the identity check, not the store sheet being closed.
@@ -179,7 +179,7 @@ export const billing: BillingProvider = {
       });
       return ok(undefined);
     } catch (cause) {
-      return err({ code: 'STORE_UNAVAILABLE', message: 'Couldn't reach the store. Try again.', cause });
+      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store. Try again.", cause });
     }
   },
 
@@ -201,7 +201,7 @@ export const billing: BillingProvider = {
         .filter((p): p is { sku: string; plan: Plan; localizedPrice: string } => p !== null);
       return ok(mapped);
     } catch (cause) {
-      return err({ code: 'STORE_UNAVAILABLE', message: 'Couldn't reach the store. Try again.', cause });
+      return err({ code: 'STORE_UNAVAILABLE', message: "Couldn't reach the store. Try again.", cause });
     }
   },
 

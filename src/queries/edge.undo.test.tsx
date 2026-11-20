@@ -32,7 +32,7 @@ import type { LocalDate } from '@/types';
 
 import { fake, repos } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
-import { compareScenario, type Action, type UndoEnv, VARIANTS } from './testSupport/undoEngine';
+import { compareScenario, isBadgeLine, type Action, type UndoEnv, VARIANTS } from './testSupport/undoEngine';
 import { SCENARIOS } from './testSupport/undoScenarios';
 import {
   useCreateTask,
@@ -153,7 +153,7 @@ void resolveAllOccurrences;
 
 /* ------------------------------------------------------------------ the pairs */
 
-const dumps: Array<{ scenario: string; variant: string; diffs: string[] }> = [];
+const dumps: Array<{ scenario: string; variant: string; diffs: string[]; badges: string[] }> = [];
 
 afterAll(() => {
   // Written for the report and for review: every pair's raw difference, one line each.
@@ -166,7 +166,7 @@ afterAll(() => {
 describe.each(SCENARIOS.map((s) => [s.name, s] as const))('undo pair: %s', (_name, scenario) => {
   it.each(VARIANTS.map((v) => [v.name, v] as const))('%s', async (_variantName, variant) => {
     const { diffs } = await compareScenario(env, scenario, variant);
-    dumps.push({ scenario: scenario.name, variant: variant.name, diffs });
+    dumps.push({ scenario: scenario.name, variant: variant.name, diffs: diffs.filter((l) => !isBadgeLine(l)), badges: diffs.filter(isBadgeLine) });
     expect(diffs.length).toBeGreaterThanOrEqual(0);
   });
 });

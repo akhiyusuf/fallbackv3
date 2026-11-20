@@ -26,7 +26,32 @@ describe('Toast', () => {
   it('dismisses on tap', async () => {
     await render(<Toast />);
     await act(async () => useToastStore.getState().show('Couldn’t save that — try again.'));
-    await fireEvent.press(screen.getByRole('button', { name: 'Dismiss' }));
+    // The visible Dismiss control is not a focus stop any more (the alert is), so find it by its label.
+    await fireEvent.press(screen.getByLabelText('Dismiss'));
+    expect(useToastStore.getState().toast).toBeNull();
+  });
+
+  it('focus lands on the message, and Dismiss and the action are named accessibility actions', async () => {
+    const onUndo = jest.fn();
+    await render(<Toast />);
+    await act(async () => useToastStore.getState().show('Routine deleted.', 'success', { action: { label: 'Undo', onPress: onUndo } }));
+    const alert = alertFor('Routine deleted.');
+    expect(alert.props.accessible).toBe(true);
+    expect(alert.props.accessibilityActions).toEqual([
+      { name: 'dismiss', label: 'Dismiss' },
+      { name: 'action', label: 'Undo' },
+    ]);
+    // A focused Dismiss would be read on its own: no focus stop of its own carries the message.
+    expect(screen.getByLabelText('Dismiss').props.accessible).toBe(false);
+    await act(async () => alert.props.onAccessibilityAction({ nativeEvent: { actionName: 'action' } }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(useToastStore.getState().toast).toBeNull();
+  });
+
+  it('the Dismiss accessibility action hides a toast with no action', async () => {
+    await render(<Toast />);
+    await act(async () => useToastStore.getState().show('Saved.'));
+    await act(async () => alertFor('Saved.').props.onAccessibilityAction({ nativeEvent: { actionName: 'dismiss' } }));
     expect(useToastStore.getState().toast).toBeNull();
   });
 

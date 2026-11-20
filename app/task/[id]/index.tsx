@@ -250,7 +250,7 @@ export default function S20ManageTask() {
     try {
       const result = await duplicateTask.mutateAsync(taskId);
       if (result.ok) {
-        showToast('Duplicated. You're now on the copy.', 'success');
+        showToast("Duplicated. You're now on the copy.", 'success');
         router.replace(`/task/${result.value}` as never);
       } else fail();
     } catch {

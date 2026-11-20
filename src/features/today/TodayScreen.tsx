@@ -5,7 +5,7 @@
  * empty (D15).
  */
 import { play } from '@/services/sfx';
-import { memo, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Bell, LifeBuoy, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -132,9 +132,11 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   }
 
   // One stable set of handlers for every row: a log redraws the one card that changed, not all 150.
-  // They run through a ref so they always see this render's rows, date and handlers.
+  // They run through a ref, set after each render, so they always see the latest rows, date and handlers.
   const latest = useRef({ handleLog, takeDayOff, pushToTomorrow, openTask, once, date });
-  latest.current = { handleLog, takeDayOff, pushToTomorrow, openTask, once, date };
+  useEffect(() => {
+    latest.current = { handleLog, takeDayOff, pushToTomorrow, openTask, once, date };
+  });
   const rowActions = useMemo<RowActions>(
     () => ({
       toggleReopen: (key) => setReopenedTaskId((cur) => (cur === key ? null : key)),

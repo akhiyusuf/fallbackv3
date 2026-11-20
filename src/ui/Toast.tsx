@@ -48,14 +48,31 @@ export function Toast() {
   const Icon = toast.icon === 'ideal' ? CheckCheck : toast.icon === 'fallback' ? Check : toast.icon === 'skip' ? Minus : null;
   const iconBg = toast.icon === 'ideal' ? inverse.ideal : toast.icon === 'fallback' ? inverse.fallback : inverse.off;
 
+  // The alert is ONE focus stop that reads the message first. Dismiss and the action are
+  // exposed as named accessibility actions on it, so Dismiss is its own action and never the
+  // thing focus lands on. The visible buttons below stay as they were for touch.
+  const dismissAction = { name: 'dismiss', label: 'Dismiss' };
+  const actions = toast.action ? [dismissAction, { name: 'action', label: toast.action.label }] : [dismissAction];
+
   return (
     <View
+      accessible
       accessibilityRole="alert"
       accessibilityLabel={[toast.message, toast.detail].filter(Boolean).join(', ')}
       accessibilityLiveRegion="polite"
+      accessibilityActions={actions}
+      onAccessibilityAction={(event) => {
+        const name = event.nativeEvent.actionName;
+        if (name === 'dismiss') hide();
+        else if (name === 'action' && toast.action) {
+          const action = toast.action;
+          hide();
+          action.onPress();
+        }
+      }}
       style={[styles.root, { backgroundColor: inverse.bgAlt, borderColor: inverse.border, bottom, right }]}
     >
-      <Pressable onPress={hide} style={styles.body} accessibilityRole="button" accessibilityLabel="Dismiss">
+      <Pressable onPress={hide} accessible={false} style={styles.body} accessibilityRole="button" accessibilityLabel="Dismiss">
         {Icon ? (
           <View style={[styles.iconDot, { backgroundColor: iconBg }]}>
             <Icon size={14} color={inverse.iconOnSignal} />
@@ -73,6 +90,7 @@ export function Toast() {
             hide();
             action?.onPress();
           }}
+          accessible={false}
           accessibilityRole="button"
           accessibilityLabel={toast.action.label}
           hitSlop={8}

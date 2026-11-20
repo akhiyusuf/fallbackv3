@@ -13,11 +13,11 @@ import { cardSurface } from './surface';
 import type { IconComponent } from './icon';
 import { Text } from '@/ui/AppText';
 
-export function SectionHeading({ children, right }: { readonly children: string; readonly right?: ReactNode }) {
+export function SectionHeading({ children, right, heading = true }: { readonly children: string; readonly right?: ReactNode; /** false when the screen title already says it, so the screen keeps one header */ readonly heading?: boolean }) {
   const t = useTheme();
   return (
     <View style={styles.headingRow}>
-      <Text accessibilityRole="header" style={[styles.heading, { color: t.color.text }]}>
+      <Text accessibilityRole={heading ? 'header' : undefined} style={[styles.heading, { color: t.color.text }]}>
         {children}
       </Text>
       {right}

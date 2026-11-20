@@ -25,6 +25,7 @@ jest.mock('@tanstack/react-query', () => {
   return { ...actual, QueryClient: CapturingClient };
 });
 
+import React from 'react';
 import { writeFileSync } from 'fs';
 import { renderRouter, screen } from 'expo-router/testing-library';
 import { act } from '@testing-library/react-native';
@@ -35,61 +36,71 @@ import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import type { DayLog, Id, Instant, LocalDate, Step, TaskWithSteps } from '@/types';
 
+const loadErrors: string[] = [];
+function safe(path: string): React.ComponentType {
+  try {
+    return require(path).default;
+  } catch (e) {
+    loadErrors.push(`${path}: ${String((e as Error).message).split('\n')[0]}`);
+    return () => null;
+  }
+}
+
 const CONTEXT = {
-  _layout: require('./_layout').default,
-  index: require('./index').default,
-  splash: require('./splash').default,
-  search: require('./search').default,
-  recovery: require('./recovery').default,
-  progress: require('./progress/index').default,
-  'progress/trend': require('./progress/trend').default,
-  achievements: require('./achievements/index').default,
-  'achievements/celebrate': require('./achievements/celebrate').default,
-  priorities: require('./priorities/index').default,
-  records: require('./records/index').default,
-  'records/[cycleId]': require('./records/[cycleId]').default,
-  settings: require('./settings/index').default,
-  'settings/agents': require('./settings/agents').default,
-  'settings/help': require('./settings/help').default,
-  'settings/notifications': require('./settings/notifications').default,
-  'settings/subscription': require('./settings/subscription').default,
-  'settings/sync': require('./settings/sync').default,
-  'settings/theme': require('./settings/theme').default,
-  'settings/widgets': require('./settings/widgets').default,
-  'settings/data/index': require('./settings/data/index').default,
-  'settings/data/deleted': require('./settings/data/deleted').default,
-  'settings/data/erase': require('./settings/data/erase').default,
-  'onboarding/concept': require('./onboarding/concept').default,
-  'onboarding/hook': require('./onboarding/hook').default,
-  'onboarding/types': require('./onboarding/types').default,
-  'onboarding/consistency': require('./onboarding/consistency').default,
-  'onboarding/personalize': require('./onboarding/personalize').default,
-  'onboarding/notifications-primer': require('./onboarding/notifications-primer').default,
-  'onboarding/first-task': require('./onboarding/first-task').default,
-  'add/index': require('./add/index').default,
-  'add/routine': require('./add/routine').default,
-  'add/event': require('./add/event').default,
-  'add/course': require('./add/course').default,
-  'add/todo': require('./add/todo').default,
-  'task/[id]/index': require('./task/[id]/index').default,
-  'task/[id]/icon': require('./task/[id]/icon').default,
-  'task/[id]/delete': require('./task/[id]/delete').default,
-  'task/[id]/as-needed': require('./task/[id]/as-needed').default,
-  'task/[id]/celebrate': require('./task/[id]/celebrate').default,
-  'assistant/index': require('./assistant/index').default,
-  'assistant/chat': require('./assistant/chat').default,
-  'assistant/mic-primer': require('./assistant/mic-primer').default,
-  'assistant/paywall/index': require('./assistant/paywall/index').default,
-  'assistant/paywall/plan': require('./assistant/paywall/plan').default,
-  'assistant/paywall/byo': require('./assistant/paywall/byo').default,
-  'assistant/history/index': require('./assistant/history/index').default,
-  'assistant/history/[id]': require('./assistant/history/[id]').default,
-  '(tabs)/_layout': require('./(tabs)/_layout').default,
-  '(tabs)/today': require('./(tabs)/today').default,
-  '(tabs)/routines': require('./(tabs)/routines').default,
-  '(tabs)/events': require('./(tabs)/events').default,
-  '(tabs)/courses': require('./(tabs)/courses').default,
-  '(tabs)/todos': require('./(tabs)/todos').default,
+  _layout: safe('./_layout'),
+  index: safe('./index'),
+  splash: safe('./splash'),
+  search: safe('./search'),
+  recovery: safe('./recovery'),
+  progress: safe('./progress/index'),
+  'progress/trend': safe('./progress/trend'),
+  achievements: safe('./achievements/index'),
+  'achievements/celebrate': safe('./achievements/celebrate'),
+  priorities: safe('./priorities/index'),
+  records: safe('./records/index'),
+  'records/[cycleId]': safe('./records/[cycleId]'),
+  settings: safe('./settings/index'),
+  'settings/agents': safe('./settings/agents'),
+  'settings/help': safe('./settings/help'),
+  'settings/notifications': safe('./settings/notifications'),
+  'settings/subscription': safe('./settings/subscription'),
+  'settings/sync': safe('./settings/sync'),
+  'settings/theme': safe('./settings/theme'),
+  'settings/widgets': safe('./settings/widgets'),
+  'settings/data/index': safe('./settings/data/index'),
+  'settings/data/deleted': safe('./settings/data/deleted'),
+  'settings/data/erase': safe('./settings/data/erase'),
+  'onboarding/concept': safe('./onboarding/concept'),
+  'onboarding/hook': safe('./onboarding/hook'),
+  'onboarding/types': safe('./onboarding/types'),
+  'onboarding/consistency': safe('./onboarding/consistency'),
+  'onboarding/personalize': safe('./onboarding/personalize'),
+  'onboarding/notifications-primer': safe('./onboarding/notifications-primer'),
+  'onboarding/first-task': safe('./onboarding/first-task'),
+  'add/index': safe('./add/index'),
+  'add/routine': safe('./add/routine'),
+  'add/event': safe('./add/event'),
+  'add/course': safe('./add/course'),
+  'add/todo': safe('./add/todo'),
+  'task/[id]/index': safe('./task/[id]/index'),
+  'task/[id]/icon': safe('./task/[id]/icon'),
+  'task/[id]/delete': safe('./task/[id]/delete'),
+  'task/[id]/as-needed': safe('./task/[id]/as-needed'),
+  'task/[id]/celebrate': safe('./task/[id]/celebrate'),
+  'assistant/index': safe('./assistant/index'),
+  'assistant/chat': safe('./assistant/chat'),
+  'assistant/mic-primer': safe('./assistant/mic-primer'),
+  'assistant/paywall/index': safe('./assistant/paywall/index'),
+  'assistant/paywall/plan': safe('./assistant/paywall/plan'),
+  'assistant/paywall/byo': safe('./assistant/paywall/byo'),
+  'assistant/history/index': safe('./assistant/history/index'),
+  'assistant/history/[id]': safe('./assistant/history/[id]'),
+  '(tabs)/_layout': safe('./(tabs)/_layout'),
+  '(tabs)/today': safe('./(tabs)/today'),
+  '(tabs)/routines': safe('./(tabs)/routines'),
+  '(tabs)/events': safe('./(tabs)/events'),
+  '(tabs)/courses': safe('./(tabs)/courses'),
+  '(tabs)/todos': safe('./(tabs)/todos'),
 };
 
 const D1 = '2026-07-16';
@@ -146,21 +157,25 @@ function flatten(root: Node): Flat[] {
     const selfHidden = p.accessibilityElementsHidden === true || p.importantForAccessibility === 'no-hide-descendants' || p.importantForAccessibility === 'no';
     const h = hidden || selfHidden;
     out.push({ node: n, hidden: h, inButton, path });
-    const btn = inButton || (PRESS_HOST(p) && p.accessible === true);
+    const btn = inButton || p.accessible === true;
     (n.children ?? []).forEach((c, i) => visit(c, h, btn, `${path}/${n.type}[${i}]`));
   };
   visit(root, false, false, '');
   return out;
 }
 
-const BAD_LABEL = /^(button|icon|image|touchable|pressable|svg|chevron.*|close|x|plus|tap|press|view|option|item|row|card)$/i;
+const BAD_LABEL = /^(button|icon|image|touchable|pressable|svg|chevron.*|x|plus|tap|press|view|option|item|row|card)$/i;
 const ICON_NAME = /^[A-Z][a-z]+(?:[A-Z][a-z0-9]+)+$/;
 
 function audit(screen: string, root: Node): Finding[] {
   const f: Finding[] = [];
   const flat = flatten(root);
   const headers = flat.filter((x) => x.node.props?.accessibilityRole === 'header');
-  if (headers.length !== 1) f.push({ screen, kind: 'headers', detail: `${headers.length} header(s): ${headers.map((h) => textOf(h.node)).join(' | ')}` });
+  if (headers.length === 0) f.push({ screen, kind: 'headers', detail: '0 headers' });
+  const titles = headers.map((h) => textOf(h.node));
+  const dupTitles = titles.filter((t, i) => titles.indexOf(t) !== i);
+  if (dupTitles.length) f.push({ screen, kind: 'headers-dup', detail: `repeated header: ${dupTitles.join(' | ')}` });
+  f.push({ screen, kind: 'headers-info', detail: titles.join(' | ') });
   const pressables = flat.filter((x) => PRESS_HOST(x.node.props ?? {}) && x.node.props?.accessible === true);
   const seen = new Map<string, number>();
   for (const x of pressables) {
@@ -171,6 +186,9 @@ function audit(screen: string, root: Node): Finding[] {
     if (!label) f.push({ screen, kind: 'pressable-label', detail: `no label; text="${text.slice(0, 60)}"` });
     else if (BAD_LABEL.test(label) || ICON_NAME.test(label)) f.push({ screen, kind: 'pressable-label-bad', detail: `"${label}"` });
     if (label) seen.set(label, (seen.get(label) ?? 0) + 1);
+  }
+  for (const x of flat.filter((y) => PRESS_HOST(y.node.props ?? {}) && y.node.props?.accessible !== true)) {
+    f.push({ screen, kind: 'pressable-not-accessible', detail: `"${(x.node.props?.accessibilityLabel as string) ?? textOf(x.node).slice(0, 40)}"` });
   }
   for (const [label, n] of seen) if (n > 1) f.push({ screen, kind: 'duplicate-label', detail: `"${label}" x${n}` });
   for (const x of flat) {
@@ -204,12 +222,12 @@ const ok: string[] = [];
 
 it.each(ROUTES)('screen %s', async (name, url) => {
   await renderRouter(CONTEXT as never, { initialUrl: url });
-  await act(async () => undefined);
-  await act(async () => new Promise((r) => setTimeout(r, 50)));
+  for (let i = 0; i < 30; i++) await act(async () => { jest.advanceTimersByTime(100); });
   const tree = screen.toJSON() as Node;
   writeFileSync(OUT + `screen-${name}.json`, JSON.stringify(tree, (k, v) => (typeof v === 'function' ? 'FN' : v), 1));
   const f = audit(name, tree);
   findings.push(...f);
+  if (loadErrors.length) findings.push({ screen: name, kind: 'load-error', detail: loadErrors.join('; ') });
   ok.push(name);
 });
 

@@ -46,7 +46,7 @@ describe('S24 Completion Celebration', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/celebrate?variant=ideal&xp=10&levelUp=0', wrapper });
     expect(await screen.findByText('Morning workout')).toBeTruthy();
     const toast = useToastStore.getState().toast;
-    expect(toast?.message).toBe('Ideal done');
+    expect(toast?.message).toBe('Ideal done.');
     expect(toast?.tone).toBe('success');
     expect(toast?.detail).toBe('+10 XP');
     expect(useCelebrationStore.getState().queue).toEqual([]);
@@ -57,7 +57,7 @@ describe('S24 Completion Celebration', () => {
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/celebrate?variant=fallback&xp=6&levelUp=0', wrapper });
     expect(await screen.findByText('Morning workout')).toBeTruthy();
     const toast = useToastStore.getState().toast;
-    expect(toast?.message).toBe('Fallback done');
+    expect(toast?.message).toBe('Fallback done.');
     expect(toast?.detail).toBe('+6 XP');
     expect(useCelebrationStore.getState().queue).toEqual([]);
   });
@@ -68,7 +68,7 @@ describe('S24 Completion Celebration', () => {
     expect(await screen.findByText('Morning workout')).toBeTruthy();
     expect(screen.queryByText('MARKER_TODAY')).toBeNull();
     expect(useCelebrationStore.getState().queue).toEqual([]);
-    expect(useToastStore.getState().toast?.message).toBe('Ideal done');
+    expect(useToastStore.getState().toast?.message).toBe('Ideal done.');
   });
 
   it('a level-up completion queues the level-up pop-up with the lifetime XP', async () => {

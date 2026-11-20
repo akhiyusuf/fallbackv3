@@ -34,10 +34,23 @@ const nativeDeps: OfferDeps = {
   },
 };
 
-/** The file's own name without its extension: the folder's provider adds ".json" from the MIME type. */
+/**
+ * The file's own name without its extension. The folder's provider adds ".json" from the MIME type,
+ * so a name left as "....fallbackbak" would be saved as "....fallbackbak.json". Both extensions this
+ * app writes (the backup's ".fallbackbak" and a plain ".json") are dropped here.
+ */
 export function backupFileBaseName(uri: string): string {
   const last = uri.split('/').pop() || 'fallback-backup.json';
-  return decodeURIComponent(last).replace(/\.json$/i, '') || 'fallback-backup';
+  return safeDecode(last).replace(/\.(json|fallbackbak)$/i, '') || 'fallback-backup';
+}
+
+/** A name with a stray "%" must not throw here: the file is still saved, under the raw name. */
+function safeDecode(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
 }
 
 export async function offerBackupFile(uri: string, deps: OfferDeps = nativeDeps): Promise<OfferResult> {

@@ -3,7 +3,7 @@
  * Colored icon circle (D14), name, one quiet meta line and status pills
  * (D13), ideal/fallback tiles (decision 22-C), chevron = opens the task (D7).
  */
-import { isValidElement, memo, type ComponentProps, useCallback, useRef, type ReactNode } from 'react';
+import { isValidElement, memo, type ComponentProps, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 
@@ -74,7 +74,9 @@ export const TaskCard = memo(TaskCardImpl, sameCard);
 function TaskCardImpl({ task, meta, metaLeading, status, showPlan = true, showWeek, muted = false, onPress, footer, accessibilityLabel }: TaskCardProps) {
   const t = useTheme();
   const latestPress = useRef(onPress);
-  latestPress.current = onPress;
+  useEffect(() => {
+    latestPress.current = onPress;
+  });
   const press = useCallback(() => latestPress.current(), []);
   const ideal = showPlan ? planSummary(task.idealSteps) : null;
   const fallback = showPlan ? planSummary(task.fallbackSteps) : null;

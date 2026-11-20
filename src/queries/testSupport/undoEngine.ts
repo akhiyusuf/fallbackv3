@@ -76,6 +76,11 @@ export const VARIANTS: readonly Variant[] = [
 export interface Ctx {
   readonly env: UndoEnv;
   day: LocalDate;
+  /**
+   * The day the action was taken on. An Undo on the screen is a closure over the day it was offered
+   * for, so after midnight it still undoes the day it belongs to, not the new one.
+   */
+  actionDay: LocalDate;
   /** label -> real id (tasks, copies). */
   readonly ids: Map<string, string>;
   /** real id -> label (tasks and steps), used to normalise snapshots. */
@@ -219,10 +224,6 @@ export function normalise(value: unknown, labels: ReadonlyMap<string, string>): 
   return value;
 }
 
-function sortRows(rows: readonly unknown[]): unknown[] {
-  return [...rows].sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
-}
-
 export interface Snapshot {
   readonly tables: Record<string, unknown>;
   readonly derived: Record<string, unknown>;
@@ -231,7 +232,7 @@ export interface Snapshot {
 export async function snapshot(c: Ctx): Promise<Snapshot> {
   const raw = await c.env.tables();
   const tables: Record<string, unknown> = {};
-  for (const [name, rows] of Object.entries(raw)) tables[name] = sortRows(rows.map((r) => normalise(r, c.labels)));
+  for (const [name, rows] of Object.entries(raw)) tables[name] = rows.map((r) => normalise(r, c.labels));
 
   const repos = c.env.repos;
   const today = dayOf(c);
@@ -241,30 +242,37 @@ export async function snapshot(c: Ctx): Promise<Snapshot> {
   const consistency = aggregateConsistency({ occurrences: record, window: { from: start, to: today }, today });
   const cycle = await repos.cycleState.get();
   const derived = {
-    record: sortRows(record.map((o) => normalise(o, c.labels))),
-    today: sortRows(todayList.map((o) => normalise(o, c.labels))),
+    record: record.map((o) => normalise(o, c.labels)),
+    today: todayList.map((o) => normalise(o, c.labels)),
     consistencyPercent: consistency.percent,
     consistencyBreakdown: normalise(consistency.breakdown, c.labels),
     lifetimeXp: await repos.progress.lifetimeXp(),
     cyclingXp: cycle ? await repos.progress.cyclingXp(cycle.currentCycleId) : null,
-    badges: sortRows((await repos.progress.listUnlocks()).map((u) => u.key)),
+    badges: (await repos.progress.listUnlocks()).map((u) => u.key),
   };
   return { tables, derived };
 }
 
 /* ------------------------------------------------------------------ diffs */
 
-/** Every difference between two values, as readable paths. Arrays compare by index. */
+/**
+ * Every difference between two values, as readable lines. Arrays are compared as MULTISETS of rows:
+ * a row that is in one side and not the other is reported as removed (-) or added (+), so one
+ * changed row is one pair of lines and an inserted row does not shift every row after it.
+ */
 export function diff(a: unknown, b: unknown, path = ''): string[] {
   if (Object.is(a, b)) return [];
   if (Array.isArray(a) && Array.isArray(b)) {
+    const count = new Map<string, number>();
+    for (const row of b) count.set(JSON.stringify(row), (count.get(JSON.stringify(row)) ?? 0) + 1);
     const out: string[] = [];
-    const n = Math.max(a.length, b.length);
-    for (let i = 0; i < n; i++) {
-      if (i >= a.length) out.push(`${path}[${i}] added ${JSON.stringify(b[i])}`);
-      else if (i >= b.length) out.push(`${path}[${i}] removed ${JSON.stringify(a[i])}`);
-      else out.push(...diff(a[i], b[i], `${path}[${i}]`));
+    for (const row of a) {
+      const key = JSON.stringify(row);
+      const left = count.get(key) ?? 0;
+      if (left > 0) count.set(key, left - 1);
+      else out.push(`${path} - ${key}`);
     }
+    for (const [key, n] of count) for (let i = 0; i < n; i++) out.push(`${path} + ${key}`);
     return out;
   }
   if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
@@ -283,6 +291,11 @@ export function diff(a: unknown, b: unknown, path = ''): string[] {
   return [`${path}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`];
 }
 
+/** The badge rows a difference belongs to. Badges are upsert-only by design (see the existing badge tests). */
+export function isBadgeLine(line: string): boolean {
+  return line.startsWith('.tables.unlocks') || line.startsWith('.derived.badges');
+}
+
 /* ------------------------------------------------------------------ running */
 
 /**
@@ -291,10 +304,11 @@ export function diff(a: unknown, b: unknown, path = ''): string[] {
  */
 export async function runSide(env: UndoEnv, scenario: Scenario, variant: Variant, side: 'control' | 'treatment'): Promise<Snapshot> {
   await env.reset();
-  const c: Ctx = { env, day: START_DAY, ids: new Map(), labels: new Map(), last: new Map() };
+  const c: Ctx = { env, day: START_DAY, actionDay: START_DAY, ids: new Map(), labels: new Map(), last: new Map() };
   await seed(c);
   if (scenario.setup) await scenario.setup(c);
   const treat = side === 'treatment';
+  c.actionDay = c.day;
   if (treat) await scenario.act(c);
   if (variant.midnight) advanceDay(c);
   if (variant.otherHabit) {

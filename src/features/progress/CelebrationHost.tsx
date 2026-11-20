@@ -4,7 +4,7 @@
  * app/_layout.tsx; shown over the dimmed current screen.
  */
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
 import { ACHIEVEMENTS, levelFor } from '@/domain';
 import { useCelebrationStore, type Celebration } from '@/app-shell/stores/celebration';
@@ -16,6 +16,13 @@ import { BADGE_ICONS, LEVEL_UP_ICON } from './badgeIcons';
 import { Confetti } from './Confetti';
 import { S28_COPY, tenureBodyFor } from './copy';
 import { Text } from '@/ui/AppText';
+
+/** The headline a milestone shows, as the pop-up prints it. */
+function headlineOf(c: Celebration): string {
+  if (c.kind === 'level-up') return S28_COPY.levelUpHeadline(levelFor(c.lifetimeXp).level);
+  const label = ACHIEVEMENTS.find((a) => a.key === c.badgeKey)?.label ?? '';
+  return c.badgeKey.startsWith('tenure-') ? S28_COPY.tenureHeadline(label) : S28_COPY.badgeHeadline(label);
+}
 
 /** The shortest wait between earning a milestone and seeing it. */
 const POP_DELAY_MS = 300;
@@ -33,6 +40,12 @@ export function CelebrationHost() {
     if (!current) return;
     return play(current.kind === 'badge' ? 'badge_earned' : 'level_up', POP_DELAY_MS, () => setArrived(current));
   }, [current]);
+  // The pop-up is announced when it arrives, so a screen reader user hears the milestone without
+  // having to find it (it sits over the dimmed screen and takes focus only once it is there).
+  useEffect(() => {
+    if (!arrived || Platform.OS === 'web') return;
+    AccessibilityInfo.announceForAccessibility?.(headlineOf(arrived));
+  }, [arrived]);
   if (!current || arrived !== current) return null;
 
   let badgeLabel: string;

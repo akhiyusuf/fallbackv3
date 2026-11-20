@@ -165,7 +165,7 @@ export const S40_COPY = {
   save: 'Save and connect',
   connecting: 'Connecting…',
   invalid: "Couldn't verify this endpoint. Double-check the URL and key, then try again.",
-  successFull: "Connected.",
+  successFull: 'Connected.',
   successFullSub: 'Taking you to Fallback AI…',
   successDegraded:
     "Saved. This endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",

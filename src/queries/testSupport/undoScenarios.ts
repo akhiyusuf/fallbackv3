@@ -26,7 +26,7 @@ export const SCENARIOS: readonly Scenario[] = [
     },
     // The screen's Undo sends the chip the day had before the tap: auto "to do" (nothing ticked).
     undo: async (c) => {
-      await logState(c, 'H1', DAY(c), 'todo');
+      await logState(c, 'H1', c.actionDay, 'todo');
     },
     note: 'un-log writes a manual "to do" row where there was no row before',
   },
@@ -41,7 +41,7 @@ export const SCENARIOS: readonly Scenario[] = [
     },
     // Undo sends the chip the day had before the tap: fallback.
     undo: async (c) => {
-      await logState(c, 'H1', DAY(c), 'fallback');
+      await logState(c, 'H1', c.actionDay, 'fallback');
     },
     note: 'the day goes back to fallback (manual override kept)',
   },
@@ -55,8 +55,8 @@ export const SCENARIOS: readonly Scenario[] = [
       await logState(c, 'H1', DAY(c), 'done');
     },
     undo: async (c) => {
-      await logState(c, 'H1', DAY(c), 'fallback');
-      await logState(c, 'H1', DAY(c), 'todo');
+      await logState(c, 'H1', c.actionDay, 'fallback');
+      await logState(c, 'H1', c.actionDay, 'todo');
     },
     note: 'two un-logs in a row, the second one is the un-log of the fallback',
   },
@@ -67,7 +67,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: DAY(c), stepId: await stepId(c, 'H1', 0) });
     },
     undo: async (c) => {
-      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: DAY(c), stepId: await stepId(c, 'H1', 0) });
+      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: c.actionDay, stepId: await stepId(c, 'H1', 0) });
     },
   },
   {
@@ -77,7 +77,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: DAY(c), dosesCompleted: 1 });
     },
     undo: async (c) => {
-      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: DAY(c), dosesCompleted: 0 });
+      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.actionDay, dosesCompleted: 0 });
     },
   },
   {
@@ -87,7 +87,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await attempt(c, 'snooze', { taskId: id(c, 'H1'), date: DAY(c) });
     },
     undo: async (c) => {
-      await attempt(c, 'undoSnooze', { taskId: id(c, 'H1'), date: DAY(c) });
+      await attempt(c, 'undoSnooze', { taskId: id(c, 'H1'), date: c.actionDay });
     },
   },
   {
@@ -97,7 +97,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await attempt(c, 'markOffDay', { date: DAY(c), taskId: id(c, 'H1'), mark: true });
     },
     undo: async (c) => {
-      await attempt(c, 'markOffDay', { date: DAY(c), taskId: id(c, 'H1'), mark: false });
+      await attempt(c, 'markOffDay', { date: c.actionDay, taskId: id(c, 'H1'), mark: false });
     },
   },
   {
@@ -107,7 +107,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await attempt(c, 'markOffDay', { date: DAY(c), taskId: null, mark: true });
     },
     undo: async (c) => {
-      await attempt(c, 'markOffDay', { date: DAY(c), taskId: null, mark: false });
+      await attempt(c, 'markOffDay', { date: c.actionDay, taskId: null, mark: false });
     },
   },
   {
@@ -213,7 +213,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await logState(c, 'H3', DAY(c), 'done');
     },
     undo: async (c) => {
-      await logState(c, 'H3', DAY(c), 'todo');
+      await logState(c, 'H3', c.actionDay, 'todo');
     },
     after: async (c) => {
       await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: DAY(c), dosesCompleted: 1 });
@@ -227,7 +227,7 @@ export const SCENARIOS: readonly Scenario[] = [
       await logState(c, 'H1', DAY(c), 'done');
     },
     undo: async (c) => {
-      await logState(c, 'H1', DAY(c), 'todo');
+      await logState(c, 'H1', c.actionDay, 'todo');
     },
     after: async (c) => {
       await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: DAY(c), stepId: await stepId(c, 'H1', 0) });

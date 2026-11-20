@@ -88,7 +88,7 @@ export default function S32AssistantConversation() {
     // caller (docs/API.md §3: a mutation never reports success on a failed write). The
     // returned flag also tells `OptionsSheet` whether to keep its optimistic override.
     const saved = await voiceLanguage.save({ language, voice });
-    showToast(saved ? S36_COPY.savedToast : 'Couldn't save that. Try again.', saved ? 'success' : 'warning');
+    showToast(saved ? S36_COPY.savedToast : "Couldn't save that. Try again.", saved ? 'success' : 'warning');
     return saved;
   }
 

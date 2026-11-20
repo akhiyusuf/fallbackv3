@@ -122,7 +122,7 @@ export default function S43Theme() {
       </View>
 
       <View style={styles.block}>
-        <SectionHeading>Theme</SectionHeading>
+        <SectionHeading heading={false}>Theme</SectionHeading>
         <View style={styles.themeGrid} accessibilityRole="radiogroup" accessibilityLabel="Theme">
           {THEME_ORDER.map((key) => (
             <ThemeCard key={key} themeKey={key} label={THEME_LABELS[key]} selected={accent === key} onPress={() => void handleAccentChange(key)} />

@@ -98,7 +98,7 @@ export default function ToDosBrowseScreen() {
           <>
             <Tabs
               items={[
-                { value: 'todos', label: S13_COPY.todosLens },
+                { value: 'todos', label: S13_COPY.todosLens, accessibilityLabel: 'To-dos list' },
                 { value: 'notes', label: S13_COPY.notesLens },
               ]}
               value={lens}

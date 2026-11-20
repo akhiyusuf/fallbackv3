@@ -11,7 +11,7 @@
  * mapping. That is what lets a `NULL xp_award.task_id` survive untouched: it is just
  * another column value, never treated as a broken reference to "repair" (SCHEMA §2.3, §9).
  */
-import { now } from '@/lib/date';
+import { now, toLocalDate } from '@/lib/date';
 import { err, ok } from '@/types';
 import type { Instant, Result } from '@/types';
 
@@ -210,12 +210,34 @@ async function validateBackupColumns(db: DbClient, envelope: BackupEnvelope): Pr
 }
 
 /**
+ * Migration 9 added `task.created_on` and `task.deleted_on`: the local day a habit was created and
+ * deleted. A backup made before it has neither key, and the insert would store NULL, leaving the
+ * record to re-derive the day from the instant in whatever zone the phone is in later (the very
+ * drift migration 9 exists to stop). So fill them here, as the migration does, from the instants.
+ * A value the file already carries is kept exactly as it is.
+ */
+function withLocalDays(envelope: BackupEnvelope): BackupEnvelope {
+  const localDay = (instant: unknown): string | null => {
+    if (typeof instant !== 'string') return null;
+    const date = new Date(instant);
+    return Number.isNaN(date.getTime()) ? null : toLocalDate(date);
+  };
+  const task = envelope.tables.task.map((row) => ({
+    ...row,
+    created_on: row.created_on ?? localDay(row.created_at),
+    deleted_on: row.deleted_on ?? localDay(row.deleted_at),
+  }));
+  return { ...envelope, tables: { ...envelope.tables, task } };
+}
+
+/**
  * Transactional wipe-and-load of the 11 backed-up tables. Wrapped in ONE transaction, so a
  * thrown error (a genuine FK/CHECK violation, a malformed row) rolls back BOTH the deletes
  * and the inserts — existing data is left untouched on any failure (SCHEMA §9's
  * non-destructive-restore rule), with no separate staging schema needed for that guarantee.
  */
-export async function applyBackupEnvelope(db: DbClient, envelope: BackupEnvelope): Promise<Result<void>> {
+export async function applyBackupEnvelope(db: DbClient, source: BackupEnvelope): Promise<Result<void>> {
+  const envelope = withLocalDays(source);
   try {
     // Checked BEFORE the transaction opens, same reasoning as validateBackupEnvelope's
     // singleton check: a rejection here must never touch existing data.

@@ -66,7 +66,7 @@ export function createManagedAssistantProvider(deps: ManagedProviderDeps): Assis
           }),
         });
       } catch {
-        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach the assistant. Try again.' };
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: "Couldn't reach the assistant. Try again." };
         return;
       }
 
@@ -85,7 +85,7 @@ export function createManagedAssistantProvider(deps: ManagedProviderDeps): Assis
         }
       } catch {
         // The connection dropped part way through the reply: a calm error event, never a throw.
-        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach the assistant. Try again.' };
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: "Couldn't reach the assistant. Try again." };
       }
     },
 
@@ -103,7 +103,7 @@ export function createManagedAssistantProvider(deps: ManagedProviderDeps): Assis
         const json = (await response.json()) as { text?: string };
         return ok(json.text ?? '');
       } catch (cause) {
-        return err({ code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach the transcription service. Try again.', cause });
+        return err({ code: 'NETWORK_UNAVAILABLE', message: "Couldn't reach the transcription service. Try again.", cause });
       }
     },
   };

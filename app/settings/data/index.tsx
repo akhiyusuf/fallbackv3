@@ -75,7 +75,9 @@ export default function S47Data() {
   }
 
   async function pickAndRestoreInner() {
-    const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/octet-stream', '*/*'] }).catch(() => null);
+    // copyToCacheDirectory: the picked file is copied into the app first, so restore reads a file://
+    // path. On Android the restore reader cannot open a plain content:// URI, so this must stay true.
+    const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'application/octet-stream', '*/*'], copyToCacheDirectory: true }).catch(() => null);
     if (!picked) {
       // The phone's file picker itself failed: show the same calm "could not restore" state.
       setRestoreFailed(true);

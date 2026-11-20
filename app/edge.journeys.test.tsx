@@ -177,7 +177,7 @@ describe('journey 1: first launch to Progress', () => {
     expect(screen.getByText('0 of 1 done')).toBeTruthy();
     expect(fake.currentSettings().onboardingCompletedAt).not.toBeNull();
     await press(/Evening walk: Done/);
-    await waitFor(() => expect(toast()?.message).toBe('Ideal done'));
+    await waitFor(() => expect(toast()?.message).toBe('Ideal done.'));
     expect(screen.getByText('1 of 1 done')).toBeTruthy();
     // The first day is a milestone: the pop-up arrives after the log sound and a breath.
     await advance(3000);
@@ -373,7 +373,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
 
     // Undo from the toast: it is back on Today, whole.
     await press('Undo');
-    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch"'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch".'));
     expect(await screen.findByText('Stretch')).toBeTruthy();
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
 
@@ -385,7 +385,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await openRecentlyDeleted();
     await userEvent.press(await screen.findByTestId('deleted-row-a'));
     await userEvent.press(within(await screen.findByTestId('deleted-item-sheet')).getByText('Restore'));
-    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch"'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch".'));
     expect(await screen.findByText(/Nothing here/)).toBeTruthy();
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
 
