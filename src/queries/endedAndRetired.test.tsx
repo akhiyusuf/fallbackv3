@@ -33,7 +33,7 @@ import { aggregateConsistency } from '@/domain';
 import { resolveRecordOccurrences } from './internal';
 import { fake, repos } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
-import { useDeleteForever, useDeleteTask, useEmptyRecentlyDeleted, useEndTask, useLogState, useRestoreTask, useStartAgain } from './mutations';
+import { useDeleteForever, useDeleteTask, useEmptyRecentlyDeleted, useEndTask, useLogState, useRestoreTask, useSnoozeOccurrence, useStartAgain } from './mutations';
 import { useAchievements, useConsistency, useConsistencyDisclosure, useRecentlyDeleted, useTask, useTaskOccurrences, useToday, useTrend } from './reads';
 
 function freshClient(): QueryClient {
@@ -398,5 +398,22 @@ describe('restoring after some days away', () => {
     await mutate(useRestoreTask, task.id);
     const occs = await readNow(() => useTaskOccurrences(task.id, { from: '2024-06-01' as LocalDate, to: '2024-06-01' as LocalDate }));
     expect(occs.map((o) => o.outcome)).toEqual(['pending']);
+  });
+
+  // Found by the year simulation (review/sonnet/24-simulation.md, seed 2): a weekday habit pushed
+  // from Friday lands on Saturday, a day it is not naturally due, so marking the days away off by
+  // cadence alone missed it and coming back read Saturday as a miss.
+  it('restore does not turn a day pushed before the delete into a miss', async () => {
+    clock.today = '2024-05-31'; // a Friday
+    clock.now = '2024-05-31T12:00:00.000Z';
+    const task = makeTask({ cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] }, createdAt: '2024-05-20T08:00:00.000Z' as Instant });
+    fake.seedTask(task);
+    expect((await mutate(useSnoozeOccurrence, { taskId: task.id, date: '2024-05-31' as LocalDate })).ok).toBe(true);
+    await mutate(useDeleteTask, task.id);
+    clock.today = '2024-06-03'; // Monday
+    clock.now = '2024-06-03T12:00:00.000Z';
+    expect((await mutate(useRestoreTask, task.id)).ok).toBe(true);
+    const occs = await readNow(() => useTaskOccurrences(task.id, { from: '2024-05-31' as LocalDate, to: '2024-06-02' as LocalDate }));
+    expect(occs.some((o) => o.outcome === 'missed')).toBe(false);
   });
 });

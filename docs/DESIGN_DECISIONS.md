@@ -1266,6 +1266,45 @@ Open with the human:
 - The "couldn't save" seen once on the phone was not reproduced; the toast now
   carries the real reason.
 
+### Round 4, twenty-fifth pass (2026-11-20): edge-case round 2
+
+The human: **"do more tests."** Round 2 looked across areas (reports
+`review/sonnet/24, 26, 28, 30` and `review/haiku/25, 27, 29, 31`).
+
+Fixed (agents in their areas, main session where marked):
+- Time zones (main session): migration 9 stores `task.created_on` and
+  `task.deleted_on`, the device's local day at the moment it happened, so a
+  person who travels cannot gain a missed day that never happened or lose a
+  real one. A clock set back no longer makes today a settled miss.
+- Android back (journeys agent + main session): Back, Save and Delete return
+  to the screen below (`dismissTo`) instead of stacking a copy, so the phone's
+  back button no longer walks through duplicates.
+- Speed: one range read for all habits instead of two per habit, windowed
+  reads; Today 1117 ms to 7 ms on a heavy three-year record, same answers.
+- Restarts (main session): `healMissingXp` on launch gives a logged day the XP
+  award it is owed when the app was killed between the two writes.
+- Year simulation: 60 seeded years, 14 invariants after every step; restore no
+  longer turns a day pushed before the delete into a miss.
+- Privacy: an assistant delete needs the person's own words to name the
+  habit; "draw over other apps" removed; agent-access store refuses choices a
+  scope does not offer; an http:// AI address is refused on every request
+  (local model servers excepted).
+- Settings and subscription: pending purchases wait instead of showing success;
+  expired or refunded plans are not active; Buy runs once; restore refreshes
+  reminders and the widget; failing saves undo and say so.
+- Wording and access: ranges read "Mon to Fri"; the no-value mark is one short
+  dash everywhere; error text uses the darker red for contrast; tabs reach a
+  44 px tap area; labels wrap at large text.
+
+Open with the human:
+- Editing a habit's schedule rewrites how its past days read (the simulation
+  exempts it). Freezing the past would need schedule history.
+- The subscription is not cached on the phone: offline at launch reads "Free
+  plan" until the store answers.
+- After every log the badges re-read the whole record (about 0.6 s on a very
+  heavy record); fine for now, a candidate if logging ever feels slow.
+- A pop-up message may read "Dismiss" to a screen reader (check on the phone).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
