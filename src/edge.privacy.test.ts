@@ -129,7 +129,7 @@ describe('static: console output', () => {
   it('has exactly two console calls, both carrying only an error object and a fixed label', () => {
     const hits = findLines(/\bconsole\.(log|warn|error|info|debug|trace|table|dir)\b/);
     expect(hits.map((h) => `${h.file}:${h.line}`).sort()).toEqual(
-      ['src/app-shell/ErrorBoundary.tsx:30', 'src/lib/events.ts:30'].sort(),
+      ['src/app-shell/ErrorBoundary.tsx:32', 'src/lib/events.ts:30'].sort(),
     );
     const sensitive = /apiKey|api_key|receipt|prompt|messages|\.text\b|\.name\b|taskId|byo|habit|task\.|note|Authorization/i;
     for (const h of hits) expect({ at: `${h.file}:${h.line}`, sensitive: sensitive.test(h.text) }).toEqual({ at: `${h.file}:${h.line}`, sensitive: false });
