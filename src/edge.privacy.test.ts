@@ -97,7 +97,14 @@ describe('static: network calls', () => {
   it('has no hardcoded URL outside the managed backend default and two copy/placeholder strings', () => {
     const urls = findLines(/https?:\/\/[^'"` )]+/).filter((h) => !/^\s*(\*|\/\/)/.test(h.text));
     expect(urls.map((u) => `${u.file}:${u.line}`).sort()).toEqual(
-      ['src/features/assistant/copy.ts:160', 'src/services/ai/managedProvider.ts:19', 'app/assistant/paywall/byo.tsx:16'].sort(),
+      [
+        'src/features/assistant/copy.ts:160',
+        'src/services/ai/managedProvider.ts:19',
+        // The words "http://" and "https://" in messages telling the person to switch to https.
+        'app/assistant/paywall/byo.tsx:17',
+        'src/services/ai/byoProvider.ts:52',
+        'src/services/ai/byoProvider.ts:116',
+      ].sort(),
     );
   });
 
@@ -286,6 +293,7 @@ describe('static: route params and notification taps', () => {
       useCreateTask: 'creates a new task, no id from the URL',
       useDeleteTask: 'soft delete: softDelete is guarded by `deleted_at IS NULL`, so a stale id changes nothing',
       useRestoreTask: 'restores from Recently deleted, by design a deleted task',
+      markAwayPushedDayOff: 'internal, called only from useRestoreTask on the task it found in Recently deleted',
       useDeleteForever: 'removes from Recently deleted, by design a deleted task',
       useEmptyRecentlyDeleted: 'removes deleted tasks in bulk, by design',
       bringBackLoggedPush: 'internal, called from useEndTask/useStartAgain after liveTask',
