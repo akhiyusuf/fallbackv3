@@ -167,13 +167,13 @@ describe('S44 subscription screen', () => {
   it('a subscriber with an unknown renewal date sees a dash, never an invented date', async () => {
     useEntitlementStore.getState().patchEntitlement({ source: 'subscription', plan: 'monthly', status: 'active', renewsOn: null });
     await render(<S44Manage />);
-    expect(await screen.findByText('–')).toBeTruthy();
+    expect(await screen.findByText('-')).toBeTruthy();
   });
 
   it('offline on open: the retry banner; Retry loads it', async () => {
     mockRefresh.mockResolvedValueOnce({ ok: false, error: { code: 'STORE_UNAVAILABLE', message: 'x' } }).mockResolvedValueOnce({ ok: true, value: undefined });
     await render(<S44Manage />);
-    await userEvent.press(await screen.findByText('Retry'));
+    await userEvent.press(await screen.findByText('Try again'));
     expect(await screen.findByText('Fallback AI')).toBeTruthy();
   });
 

@@ -18,7 +18,7 @@ describe('S49 — Help & About', () => {
   it('renders every support/legal row, the privacy promise and the footer verbatim', async () => {
     await render(<S49HelpAndAbout />);
     // Row labels are shown with "and" where the copy says "&" (the screen maps them for reading).
-    const shown: Record<string, string> = { 'FAQ & guides': 'FAQ and guides' };
+    const shown: Record<string, string> = { 'FAQ and guides': 'FAQ and guides' };
     for (const row of [...S49_COPY.supportSection, ...S49_COPY.legalSection]) {
       expect(screen.getByText(shown[row.label] ?? row.label)).toBeTruthy();
     }
@@ -30,7 +30,7 @@ describe('S49 — Help & About', () => {
   it('each Support row announces its OWN destination type, not a blanket "opens email" (review pass 1, blocking item 7)', async () => {
     await render(<S49HelpAndAbout />);
     expect(screen.getByLabelText('Contact support, opens email')).toBeTruthy();
-    expect(screen.getByLabelText('FAQ & guides, opens an external help center')).toBeTruthy();
+    expect(screen.getByLabelText('FAQ and guides, opens an external help center')).toBeTruthy();
     expect(screen.getByLabelText('Rate Fallback, opens the app store')).toBeTruthy();
   });
 

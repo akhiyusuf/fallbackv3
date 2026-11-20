@@ -1,7 +1,7 @@
 /**
  * WeekStrip — the last seven days of one task, drawn. Green tick = ideal, blue tick =
  * fallback, grey dash = an off day, empty ring = missed, theme ring = today and still open,
- * dashed ring = not due. Colour is never the only signal: each state has its own mark.
+ * dashed ring = not due. Color is never the only signal: each state has its own mark.
  */
 import { StyleSheet, View } from 'react-native';
 import { Check, CheckCheck, Minus } from 'lucide-react-native';

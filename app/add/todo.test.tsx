@@ -58,7 +58,7 @@ describe('S19 Create To-do/Note', () => {
     await userEvent.press(screen.getByLabelText('Save to-do'));
     // To-dos have no due date, so a saved to-do lands on the to-dos list, not Today.
     expect(await screen.findByText('MARKER_TODOS')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('To-do saved');
+    expect(useToastStore.getState().toast?.message).toBe('To-do saved.');
   });
 
   it('a note saves with "Note saved" and lands on the notes lens', async () => {
@@ -67,7 +67,7 @@ describe('S19 Create To-do/Note', () => {
     await userEvent.type(title, 'Gift ideas');
     await userEvent.press(screen.getByLabelText('Save note'));
     expect(await screen.findByText('MARKER_TODOS')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('Note saved');
+    expect(useToastStore.getState().toast?.message).toBe('Note saved.');
   });
 
   it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {

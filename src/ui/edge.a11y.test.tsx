@@ -7,7 +7,7 @@
  *  - the state of disabled controls and of switches, checkboxes, tabs and selected options is
  *    exposed in accessibilityState
  *  - every primary control's touch target is at least 44 x 44 (minHeight/height plus hitSlop)
- *  - body text, muted text and the signal colours meet 4.5:1 against the surfaces they sit on
+ *  - body text, muted text and the signal colors meet 4.5:1 against the surfaces they sit on
  *    (computed from the theme tokens with the WCAG relative-luminance formula)
  *  - no visible or spoken string (text, accessibilityLabel, accessibilityHint) carries an em dash,
  *    an en dash, a double space, a trailing space or a placeholder word

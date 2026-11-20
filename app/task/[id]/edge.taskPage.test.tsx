@@ -149,7 +149,7 @@ describe('task page: every kind opens', () => {
     const spy = slow(fake.repos.asNeeded, 'append');
     await userEvent.press(btn);
     await userEvent.press(btn);
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Logged to history'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Logged to history.'));
     spy.mockRestore();
     expect(await fake.repos.asNeeded.listForTask('a' as Id)).toHaveLength(1);
   });

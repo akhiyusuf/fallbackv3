@@ -1,4 +1,4 @@
-/** S04 — onboarding step 3. Four equal tiles in a 2×2 grid, each with the coloured icon circle (D14). */
+/** S04 — onboarding step 3. Four equal tiles in a 2×2 grid, each with the colored icon circle (D14). */
 import { useRouter, type Href } from 'expo-router';
 import { CalendarRange, ListTodo, Repeat, Timer } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';

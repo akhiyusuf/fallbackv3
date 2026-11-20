@@ -28,7 +28,7 @@ export type Cadence =
   | { readonly kind: 'bi-monthly'; readonly dayOfMonth: number; readonly anchorDate: LocalDate }
   | { readonly kind: 'yearly'; readonly month: number; readonly dayOfMonth: number; readonly anchorDate: LocalDate };
 
-/** F8 / S21. Closed four-colour set, shared with the accent palette. */
+/** F8 / S21. Closed four-color set, shared with the accent palette. */
 export type TaskColor = 'forge-orange' | 'indigo' | 'berry' | 'plum';
 
 /** Lucide icon name, validated against the S21 catalogue at save time. */

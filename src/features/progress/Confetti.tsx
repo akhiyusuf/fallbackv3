@@ -1,7 +1,7 @@
 /**
  * M5 — S28's confetti burst. This is the ONLY confetti surface in the app (MODULES.md
- * non-negotiable): fired once, only here. Purely decorative — every particle colour comes
- * from the accent + celebration-gold tokens, NEVER a signal colour (ideal/fallback/off are
+ * non-negotiable): fired once, only here. Purely decorative — every particle color comes
+ * from the accent + celebration-gold tokens, NEVER a signal color (ideal/fallback/off are
  * reserved and never used decoratively). Degrades to a plain opacity cross-fade under OS
  * "reduce motion" (DESIGN.md Motion → Confetti).
  */

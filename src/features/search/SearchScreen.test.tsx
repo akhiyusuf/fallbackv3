@@ -56,7 +56,7 @@ describe('S14 — Filter & Search', () => {
     expect(screen.getByText("Couldn't load this list. Your data is safe on this device.")).toBeTruthy();
     expect(screen.queryByText('No matches.')).toBeNull();
     const user = userEvent.setup();
-    await user.press(screen.getByLabelText('Retry'));
+    await user.press(screen.getByLabelText('Try again'));
     expect(refetch).toHaveBeenCalled();
   });
 

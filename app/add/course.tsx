@@ -73,7 +73,7 @@ export default function S18CreateCourse() {
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {
       router.dismissTo(ROUTES.today);
-      showToast('Course saved', 'success');
+      showToast('Course saved.', 'success');
     } else {
       showToast(SAVE_FAILED, 'warning');
     }

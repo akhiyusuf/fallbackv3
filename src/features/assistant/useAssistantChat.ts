@@ -41,7 +41,7 @@ export const DROPPED_CALL_LINE = "I couldn't do that one. It may have ended, bee
 export const UNSUPPORTED_CALL_LINE =
   "I can't do that one from here yet. To end a routine, push it to tomorrow or take the day off, open the routine and use End routine, Push to tomorrow or Emergency day off. Nothing was changed.";
 
-export const DELETE_NEEDS_NAME_LINE = 'To delete a habit, say its name, like "delete Morning run". Nothing was changed.';
+export const DELETE_NEEDS_NAME_LINE = 'To delete a task, say its name, like "delete Morning run". Nothing was changed.';
 
 /** How many of the latest messages go to the model on each turn. A very long chat is trimmed, never sent whole. */
 export const HISTORY_LIMIT = 40;
@@ -307,7 +307,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
 
   const dismissClarification = useCallback(() => {
     setClarification(null);
-    appendItem({ id: newId(), kind: 'assistant', text: "No worries. Let me know which one whenever you're ready." });
+    appendItem({ id: newId(), kind: 'assistant', text: "Okay. Tell me which one when you're ready." });
   }, [appendItem]);
 
   // The failed turn's user message is already in the transcript and in `historyRef`, so a retry

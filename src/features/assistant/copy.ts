@@ -12,7 +12,7 @@ export const S31_COPY = {
   chips: ['Add a morning run', 'Water plants Mon and Thu', '10-day meditation', 'Plan my week', 'Add a medication'] as const,
   inputPlaceholder: 'Or type what you need…',
   error: "Couldn't load the assistant right now.",
-  retry: 'Retry',
+  retry: 'Try again',
 } as const;
 
 export const S32_COPY = {
@@ -37,7 +37,7 @@ export const S33_COPY = {
   voiceCaption: 'Or just say which one.',
   listening: 'Listening for your answer…',
   reAsk: 'Sorry, which one did you mean?',
-  dismissedTurn: "No worries. Let me know which one whenever you're ready.",
+  dismissedTurn: "Okay. Tell me which one when you're ready.",
 } as const;
 
 export const S34_COPY = {
@@ -45,14 +45,14 @@ export const S34_COPY = {
   emptyHeadline: 'No conversations yet',
   emptySubcopy: "Start a chat with Fallback AI and it'll show up here, ready to reopen anytime.",
   error: "Couldn't load your conversation history.",
-  retry: 'Retry',
+  retry: 'Try again',
 } as const;
 
 export const S35_COPY = {
   tasksCreatedLabel: 'Tasks created in this chat',
   continuePlaceholder: 'Continue this chat…',
   error: "Couldn't load this conversation.",
-  retry: 'Retry',
+  retry: 'Try again',
 } as const;
 
 export const S36_COPY = {
@@ -67,7 +67,7 @@ export const S36_COPY = {
   languageValue: 'English (US)',
   voiceLabel: 'Voice',
   voiceValue: 'Warm (default)',
-  savedToast: 'Saved',
+  savedToast: 'Saved.',
 } as const;
 
 export const S37_COPY = {
@@ -92,12 +92,12 @@ export const S38_COPY = {
   title: 'Fallback AI',
   storeUnreachable: "Can't reach the App Store right now. Your own AI key still works. No store connection needed.",
   storeUnavailableFinePrint: 'Store unavailable. Try again shortly.',
-  retry: 'Retry',
+  retry: 'Try again',
   headline: 'Just say it. AI builds it.',
   subcopy: 'Speak naturally. Fallback AI turns it into routines, events and courses, each with an ideal and a fallback.',
   benefits: [
     { title: "Talk, don't type", body: 'Say what you want in your own words.' },
-    { title: 'Ideal and fallback, written for you', body: 'Every habit comes with both.' },
+    { title: 'Ideal and fallback, written for you', body: 'Every task comes with both.' },
     { title: 'A whole week in one go', body: 'Routines, events and courses together.' },
   ] as const,
   cardA: {
@@ -120,7 +120,7 @@ export const S38_COPY = {
     finePrint: "If your provider can't turn speech into text, you can still type.",
   },
   footerDisclosure:
-    'While subscribed, your conversation messages are processed by our AI provider to generate responses. That is separate from your habit data, which never leaves this device.',
+    'While subscribed, your conversation messages are processed by our AI provider to generate responses. That is separate from your task data, which never leaves this device.',
   restoreNoneFound: 'No active subscription found.',
 } as const;
 
@@ -147,7 +147,7 @@ export const S39_COPY = {
   success: 'Trial started. 7 days free.',
   biometricFailed: "Face ID didn't recognize you. Try again, or use your device passcode.",
   purchaseError: "Couldn't complete the purchase. Nothing was charged. Try again.",
-  retry: 'Retry',
+  retry: 'Try again',
   finePrint:
     'Payment will be charged to your Apple ID / Google Play account at confirmation. Auto-renews unless cancelled at least 24 hours before the trial ends. Manage or cancel anytime in App Store / Google Play Settings.',
 } as const;
@@ -165,7 +165,7 @@ export const S40_COPY = {
   save: 'Save and connect',
   connecting: 'Connecting…',
   invalid: "Couldn't verify this endpoint. Double-check the URL and key, then try again.",
-  successFull: "Connected. You're all set.",
+  successFull: "Connected.",
   successFullSub: 'Taking you to Fallback AI…',
   successDegraded:
     "Saved. This endpoint doesn't support voice, so you'll type instead. You can switch modality anytime in the assistant.",
@@ -192,7 +192,7 @@ export const S44_COPY = {
   manageHelper: 'Billing is handled by Apple/Google Play. Cancel anytime. Access lasts through the paid period.',
   restore: 'Restore purchases',
   restoreHelper: 'Re-checks your store account for an active subscription. No sign-in needed.',
-  restoreSuccess: 'Restored. Fallback AI is active',
+  restoreSuccess: 'Restored. Fallback AI is active.',
   restoreNone: 'No active subscription found on this account.',
   errorStore: "Couldn't reach the store. Try again.",
   opensAppStore: 'Opens the App Store',

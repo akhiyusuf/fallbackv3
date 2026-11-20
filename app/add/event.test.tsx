@@ -64,7 +64,7 @@ describe('S17 Create Event', () => {
     await userEvent.type(name, 'Dentist visit');
     await userEvent.press(screen.getByLabelText('Save event'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('Event saved');
+    expect(useToastStore.getState().toast?.message).toBe('Event saved.');
   });
 
   it('selecting Repeats reveals the shared CadencePicker', async () => {

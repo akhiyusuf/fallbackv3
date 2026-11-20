@@ -203,7 +203,7 @@ describe('settings durability across a restart', () => {
     expect((await second.repos.settings.get()).accent).toBe(accent);
   });
 
-  it('switching from a custom colour back to a named one persists, and clears the custom value', async () => {
+  it('switching from a custom color back to a named one persists, and clears the custom value', async () => {
     newDatabaseDir();
     const first = await coldStart();
     await first.repos.settings.patch({ accent: 'hue-200' as AccentKey });
@@ -212,7 +212,7 @@ describe('settings durability across a restart', () => {
     const second = await coldStart();
     expect((await second.repos.settings.get()).accent).toBe('indigo');
 
-    // The raw row agrees: the named colour is in `accent` and the custom slot is empty.
+    // The raw row agrees: the named color is in `accent` and the custom slot is empty.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const raw = (await (require('expo-sqlite') as typeof import('expo-sqlite')).openDatabaseAsync('fallback.db')) as unknown as {
       getFirstAsync<T>(sql: string): Promise<T | null>;
@@ -223,7 +223,7 @@ describe('settings durability across a restart', () => {
     expect(row).toEqual({ accent: 'indigo', accent_ext: null });
   });
 
-  it('a named colour outside the original four is kept in the custom slot and reads back', async () => {
+  it('a named color outside the original four is kept in the custom slot and reads back', async () => {
     newDatabaseDir();
     const first = await coldStart();
     await first.repos.settings.patch({ accent: 'lagoon' });
@@ -381,7 +381,7 @@ describe('two updates started back to back', () => {
 });
 
 describe('settings through a backup file', () => {
-  it('a custom colour, assistant prefs, notifications and widgets come back exactly after backup, erase and restore', async () => {
+  it('a custom color, assistant prefs, notifications and widgets come back exactly after backup, erase and restore', async () => {
     newDatabaseDir();
     const app = await coldStart();
     await app.repos.settings.patch({

@@ -1,6 +1,6 @@
 /**
  * M0 kit — Fallback-custom `ConsistencyBreakdownBar`. Stacked Ideal/Fallback/Off bar; the
- * unfilled remainder IS the missed share (ARCHITECTURE §5 — missed has no colour of its
+ * unfilled remainder IS the missed share (ARCHITECTURE §5 — missed has no color of its
  * own, never fully filled when `missed > 0`). Purely presentational — M5 supplies the
  * already-computed `ConsistencyBreakdown` and denominator; this component does no math
  * beyond simple proportional widths.
@@ -41,7 +41,7 @@ export function ConsistencyBreakdownBar({ breakdown, total, legendLabels = DEFAU
         <View style={{ width: `${idealPct}%`, backgroundColor: t.color.ideal }} />
         <View style={{ width: `${fallbackPct}%`, backgroundColor: t.color.fallback }} />
         <View style={{ width: `${offPct}%`, backgroundColor: t.color.off }} />
-        {/* The remainder — missed — is deliberately left unfilled; it has no colour of its own. */}
+        {/* The remainder — missed — is deliberately left unfilled; it has no color of its own. */}
       </View>
       {showLegend ? (
       <View style={styles.legend}>

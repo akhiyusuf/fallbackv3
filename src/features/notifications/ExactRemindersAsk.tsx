@@ -7,6 +7,10 @@
 import { useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 
+import { useAddMenuStore } from '@/app-shell/stores/addMenu';
+import { useToastStore } from '@/app-shell/stores/toast';
+import { S42_COPY } from '@/features/settings/copy';
+import { useCelebrationStore } from '@/app-shell/stores/celebration';
 import { notifications } from '@/services/notifications';
 import { exactRemindersAllowed, openExactReminderSettings } from '@/services/exactAlarms';
 import { ConfirmSheet } from '@/ui';
@@ -14,7 +18,7 @@ import { ConfirmSheet } from '@/ui';
 export const EXACT_ASKED_KEY = 'fallback.exactRemindersAsked';
 
 export const EXACT_REMINDERS_COPY = {
-  title: 'Get reminders right on time',
+  title: 'Ring reminders on time',
   body: 'Android can hold reminders back by a few minutes to save battery. Allow Fallback to ring them at the exact time you set.',
   allow: 'Allow',
   notNow: 'Not now',
@@ -36,8 +40,14 @@ async function rememberAsked(): Promise<void> {
   }
 }
 
-export function ExactRemindersAsk() {
-  const [visible, setVisible] = useState(false);
+export function ExactRemindersAsk({ hold = false }: { readonly hold?: boolean } = {}) {
+  const [wanted, setWanted] = useState(false);
+  const showToast = useToastStore((s) => s.show);
+  // Never on top of another sheet: a milestone pop-up or the add menu being open, or a welcome
+  // banner on Today (`hold`), makes the ask wait its turn (it is not given up, nor counted as asked).
+  const celebrating = useCelebrationStore((s) => s.queue.length > 0);
+  const addMenuOpen = useAddMenuStore((s) => s.open);
+  const visible = wanted && !hold && !celebrating && !addMenuOpen;
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +55,7 @@ export function ExactRemindersAsk() {
       if (exactRemindersAllowed()) return;
       if (await alreadyAsked()) return;
       const permitted = await notifications.hasPermission().catch(() => false);
-      if (!cancelled && permitted) setVisible(true);
+      if (!cancelled && permitted) setWanted(true);
     })();
     return () => {
       cancelled = true;
@@ -53,7 +63,7 @@ export function ExactRemindersAsk() {
   }, []);
 
   function close() {
-    setVisible(false);
+    setWanted(false);
     void rememberAsked();
   }
 
@@ -66,8 +76,9 @@ export function ExactRemindersAsk() {
       confirmLabel={EXACT_REMINDERS_COPY.allow}
       cancelLabel={EXACT_REMINDERS_COPY.notNow}
       onConfirm={() => {
-        openExactReminderSettings();
+        const opened = openExactReminderSettings();
         close();
+        if (!opened) showToast(S42_COPY.exactTimingCannotOpen, 'neutral');
       }}
       testID="exact-reminders-ask"
     />

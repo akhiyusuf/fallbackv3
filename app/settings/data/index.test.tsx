@@ -194,7 +194,7 @@ describe('S47 — Data', () => {
     expect(mockRestoreBackup).not.toHaveBeenCalled();
   });
 
-  it('a restored backup brings its own look (theme and colour) back straight away', async () => {
+  it('a restored backup brings its own look (theme and color) back straight away', async () => {
     mockSettingsData.current = { lastBackupAt: null };
     mockGetDocumentAsync.mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///backup.json' }] });
     mockRestoreBackup.mockResolvedValue({ ok: true, value: undefined });

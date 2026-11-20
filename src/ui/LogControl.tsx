@@ -24,7 +24,7 @@ export interface StateVisual {
   readonly doneLabel: string;
 }
 
-/** Colours, icon and label for a logged state. Shared with the Today card. */
+/** Colors, icon and label for a logged state. Shared with the Today card. */
 export function logStateVisual(t: Theme, state: 'done' | 'fallback' | 'skip'): StateVisual {
   return visualFor(t, state);
 }

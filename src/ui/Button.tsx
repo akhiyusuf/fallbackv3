@@ -1,6 +1,6 @@
 /**
  * M0 kit — Verdant `Button`. Tactile bottom-shadow press affordance (readme.md
- * "Depth / elevation", mode 2): a solid-colour shadow layer sits under the face; pressing
+ * "Depth / elevation", mode 2): a solid-color shadow layer sits under the face; pressing
  * collapses the gap between them. `ghost` is flat — no shadow, text-only.
  */
 import type { ReactNode } from 'react';

@@ -16,14 +16,14 @@ export interface Theme {
   readonly color: Palette;
 }
 
-/** The hue of a person's own colour, or null for a named theme. */
+/** The hue of a person's own color, or null for a named theme. */
 export function customHue(key: AccentKey): number | null {
   if (!key.startsWith('hue-')) return null;
   const n = Number(key.slice(4));
   return Number.isFinite(n) ? ((Math.round(n) % 360) + 360) % 360 : null;
 }
 
-/** The seed colour behind a theme key. */
+/** The seed color behind a theme key. */
 export function themeSeed(key: AccentKey): string {
   const hue = customHue(key);
   if (hue !== null) return seedForHue(hue);
@@ -31,7 +31,7 @@ export function themeSeed(key: AccentKey): string {
 }
 
 export function themeLabel(key: AccentKey): string {
-  return customHue(key) !== null ? 'Your colour' : ((THEME_LABELS as Record<string, string>)[key] ?? THEME_LABELS[DEFAULT_ACCENT]);
+  return customHue(key) !== null ? 'Your color' : ((THEME_LABELS as Record<string, string>)[key] ?? THEME_LABELS[DEFAULT_ACCENT]);
 }
 
 export function buildTheme(scheme: ColorScheme, accentKey: AccentKey = DEFAULT_ACCENT): Theme {

@@ -74,7 +74,7 @@ describe('S18 Create Course', () => {
 
     await userEvent.press(screen.getByLabelText('Save course'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('Course saved');
+    expect(useToastStore.getState().toast?.message).toBe('Course saved.');
   });
 
   it('dates are picked, never typed: the field opens the system picker and shows the chosen day', async () => {

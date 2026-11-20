@@ -7,21 +7,23 @@ export const S41_COPY = {
   title: 'Settings',
   profileName: 'Your progress',
   levelPrefix: 'Level',
-  statSuffix: '% showing up, last 30 days',
+  statSuffix: '% consistency, last 30 days',
   statLoadError: "Couldn't load your stats",
-  retry: 'Retry',
+  retry: 'Try again',
   sections: [
     { label: 'Progress and achievements', rows: ['Badges', 'Records'] },
-    { label: 'Preferences', rows: ['Notifications', 'Theme & accent', 'Widgets'] },
+    { label: 'Preferences', rows: ['Notifications', 'Theme and accent', 'Widgets'] },
     { label: 'Fallback AI', rows: ['Fallback AI subscription', 'Conversation history', 'AI agent access'] },
-    { label: 'Account and data', rows: ['Account & sync', 'Data'] },
-    { label: 'Support', rows: ['Help & about'] },
+    { label: 'Account and data', rows: ['Account and sync', 'Data'] },
+    { label: 'Support', rows: ['Help and about'] },
   ],
   rowSubcopy: { Records: 'Weekly and monthly recaps', 'AI agent access': 'Let an AI app you use help, with your permission' } as Record<string, string>,
 } as const;
 
 export const S42_COPY = {
   exactTimingLabel: 'Ring reminders on time',
+  /** Android's page would not open: calm, and says where to try again. */
+  exactTimingCannotOpen: 'That page would not open. You can try again in Settings, under Notifications.',
   exactTimingOff: 'Off: Android may hold them back a few minutes. Tap to allow.',
   title: 'Notifications',
   masterLabel: 'Notifications',
@@ -37,7 +39,7 @@ export const S42_COPY = {
 } as const;
 
 export const S43_COPY = {
-  title: 'Theme & accent',
+  title: 'Theme and accent',
   appearanceLabel: 'Appearance',
   appearanceOptions: [
     { value: 'light', label: 'Light' },
@@ -45,17 +47,17 @@ export const S43_COPY = {
     { value: 'auto', label: 'Auto' },
   ],
   accentLabel: 'Accent color',
-  accentHelper: 'A theme recolours the whole app. Ideal green and fallback blue never change.',
-  moreColoursLabel: 'More colours',
-  moreColoursHelper: "Greens, sky blues, golds and reds aren't offered. Those colours already mean ideal, fallback, XP and errors.",
+  accentHelper: 'A theme recolors the whole app. Ideal green and fallback blue never change.',
+  moreColoursLabel: 'More colors',
+  moreColoursHelper: "Greens, sky blues, golds and reds aren't offered. Those colors already mean ideal, fallback, XP and errors.",
   previewTaskName: 'Morning workout',
   previewIdeal: 'Full workout',
   previewFallback: '10 push-ups',
-  previewNote: 'This is the same card you see on Today. Tap it to try the colours.',
+  previewNote: 'This is the same card you see on Today. Tap it to try the colors.',
   previewTaskMeta: 'Full workout · 7:00 AM',
   previewCta: 'Log fallback',
   previewStat: '3 of 5 done today',
-  previewCaption: 'Ideal, fallback and off-day colours never change with your accent.',
+  previewCaption: 'Ideal, fallback and off-day colors never change with your accent.',
   stateChipLabels: { done: 'Done', fallback: 'Fallback', skip: 'Skip', off: 'Off' },
   errorToast: "Couldn't save. Try again.",
 } as const;
@@ -77,13 +79,13 @@ export const S46_COPY = {
 } as const;
 
 export const S49_COPY = {
-  title: 'Help & about',
+  title: 'Help and about',
   // `a11yDestination` — review pass 1, blocking item 7: each row must announce its OWN
   // destination type ("Contact support, opens email"), not one blanket "opens email" label
   // copied across all three Support rows.
   supportSection: [
     { label: 'Contact support', toast: 'Opening your email app…', a11yDestination: 'opens email' },
-    { label: 'FAQ & guides', toast: 'Opening FAQ & guides…', a11yDestination: 'opens an external help center' },
+    { label: 'FAQ and guides', toast: 'Opening FAQ and guides…', a11yDestination: 'opens an external help center' },
     { label: 'Rate Fallback', toast: 'Opening the App Store…', a11yDestination: 'opens the app store' },
   ],
   legalSection: [

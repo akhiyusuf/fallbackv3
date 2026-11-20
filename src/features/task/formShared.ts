@@ -4,7 +4,7 @@ import type { Cadence, StepDraft, Weekday } from '@/types';
 
 export const IMPORTANCE_OPTIONS = [
   { value: 'high', label: 'High' },
-  { value: 'med', label: 'Medium' },
+  { value: 'med', label: 'Med' },
   { value: 'low', label: 'Low' },
 ];
 

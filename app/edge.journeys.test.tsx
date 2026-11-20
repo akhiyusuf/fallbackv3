@@ -158,7 +158,7 @@ describe('journey 1: first launch to Progress', () => {
   it('splash, the tour, the first routine, Today, log it, the badge, Progress', async () => {
     await launch('/');
     await waitFor(() => expect(path()).toBe('/onboarding/concept'), { timeout: 5000 });
-    expect(screen.getByText('a plan A and a plan B for every habit.')).toBeTruthy();
+    expect(screen.getByText('A plan A and a plan B for every task.')).toBeTruthy();
     for (const next of ['/onboarding/hook', '/onboarding/types', '/onboarding/consistency', '/onboarding/personalize', '/onboarding/notifications-primer']) {
       await press('Next');
       await waitFor(() => expect(path()).toBe(next));
@@ -187,7 +187,7 @@ describe('journey 1: first launch to Progress', () => {
     await waitFor(() => expect(screen.queryByText("You've reached First day.")).toBeNull());
     expect(useCelebrationStore.getState().queue).toHaveLength(0);
     // Open Progress from the stat card on Today.
-    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     expect(await screen.findByText('Your consistency')).toBeTruthy();
     expect((await screen.findAllByLabelText(/^100 percent showed up/)).length).toBeGreaterThan(0);
@@ -227,7 +227,7 @@ describe('journey 2: create on the Routines tab, push to tomorrow, next day', ()
     await press('Save routine');
     // The spec sends a saved routine to Today, with a toast.
     await waitFor(() => expect(path()).toBe('/today'));
-    expect(toast()?.message).toBe('Routine saved');
+    expect(toast()?.message).toBe('Routine saved.');
     expect(await screen.findByText('0 of 2 done')).toBeTruthy();
 
     await openTab('Routines');
@@ -236,7 +236,7 @@ describe('journey 2: create on the Routines tab, push to tomorrow, next day', ()
     expect(params()).toMatchObject({ from: 'routines' });
     const taskId = String(params().id);
     await userEvent.press(await screen.findByTestId('s20-snooze'));
-    await waitFor(() => expect(toast()?.message).toBe('Pushed to tomorrow'));
+    await waitFor(() => expect(toast()?.message).toBe('Pushed to tomorrow.'));
     expect(fake.logsFor(taskId as Id).some((l) => l.date === D1 && l.movedToDate === D2)).toBe(true);
 
     // Back goes to where the person came from (Routines), not to Today.
@@ -313,7 +313,7 @@ describe('journey 3: end a routine, find it under Ended, start it again', () => 
     expect(await screen.findByText('0 of 2 done')).toBeTruthy();
     expect(screen.getByText('Stretch')).toBeTruthy();
     // The days it was ended did not become misses: the record has nothing missed for it.
-    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     expect(await screen.findByText('Your consistency')).toBeTruthy();
   });
@@ -355,7 +355,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await screen.findByText('Stretch');
 
     // The record before anything is deleted.
-    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
+    await userEvent.press((await screen.findAllByLabelText(/^Consistency/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     const before = await allTimeCountedDays();
     expect(before).toMatch(/of \d+ counted days/);
@@ -367,13 +367,13 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await waitFor(() => expect(path()).toMatch(/^\/task\//));
     await deleteFromTaskPage();
     await waitFor(() => expect(path()).toBe('/today'));
-    expect(toast()?.message).toBe('Moved to Recently deleted');
+    expect(toast()?.message).toBe('Moved to Recently deleted.');
     expect(await screen.findByText('Nothing planned for today yet.')).toBeTruthy();
     expect(screen.queryByText('Stretch')).toBeNull();
 
     // Undo from the toast: it is back on Today, whole.
     await press('Undo');
-    await waitFor(() => expect(toast()?.message).toBe('Restored “Stretch”'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch"'));
     expect(await screen.findByText('Stretch')).toBeTruthy();
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
 
@@ -385,7 +385,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await openRecentlyDeleted();
     await userEvent.press(await screen.findByTestId('deleted-row-a'));
     await userEvent.press(within(await screen.findByTestId('deleted-item-sheet')).getByText('Restore'));
-    await waitFor(() => expect(toast()?.message).toBe('Restored “Stretch”'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Stretch"'));
     expect(await screen.findByText(/Nothing here/)).toBeTruthy();
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
 
@@ -403,7 +403,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await userEvent.press(await screen.findByTestId('deleted-row-a'));
     await userEvent.press(within(await screen.findByTestId('deleted-item-sheet')).getByText('Delete forever'));
     await userEvent.press(within(await screen.findByTestId('deleted-confirm-one')).getByLabelText('Delete forever'));
-    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted forever.'));
     expect(await fake.repos.tasks.get('a' as Id)).toBeNull();
 
     // The days it was logged still count: Progress (from the Settings profile row) shows the same counted days.
@@ -772,12 +772,12 @@ describe('journey 9: a task screen left on the back stack while that task is del
     await userEvent.press(await screen.findByLabelText('Indigo'));
 
     await deleteElsewhere('a');
-    expect(await screen.findByText('“Gym session” was deleted.')).toBeTruthy();
+    expect(await screen.findByText('"Gym session" was deleted.')).toBeTruthy();
     expect(screen.queryByLabelText('Save')).toBeNull();
     // Leaving the icon screen shows the task screen under it, also saying so (and nothing to log).
     await press('Back');
     await waitFor(() => expect(path()).toBe('/task/a'));
-    expect(await screen.findByText('“Gym session” was deleted.')).toBeTruthy();
+    expect(await screen.findByText('"Gym session" was deleted.')).toBeTruthy();
     expect(screen.queryByLabelText(/Gym session: Done/)).toBeNull();
     await press('Back');
     await waitFor(() => expect(path()).toBe('/search'));

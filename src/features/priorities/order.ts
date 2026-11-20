@@ -10,7 +10,7 @@ import type { Importance, LocalDate, TaskWithSteps } from '@/types';
 
 export const PRIORITY_LEVELS: readonly { readonly value: Importance; readonly label: string }[] = [
   { value: 'high', label: 'High' },
-  { value: 'med', label: 'Medium' },
+  { value: 'med', label: 'Med' },
   { value: 'low', label: 'Low' },
 ];
 

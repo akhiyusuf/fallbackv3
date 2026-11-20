@@ -121,7 +121,7 @@ describe('S35 — A reopened conversation (spec coverage)', () => {
     expect(screen.queryByText('Add a workout at seven')).toBeNull();
     mockListMessages.mockResolvedValueOnce(MESSAGES);
     const user = userEvent.setup();
-    await user.press(screen.getByText('Retry'));
+    await user.press(screen.getByText('Try again'));
     expect(await screen.findByText('Add a workout at seven')).toBeTruthy();
     expect(mockListMessages).toHaveBeenCalledTimes(2);
   });

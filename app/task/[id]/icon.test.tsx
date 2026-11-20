@@ -39,7 +39,7 @@ describe('S21 Icon & Color Picker', () => {
   it('Save starts disabled until a selection changes', async () => {
     fake.seedTask(makeTask({ id: 'task-1' as Id }));
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1/icon', wrapper });
-    await screen.findByText('Icon and colour');
+    await screen.findByText('Icon and color');
     const saveButtons = await screen.findAllByLabelText('Save');
     for (const b of saveButtons) expect(b.props.accessibilityState?.disabled).toBe(true);
   });
@@ -50,7 +50,7 @@ describe('S21 Icon & Color Picker', () => {
     const search = await screen.findByLabelText('Search icons');
     await userEvent.type(search, 'zzzznomatch');
     expect(await screen.findByText('No icons match')).toBeTruthy();
-    expect(screen.getByText(/Nothing found for “zzzznomatch”\. Try a different word\./)).toBeTruthy();
+    expect(screen.getByText(/Nothing found for "zzzznomatch"\. Try a different word\./)).toBeTruthy();
   });
 
   it('selecting a color enables Save; Save persists and returns to S20', async () => {
@@ -58,8 +58,8 @@ describe('S21 Icon & Color Picker', () => {
     // Navigate from S20 so a real back-stack entry exists for Save/Cancel to return to.
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
     await screen.findByText('Morning workout');
-    await userEvent.press(screen.getByLabelText('Change icon and colour'));
-    await screen.findByText('Icon and colour');
+    await userEvent.press(screen.getByLabelText('Change icon and color'));
+    await screen.findByText('Icon and color');
 
     await userEvent.press(screen.getByLabelText('Indigo'));
     const saveButtons = screen.getAllByLabelText('Save');
@@ -74,8 +74,8 @@ describe('S21 Icon & Color Picker', () => {
     fake.seedTask(task);
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/task/task-1', wrapper });
     await screen.findByText('Morning workout');
-    await userEvent.press(screen.getByLabelText('Change icon and colour'));
-    await screen.findByText('Icon and colour');
+    await userEvent.press(screen.getByLabelText('Change icon and color'));
+    await screen.findByText('Icon and color');
 
     await userEvent.press(screen.getByLabelText('Plum'));
     await userEvent.press(screen.getByLabelText('Close'));

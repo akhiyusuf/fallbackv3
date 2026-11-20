@@ -40,7 +40,7 @@ async function withOneRetry(run: () => Promise<{ ok: boolean; error?: { message?
 /** The real reason, short, under the toast: what to report if saving keeps failing on a phone. */
 function reasonOf(outcome: Outcome): string | undefined {
   if (outcome.ok || !outcome.reason) return undefined;
-  return outcome.reason.length > 90 ? `${outcome.reason.slice(0, 87)}...` : outcome.reason;
+  return outcome.reason.length > 90 ? `${outcome.reason.slice(0, 87)}…` : outcome.reason;
 }
 
 export function FirstTaskScreen() {

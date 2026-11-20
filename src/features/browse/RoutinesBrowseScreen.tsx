@@ -21,6 +21,7 @@ import { BrowseHeader } from './BrowseHeader';
 import { EndedSection } from './EndedSection';
 import { useAsNeededHistory } from './useAsNeededHistory';
 import { useTodayRows } from '@/features/today/useTodayRows';
+import { WeekStripsProvider } from '@/features/today/weekStrips';
 import { WEEKDAY_FULL } from './weekdayLabels';
 
 export default function RoutinesBrowseScreen() {
@@ -74,7 +75,7 @@ export default function RoutinesBrowseScreen() {
             onAction={() => router.push(ROUTES.addRoutine as Href)}
           />
         ) : (
-          <>
+          <WeekStripsProvider>
             {todayRows.length > 0 ? (
               <TabSummary
                 mark={{ kind: 'ring', done: loggedToday.length, total: todayRows.length }}
@@ -132,7 +133,7 @@ export default function RoutinesBrowseScreen() {
             ) : null}
 
             <EndedSection tasks={ended} onOpen={openTask} />
-          </>
+          </WeekStripsProvider>
         )}
       </ScrollView>
       {noRoutinesAtAll ? null : <Fab accessibilityLabel="New routine" onPress={() => router.push(withOrigin(ROUTES.addRoutine, 'routines') as Href)} />}

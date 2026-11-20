@@ -1,6 +1,6 @@
 /**
  * EmptyState — a genuinely empty screen (D15): a small drawing in the theme's
- * colours, title, one muted line, one button. The round add button stays hidden until there is content.
+ * colors, title, one muted line, one button. The round add button stays hidden until there is content.
  * It sits in the middle of whatever room it is given, and its parts keep fixed heights, so the
  * drawing, the words and the button land in the same place on every empty screen.
  * A section that is merely empty uses <EmptyLine> instead.

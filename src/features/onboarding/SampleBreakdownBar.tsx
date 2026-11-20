@@ -9,7 +9,7 @@
  * would violate "no module defines its own button/card/chip" in spirit — but this is a
  * one-off illustrative sample, not a live consistency surface, and no owned path lets M7 add
  * a `legendLabels`-hiding prop to the frozen kit component. Composed from theme tokens only
- * (Rule 1: no raw colour literal), same signal hues the kit component itself uses.
+ * (Rule 1: no raw color literal), same signal hues the kit component itself uses.
  */
 import { StyleSheet, View } from 'react-native';
 

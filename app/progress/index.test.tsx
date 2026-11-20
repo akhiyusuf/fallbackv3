@@ -133,7 +133,7 @@ describe('S25 — Consistency Dashboard', () => {
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
     expect(screen.getByText("Couldn't load your consistency right now.")).toBeTruthy();
-    await user.press(screen.getByText('Retry'));
+    await user.press(screen.getByText('Try again'));
     expect(mockRefetch).toHaveBeenCalled();
   });
 

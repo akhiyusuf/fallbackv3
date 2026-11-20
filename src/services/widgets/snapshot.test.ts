@@ -67,7 +67,7 @@ describe('buildWidgetSnapshot', () => {
     expect(snapshot.tasks[0]?.id).toBe('t1');
   });
 
-  it('carries only the three FILLED signal colours (ideal/fallback/off) — missed has none', () => {
+  it('carries only the three FILLED signal colors (ideal/fallback/off) — missed has none', () => {
     const snapshot = buildWidgetSnapshot({
       tasks: [],
       chips: [],

@@ -17,11 +17,11 @@ export const TYPE_NOUN: Record<TaskType, string> = { routine: 'routine', event: 
 
 export const DELETE_COPY = {
   message: (name: string) =>
-    `“${name}” goes to Recently deleted for ${DELETED_KEEP_DAYS} days. The days you've logged still count.`,
+    `"${name}" goes to Recently deleted for ${DELETED_KEEP_DAYS} days. The days you've logged still count.`,
   /** Said only for something that can be ended instead. */
   endInstead: (noun: string) => `Only stopping? End the ${noun} instead and it stays in your list.`,
-  movedToast: 'Moved to Recently deleted',
-  restoredToast: (name: string) => `Restored “${name}”`,
+  movedToast: 'Moved to Recently deleted.',
+  restoredToast: (name: string) => `Restored "${name}".`,
 } as const;
 
 export interface DeleteTaskSheetProps {

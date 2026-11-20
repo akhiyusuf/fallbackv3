@@ -3,7 +3,7 @@
  * dimmed current screen (D3). Fallback AI leads the sheet: speaking or typing
  * is the fastest way to add something, and this is the one place it lives
  * (it is no longer a bare microphone in the Today header). Below it, each type
- * is a coloured icon circle (D14) in one grouped list (D7).
+ * is a colored icon circle (D14) in one grouped list (D7).
  * Mounted once in app/_layout.tsx.
  */
 import { CalendarRange, ChevronRight, ListTodo, Repeat, Timer } from 'lucide-react-native';

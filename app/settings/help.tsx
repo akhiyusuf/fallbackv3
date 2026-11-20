@@ -14,12 +14,11 @@ const PLAY_STORE_URL = `market://details?id=${ANDROID_PACKAGE}`;
 
 const ICONS: Record<string, LucideIcon> = {
   'Contact support': Mail,
-  'FAQ & guides': LifeBuoy,
+  'FAQ and guides': LifeBuoy,
   'Rate Fallback': Star,
   'Privacy policy': ShieldCheck,
   'Terms of service': FileText,
 };
-const LABELS: Record<string, string> = { 'FAQ & guides': 'FAQ and guides' };
 
 export default function S49HelpAndAbout() {
   const t = useTheme();
@@ -51,7 +50,7 @@ export default function S49HelpAndAbout() {
           <ListRow
             key={row.label}
             icon={ICONS[row.label]}
-            label={LABELS[row.label] ?? row.label}
+            label={row.label}
             onPress={() => void handleSupportRow(row)}
             accessibilityLabel={`${row.label}, ${row.a11yDestination}`}
           />

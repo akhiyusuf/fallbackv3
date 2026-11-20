@@ -654,7 +654,7 @@ describe('stream shapes', () => {
   }, 60000);
 
   it('text with emoji and CJK cut in the middle of a character still arrives intact', async () => {
-    const msg = 'Nice work 🌱🎉 日本語のテキスト café';
+    const msg = 'Nice work🎉 日本語のテキスト café';
     script.push({ raw: [textFrame(msg), finish('stop'), DONE], slice: 5 });
     await open(S32AssistantConversation);
     await say('hi');

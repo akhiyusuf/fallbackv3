@@ -56,7 +56,7 @@ export default function S47Data() {
       return;
     }
     await qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-    showToast(`Backed up ${formatInstant(result.value.createdAt)}`, 'success');
+    showToast(`Backed up ${formatInstant(result.value.createdAt)}.`, 'success');
     // Hand over the FILE (on Android: saved into a folder the person picks). Optional: the backup
     // already exists on the device whatever they choose here.
     const offered = await offerBackupFile(result.value.uri);
@@ -93,7 +93,7 @@ export default function S47Data() {
     // The restored tasks and settings are not what the reminders and widgets were built from.
     emit({ type: 'store:ready' });
     await qc.invalidateQueries();
-    // A backup carries its own look (light or dark, and the colour): show it straight away.
+    // A backup carries its own look (light or dark, and the color): show it straight away.
     const restored = qc.getQueryData<Settings>(QUERY_KEYS.settings);
     if (restored) useThemeStore.getState().hydrate(restored.theme, restored.accent);
     showToast(S47_COPY.restoreSuccessToast, 'success');

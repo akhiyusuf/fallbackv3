@@ -11,14 +11,14 @@ export const S01_COPY = {
 } as const;
 
 export const S50_COPY = {
-  headline: "Let's get you back on track",
-  body: "We couldn't read your data on this device. Nothing is deleted. You can try again, or reset and start fresh.",
+  headline: "We couldn't read your data on this device.",
+  body: "Nothing is deleted. Try again, or reset and start fresh.",
   tryAgain: 'Try again',
   resetAppData: 'Reset app data',
 } as const;
 
 export const S45_COPY = {
-  title: 'Account & sync',
+  title: 'Account and sync',
   noLoginHeadline: 'No login.',
   noLoginBody: 'Your data lives on this device. No account to create or password to lose.',
   onDeviceLabel: 'On-device (default)',
@@ -44,9 +44,9 @@ export const S47_COPY = {
   eraseRow: 'Erase all data',
   eraseSubcopy: 'Permanently remove everything from this device.',
   backupSuccessPrefix: 'Backed up',
-  backupFailureToast: "Couldn't back up. Try again",
-  backupSavedToast: 'Backup file saved to the folder you chose',
-  backupSaveFailedToast: "Backed up on this phone, but couldn't save a copy to that folder",
+  backupFailureToast: "Couldn't back up. Try again.",
+  backupSavedToast: 'Backup file saved to the folder you chose.',
+  backupSaveFailedToast: "Backed up on this phone, but couldn't save a copy to that folder.",
   restoreSuccessToast: 'Restored. Your data is back.',
 } as const;
 

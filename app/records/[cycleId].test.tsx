@@ -85,7 +85,7 @@ describe('S30 — Cycle Record Detail', () => {
     mockRecord.isError = true;
     await renderRouter(M5_ROUTER_CONTEXT, { initialUrl: '/records/r1' });
     expect(await screen.findByText("Couldn't load this cycle right now.")).toBeTruthy();
-    await userEvent.setup().press(screen.getByText('Retry'));
+    await userEvent.setup().press(screen.getByText('Try again'));
     expect(mockRefetch).toHaveBeenCalled();
   });
 });

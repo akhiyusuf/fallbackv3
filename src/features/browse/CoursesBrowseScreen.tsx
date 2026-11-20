@@ -12,6 +12,7 @@ import { SPACE, useTheme } from '@/theme';
 import { EmptyLine, EmptyState, InlineRetryBanner, ProgressRing, Skeleton, TabSummary, Tabs } from '@/ui';
 import type { LocalDate, TaskWithSteps } from '@/types';
 
+import { WeekStripsProvider } from '@/features/today/weekStrips';
 import { TaskCard } from '@/features/task/TaskCard';
 import { StatusPill, metaParts } from '@/features/task/TaskDetails';
 import { BROWSE_SHARED_COPY, S12_COPY } from './copy';
@@ -61,7 +62,7 @@ export default function CoursesBrowseScreen() {
             onAction={() => router.push(ROUTES.addCourse as Href)}
           />
         ) : (
-          <>
+          <WeekStripsProvider>
             {active.length > 0 ? (
               <TabSummary
                 mark={{ kind: 'count', value: active.length }}
@@ -86,7 +87,7 @@ export default function CoursesBrowseScreen() {
                 shown.map((c) => <CourseRow key={c.id} task={c} today={todayDate} isPast={lens === 'past'} onPress={() => openTask(c.id)} />)
               )}
             </View>
-          </>
+          </WeekStripsProvider>
         )}
       </ScrollView>
       {noCoursesAtAll ? null : <Fab accessibilityLabel="New course" onPress={() => router.push(withOrigin(ROUTES.addCourse, 'courses') as Href)} />}

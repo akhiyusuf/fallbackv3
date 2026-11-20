@@ -1,4 +1,4 @@
-/** TaskIcon — a coloured circle with a white icon. The only task icon style (D14). */
+/** TaskIcon — a colored circle with a white icon. The only task icon style (D14). */
 import { StyleSheet, View } from 'react-native';
 
 import { RADIUS, useTheme } from '@/theme';
@@ -6,7 +6,7 @@ import type { IconComponent } from './icon';
 
 export interface TaskIconProps {
   readonly icon: IconComponent;
-  /** Circle colour. Defaults to the app accent. */
+  /** Circle color. Defaults to the app accent. */
   readonly color?: string | null;
   readonly size?: number;
   /** Muted (grey) rendering for unavailable items. */
@@ -17,7 +17,7 @@ export function TaskIcon({ icon: Icon, color, size = 40, muted = false }: TaskIc
   const t = useTheme();
   return (
     <View style={[styles.root, { width: size, height: size, backgroundColor: muted ? t.color.off : (color ?? t.accent.fill) }]}>
-      {/* A task's own colour takes a white icon; the theme colour takes whatever reads on it. */}
+      {/* A task's own color takes a white icon; the theme color takes whatever reads on it. */}
       <Icon size={Math.round(size * 0.5)} color={color || muted ? t.color.textOnAccent : t.accent.onLarge} />
     </View>
   );

@@ -59,7 +59,7 @@ describe('S26 — trend readout and table (spec coverage, F28)', () => {
     const table = screen.getByLabelText('Trend data table');
     expect(table).toBeTruthy();
     expect(screen.getByText('80%')).toBeTruthy();
-    expect(screen.getByText('–')).toBeTruthy();
+    expect(screen.getByText('-')).toBeTruthy();
     expect(screen.getByLabelText(/May 2026: 80 percent/)).toBeTruthy();
     expect(screen.getByLabelText(/June 2026: no data/)).toBeTruthy();
   });

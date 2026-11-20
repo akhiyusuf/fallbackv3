@@ -5,7 +5,7 @@
  * empty (D15).
  */
 import { play } from '@/services/sfx';
-import { useMemo, useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Bell, LifeBuoy, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -104,7 +104,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
       showToast(LOG_SAVE_FAILED, 'warning');
       return;
     }
-    if (isUndo) return showToast('Undone', 'neutral');
+    if (isUndo) return showToast('Undone.', 'neutral');
     showToast(next ? S09_COPY.offOnToast : S09_COPY.offUnmarkToast, 'neutral', { action: { label: 'Undo', onPress: () => void handleToggleOff(!next, true) } });
   }
 
@@ -117,7 +117,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
       return;
     }
     if (isUndo) {
-      showToast('Undone', 'neutral');
+      showToast('Undone.', 'neutral');
       return;
     }
     // The last thing due today just got done: the day's own sound follows the log sound.
@@ -130,6 +130,21 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
   function openTask(taskId: string) {
     router.push(withOrigin(`/task/${taskId}`, 'today') as Href);
   }
+
+  // One stable set of handlers for every row: a log redraws the one card that changed, not all 150.
+  // They run through a ref so they always see this render's rows, date and handlers.
+  const latest = useRef({ handleLog, takeDayOff, pushToTomorrow, openTask, once, date });
+  latest.current = { handleLog, takeDayOff, pushToTomorrow, openTask, once, date };
+  const rowActions = useMemo<RowActions>(
+    () => ({
+      toggleReopen: (key) => setReopenedTaskId((cur) => (cur === key ? null : key)),
+      log: (key, row, chip) => void latest.current.once(key, () => latest.current.handleLog(row, chip)),
+      emergency: (key, row) => void latest.current.once(key, () => latest.current.takeDayOff(row.task.id, latest.current.date)),
+      push: (key, row) => void latest.current.once(key, () => latest.current.pushToTomorrow(row.task.id, latest.current.date)),
+      open: (row) => latest.current.openTask(row.task.id),
+    }),
+    [],
+  );
 
   const reentryTarget = useMemo(() => {
     if (!isReentry) return null;
@@ -247,18 +262,10 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
             {rows.length === 0 ? (
               <EmptyLine>{`${S09_COPY.nothingDueHeadline} ${S09_COPY.nothingDueSubcopy}`}</EmptyLine>
             ) : (
-              rows.map((row) => (
-                <TaskRow
-                  key={rowKey(row)}
-                  row={row}
-                  reopened={reopenedTaskId === rowKey(row)}
-                  onToggleReopen={() => setReopenedTaskId((cur) => (cur === rowKey(row) ? null : rowKey(row)))}
-                  onLog={(chip) => void once(rowKey(row), () => handleLog(row, chip))}
-                  onEmergency={() => void once(rowKey(row), () => takeDayOff(row.task.id, date))}
-                  onPush={() => void once(rowKey(row), () => pushToTomorrow(row.task.id, date))}
-                  onOpen={() => openTask(row.task.id)}
-                />
-              ))
+              rows.map((row) => {
+                const key = rowKey(row);
+                return <TaskRow key={key} rowId={key} row={row} reopened={reopenedTaskId === key} actions={rowActions} />;
+              })
             )}
           </View>
         )}
@@ -266,7 +273,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
 
       {isBlankSlate ? null : <Fab accessibilityLabel={S09_COPY.addTaskLabel} onPress={openAddMenu} />}
       {/* Android only, once: let reminders ring on the minute. */}
-      <ExactRemindersAsk />
+      <ExactRemindersAsk hold={isJustAdded || isReentry} />
     </View>
   );
 }
@@ -291,23 +298,23 @@ function scheduleParts(row: TodayRow, logged = false): string[] {
   return parts;
 }
 
-function TaskRow({
-  row,
-  reopened,
-  onToggleReopen,
-  onLog,
-  onEmergency,
-  onPush,
-  onOpen,
-}: {
-  row: TodayRow;
-  reopened: boolean;
-  onToggleReopen: () => void;
-  onLog: (chip: ChipState) => void;
-  onEmergency: () => void;
-  onPush: () => void;
-  onOpen: () => void;
-}) {
+interface RowActions {
+  readonly toggleReopen: (key: string) => void;
+  readonly log: (key: string, row: TodayRow, chip: ChipState) => void;
+  readonly emergency: (key: string, row: TodayRow) => void;
+  readonly push: (key: string, row: TodayRow) => void;
+  readonly open: (row: TodayRow) => void;
+}
+
+interface TaskRowProps {
+  readonly rowId: string;
+  readonly row: TodayRow;
+  readonly reopened: boolean;
+  readonly actions: RowActions;
+}
+
+/** A row redraws only when its own habit or occurrence changed (the handlers are one stable set). */
+const TaskRow = memo(function TaskRow({ rowId, row, reopened, actions }: TaskRowProps) {
   const chip = row.occurrence.chipState;
   const icon = taskIconProps(row.task);
   return (
@@ -322,14 +329,24 @@ function TaskRow({
       offLabel={S09_COPY.offTodayMeta}
       idealHint={planSummary(row.task.idealSteps)}
       fallbackHint={planSummary(row.task.fallbackSteps)}
-      onLog={onLog}
-      onEmergency={row.occurrence.outcome === 'off' ? undefined : onEmergency}
-      // Only a habit allowed to move offers the push (its "Can be moved to tomorrow" switch).
-      onPush={row.occurrence.outcome === 'off' || !row.task.snoozable || row.occurrence.pushedFrom ? undefined : onPush}
-      onToggleReopen={onToggleReopen}
-      onOpen={onOpen}
+      onLog={(c) => actions.log(rowId, row, c)}
+      onEmergency={row.occurrence.outcome === 'off' ? undefined : () => actions.emergency(rowId, row)}
+      // Only a habit allowed to move offers the push (its "Can be pushed to tomorrow" switch).
+      onPush={row.occurrence.outcome === 'off' || !row.task.snoozable || row.occurrence.pushedFrom ? undefined : () => actions.push(rowId, row)}
+      onToggleReopen={() => actions.toggleReopen(rowId)}
+      onOpen={() => actions.open(row)}
     />
   );
+}, sameRow);
+
+function sameRow(a: TaskRowProps, b: TaskRowProps): boolean {
+  return a.rowId === b.rowId && a.reopened === b.reopened && a.actions === b.actions && a.row.task === b.row.task && sameOccurrence(a.row.occurrence, b.row.occurrence);
+}
+
+function sameOccurrence(a: TodayRow['occurrence'], b: TodayRow['occurrence']): boolean {
+  if (a === b) return true;
+  const ka = Object.keys(a) as (keyof typeof a)[];
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k] || JSON.stringify(a[k]) === JSON.stringify(b[k]));
 }
 
 const styles = StyleSheet.create({

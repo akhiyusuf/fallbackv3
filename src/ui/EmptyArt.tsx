@@ -1,7 +1,7 @@
 /**
  * EmptyArt — the small drawing on an empty screen. One shape language for all of them: a soft
  * blob of the theme tint, a white tile with the subject on it, a gold spark. Drawn with the
- * theme's own colours, so it follows every theme and both appearances.
+ * theme's own colors, so it follows every theme and both appearances.
  */
 import { View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';

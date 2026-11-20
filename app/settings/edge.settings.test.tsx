@@ -136,10 +136,10 @@ describe('S43 theme and accent', () => {
     }
   });
 
-  it('a colour swatch is saved and comes back after a cold start', async () => {
+  it('a color swatch is saved and comes back after a cold start', async () => {
     const user = userEvent.setup();
     await mount(S43Theme);
-    const swatch = (await screen.findAllByLabelText(/colour 3 of/))[0]!;
+    const swatch = (await screen.findAllByLabelText(/color 3 of/))[0]!;
     await user.press(swatch);
     await waitFor(async () => expect((await repos.settings.get()).accent).toMatch(/^hue-/));
     const saved = (await repos.settings.get()).accent;
@@ -151,8 +151,8 @@ describe('S43 theme and accent', () => {
   it('a named theme is saved and shown as selected after a cold start', async () => {
     const user = userEvent.setup();
     await mount(S43Theme);
-    const cards = await screen.findAllByRole('radio', { name: /^(?!.*colour)/ });
-    const second = cards.find((c) => c.props.accessibilityState?.checked === false && !/colour/.test(String(c.props.accessibilityLabel)))!;
+    const cards = await screen.findAllByRole('radio', { name: /^(?!.*color)/ });
+    const second = cards.find((c) => c.props.accessibilityState?.checked === false && !/color/.test(String(c.props.accessibilityLabel)))!;
     await user.press(second);
     await waitFor(async () => expect((await repos.settings.get()).accent).not.toBe(DEFAULT_ACCENT));
     const saved = (await repos.settings.get()).accent;
@@ -186,7 +186,7 @@ describe('S43 theme and accent', () => {
     const user = userEvent.setup();
     await mount(S43Theme);
     const before = useThemeStore.getState().accent;
-    await user.press((await screen.findAllByLabelText(/colour 2 of/))[0]!);
+    await user.press((await screen.findAllByLabelText(/color 2 of/))[0]!);
     await waitFor(() => expect(toast()?.message).toBe(S43_COPY.errorToast));
     expect(useThemeStore.getState().accent).toBe(before);
   });
@@ -762,7 +762,7 @@ describe('S47 erase all data', () => {
     expect((await repos.tasks.list()).length).toBe(1);
     expect(mockReplace).not.toHaveBeenCalled();
     spy.mockImplementation(() => Promise.resolve(ok(undefined)));
-    await user.press(within(screen.getByTestId('erase-data-sheet')).getByText('Retry'));
+    await user.press(within(screen.getByTestId('erase-data-sheet')).getByText('Try again'));
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/splash'));
   });
 });

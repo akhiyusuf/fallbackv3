@@ -1,9 +1,9 @@
 /**
  * TaskCard — one task on any list (Routines, Events, Courses, Search).
- * Coloured icon circle (D14), name, one quiet meta line and status pills
+ * Colored icon circle (D14), name, one quiet meta line and status pills
  * (D13), ideal/fallback tiles (decision 22-C), chevron = opens the task (D7).
  */
-import type { ReactNode } from 'react';
+import { isValidElement, memo, type ComponentProps, useCallback, useRef, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 
@@ -14,6 +14,7 @@ import type { Id } from '@/types';
 import { Card, TaskIcon, WeekStrip } from '@/ui';
 
 import { MetaLine, planSummary } from './TaskDetails';
+import { useWeekStripsContext } from '@/features/today/weekStrips';
 import { useWeekStrip } from './useWeekStrip';
 import { Text } from '@/ui/AppText';
 
@@ -33,13 +34,53 @@ export interface TaskCardProps {
   readonly accessibilityLabel?: string;
 }
 
-export function TaskCard({ task, meta, metaLeading, status, showPlan = true, showWeek, muted = false, onPress, footer, accessibilityLabel }: TaskCardProps) {
+/**
+ * Two nodes that would draw the same: the very same node, or elements of one type whose props are
+ * shallow-equal (a list rebuilds `<StatusPill label=... />` on every render).
+ */
+function sameNode(a: ReactNode, b: ReactNode): boolean {
+  if (a === b) return true;
+  if (!isValidElement(a) || !isValidElement(b)) return false;
+  if (a.type !== b.type || a.key !== b.key) return false;
+  const pa = a.props as Record<string, unknown>;
+  const pb = b.props as Record<string, unknown>;
+  const keys = Object.keys(pa);
+  if (keys.length !== Object.keys(pb).length) return false;
+  return keys.every((k) => (pa[k] === pb[k] || (k === 'children' && sameNode(pa[k] as ReactNode, pb[k] as ReactNode))));
+}
+
+/**
+ * A list that re-renders (a log elsewhere, a refetch) hands every card new `meta` arrays, new
+ * `onPress` closures and new status elements with the same content. A card redraws only when what
+ * it shows changed; `onPress` is read through a ref so a stale closure is never called.
+ */
+function sameCard(a: TaskCardProps, b: TaskCardProps): boolean {
+  return (
+    a.task === b.task &&
+    a.showPlan === b.showPlan &&
+    a.showWeek === b.showWeek &&
+    a.muted === b.muted &&
+    a.accessibilityLabel === b.accessibilityLabel &&
+    a.meta.length === b.meta.length &&
+    a.meta.every((m, i) => m === b.meta[i]) &&
+    sameNode(a.metaLeading, b.metaLeading) &&
+    sameNode(a.status, b.status) &&
+    sameNode(a.footer, b.footer)
+  );
+}
+
+export const TaskCard = memo(TaskCardImpl, sameCard);
+
+function TaskCardImpl({ task, meta, metaLeading, status, showPlan = true, showWeek, muted = false, onPress, footer, accessibilityLabel }: TaskCardProps) {
   const t = useTheme();
+  const latestPress = useRef(onPress);
+  latestPress.current = onPress;
+  const press = useCallback(() => latestPress.current(), []);
   const ideal = showPlan ? planSummary(task.idealSteps) : null;
   const fallback = showPlan ? planSummary(task.fallbackSteps) : null;
   const week = showWeek ?? ((task.type === 'routine' || task.type === 'course') && !task.isAsNeeded);
   return (
-    <Card onPress={onPress} accessibilityLabel={accessibilityLabel ?? `${task.name}, ${meta.join(', ')}`} style={styles.card}>
+    <Card onPress={press} accessibilityLabel={accessibilityLabel ?? `${task.name}, ${meta.join(', ')}`} style={styles.card}>
       <View style={styles.head}>
         <TaskIcon {...taskIconProps(task)} muted={muted} />
         <View style={styles.textCol}>
@@ -69,10 +110,20 @@ export function TaskCard({ task, meta, metaLeading, status, showPlan = true, sho
 }
 
 function TaskWeek({ taskId }: { readonly taskId: Id }) {
+  const batch = useWeekStripsContext();
+  return batch ? <BatchedWeek days={batch.daysFor(taskId)} /> : <OwnWeek taskId={taskId} />;
+}
+
+/** A card outside a list that reads the strips once (Search) reads its own. */
+function OwnWeek({ taskId }: { readonly taskId: Id }) {
   return <WeekStrip days={useWeekStrip(taskId)} />;
 }
 
-/** One side of the plan on one line: a dot in the state colour, then the words. */
+const BatchedWeek = memo(function BatchedWeek({ days }: { readonly days: ComponentProps<typeof WeekStrip>['days'] }) {
+  return <WeekStrip days={days} />;
+});
+
+/** One side of the plan on one line: a dot in the state color, then the words. */
 function PlanLine({ dot, text }: { readonly dot: string; readonly text: string }) {
   const t = useTheme();
   return (

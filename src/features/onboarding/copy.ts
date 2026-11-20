@@ -7,12 +7,12 @@ export const ONBOARDING_SHELL_COPY = {
   skip: 'Skip',
   next: 'Next',
   save: 'Save routine',
-  skipFailure: "Couldn't save that. Try again",
+  skipFailure: "Couldn't save that. Try again.",
 } as const;
 
 export const S02_COPY = {
   headline: 'Something beats nothing.',
-  body: 'Build habits that survive your worst days, not just your best ones.',
+  body: 'Build tasks that survive your worst days, not just your best ones.',
   compareTitle: 'The same week, twice',
   withoutLabel: 'The full version or nothing',
   withoutCount: '3 of 7 days',
@@ -21,7 +21,7 @@ export const S02_COPY = {
 } as const;
 
 export const S03_COPY = {
-  headline: 'a plan A and a plan B for every habit.',
+  headline: 'A plan A and a plan B for every task.',
   body: 'Too tired for the full thing? Do the fallback. You still showed up.',
   exampleName: 'Morning workout',
   idealText: 'Full workout, 30 minutes',
@@ -42,7 +42,7 @@ export const S04_COPY = {
 
 export const S05_COPY = {
   headline: 'Every day counts, ideal or fallback.',
-  body: 'Nothing to lose here. We count how often you show up. A fallback still counts.',
+  body: 'We count how often you show up, and a fallback still counts.',
   bigNumeral: '86%',
   subLabel: '6 of 7 days you showed up',
   legend: { ideal: 'Ideal', fallback: 'Fallback', off: 'Off' },
@@ -54,9 +54,9 @@ export const S05_COPY = {
 
 export const S06_COPY = {
   headline: 'Make it yours.',
-  body: 'Pick a colour, then light or dark.',
-  accentSectionLabel: 'Colour',
-  accentHelper: 'Ideal green and fallback blue never change. More colours are in Settings.',
+  body: 'Pick a color, then light or dark.',
+  accentSectionLabel: 'Color',
+  accentHelper: 'Ideal green and fallback blue never change. More colors are in Settings.',
   appearanceSectionLabel: 'Light or dark',
   appearanceOptions: [
     { value: 'light', label: 'Light' },
@@ -65,14 +65,14 @@ export const S06_COPY = {
   ],
   previewLabel: 'Preview',
   remindersSectionLabel: 'Reminders',
-  remindersRowLabel: 'Gentle nudges for due habits',
+  remindersRowLabel: 'Gentle nudges for due tasks',
   remindersHelper: 'You can change this anytime in Settings.',
-  saveFailure: "Couldn't save that. Try again",
+  saveFailure: "Couldn't save that. Try again.",
 } as const;
 
 export const S07_COPY = {
   headline: 'Gentle nudges, never nagging.',
-  body: "A quiet reminder when a habit is due, and one invitation back after an off day. That's it.",
+  body: "A quiet reminder when a task is due, and one invitation back after an off day.",
   previewApp: 'Fallback',
   previewTimestamp: 'now',
   previewTitle: 'Time for your evening walk',
@@ -82,7 +82,7 @@ export const S07_COPY = {
 } as const;
 
 export const S08_COPY = {
-  headline: 'Add your first habit.',
+  headline: 'Add your first task.',
   body: "We'll start with a daily routine. Give it an ideal and a fallback. You can add events, courses and to-dos after setup.",
   lastStep: 'Last step',
   tiles: [
@@ -102,8 +102,8 @@ export const S08_COPY = {
   fallbackHelper: 'The low bar. Still counts as showing up.',
   cadenceNote: 'It runs every day. You can change that anytime.',
   save: 'Save routine',
-  nameError: 'Add a name to continue',
-  idealError: 'Add an ideal version to continue',
-  fallbackError: 'Add a fallback to continue',
-  saveFailure: "Couldn't save. Try again",
+  nameError: 'Add a name to continue.',
+  idealError: 'Add an ideal version to continue.',
+  fallbackError: 'Add a fallback to continue.',
+  saveFailure: "Couldn't save. Try again.",
 } as const;

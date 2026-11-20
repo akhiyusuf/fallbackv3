@@ -2,8 +2,8 @@
  * TodayTaskCard — the one task card used on Today. The theme screen's preview renders this
  * same component, so what a person sees in the preview is exactly what the app shows.
  *
- * Once logged, the whole card takes the state colour (green ideal, blue fallback), so the list
- * fills with colour as the day goes on.
+ * Once logged, the whole card takes the state color (green ideal, blue fallback), so the list
+ * fills with color as the day goes on.
  */
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';

@@ -1,6 +1,6 @@
 /**
  * S43 — Theme. Appearance (D9), named themes with a small preview of each, and a strict set of
- * extra colours. Every theme, named or not, is derived from one seed colour by `@/theme/engine`,
+ * extra colors. Every theme, named or not, is derived from one seed color by `@/theme/engine`,
  * so all of them pass the same contrast checks. The preview is the real Today card.
  */
 import { useEffect, useState } from 'react';
@@ -143,7 +143,7 @@ export default function S43Theme() {
                 onPress={() => void handleAccentChange(key)}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
-                accessibilityLabel={`${hueName(hue)}, colour ${i + 1} of ${THEME_HUES.length}${selected ? ', selected' : ''}`}
+                accessibilityLabel={`${hueName(hue)}, color ${i + 1} of ${THEME_HUES.length}${selected ? ', selected' : ''}`}
                 style={[styles.swatch, { backgroundColor: seedForHue(hue), borderColor: selected ? t.color.text : t.color.bg }]}
               >
                 {selected ? <Check size={20} color={t.color.textOnAccent} /> : null}

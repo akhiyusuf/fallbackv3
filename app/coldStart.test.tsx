@@ -84,7 +84,7 @@ describe('cold start', () => {
     expect(element.props.href).toBe('/splash');
   });
 
-  it('a returning, onboarded person lands on /today with their saved theme and colour already in place', async () => {
+  it('a returning, onboarded person lands on /today with their saved theme and color already in place', async () => {
     const saved = await repos.settings.patch({
       theme: 'dark',
       accent: 'hue-200',
@@ -101,7 +101,7 @@ describe('cold start', () => {
     expect(useThemeStore.getState().accent).toBe('hue-200');
   });
 
-  it('a person who saved a look but did not finish onboarding goes to the first onboarding step, still in their colours', async () => {
+  it('a person who saved a look but did not finish onboarding goes to the first onboarding step, still in their colors', async () => {
     const saved = await repos.settings.patch({ theme: 'light', accent: 'mono' });
     expect(saved.ok).toBe(true);
 

@@ -53,7 +53,7 @@ export function useOnboardingDensity(): OnboardingDensity {
   );
 }
 /**
- * Every step's banner (the coloured top) is the same height, so the words start at the same
+ * Every step's banner (the colored top) is the same height, so the words start at the same
  * place on all seven steps and no picture is smaller than another. That height is what the
  * fullest step leaves free, up to BANNER_SHARE of the screen. To keep it generous the type and
  * the gaps tighten on ALL steps together ("compact", then "tight"): a roomier setting is used

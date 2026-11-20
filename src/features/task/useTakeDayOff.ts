@@ -12,7 +12,7 @@ import type { Id, LocalDate } from '@/types';
 import { SAVE_FAILED } from './formShared';
 
 export const DAY_OFF_COPY = {
-  toast: 'Taken off today',
+  toast: 'Emergency day off.',
   toastDetail: "Won't count",
 } as const;
 
@@ -34,7 +34,7 @@ export function useTakeDayOff(): (taskId: Id, date: LocalDate) => Promise<void> 
         onPress: () =>
           void markOffDay
             .mutateAsync({ date, taskId, mark: false })
-            .then((undone) => showToast(undone.ok ? 'Undone' : SAVE_FAILED, undone.ok ? 'neutral' : 'warning'))
+            .then((undone) => showToast(undone.ok ? 'Undone.' : SAVE_FAILED, undone.ok ? 'neutral' : 'warning'))
             .catch(() => showToast(SAVE_FAILED, 'warning')),
       },
     });

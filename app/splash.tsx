@@ -64,7 +64,7 @@ export default function S01Splash() {
         // Runs the sweep, the cycle catch-up and the XP heal in order, never twice at once; the same
         // pass runs again on each foreground (`useForegroundRepairs`). It never throws.
         void runStartupRepairs();
-        // The look the person chose (light or dark, and the colour) is kept with their settings;
+        // The look the person chose (light or dark, and the color) is kept with their settings;
         // put it back before the first real screen draws.
         try {
           useThemeStore.getState().hydrate(settings.theme, settings.accent);

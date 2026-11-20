@@ -32,7 +32,7 @@ export function PersonalizeScreen() {
 
   const [saving, setSaving] = useState(false);
 
-  // Take the saved colour once, when it first arrives. Not again after each save: a later reload of
+  // Take the saved color once, when it first arrives. Not again after each save: a later reload of
   // the settings would otherwise put back an older pick if the person tapped quickly.
   const loadedRef = useRef(false);
   useEffect(() => {
@@ -63,7 +63,7 @@ export function PersonalizeScreen() {
       showToast(S06_COPY.saveFailure, 'warning');
       return;
     }
-    // Reminders are asked about once, on the next step. This step is only the colour.
+    // Reminders are asked about once, on the next step. This step is only the color.
     router.push('/onboarding/notifications-primer' as Href);
   }
 

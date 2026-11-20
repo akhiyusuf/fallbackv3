@@ -18,7 +18,7 @@ export interface InlineRetryBannerProps {
   readonly testID?: string;
 }
 
-export function InlineRetryBanner({ message, onRetry, retryLabel = 'Retry', tone = 'neutral', testID }: InlineRetryBannerProps) {
+export function InlineRetryBanner({ message, onRetry, retryLabel = 'Try again', tone = 'neutral', testID }: InlineRetryBannerProps) {
   const t = useTheme();
   return (
     <View

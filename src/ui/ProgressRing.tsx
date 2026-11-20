@@ -11,12 +11,12 @@ export interface ProgressRingProps {
   readonly size?: number;
   readonly strokeWidth?: number;
   readonly label?: string;
-  /** Colour and size of the text inside the ring. */
+  /** Color and size of the text inside the ring. */
   readonly labelColor?: string;
   readonly labelSize?: number;
-  /** Arc colour. Defaults to the theme colour. */
+  /** Arc color. Defaults to the theme color. */
   readonly color?: string;
-  /** Track colour and opacity. Defaults to the neutral surface. */
+  /** Track color and opacity. Defaults to the neutral surface. */
   readonly trackColor?: string;
   readonly trackOpacity?: number;
   readonly accessibilityLabel: string;

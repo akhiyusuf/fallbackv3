@@ -56,7 +56,7 @@ function read(relative: string): string {
   return readFileSync(join(ROOT, relative), 'utf8');
 }
 
-/** Colour type from a PNG's IHDR chunk (byte 25), read without an image decoder. */
+/** Color type from a PNG's IHDR chunk (byte 25), read without an image decoder. */
 function pngColorType(path: string): number {
   return readFileSync(path)[25] ?? -1;
 }

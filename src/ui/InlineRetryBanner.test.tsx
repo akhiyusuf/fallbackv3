@@ -9,12 +9,12 @@ describe('InlineRetryBanner', () => {
 
     expect(screen.getByText("Couldn't load today's tasks. Your data is safe on this device.")).toBeTruthy();
     // The root View carries `accessibilityRole="alert"` without `accessible` — setting
-    // `accessible` would swallow the "Retry" button inside it from individual VoiceOver/
+    // `accessible` would swallow the "Try again" button inside it from individual VoiceOver/
     // TalkBack focus, so this is a structural check via the raw prop tree, not a role query.
     const alertNodes = screen.container.queryAll((n) => n.type === 'View' && n.props.accessibilityRole === 'alert');
     expect(alertNodes).toHaveLength(1);
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

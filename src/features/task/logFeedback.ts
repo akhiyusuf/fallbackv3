@@ -30,10 +30,10 @@ export function useLogFeedback() {
       else if (chip === 'fallback') play('log_fallback');
       else if (chip === 'skip') play('log_skip');
       const detail = result.xpAwarded > 0 ? `+${result.xpAwarded} XP` : undefined;
-      if (chip === 'done') showToast('Ideal done', 'success', { icon: 'ideal', detail, action });
-      else if (chip === 'fallback') showToast('Fallback done', 'success', { icon: 'fallback', detail, action });
-      else if (chip === 'skip') showToast('Skipped for today', 'neutral', { icon: 'skip', action });
-      else showToast('Log cleared', 'neutral');
+      if (chip === 'done') showToast('Ideal done.', 'success', { icon: 'ideal', detail, action });
+      else if (chip === 'fallback') showToast('Fallback done.', 'success', { icon: 'fallback', detail, action });
+      else if (chip === 'skip') showToast('Skipped for today.', 'neutral', { icon: 'skip', action });
+      else showToast('Log cleared.', 'neutral');
 
       if (result.levelUp) {
         void repos.progress

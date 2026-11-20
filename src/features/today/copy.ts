@@ -12,14 +12,14 @@
 
 export const S09_COPY = {
   title: 'Today',
-  statLabel: 'Showing up',
+  statLabel: 'Consistency',
   statHelper: 'Share of due days you did the ideal or the fallback.',
   dueSection: 'Due today',
   firstHabitBody: 'Do the ideal or the fallback today. Either one counts.',
   offToggleLabel: 'Emergency day off',
   offToggleA11y: 'Emergency day off, the whole day',
   offToggleSub: 'The whole day. Nothing due today counts against you.',
-  offOnToast: "Day off. Nothing due today counts against you.",
+  offOnToast: "Emergency day off. Nothing counts against you.",
   offUnmarkToast: "Today's mark removed. Your prior log is back.",
   achievementsTeaser: 'Achievements',
   noDataStat: 'No data yet',
@@ -42,7 +42,7 @@ export const S09_COPY = {
   reentryStatSuffix: ' you showed up, ideal or fallback.',
 
   readFailure: "Couldn't load today's tasks. Your data is safe on this device.",
-  retry: 'Retry',
+  retry: 'Try again',
   chipRevertToast: "Couldn't save that. Try again.",
 
   assistantLabel: 'Fallback AI assistant',
@@ -50,7 +50,7 @@ export const S09_COPY = {
   settingsLabel: 'Settings',
   addTaskLabel: 'Add task',
 
-  firstHabitBannerPrefix: 'Your first habit is set.',
+  firstHabitBannerPrefix: 'Your first task is set.',
   firstHabitBannerSuffix: '',
 } as const;
 

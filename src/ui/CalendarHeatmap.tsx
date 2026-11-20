@@ -9,7 +9,7 @@
  * from ARCHITECTURE prose: ideal/fallback are the same `check-check`/`check` glyphs as
  * `StateChip`; off is `--off-soft` + border + `moon` in `--text-dim` (the same moon motif as
  * the S09/S20 off state, not a solid fill); missed is `--surface` + `--border-strong`, no
- * icon (still colour-free — ARCHITECTURE §5 — just not literally transparent); not-due is
+ * icon (still color-free — ARCHITECTURE §5 — just not literally transparent); not-due is
  * transparent with a faint 1px `--border` rather than no border at all.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -114,7 +114,7 @@ export function CalendarHeatmap({ days, monthLabel, onPrevMonth, onNextMonth, on
             const label = `${cell.date}, ${cell.outcome.replace('-', ' ')}`;
             return (
               // Rule 8 / REVIEW-M0.md item 7: the tap target covers the cell AND its numeral
-              // caption together, not just the coloured square — so the Pressable wraps both.
+              // caption together, not just the colored square — so the Pressable wraps both.
               <Pressable
                 key={ci}
                 onPress={onCellPress ? () => onCellPress(cell.date) : undefined}

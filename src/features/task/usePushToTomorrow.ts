@@ -12,10 +12,10 @@ import type { Id, LocalDate } from '@/types';
 import { SAVE_FAILED } from './formShared';
 
 export const PUSH_COPY = {
-  toast: 'Pushed to tomorrow',
+  toast: 'Pushed to tomorrow.',
   already: 'Already pushed once. It stays on today.',
   notMovable: "This one is set not to move. Turn that on in its page if you'd like to push it.",
-  undone: 'Back on today',
+  undone: 'Back on today.',
 } as const;
 
 export function usePushToTomorrow(): (taskId: Id, date: LocalDate) => Promise<void> {

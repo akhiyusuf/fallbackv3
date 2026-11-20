@@ -5,30 +5,30 @@
  *   design-input/fallback-handoff/fallback-theme.css                        (Fallback layer — WINS on conflict)
  *   the dark-mode override block inside design-input/Fallback Handoff (standalone).html
  *
- * RULE 1: no raw colour literal may appear anywhere outside this file.
- * RULE 2: a theme is one seed colour. `engine.ts` derives the solid, its text colour, the tint, the
- *         coloured text and the page tone from it, and checks every pair for contrast.
- *         Signal colours (ideal / fallback / off / gold) are THEME-IMMUNE by construction: they are
+ * RULE 1: no raw color literal may appear anywhere outside this file.
+ * RULE 2: a theme is one seed color. `engine.ts` derives the solid, its text color, the tint, the
+ *         colored text and the page tone from it, and checks every pair for contrast.
+ *         Signal colors (ideal / fallback / off / gold) are THEME-IMMUNE by construction: they are
  *         never derived from the seed, and theme hues are kept away from them (see THEME_HUES).
  */
 
 export type ColorScheme = 'light' | 'dark';
 
 export const ACCENTS = {
-  // base  = the vivid brand colour, for marks that carry no text (progress, dots, icon circles, the add button).
+  // base  = the vivid brand color, for marks that carry no text (progress, dots, icon circles, the add button).
   // fill  = behind white text (buttons, selected chips): at least 4.5:1 with white. fillEdge = its pressed/3D edge.
-  // deep  = accent-coloured text and icons on light surfaces. textDark = the same on dark surfaces.
+  // deep  = accent-colored text and icons on light surfaces. textDark = the same on dark surfaces.
   'forge-orange': { base: '#F2601A', hover: '#DE5310', deep: '#B4400A', fill: '#C8490C', fillEdge: '#98380A', textDark: '#FF8A4F', softLight: '#FCEADD', softDark: '#3D2415', label: 'Forge Orange' },
   indigo: { base: '#4F46E5', hover: '#4338CA', deep: '#3730A3', fill: '#4F46E5', fillEdge: '#3730A3', textDark: '#A9A5FF', softLight: '#E7E6FB', softDark: '#232048', label: 'Indigo' },
   berry: { base: '#D6336C', hover: '#C2255C', deep: '#9C1A4E', fill: '#CE2C65', fillEdge: '#9C1A4E', textDark: '#FF85AD', softLight: '#FBE2EC', softDark: '#3D1626', label: 'Berry' },
   plum: { base: '#9333EA', hover: '#7E22CE', deep: '#6B21A8', fill: '#9333EA', fillEdge: '#6B21A8', textDark: '#CBA1FF', softLight: '#F1E4FB', softDark: '#301A44', label: 'Plum' },
 } as const;
 
-/** Near-black and white: the only two colours text on a solid is ever drawn in. */
+/** Near-black and white: the only two colors text on a solid is ever drawn in. */
 export const INK = '#26241f';
 export const WHITE = '#ffffff';
 
-/** Named themes: one seed colour each. Everything else is derived (see engine.ts). */
+/** Named themes: one seed color each. Everything else is derived (see engine.ts). */
 export const THEME_SEEDS = {
   'forge-orange': '#F2601A',
   indigo: '#4F46E5',
@@ -42,7 +42,7 @@ export const THEME_LABELS = { 'forge-orange': 'Forge', indigo: 'Indigo', berry: 
 export const THEME_ORDER = ['forge-orange', 'indigo', 'berry', 'plum', 'lagoon', 'mono'] as const;
 
 /**
- * The only hues (OKLCH degrees) a person may choose for their own colour. Three families:
+ * The only hues (OKLCH degrees) a person may choose for their own color. Three families:
  * warm oranges, teals, and indigo through pink. Greens, sky blues, golds and reds are left out
  * because those hues mean ideal, fallback, XP and error. Brightness and strength are fixed.
  */
@@ -63,7 +63,7 @@ export interface Palette {
   xp: string; xpFill: string; iconOnSignal: string; textOnAccent: string;
 }
 
-// Every text colour below is at least 4.5:1 on bg, bgAlt and its own "soft" tint; borderStrong is at
+// Every text color below is at least 4.5:1 on bg, bgAlt and its own "soft" tint; borderStrong is at
 // least 3:1 so a field or control is visible by its outline. Cards (bgAlt) sit lighter than the page (bg).
 const LIGHT: Palette = {
   bg: '#f6f4f0',
@@ -172,7 +172,7 @@ export const MIN_TAP_TARGET = 44;
 /**
  * Modal/sheet scrim — Verdant readme.md "Transparency / blur": `rgba(55,53,47,0.30)` in
  * both palettes (not theme-dependent, so it lives beside the palettes rather than inside
- * one). The only sanctioned raw colour literal outside this file is this constant's use.
+ * one). The only sanctioned raw color literal outside this file is this constant's use.
  */
 export const SCRIM = 'rgba(30, 28, 24, 0.45)';
 /** Fixed header height shared by every screen (D4). */

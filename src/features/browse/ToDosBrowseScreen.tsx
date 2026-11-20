@@ -66,7 +66,7 @@ export default function ToDosBrowseScreen() {
     if (wasDone) return;
     play('todo_done');
     // Ticking is one tap, so a slip has to be one tap to take back.
-    showToast('Done', 'success', {
+    showToast('Done.', 'success', {
       icon: 'ideal',
       action: {
         label: 'Undo',

@@ -77,7 +77,7 @@ describe('Delete sheet: wording', () => {
     expect(within(sheet).getByText('Delete this routine?')).toBeTruthy();
     expect(
       within(sheet).getByText(
-        "“Morning workout” goes to Recently deleted for 30 days. The days you've logged still count. Only stopping? End the routine instead and it stays in your list.",
+        ""Morning workout" goes to Recently deleted for 30 days. The days you've logged still count. Only stopping? End the routine instead and it stays in your list.",
       ),
     ).toBeTruthy();
     expect(within(sheet).queryByText(/can't be undone/)).toBeNull();
@@ -90,7 +90,7 @@ describe('Delete sheet: wording', () => {
     const sheet = await openDelete('to-do');
     expect(within(sheet).getByText('Delete this to-do?')).toBeTruthy();
     // A to-do can't be ended, so there is no "End it instead".
-    expect(within(sheet).getByText("“Call mum” goes to Recently deleted for 30 days. The days you've logged still count.")).toBeTruthy();
+    expect(within(sheet).getByText(""Call mum" goes to Recently deleted for 30 days. The days you've logged still count.")).toBeTruthy();
   });
 });
 
@@ -112,7 +112,7 @@ describe('Delete sheet: confirmed delete', () => {
     await screen.findByText('Thing');
     await confirm(noun);
     expect(await screen.findByText(marker)).toBeTruthy();
-    expect(toast()?.message).toBe('Moved to Recently deleted');
+    expect(toast()?.message).toBe('Moved to Recently deleted.');
     expect(toast()?.action?.label).toBe('Undo');
     expect((await fake.repos.tasks.get('task-1' as Id))?.deletedAt).toBe(NOW);
     // The task screen does not flash its "was deleted" notice while leaving.
@@ -144,7 +144,7 @@ describe('Delete sheet: confirmed delete', () => {
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
     expect(spy).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("Couldn't delete. Try again.")).toBeNull();
-    expect(toast()?.message).toBe('Moved to Recently deleted');
+    expect(toast()?.message).toBe('Moved to Recently deleted.');
   });
 });
 
@@ -163,7 +163,7 @@ describe('Delete sheet: Undo', () => {
   it('restores the task and says so (the sheet is already gone from the screen)', async () => {
     const undo = await deleteAndGetUndo();
     await act(async () => undo.onPress());
-    await waitFor(() => expect(toast()?.message).toBe('Restored “Morning workout”'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout"'));
     expect((await fake.repos.tasks.get('task-1' as Id))?.deletedAt).toBeNull();
     expect((await fake.repos.tasks.list()).map((t) => t.id)).toContain('task-1');
   });
@@ -202,9 +202,9 @@ describe('Delete sheet: a failed delete', () => {
     expect(toast()).toBeNull();
     expect((await fake.repos.tasks.get('task-1' as Id))?.deletedAt).toBeNull();
 
-    await userEvent.press(screen.getByLabelText('Retry'));
+    await userEvent.press(screen.getByLabelText('Try again'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
-    expect(toast()?.message).toBe('Moved to Recently deleted');
+    expect(toast()?.message).toBe('Moved to Recently deleted.');
   });
 
   it('a delete that throws is the same retry banner, not a crash', async () => {
@@ -242,7 +242,7 @@ describe('A task screen for a deleted task', () => {
     await renderRouter(CONTEXT, { initialUrl: '/task/task-1', wrapper });
     await userEvent.press(await screen.findByLabelText('Restore'));
     expect(await screen.findByLabelText('More actions')).toBeTruthy();
-    expect(toast()?.message).toBe('Restored “Morning workout”');
+    expect(toast()?.message).toBe('Restored "Morning workout"');
     expect(toast()?.tone).toBe('success');
     expect(screen.queryByTestId('task-deleted-notice')).toBeNull();
   });
@@ -272,7 +272,7 @@ describe('A task screen for a deleted task', () => {
     expect(screen.queryByLabelText('More actions')).toBeNull();
   });
 
-  it('the icon and colour page says it too and has no Save', async () => {
+  it('the icon and color page says it too and has no Save', async () => {
     fake.seedTask(deletedTask());
     await renderRouter(CONTEXT, { initialUrl: '/task/task-1/icon', wrapper });
     expect(await screen.findByText(DELETED_NOTICE_COPY.headline('Morning workout'))).toBeTruthy();

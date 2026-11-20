@@ -16,18 +16,18 @@ import { Text } from '@/ui/AppText';
 
 export const DELETED_NOTICE_COPY = {
   title: 'Deleted',
-  headline: (name: string) => `“${name}” was deleted.`,
+  headline: (name: string) => `"${name}" was deleted.`,
   body: 'It is in Recently deleted, with its history. Restore it to use it again.',
   restore: 'Restore',
   open: 'Open Recently deleted',
-  restoredToast: (name: string) => `Restored “${name}”`,
+  restoredToast: (name: string) => `Restored "${name}".`,
   failed: "Couldn't do that. Try again.",
 } as const;
 
 export const GONE_NOTICE_COPY = {
   title: 'Not found',
   headline: "This isn't here any more.",
-  body: 'It was deleted for good, so there is nothing to open.',
+  body: 'It was deleted forever, so there is nothing to open.',
   today: 'Go to Today',
 } as const;
 

@@ -1,8 +1,8 @@
 /**
- * Theme engine. One seed colour in, a whole contrast-checked theme out.
+ * Theme engine. One seed color in, a whole contrast-checked theme out.
  *
  * A theme is never a hand-picked table of shades: every shade is derived from the seed by the
- * rules below, so a named theme and a person's own colour go through the same checks and no
+ * rules below, so a named theme and a person's own color go through the same checks and no
  * theme can produce text that is hard to read. Works in OKLCH so that "darker" and "lighter"
  * keep the hue.
  */
@@ -28,7 +28,7 @@ function luminance(hex: string): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
-/** WCAG contrast ratio between two colours. */
+/** WCAG contrast ratio between two colors. */
 export function contrast(a: string, b: string): number {
   const x = luminance(a);
   const y = luminance(b);
@@ -57,7 +57,7 @@ export function toLch(hex: string): readonly [number, number, number] {
   return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360];
 }
 
-/** Nearest displayable colour: chroma is reduced until the colour fits the screen. */
+/** Nearest displayable color: chroma is reduced until the color fits the screen. */
 export function fromLch(L: number, C: number, H: number): string {
   const hr = (H * Math.PI) / 180;
   for (let c = C; c >= 0; c -= 0.004) {
@@ -89,10 +89,10 @@ export interface DerivedAccent {
   readonly on: string;
   /** Large text and icons on `fill` (3:1 is enough): white whenever it passes. */
   readonly onLarge: string;
-  /** A deeper band of the same colour where small white text reads at 4.5:1. */
+  /** A deeper band of the same color where small white text reads at 4.5:1. */
   readonly band: string;
   readonly onBand: string;
-  /** Theme-coloured text and icons on the page, a card or the tint. */
+  /** Theme-colored text and icons on the page, a card or the tint. */
   readonly text: string;
   readonly deep: string;
   /** The tint: selected rows, pills, the active tab. */
@@ -164,9 +164,9 @@ export function deriveTheme(seed: string, scheme: ColorScheme): DerivedTheme {
 
 /**
  * Mono — the black-and-white theme. Nothing here is derived from a seed: the page, the cards
- * and every theme-coloured piece are pure neutrals, and the "theme colour" is black on a light
+ * and every theme-colored piece are pure neutrals, and the "theme color" is black on a light
  * page and white on a dark one. The state signals (ideal green, fallback blue, gold, danger)
- * are untouched, so they are the only colour on the screen.
+ * are untouched, so they are the only color on the screen.
  */
 export function deriveMonoTheme(scheme: ColorScheme): DerivedTheme {
   const key = `mono|${scheme}`;
@@ -213,7 +213,7 @@ export function deriveMonoTheme(scheme: ColorScheme): DerivedTheme {
   return out;
 }
 
-/** The seed a person's own colour produces: they choose the hue, the app fixes brightness and strength. */
+/** The seed a person's own color produces: they choose the hue, the app fixes brightness and strength. */
 export function seedForHue(hue: number): string {
   return fromLch(0.63, 0.2, hue);
 }

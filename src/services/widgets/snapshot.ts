@@ -5,7 +5,7 @@
  *
  * The native targets "never open the SQLite database directly" (MODULES.md M7) — this
  * snapshot is their ONLY input, which is why it carries pre-resolved display strings and
- * pre-resolved colours (not raw task/log rows) rather than pushing any business logic onto
+ * pre-resolved colors (not raw task/log rows) rather than pushing any business logic onto
  * the Swift/Kotlin side.
  */
 import type { ColorScheme, Palette } from '@/theme';
@@ -29,7 +29,7 @@ export interface WidgetSnapshot {
   readonly version: 1;
   readonly generatedAt: string;
   readonly theme: { readonly scheme: ColorScheme; readonly accent: AccentKey; readonly accentHex: string };
-  /** Rule 4 / §5 — signal colours are accent- and (for display purposes) theme-resolved already; missed has none. */
+  /** Rule 4 / §5 — signal colors are accent- and (for display purposes) theme-resolved already; missed has none. */
   readonly signalColors: WidgetSignalColors;
   readonly today: { readonly totalDue: number; readonly doneCount: number; readonly percent: number | null };
   /** Every DUE task today, chip-resolved, for the "smart — next due" / "fixed task" widget configs to select from. */

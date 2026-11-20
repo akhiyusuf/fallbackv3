@@ -12,10 +12,10 @@ import { Text } from '@/ui/AppText';
 export interface StatTileProps {
   readonly value: number | string;
   readonly label: string;
-  /** Solid colour of the mark. Omit for an empty ring (a state with no colour of its own). */
+  /** Solid color of the mark. Omit for an empty ring (a state with no color of its own). */
   readonly color?: string;
   readonly icon?: IconComponent;
-  /** Icon colour on the mark. */
+  /** Icon color on the mark. */
   readonly ink?: string;
 }
 

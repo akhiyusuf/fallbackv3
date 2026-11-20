@@ -77,7 +77,7 @@ export default function S44ManageSubscription() {
   if (loading || error) {
     return (
       <Screen title="Subscription" onBack={handleBack}>
-        {loading ? <Skeleton height={120} radius={16} /> : <InlineRetryBanner message={S44_COPY.errorStore} onRetry={load} retryLabel="Retry" tone="warning" />}
+        {loading ? <Skeleton height={120} radius={16} /> : <InlineRetryBanner message={S44_COPY.errorStore} onRetry={load} retryLabel="Try again" tone="warning" />}
       </Screen>
     );
   }
@@ -137,7 +137,7 @@ function trialLine(trialEndsOn: string | null): string {
 }
 
 function renewLine(renewsOn: string | null): string {
-  if (!renewsOn) return '–';
+  if (!renewsOn) return '-';
   return format(parseLocalDate(renewsOn as never), 'MMM d, yyyy');
 }
 

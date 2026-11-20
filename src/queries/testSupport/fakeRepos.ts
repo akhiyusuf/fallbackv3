@@ -142,8 +142,24 @@ export function createFakeRepos(): FakeRepos {
         const t = tasks.get(id);
         if (!t) return err({ code: 'NOT_FOUND', message: 'not found' });
         const copyId = `${id}-copy` as Id;
-        // Mirrors taskRepository.duplicate: the copy is live and has no rank.
-        tasks.set(copyId, { ...t, id: copyId, deletedAt: null, priorityRank: null });
+        // Mirrors taskRepository.duplicate: the copy is live, has no rank, is not ended, takes
+        // its own creation day (from now, not the source's, so it cannot be "due" before it
+        // existed), and its steps get new ids that point at the copy.
+        const stamp = now();
+        const copySteps = (steps: typeof t.idealSteps) => steps.map((s) => ({ ...s, id: `${s.id}-copy` as typeof s.id, taskId: copyId }));
+        tasks.set(copyId, {
+          ...t,
+          id: copyId,
+          createdAt: stamp,
+          updatedAt: stamp,
+          deletedAt: null,
+          priorityRank: null,
+          endedOn: null,
+          createdOn: null,
+          deletedOn: null,
+          idealSteps: copySteps(t.idealSteps),
+          fallbackSteps: copySteps(t.fallbackSteps),
+        });
         return ok(copyId);
       },
     },

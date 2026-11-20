@@ -37,7 +37,7 @@ export default function AgentAccess() {
       </Card>
 
       <Text style={[styles.intro, { color: t.color.text }]}>
-        Let an AI app you already use, such as Claude or ChatGPT, look at your habits and help with them. Nothing is shared until you turn this on, and an agent can only do what you allow here.
+        Let an AI app you already use, such as Claude or ChatGPT, look at your tasks and help with them. Nothing is shared until you turn this on, and an agent can only do what you allow here.
       </Text>
 
       <ListGroup>
@@ -109,7 +109,7 @@ export default function AgentAccess() {
                 chevron={false}
                 onPress={() => {
                   disconnectAll();
-                  showToast('All agents disconnected', 'success');
+                  showToast('All agents disconnected.', 'success');
                 }}
               />
             </ListGroup>

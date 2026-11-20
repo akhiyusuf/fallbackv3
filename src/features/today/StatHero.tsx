@@ -1,7 +1,7 @@
 /**
- * StatHero — the one block of solid theme colour on a screen: the number that matters.
- * Text on the bright colour is large and bold (white reads at 3:1 or better there); the small
- * line sits on a deeper band of the same colour where white reads at 4.5:1.
+ * StatHero — the one block of solid theme color on a screen: the number that matters.
+ * Text on the bright color is large and bold (white reads at 3:1 or better there); the small
+ * line sits on a deeper band of the same color where white reads at 4.5:1.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
@@ -30,7 +30,7 @@ export function StatHero({ percent, loading = false, label, detail, detailLines 
           percent={percent ?? 0}
           size={76}
           strokeWidth={8}
-          label={percent === null ? '–' : `${percent}%`}
+          label={percent === null ? '-' : `${percent}%`}
           labelColor={t.accent.onLarge}
           labelSize={20}
           color={t.accent.onLarge}

@@ -70,7 +70,7 @@ describe('S23 As-Needed Routine Detail', () => {
 
     // The new history row reads "<date>, Ideal" and the calm toast confirms it.
     expect((await screen.findAllByText('Ideal')).length).toBeGreaterThan(0);
-    expect(useToastStore.getState().toast?.message).toBe('Logged to history');
+    expect(useToastStore.getState().toast?.message).toBe('Logged to history.');
   });
 
   it('back is origin-aware: from=search returns to search (S14), not the Routines default', async () => {

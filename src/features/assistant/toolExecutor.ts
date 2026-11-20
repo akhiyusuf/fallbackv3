@@ -141,7 +141,7 @@ export function useToolExecutor() {
           const created = tasksQuery.data?.find((t) => t.id === result.value) ?? null;
           return {
             applied: true,
-            summary: `Done. Created ${call.args.name}, with a fallback for the days you're slammed 🌱`,
+            summary: `Done. Created ${call.args.name}, with a fallback for the days you're slammed`,
             taskId: result.value,
             task: created ?? undefined,
             undo: {
@@ -228,7 +228,7 @@ export function useToolExecutor() {
           if (context?.personSaid !== undefined && !personNamedHabit(context.personSaid, existing.name)) return { applied: false, summary: '', reason: 'name-not-said' };
           const result = await deleteTask.mutateAsync(call.args.taskId);
           if (!result.ok) return { applied: false, summary: '' };
-          return { applied: true, summary: `Moved ${existing.name} to Recently deleted. You can restore it for ${DELETED_KEEP_DAYS} days from Settings, Data.`, taskId: existing.id };
+          return { applied: true, summary: `Moved ${existing.name} to Recently deleted. You can restore it for ${DELETED_KEEP_DAYS} days from Settings > Data.`, taskId: existing.id };
         }
 
         case 'log_state': {

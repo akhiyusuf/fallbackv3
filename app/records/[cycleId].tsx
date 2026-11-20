@@ -44,7 +44,7 @@ export default function S30CycleRecordDetail() {
           <Card style={styles.card}>
             <View style={styles.numeralRow}>
               <Text accessibilityRole="header" style={[styles.percent, { color: t.color.text }]}>
-                {record.consistencyPercent === null ? '–' : `${record.consistencyPercent}%`}
+                {record.consistencyPercent === null ? '-' : `${record.consistencyPercent}%`}
               </Text>
               <Text style={[styles.numeralLabel, { color: t.color.textMuted }]}>showed up</Text>
             </View>

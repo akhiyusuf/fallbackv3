@@ -16,7 +16,7 @@ export const S25_COPY = {
   scopeTabs: { perTask: 'One task', aggregate: 'All tasks' } as const,
   windowTabs: { last7: '7 days', last30: '30 days', allTime: 'All time' } as const,
   taskSelectLabel: 'Task',
-  explainer: 'Nothing to lose here. Off days are neutral, and a fallback still counts as showing up.',
+  explainer: 'Off days are neutral, and a fallback still counts as showing up.',
   historyLink: 'Full history',
   historySub: 'Your trend since day one',
   numeralLabel: 'showed up',
@@ -26,7 +26,7 @@ export const S25_COPY = {
   emptyHeadline: 'No data yet',
   emptySubcopy: 'Once a due day resolves (ideal, fallback, or missed), your consistency will show up here.',
   errorMessage: "Couldn't load your consistency right now.",
-  retryLabel: 'Retry',
+  retryLabel: 'Try again',
   offNotePerTask: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} off, not counted either way.`,
   offNoteAggregate: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} fully off, not counted either way.`,
   perTaskSubcopy: (ideal: number, fallback: number, numerator: number, denominator: number) =>
@@ -61,7 +61,7 @@ export const S26_COPY = {
   emptyHeadline: 'No data yet',
   emptySubcopy: 'Your trend will appear as history builds.',
   errorMessage: "Couldn't load your trend right now.",
-  retryLabel: 'Retry',
+  retryLabel: 'Try again',
   graphAccessibilityLabel: 'Your all-time consistency trend',
 } as const;
 
@@ -76,7 +76,7 @@ export const S27_COPY = {
   ] as const,
   tabs: { all: 'All', earned: 'Earned', locked: 'Locked' } as const,
   categoryHeaders: {
-    'showing-up': 'Showing up',
+    'showing-up': 'Consistency',
     'fallback-wins': 'Fallback wins',
     milestones: 'Milestones',
     tenure: 'Tenure',
@@ -89,7 +89,7 @@ export const S27_COPY = {
   lifetimeSubline: (xp: number) => `${xp} XP all time`,
   newUserBanner: 'Show up once, ideal or fallback, and your first badge is on its way.',
   errorMessage: "Couldn't load your achievements right now.",
-  retryLabel: 'Retry',
+  retryLabel: 'Try again',
   earnedDetail: (dateLabel: string) => `Earned ${dateLabel}.`,
   tenureLockedDetail: (dateLabel: string, relative: string) => `Unlocks on ${dateLabel}, ${relative} from your first day.`,
 } as const;
@@ -140,7 +140,7 @@ export const S28_COPY = {
    * nearly all of them (review pass 1, blocking item 5). Every level-up therefore gets this
    * tone-matched, non-pinned body instead (judgment call, same category as `OTHER_LOCKED_HINT`).
    */
-  levelUpBody: (level: number) => `Level ${level}. That's real consistency showing up, not luck.`,
+  levelUpBody: (level: number) => `Level ${level}. That's consistency, not luck.`,
   /** Not pinned by the design pass (the spec's "3 fresh badges" is that same worked example's
    *  count) — this module has no reachable-badges count to report, so this is generic,
    *  tone-matched forward copy (judgment call). */
@@ -150,11 +150,11 @@ export const S28_COPY = {
   /** Pinned verbatim ONLY for the 1-year tier — the design's own worked example (ALLSCREENS S28
    *  Copy). Rendering this sentence for any other tier is incoherent (a 1-week badge followed by
    *  "A full year with Fallback" — review pass 1, blocking item 5). */
-  tenureBodyPinned: "A full year with Fallback, however those days went. That's not a performance score, that's just time.",
+  tenureBodyPinned: "A full year with Fallback, however those days went. It measures time, not performance.",
   /** Not pinned by the design pass — tone-matched copy for every tenure tier other than 1-year,
    *  deliberately generic (never restates a specific duration the headline didn't earn) —
    *  judgment call, same category as `OTHER_LOCKED_HINT`. */
-  tenureBodyGeneric: "That's calendar time with Fallback, however those days went. Not a performance score, just time.",
+  tenureBodyGeneric: "Calendar time with Fallback, however those days went. It measures time, not performance.",
   dismissButton: 'Nice',
 } as const;
 
@@ -175,7 +175,7 @@ export const S29_COPY = {
   emptySubcopyMonthly: 'Your first recap arrives at the end of this month.',
   emptySubcopyWeekly: 'Your first recap arrives at the end of this week.',
   errorMessage: "Couldn't load your cycle records right now.",
-  retryLabel: 'Retry',
+  retryLabel: 'Try again',
   shortCycleNote: 'Short cycle, cadence changed part-way.',
   badgeCount: (n: number) => `${n} ${n === 1 ? 'badge' : 'badges'}`,
   cyclingXpPrefix: 'Cycle XP',
@@ -189,7 +189,7 @@ export const S30_COPY = {
   noBadges: 'No new badges this cycle',
   shortCycleNote: 'Short cycle, cadence changed part-way.',
   errorMessage: "Couldn't load this cycle right now.",
-  retryLabel: 'Retry',
+  retryLabel: 'Try again',
   // Honest approximation — see build report's contract-gap note: `CycleRecord` carries only
   // the ROUNDED breakdown, not the raw unrounded numerator/denominator S25's "≈X.X of Y"
   // wording needs, so this avoids presenting a false decimal.

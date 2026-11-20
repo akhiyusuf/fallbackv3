@@ -178,7 +178,7 @@ export function aggregateConsistency(input: {
   // to the days counted. Rounding each on its own could not promise that (a day split between an
   // ideal and a fallback read "1 ideal, 1 fallback" out of 1 day), so whole days are shared out by
   // largest remainder.
-  const [ideal, fallback, missed] = apportion([idealCreditSum, fallbackCreditSum, denom - numerator], denom);
+  const [ideal = 0, fallback = 0, missed = 0] = apportion([idealCreditSum, fallbackCreditSum, denom - numerator], denom);
   const breakdown: ConsistencyBreakdown = { ideal, fallback, off: offDayCount, missed };
 
   return {

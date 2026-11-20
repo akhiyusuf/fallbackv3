@@ -7,10 +7,10 @@
  * fill (and only when that option is selected), and the option's text label sits beside the
  * pill on the option's own neutral background, never inside the fill.
  *
- * Fill/glyph/label-colour map is the approved handoff's own `chip(state)` function
+ * Fill/glyph/label-color map is the approved handoff's own `chip(state)` function
  * (`design-input/Fallback Handoff (standalone).html`, ~byte offset 1082599) — not derived
  * from ARCHITECTURE prose. Skip IS a filled state (the `--off` grey, `minus` glyph): §5's
- * "missed has no colour" sentence governs the unfilled bar remainder and the empty heatmap
+ * "missed has no color" sentence governs the unfilled bar remainder and the empty heatmap
  * cell, not this chip — the design reuses the existing `off` signal deliberately, it does
  * not invent a fifth hue. (REVIEW-M0.md item 1.)
  */

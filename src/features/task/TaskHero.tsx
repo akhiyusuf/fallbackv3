@@ -1,5 +1,5 @@
 /**
- * TaskHero — the top of a task's own screen: a block washed in the task's colour, its icon on
+ * TaskHero — the top of a task's own screen: a block washed in the task's color, its icon on
  * a solid tile, its name large, and (for a task on a schedule) the last seven days.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -16,7 +16,7 @@ export interface TaskHeroProps {
   readonly taskId: Id;
   readonly name: string;
   readonly icon: IconComponent;
-  /** The task's own colour (hex). */
+  /** The task's own color (hex). */
   readonly color: string;
   /** Schedule, time, importance: joined with dots on one or two lines. */
   readonly meta: readonly string[];
@@ -31,7 +31,7 @@ export function TaskHero({ taskId, name, icon: Icon, color, meta, showWeek, onIc
   return (
     <View style={[styles.root, surface]}>
       <View style={styles.top}>
-        <Pressable onPress={onIconPress} accessibilityRole="button" accessibilityLabel="Change icon and colour" testID="s20-icon-avatar" style={[styles.tile, { backgroundColor: color }]}>
+        <Pressable onPress={onIconPress} accessibilityRole="button" accessibilityLabel="Change icon and color" testID="s20-icon-avatar" style={[styles.tile, { backgroundColor: color }]}>
           <Icon size={30} color={t.color.textOnAccent} />
           <View style={[styles.edit, { backgroundColor: t.color.bgAlt, borderColor: wash }]}>
             <Pencil size={11} color={t.color.text} />

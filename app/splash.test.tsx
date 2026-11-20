@@ -59,7 +59,7 @@ describe('S01 — Splash', () => {
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/today?reentry=1&taskId=abc'));
   });
 
-  it('puts the saved look (theme and colour) back before the first screen', async () => {
+  it('puts the saved look (theme and color) back before the first screen', async () => {
     mockOpen.mockResolvedValue({ ok: true, value: 'ready' });
     mockGetSettings.mockResolvedValue({ onboardingCompletedAt: '2026-01-01T00:00:00.000Z', theme: 'dark', accent: 'ocean' });
     await render(<S01Splash />);

@@ -81,7 +81,7 @@ export default function S16CreateRoutine() {
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {
       router.dismissTo(ROUTES.today);
-      showToast('Routine saved', 'success');
+      showToast('Routine saved.', 'success');
     } else {
       showToast(SAVE_FAILED, 'warning');
     }
@@ -99,7 +99,7 @@ export default function S16CreateRoutine() {
       <ListGroup footer="As-needed routines have no schedule and no consistency tracking. You log them from the Routines list when the situation comes up.">
         <ListRow
           label="As-needed"
-          sublabel="For something occasional, not a daily habit"
+          sublabel="For something occasional, not a daily task"
           right={<Switch value={isAsNeeded} onValueChange={setIsAsNeeded} accessibilityLabel="As-needed routine" testID="as-needed-switch" />}
         />
       </ListGroup>
@@ -109,11 +109,11 @@ export default function S16CreateRoutine() {
           <SectionHeading>Schedule</SectionHeading>
           <CadencePicker value={cadence} onChange={setCadence} weekdayError={cadenceError} testID="routine-cadence-picker" />
           <TimeField label="Time (optional)" value={timeOfDay} onChange={setTimeOfDay} placeholder="Any time" />
-          <ListGroup footer="When it's on, a day you can't manage can be moved to tomorrow from the routine's own screen, instead of being missed. Turn it off for something that can't wait.">
+          <ListGroup footer="When it's on, a day you can't manage can be pushed to tomorrow from the routine's own screen, instead of being missed. Turn it off for something that can't wait.">
             <ListRow
-              label="Can be moved to tomorrow"
+              label="Can be pushed to tomorrow"
               sublabel="Push a day instead of missing it"
-              right={<Switch value={snoozable} onValueChange={setSnoozable} accessibilityLabel="Can be moved to tomorrow" testID="routine-snoozable-switch" />}
+              right={<Switch value={snoozable} onValueChange={setSnoozable} accessibilityLabel="Can be pushed to tomorrow" testID="routine-snoozable-switch" />}
             />
           </ListGroup>
         </>

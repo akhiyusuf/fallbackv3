@@ -105,7 +105,7 @@ describe('S16 Create Routine', () => {
 
     await userEvent.press(screen.getByLabelText('Save routine'));
     expect(await screen.findByText('MARKER_TODAY')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('Routine saved');
+    expect(useToastStore.getState().toast?.message).toBe('Routine saved.');
   });
 
   it('a failed save shows the failure toast, stays on the form, and preserves the entered data (REVIEW-M4.md item 7)', async () => {

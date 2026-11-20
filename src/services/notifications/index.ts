@@ -214,7 +214,7 @@ async function rescheduleOnce(): Promise<Result<void>> {
         const date = addDays(todayDate, i);
         requests.push({
           identifier: `${REMINDER_PREFIX}daily-digest:${date}`,
-          content: { title: 'Your day, at a glance', body: "Check in on today's habits." },
+          content: { title: 'Your day, at a glance', body: "Check in on today's tasks." },
           fireAt: triggerDateFor(date, settings.notifications.dailyDigestTime),
         });
       }
@@ -394,7 +394,7 @@ async function sendMilestoneNotification(): Promise<void> {
     if (!settings.notifications.master || !settings.notifications.milestoneReached) return;
     if (!(await hasPermission())) return;
     await Notifications.scheduleNotificationAsync({
-      content: { title: 'Milestone reached', body: "You've hit a new level or badge. Nice work." },
+      content: { title: 'Milestone reached', body: "You've hit a new level or badge." },
       trigger: Platform.OS === 'android' ? { channelId: CHANNEL_ID } : null,
     });
   } catch {

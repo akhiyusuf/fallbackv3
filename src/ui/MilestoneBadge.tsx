@@ -1,6 +1,6 @@
 /**
  * M0 kit — Fallback-custom `MilestoneBadge`. The one celebratory-gold surface in the kit
- * (S27–S30 only) — gold is one of the tokens.ts signal colours, so Rule 4 applies here too:
+ * (S27–S30 only) — gold is one of the tokens.ts signal colors, so Rule 4 applies here too:
  * the fill stays icon-only, the badge's name sits below it as a caption on the neutral
  * background, never printed over the fill. Locked badges render calm and non-punitive —
  * never implying a breakable run of consecutive days (MODULES.md non-negotiable: that

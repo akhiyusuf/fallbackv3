@@ -11,7 +11,7 @@ export function resolveTaskIcon(name: string | null | undefined): IconComponent 
   return found ?? Repeat;
 }
 
-/** The circle colour for a task (D14). */
+/** The circle color for a task (D14). */
 export function taskColor(color: TaskColor | null | undefined): string {
   return (ACCENTS[color ?? 'forge-orange'] ?? ACCENTS['forge-orange']).base;
 }

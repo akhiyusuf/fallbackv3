@@ -34,14 +34,14 @@ describe('StateChip', () => {
 
   it('Skip is a filled state — approved `--off` fill with a `Minus` glyph, per the handoff chip map', async () => {
     await render(<StateChip value="skip" onChange={jest.fn()} accessibilityLabel="Antibiotics" />);
-    // The selected Skip pill fills with the `off` signal colour (REVIEW-M0.md item 1) —
+    // The selected Skip pill fills with the `off` signal color (REVIEW-M0.md item 1) —
     // not left neutral/outlined, and never the kit's own Close (`X`) glyph.
     expect(findByStyleBg(PALETTES.light.off).length).toBeGreaterThan(0);
   });
 
   it('Rule 4: the signal-filled pill never contains a Text node — the label is a sibling, not on the fill', async () => {
     await render(<StateChip value="done" onChange={jest.fn()} accessibilityLabel="Movement" />);
-    // Find the pill View filled with the ideal signal colour (the selected "Done" option's fill).
+    // Find the pill View filled with the ideal signal color (the selected "Done" option's fill).
     const idealFillViews = findByStyleBg(PALETTES.light.ideal);
     expect(idealFillViews.length).toBeGreaterThan(0);
     for (const pill of idealFillViews) {

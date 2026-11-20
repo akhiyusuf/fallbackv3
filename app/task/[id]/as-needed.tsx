@@ -1,6 +1,6 @@
 /**
  * S23 — as-needed routine. Same page shape as every task screen (D5): back
- * chevron, coloured icon, name as title, "···" menu. "Log used it" is the
+ * chevron, colored icon, name as title, "···" menu. "Log used it" is the
  * pinned action (D8); the version chooser and the editor are sheets (D3).
  */
 import { useEffect, useRef, useState } from 'react';
@@ -92,7 +92,7 @@ export default function S23AsNeededRoutineDetail() {
       setChooserOpen(false);
       if (result.ok) {
         await historyQuery.refetch();
-        showToast('Logged to history', 'success', { icon: marker === 'fallback' ? 'fallback' : 'ideal' });
+        showToast('Logged to history.', 'success', { icon: marker === 'fallback' ? 'fallback' : 'ideal' });
       } else {
         showToast(SAVE_FAILED, 'warning');
       }
@@ -156,7 +156,7 @@ export default function S23AsNeededRoutineDetail() {
         title={task.name}
         items={[
           { key: 'edit', icon: PencilLine, label: 'Edit', onPress: startEdit },
-          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
+          { key: 'icon', icon: Palette, label: 'Change icon and color', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
           { key: 'delete', icon: Trash2, label: 'Delete routine', danger: true, onPress: () => setDeleteOpen(true) },
         ]}
       />

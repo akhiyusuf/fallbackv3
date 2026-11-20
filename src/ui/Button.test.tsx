@@ -27,7 +27,7 @@ describe('Button', () => {
   });
 
   it('accepts an explicit accessibilityLabel distinct from the visible label', async () => {
-    await render(<Button label="Retry" onPress={() => {}} accessibilityLabel="Retry loading today's tasks" />);
+    await render(<Button label="Try again" onPress={() => {}} accessibilityLabel="Retry loading today's tasks" />);
     expect(screen.getByRole('button', { name: "Retry loading today's tasks" })).toBeTruthy();
   });
 });

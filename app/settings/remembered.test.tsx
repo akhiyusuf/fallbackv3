@@ -159,7 +159,7 @@ describe('settings are still there after a restart', () => {
       await waitFor(() => expect(useThemeStore.getState().mode).toBe('dark'));
       expect(useThemeStore.getState().accent).toBe('hue-52');
       expect(isSelected(screen.getByRole('tab', { name: 'Dark' }))).toBe(true);
-      expect(screen.getByLabelText(/^Amber, colour \d+ of \d+, selected$/)).toBeTruthy();
+      expect(screen.getByLabelText(/^Amber, color \d+ of \d+, selected$/)).toBeTruthy();
     });
 
     it('a theme picked before a restart is still picked after it', async () => {

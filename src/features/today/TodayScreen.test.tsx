@@ -220,7 +220,7 @@ describe('S09 — Today', () => {
     await user.press(screen.getByLabelText("Movement: Emergency day off. Today won't count for or against you."));
     await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: 't1', mark: true }));
     expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Taken off today'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Emergency day off.'));
     expect(useToastStore.getState().toast?.action?.label).toBe('Undo');
   });
 
@@ -255,7 +255,7 @@ describe('S09 — Today', () => {
     await user.press(screen.getByLabelText('Movement: Push to tomorrow'));
     await waitFor(() => expect(mockSnoozeMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today() }));
     expect(mockLogStateMutateAsync).not.toHaveBeenCalled();
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Pushed to tomorrow'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Pushed to tomorrow.'));
     await act(async () => useToastStore.getState().toast?.action?.onPress());
     await waitFor(() => expect(mockUndoSnoozeMutateAsync).toHaveBeenCalledWith({ taskId: 't1', date: today() }));
   });
@@ -286,7 +286,7 @@ describe('S09 — Today', () => {
     await waitFor(() => expect(mockLogStateMutateAsync).toHaveBeenLastCalledWith(expect.objectContaining({ chip: 'todo' })));
     await view.rerender(withToastHost(<TodayScreen />));
     expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
-    expect(useToastStore.getState().toast?.message).toBe('Undone');
+    expect(useToastStore.getState().toast?.message).toBe('Undone.');
   });
 
   it('chip tap: a failed persist reverts (no optimistic change survives) and shows the retry toast', async () => {
@@ -309,7 +309,7 @@ describe('S09 — Today', () => {
     await render(withToastHost(<TodayScreen />));
     await user.press(screen.getByLabelText('Emergency day off, the whole day'));
     await waitFor(() => expect(mockMarkOffDayMutateAsync).toHaveBeenCalledWith({ date: today(), taskId: null, mark: true }));
-    await waitFor(() => expect(screen.getByText('Day off. Nothing due today counts against you.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Emergency day off. Nothing counts against you.')).toBeTruthy());
   });
 
   it('whole-day off, currently off: every row reads "Off today" and its chip is disabled', async () => {
@@ -339,7 +339,7 @@ describe('S09 — Today', () => {
     mockUseTasks.mockReturnValue({ data: [task()], isLoading: false, isError: false });
     mockUseToday.mockReturnValue({ data: [], isLoading: false, isError: false });
     await render(<TodayScreen justAddedOverride />);
-    expect(screen.getByText('Your first habit is set.')).toBeTruthy();
+    expect(screen.getByText('Your first task is set.')).toBeTruthy();
     expect(screen.getByText('Do the ideal or the fallback today. Either one counts.')).toBeTruthy();
   });
 

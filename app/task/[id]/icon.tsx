@@ -1,4 +1,4 @@
-/** S21 — icon and colour picker. Close cross (D5), one pinned Save (D8). */
+/** S21 — icon and color picker. Close cross (D5), one pinned Save (D8). */
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -59,7 +59,7 @@ export default function S21IconAndColorPicker() {
 
   if (taskQuery.isLoading || !task) {
     return (
-      <Screen title="Icon and colour" onBack={close} backIcon="close">
+      <Screen title="Icon and color" onBack={close} backIcon="close">
         <Skeleton height={56} />
         <Skeleton height={160} radius={16} />
       </Screen>
@@ -70,7 +70,7 @@ export default function S21IconAndColorPicker() {
 
   return (
     <Screen
-      title="Icon and colour"
+      title="Icon and color"
       onBack={close}
       backIcon="close"
       footer={<Button label="Save" onPress={save} disabled={!changed} loading={updateTask.isPending} accessibilityLabel="Save" fullWidth />}
@@ -83,8 +83,8 @@ export default function S21IconAndColorPicker() {
       </View>
 
       <View style={styles.block}>
-        <SectionHeading>Colour</SectionHeading>
-        <View style={styles.colorRow} accessibilityRole="radiogroup" accessibilityLabel="Colour">
+        <SectionHeading>Color</SectionHeading>
+        <View style={styles.colorRow} accessibilityRole="radiogroup" accessibilityLabel="Color">
           {COLOR_OPTIONS.map((c) => {
             const selected = c.key === currentColor;
             return (
@@ -121,7 +121,7 @@ export default function S21IconAndColorPicker() {
       </View>
 
       {categories.length === 0 ? (
-        <EmptyState icon={Search} headline="No icons match" subcopy={`Nothing found for “${query}”. Try a different word.`} />
+        <EmptyState icon={Search} headline="No icons match" subcopy={`Nothing found for "${query}". Try a different word.`} />
       ) : (
         categories.map((cat) => (
           <View key={cat.heading} style={styles.category}>

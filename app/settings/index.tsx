@@ -20,35 +20,35 @@ const ROW_ICON: Record<string, LucideIcon> = {
   Badges: Award,
   Records: CalendarDays,
   Notifications: Bell,
-  'Theme & accent': Palette,
+  'Theme and accent': Palette,
   Widgets: SquareStack,
   'Fallback AI subscription': Sparkles,
   'Conversation history': History,
   'AI agent access': Bot,
-  'Account & sync': Cloud,
+  'Account and sync': Cloud,
   Data: HardDrive,
-  'Help & about': HelpCircle,
+  'Help and about': HelpCircle,
 };
 
 const ROW_ROUTE: Record<string, Href> = {
   Badges: '/achievements?from=settings' as Href,
   Records: '/records' as Href,
   Notifications: '/settings/notifications' as Href,
-  'Theme & accent': '/settings/theme' as Href,
+  'Theme and accent': '/settings/theme' as Href,
   Widgets: '/settings/widgets' as Href,
   'Fallback AI subscription': '/settings/subscription' as Href,
   'Conversation history': '/assistant/history' as Href,
   'AI agent access': '/settings/agents' as Href,
-  'Account & sync': '/settings/sync' as Href,
+  'Account and sync': '/settings/sync' as Href,
   Data: '/settings/data' as Href,
-  'Help & about': '/settings/help' as Href,
+  'Help and about': '/settings/help' as Href,
 };
 
 const ROW_LABEL: Record<string, string> = {
-  'Theme & accent': 'Theme',
+  'Theme and accent': 'Theme',
   'Fallback AI subscription': 'Subscription',
-  'Account & sync': 'Account and sync',
-  'Help & about': 'Help and about',
+  'Account and sync': 'Account and sync',
+  'Help and about': 'Help and about',
 };
 
 export default function S41SettingsHome() {

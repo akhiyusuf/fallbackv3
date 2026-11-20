@@ -1,7 +1,7 @@
 /**
  * M0 kit — Fallback-custom `ConsistencyRing`. A computed-statistic ring (F5's %), distinct
  * from `ProgressRing` (a CTA/progress-toward-goal control, accent-filled): this ring is
- * rendered in the neutral text colour, never the accent, since it is not something to
+ * rendered in the neutral text color, never the accent, since it is not something to
  * "complete." `percent === null` renders the no-data dash, never a fabricated 0%.
  */
 import { StyleSheet, View } from 'react-native';
@@ -47,7 +47,7 @@ export function ConsistencyRing({ percent, size = 72, strokeWidth = 8, accessibi
           />
         ) : null}
       </Svg>
-      <Text style={[styles.label, { color: percent === null ? t.color.textDim : t.color.text }]}>{percent === null ? '–' : `${percent}%`}</Text>
+      <Text style={[styles.label, { color: percent === null ? t.color.textDim : t.color.text }]}>{percent === null ? '-' : `${percent}%`}</Text>
     </View>
   );
 }

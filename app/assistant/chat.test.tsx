@@ -22,7 +22,7 @@ async function* offlineStream() {
   yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'x' };
 }
 async function* okStream() {
-  yield { type: 'text-delta', delta: 'Done — created it 🌱' };
+  yield { type: 'text-delta', delta: 'Done — created it' };
   yield { type: 'done', summary: 'ok' };
 }
 

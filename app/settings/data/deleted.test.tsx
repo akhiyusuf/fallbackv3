@@ -112,7 +112,7 @@ describe('Recently deleted: states', () => {
     expect(screen.queryByTestId('deleted-delete-all')).toBeNull();
 
     fail = false;
-    await userEvent.press(screen.getByLabelText('Retry'));
+    await userEvent.press(screen.getByLabelText('Try again'));
     expect(await screen.findByText('Old routine')).toBeTruthy();
     expect(screen.queryByText(DELETED_COPY.loadFailed)).toBeNull();
   });
@@ -245,7 +245,7 @@ describe('Recently deleted: Restore', () => {
     fake.seedTask(deletedTask('a', 'Morning workout', 6));
     await mount();
     await userEvent.press(await openRestore());
-    await waitFor(() => expect(toast()?.message).toBe('Restored “Morning workout”'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout"'));
     expect(toast()?.tone).toBe('success');
     expect((await fake.repos.tasks.get('a' as Id))?.deletedAt).toBeNull();
     expect(await screen.findByText(DELETED_COPY.empty)).toBeTruthy();
@@ -295,7 +295,7 @@ describe('Recently deleted: Restore', () => {
       fireEvent.press(button);
       fireEvent.press(button);
     });
-    await waitFor(() => expect(toast()?.message).toBe('Restored “Morning workout”'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored "Morning workout"'));
     expect(spy).toHaveBeenCalledTimes(1);
     expect(toast()?.tone).toBe('success');
   });
@@ -313,7 +313,7 @@ describe('Recently deleted: Delete forever', () => {
     fake.seedTask(deletedTask('a', 'Morning workout', 6));
     await mount();
     const confirm = await openConfirm();
-    expect(within(confirm).getByText('Delete “Morning workout” forever?')).toBeTruthy();
+    expect(within(confirm).getByText('Delete "Morning workout" forever?')).toBeTruthy();
     expect(within(confirm).getByText(DELETED_COPY.confirmOneBody)).toBeTruthy();
     expect(DELETED_COPY.confirmOneBody).toContain('the XP you earned stays');
     expect(DELETED_COPY.confirmOneBody).toContain('still count in your consistency');
@@ -326,19 +326,19 @@ describe('Recently deleted: Delete forever', () => {
     await mount();
     const confirm = await openConfirm();
     await userEvent.press(within(confirm).getByLabelText('Cancel'));
-    await waitFor(() => expect(screen.queryByText('Delete “Morning workout” forever?')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Delete "Morning workout" forever?')).toBeNull());
     expect(await fake.repos.tasks.get('a' as Id)).not.toBeNull();
     expect(screen.getByText('Morning workout')).toBeTruthy();
     expect(toast()).toBeNull();
   });
 
-  it('confirming removes it for good with a neutral "Deleted for good" toast', async () => {
+  it('confirming removes it for good with a neutral "Deleted forever." toast', async () => {
     fake.seedTask(deletedTask('a', 'Morning workout', 6));
     fake.seedTask(deletedTask('b', 'Other', 12));
     await mount();
     const confirm = await openConfirm();
     await userEvent.press(within(confirm).getByText('Delete forever'));
-    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted forever.'));
     expect(toast()?.tone).toBe('neutral');
     expect(await fake.repos.tasks.get('a' as Id)).toBeNull();
     expect(await fake.repos.tasks.get('b' as Id)).not.toBeNull();
@@ -357,7 +357,7 @@ describe('Recently deleted: Delete forever', () => {
     expect(await screen.findByText('Morning workout')).toBeTruthy();
   });
 
-  it('a double tap on the confirm runs it once and keeps "Deleted for good"', async () => {
+  it('a double tap on the confirm runs it once and keeps "Deleted forever."', async () => {
     fake.seedTask(deletedTask('a', 'Morning workout', 6));
     const spy = jest.fn(originalTasks.deleteForever);
     fake.repos.tasks.deleteForever = spy;
@@ -368,9 +368,9 @@ describe('Recently deleted: Delete forever', () => {
       fireEvent.press(button);
       fireEvent.press(button);
     });
-    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted forever.'));
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(toast()?.message).toBe('Deleted for good');
+    expect(toast()?.message).toBe('Deleted forever.');
   });
 });
 
@@ -386,7 +386,7 @@ describe('Recently deleted: Delete all forever', () => {
     expect(within(confirm).getByText('Delete 2 items forever?')).toBeTruthy();
     expect(within(confirm).getByText(DELETED_COPY.confirmAllBody)).toBeTruthy();
     await userEvent.press(within(confirm).getByText('Delete all forever'));
-    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted forever.'));
     expect(toast()?.tone).toBe('neutral');
     expect(await screen.findByText(DELETED_COPY.empty)).toBeTruthy();
     // Live tasks are never touched.
@@ -429,7 +429,7 @@ describe('Recently deleted: Delete all forever', () => {
       fireEvent.press(button);
       fireEvent.press(button);
     });
-    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted forever.'));
     // One removal for the one item; the screen's own load removes nothing (it is not past its time).
     expect(spy).toHaveBeenCalledTimes(1);
   });

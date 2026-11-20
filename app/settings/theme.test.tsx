@@ -68,7 +68,7 @@ describe('S43 — Theme & Accent', () => {
     expect(screen.getByLabelText(`${THEME_LABELS[DEFAULT_ACCENT]}, selected`)).toBeTruthy();
   });
 
-  it('renders the accent helper, the more-colours helper and the preview note verbatim', async () => {
+  it('renders the accent helper, the more-colors helper and the preview note verbatim', async () => {
     await renderWithLiveTheme(<S43ThemeAndAccent />);
     expect(screen.getByText(S43_COPY.accentHelper)).toBeTruthy();
     expect(screen.getByText(S43_COPY.moreColoursHelper)).toBeTruthy();
@@ -90,7 +90,7 @@ describe('S43 — Theme & Accent', () => {
     expect(colorsAfter).not.toContain(ACCENTS[DEFAULT_ACCENT].base);
   });
 
-  it('the preview log buttons do NOT recolor with the accent — they stay on their fixed signal colours', async () => {
+  it('the preview log buttons do NOT recolor with the accent — they stay on their fixed signal colors', async () => {
     const user = userEvent.setup();
     await renderWithLiveTheme(<S43ThemeAndAccent />);
 
@@ -117,10 +117,10 @@ describe('S43 — Theme & Accent', () => {
     expect(useToastStore.getState().toast).toBeNull();
   });
 
-  it('picking a colour from "More colours" saves that hue (Amber, the first swatch)', async () => {
+  it('picking a color from "More colors" saves that hue (Amber, the first swatch)', async () => {
     const user = userEvent.setup();
     await renderWithLiveTheme(<S43ThemeAndAccent />);
-    await user.press(screen.getByLabelText('Amber, colour 1 of 15'));
+    await user.press(screen.getByLabelText('Amber, color 1 of 15'));
     await waitFor(() => expect(mockUpdateSettingsMutateAsync).toHaveBeenCalledWith({ accent: 'hue-52' }));
     expect(useThemeStore.getState().accent).toBe('hue-52');
   });

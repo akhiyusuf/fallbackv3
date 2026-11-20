@@ -18,7 +18,7 @@ export function cardSurface(t: Theme): ViewStyle {
 }
 
 /**
- * A piece that has taken a state colour (a logged task). It sits flat: no raised edge, as if
+ * A piece that has taken a state color (a logged task). It sits flat: no raised edge, as if
  * it has been pressed in. Never give it a contrasting bar underneath.
  */
 export function settledSurface(fill: string): ViewStyle {
@@ -26,9 +26,9 @@ export function settledSurface(fill: string): ViewStyle {
 }
 
 /**
- * A piece washed in one colour (the theme colour, or a task's own). The wash is strong enough
+ * A piece washed in one color (the theme color, or a task's own). The wash is strong enough
  * to stand off the tinted page, and it is closed by an outline in a deeper tone of the same
- * colour. Flat: no thicker bottom edge.
+ * color. Flat: no thicker bottom edge.
  */
 export function tintedSurface(t: Theme, color: string): ViewStyle {
   const dark = t.scheme === 'dark';

@@ -4,7 +4,7 @@ import type { CycleCadence } from './progress';
 import type { Id, Instant, LocalDate } from './primitives';
 
 export type ThemeMode = 'light' | 'dark' | 'auto';
-/** A named theme, or a person's own colour as `hue-<0..359>` (only hues in THEME_HUES are offered). */
+/** A named theme, or a person's own color as `hue-<0..359>` (only hues in THEME_HUES are offered). */
 export type NamedTheme = 'forge-orange' | 'indigo' | 'berry' | 'plum' | 'lagoon' | 'mono';
 export type AccentKey = NamedTheme | `hue-${number}`;
 

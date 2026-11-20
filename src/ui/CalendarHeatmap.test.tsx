@@ -47,13 +47,13 @@ describe('CalendarHeatmap', () => {
     expect(flattenBorderColor(notDueFill.props.style)).toBe(T.border);
   });
 
-  it('ideal and fallback cells fill with the same signal colours as StateChip', async () => {
+  it('ideal and fallback cells fill with the same signal colors as StateChip', async () => {
     await render(<CalendarHeatmap days={DAYS} monthLabel="July 2026" accessibilityLabel="Calendar" />);
     expect(bgViews(PALETTES.light.ideal).length).toBeGreaterThan(0);
     expect(bgViews(PALETTES.light.fallback).length).toBeGreaterThan(0);
   });
 
-  it('legend labels are themed, never the RN default text colour', async () => {
+  it('legend labels are themed, never the RN default text color', async () => {
     await render(<CalendarHeatmap days={DAYS} monthLabel="July 2026" accessibilityLabel="Calendar" />);
     for (const label of ['Ideal', 'Fallback', 'Off', 'Missed', 'Pending today', 'Not due']) {
       const node = screen.getByText(label);

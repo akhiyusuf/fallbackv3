@@ -16,9 +16,9 @@ const BARS = [0.13, 0.24, 0.36, 0.24, 0.13] as const;
 
 export interface VoiceMarkProps {
   readonly size?: number;
-  /** Star colour. Defaults to the theme's bright fill. */
+  /** Star color. Defaults to the theme's bright fill. */
   readonly fill?: string;
-  /** Wave colour. Defaults to the theme's large-text colour for that fill. */
+  /** Wave color. Defaults to the theme's large-text color for that fill. */
   readonly wave?: string;
   readonly live?: boolean;
 }

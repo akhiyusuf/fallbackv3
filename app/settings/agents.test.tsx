@@ -85,7 +85,7 @@ describe('AI agent access (preview)', () => {
     await render(<AgentAccess />);
     await user.press(screen.getByText('Disconnect every agent'));
     expect(useAgentAccessStore.getState().agents).toEqual([]);
-    expect(useToastStore.getState().toast?.message).toBe('All agents disconnected');
+    expect(useToastStore.getState().toast?.message).toBe('All agents disconnected.');
     expect(useToastStore.getState().toast?.tone).toBe('success');
   });
 

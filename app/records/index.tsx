@@ -87,7 +87,7 @@ function CycleRecordCard({ record, onPress }: { readonly record: CycleRecord; re
           <Text style={[styles.recordLabel, { color: t.color.text }]}>{label}</Text>
           <Text style={[styles.note, { color: t.color.textMuted }]}>{meta}</Text>
         </View>
-        <Text style={[styles.percent, { color: t.color.text }]}>{record.consistencyPercent === null ? '–' : `${record.consistencyPercent}%`}</Text>
+        <Text style={[styles.percent, { color: t.color.text }]}>{record.consistencyPercent === null ? '-' : `${record.consistencyPercent}%`}</Text>
         <ChevronRight size={20} color={t.color.textDim} />
       </View>
       <ConsistencyBreakdownBar

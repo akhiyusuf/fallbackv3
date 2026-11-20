@@ -83,7 +83,7 @@ describe('S06 — Onboarding: Make it yours', () => {
     expect(useThemeStore.getState().accent).toBe('indigo');
   });
 
-  it('Next saves the colour and light/dark choice, then always routes to the notification primer (S07), whatever the colour', async () => {
+  it('Next saves the color and light/dark choice, then always routes to the notification primer (S07), whatever the color', async () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const user = userEvent.setup();
     await render(<S06OnboardingMakeItYours />);
@@ -116,7 +116,7 @@ describe('S06 — Onboarding: Make it yours', () => {
     expect(useThemeStore.getState().accent).toBe(DEFAULT_ACCENT);
   });
 
-  it('a colour or light/dark pick is kept at once, so it survives Skip or a kill before Next', async () => {
+  it('a color or light/dark pick is kept at once, so it survives Skip or a kill before Next', async () => {
     const user = userEvent.setup();
     await render(<S06OnboardingMakeItYours />);
     await user.press(screen.getByLabelText('Indigo'));
@@ -126,7 +126,7 @@ describe('S06 — Onboarding: Make it yours', () => {
     expect(useThemeStore.getState().mode).toBe(S06_COPY.appearanceOptions[2]!.value);
   });
 
-  it('a settings reload after a save does not put an older colour back over a newer pick', async () => {
+  it('a settings reload after a save does not put an older color back over a newer pick', async () => {
     const user = userEvent.setup();
     const view = await render(<S06OnboardingMakeItYours />);
     await user.press(screen.getByLabelText('Indigo'));

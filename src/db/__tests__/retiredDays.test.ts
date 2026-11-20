@@ -689,7 +689,7 @@ describe('edges in the record view', () => {
     expect(after.some((line) => line.startsWith('2026-03-05') || line.startsWith('2026-03-06'))).toBe(false);
   });
 
-  it('two habits removed for good on the same day both keep their day: the record shows two rows, not one', async () => {
+  it('two habits removed forever on the same day both keep their day: the record shows two rows, not one', async () => {
     newDatabaseDir();
     const app = await reopen(T0);
     for (const name of ['First', 'Second']) {

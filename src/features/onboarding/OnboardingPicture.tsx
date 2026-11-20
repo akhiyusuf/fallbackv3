@@ -1,7 +1,7 @@
 /**
  * OnboardingPicture — the drawing at the top of each onboarding step. Every step has its own.
  * It pictures the idea in the headline; it must never be a small copy of the content below it
- * (that says the same thing twice). Drawn from the theme's own colours on a
+ * (that says the same thing twice). Drawn from the theme's own colors on a
  * 220 x 148 canvas and scaled to whatever room the step leaves, so it never forces a scroll.
  */
 import { useEffect, useState } from 'react';
@@ -133,7 +133,7 @@ const WeekCounts: Draw = ({ t }) => {
   );
 };
 
-/** 5 — Make it yours: your phone, with a brush on it. (The colours to pick are below.) */
+/** 5 — Make it yours: your phone, with a brush on it. (The colors to pick are below.) */
 const YourPhone: Draw = ({ t }) => (
   <View style={s.canvas}>
     <View style={{ width: 84, height: 132, borderRadius: 20, backgroundColor: t.color.bgAlt, padding: 9, gap: 8, transform: [{ rotate: '-5deg' }] }}>

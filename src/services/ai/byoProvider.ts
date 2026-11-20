@@ -78,7 +78,7 @@ export function createByoAssistantProvider(): AssistantProvider {
           }),
         });
       } catch {
-        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Could not reach your AI endpoint.' };
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach your AI endpoint. Try again.' };
         return;
       }
 
@@ -104,7 +104,7 @@ export function createByoAssistantProvider(): AssistantProvider {
           for (const event of processOpenAiChunk(chunk, pendingToolCalls)) yield event;
         }
       } catch {
-        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Could not reach your AI endpoint.' };
+        yield { type: 'error', code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach your AI endpoint. Try again.' };
         return;
       }
       for (const event of flushPendingToolCalls(pendingToolCalls)) yield event;
@@ -133,7 +133,7 @@ export function createByoAssistantProvider(): AssistantProvider {
         const json = (await response.json()) as { text?: string };
         return ok(json.text ?? '');
       } catch (cause) {
-        return err({ code: 'NETWORK_UNAVAILABLE', message: 'Could not reach your AI endpoint.', cause });
+        return err({ code: 'NETWORK_UNAVAILABLE', message: 'Couldn't reach your AI endpoint. Try again.', cause });
       }
     },
   };

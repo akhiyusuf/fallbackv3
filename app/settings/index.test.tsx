@@ -80,7 +80,7 @@ describe('S41 — Settings Home', () => {
     expect(screen.getByText('On')).toBeTruthy();
   });
 
-  it('tapping "Theme" (the Theme & accent row) navigates to S43', async () => {
+  it('tapping "Theme" (the Theme and accent row) navigates to S43', async () => {
     mockSettingsData.current = { notifications: { master: true } };
     mockProgressData.current = { lifetimeXp: 500, level: LEVEL7 };
     mockConsistencyData.current = { percent: 87 };

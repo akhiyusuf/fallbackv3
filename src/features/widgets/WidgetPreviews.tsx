@@ -1,6 +1,6 @@
 /**
  * WidgetPreviews — the three home-screen widgets, drawn with today's real tasks, in the
- * current theme. This is the picture the native widgets must match: same layout, same colours.
+ * current theme. This is the picture the native widgets must match: same layout, same colors.
  */
 import { Check, CheckCheck, Minus } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
@@ -71,7 +71,7 @@ function TodayWidget({ rows }: { readonly rows: readonly TodayRow[] }) {
           accessibilityLabel={`${done} of ${rows.length} done`}
         />
       </View>
-      {/* One dot per task due today, in the colour of how it went. */}
+      {/* One dot per task due today, in the color of how it went. */}
       <View style={styles.dots}>
         {rows.slice(0, 8).map((r) => {
           const color = stateColor(t, r.occurrence.chipState);
@@ -157,7 +157,7 @@ export function WidgetPreviews({ widgets }: { readonly widgets: readonly WidgetC
   const t = useTheme();
   const { rows } = useTodayRows();
   const configFor = (size: WidgetSize) => widgets.find((w) => w.size === size);
-  // A stand-in wallpaper: the theme colour, calmed, so the widgets read as sitting on a phone.
+  // A stand-in wallpaper: the theme color, calmed, so the widgets read as sitting on a phone.
   const wall = mix(t.color.canvas, t.accent.fill, t.scheme === 'dark' ? 0.28 : 0.4);
   const ghost = mix(wall, t.scheme === 'dark' ? '#ffffff' : '#ffffff', t.scheme === 'dark' ? 0.14 : 0.36);
   return (

@@ -1,6 +1,6 @@
 /**
  * S20 — the task screen (DESIGN_DECISIONS D5).
- * A pushed page: back chevron, coloured icon circle, the name as a title, and a
+ * A pushed page: back chevron, colored icon circle, the name as a title, and a
  * "···" menu with Rename / Change icon / Duplicate / Delete. Logging uses the
  * shared log control (D1); every confirmation and editor is a bottom sheet (D3).
  * To-dos and untracked events only show what applies to them.
@@ -158,7 +158,7 @@ export default function S20ManageTask() {
       const previous: ChipState = todayOccurrence?.chipState ?? 'todo';
       const result = await logState.mutateAsync({ taskId, date: today, chip });
       if (!result.ok) return fail();
-      if (isUndo) return showToast('Undone', 'neutral');
+      if (isUndo) return showToast('Undone.', 'neutral');
       logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onChipChange(previous, true));
     });
   }
@@ -169,7 +169,7 @@ export default function S20ManageTask() {
       const previous: ChipState = pushedToday.chipState ?? 'todo';
       const result = await logState.mutateAsync({ taskId, date: today, chip, pushedFrom: pushedToday.pushedFrom });
       if (!result.ok) return fail();
-      if (isUndo) return showToast('Undone', 'neutral');
+      if (isUndo) return showToast('Undone.', 'neutral');
       logFeedback(chip, result.value, chip === 'todo' ? undefined : () => void onPushedChange(previous, true));
     });
   }
@@ -250,7 +250,7 @@ export default function S20ManageTask() {
     try {
       const result = await duplicateTask.mutateAsync(taskId);
       if (result.ok) {
-        showToast('Duplicated. You are now on the copy.', 'success');
+        showToast('Duplicated. You're now on the copy.', 'success');
         router.replace(`/task/${result.value}` as never);
       } else fail();
     } catch {
@@ -268,7 +268,7 @@ export default function S20ManageTask() {
     if (snoozeSlot.kind === 'undo') {
       const result = await undoSnooze.mutateAsync({ taskId, date: snoozeSlot.sourceDate });
       if (!result.ok) fail();
-      else showToast('Push undone', 'neutral');
+      else showToast('Push undone.', 'neutral');
       return;
     }
     if (!snoozeSlot.enabled) return;
@@ -276,14 +276,14 @@ export default function S20ManageTask() {
     if (!result.ok) fail();
     else {
       play('snooze');
-      showToast('Pushed to tomorrow', 'neutral', {
+      showToast('Pushed to tomorrow.', 'neutral', {
         action: {
           label: 'Undo',
           onPress: () =>
             void (async () => {
               const undone = await undoSnooze.mutateAsync({ taskId, date: today });
               if (!undone.ok) fail();
-              else showToast('Back on today', 'neutral');
+              else showToast('Back on today.', 'neutral');
             })(),
         },
       });
@@ -506,8 +506,8 @@ export default function S20ManageTask() {
               />
             )}
             <ListRow
-              label="Can be moved to tomorrow"
-              right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Can be moved to tomorrow" testID="s20-snoozable-switch" />}
+              label="Can be pushed to tomorrow"
+              right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Can be pushed to tomorrow" testID="s20-snoozable-switch" />}
             />
             {showScheduleEditor ? <ListRow icon={CalendarDays} label="Step schedule" sublabel="Which days each step applies" onPress={openSchedule} chevron={false} /> : null}
           </ListGroup>
@@ -569,7 +569,7 @@ export default function S20ManageTask() {
               setRenameOpen(true);
             },
           },
-          { key: 'icon', icon: Palette, label: 'Change icon and colour', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
+          { key: 'icon', icon: Palette, label: 'Change icon and color', opensScreen: true, onPress: () => router.push(`/task/${taskId}/icon` as never) },
           ...(isTodo
             ? [
                 {
@@ -687,7 +687,7 @@ export const END_COPY = {
   endedBody: "Nothing is due from here on. The days before still count in your consistency.",
   startAgain: 'Start again',
   endedToast: 'Ended. Its past days still count.',
-  startedToast: 'Started again from today',
+  startedToast: 'Started again from today.',
 } as const;
 
 const styles = StyleSheet.create({
