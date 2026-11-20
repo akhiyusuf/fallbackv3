@@ -21,8 +21,8 @@ import type {
   XpState,
 } from '@/types';
 import { QUERY_KEYS } from './index';
-import { catchUpCycles, retireExpiredDeleted } from './mutations';
-import { recordStartDate, resolveAllOccurrences, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
+import { catchUpCycles } from './mutations';
+import { recordStartDate, resolveAllOccurrences, retireDeleted, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
 
 /**
  * Review pass 1, blocking item 5: the type filter is applied client-side via `select`, on ONE
@@ -47,8 +47,7 @@ export function useRecentlyDeleted() {
   return useQuery({
     queryKey: QUERY_KEYS.recentlyDeleted,
     queryFn: async () => {
-      // In the write queue: the sweep deletes for good, so it must not run beside a restore.
-      await retireExpiredDeleted();
+      await retireDeleted(repos, 'expired');
       return repos.tasks.listDeleted();
     },
   });

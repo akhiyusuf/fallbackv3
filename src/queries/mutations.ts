@@ -549,8 +549,6 @@ export const sweepExpiredDeleted = serialWrite(async (): Promise<void> => {
   await retireDeleted(repos, 'expired').catch(() => undefined);
 });
 
-/** The same sweep for the Recently deleted read, which must show a failure rather than hide it. */
-export const retireExpiredDeleted = serialWrite(async (): Promise<unknown> => retireDeleted(repos, 'expired'));
 
 /** Clears the push on `date`'s row when the pushed occurrence holds a logged day (ideal or fallback). */
 async function bringBackLoggedPush(task: TaskWithSteps, date: LocalDate): Promise<void> {
