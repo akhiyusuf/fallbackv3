@@ -155,7 +155,8 @@ describe('log, change their mind, undo, log again', () => {
     const a = await log(t, '2024-06-01', 'done');
     expect(a.ok && [a.value.celebrate, a.value.xpAwarded]).toEqual(['ideal', 10]);
     const b = await log(t, '2024-06-01', 'fallback');
-    expect(b.ok && [b.value.celebrate, b.value.xpAwarded]).toEqual(['fallback', 6]);
+    // Ideal to fallback lowers lifetime XP (10 to 6): nothing was added, so no "+6 XP" is reported.
+    expect(b.ok && [b.value.celebrate, b.value.xpAwarded]).toEqual(['fallback', 0]);
     const c = await log(t, '2024-06-01', 'todo');
     expect(c.ok && [c.value.celebrate, c.value.xpAwarded, c.value.outcome]).toEqual(['none', 0, 'pending']);
   });

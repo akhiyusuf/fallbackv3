@@ -141,7 +141,7 @@ function settledOccurrences(
   offMarks: Awaited<ReturnType<typeof repos.offDays.listRange>>,
   todayDate: LocalDate,
 ): Set<string> {
-  const logByKey = new Map(logs.map((l) => [`${l.taskId}:${l.date}`, l] as const));
+  const logByKey = new Map<string, (typeof logs)[number]>(logs.map((l) => [`${l.taskId}:${l.date}`, l]));
   const movedInByKey = new Map<string, (typeof logs)[number]>();
   for (const l of logs) {
     if (l.movedToDate !== null) movedInByKey.set(`${l.taskId}:${l.movedToDate}`, l);
@@ -210,8 +210,12 @@ async function rescheduleOnce(): Promise<Result<void>> {
       }
     }
 
-    requests.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
-    for (const request of requests.slice(0, PENDING_LIMIT)) {
+    // Only what is still ahead. A DATE trigger in the past fires at once on Android, and this runs
+    // after every log, so an earlier reminder (or today's digest) would pop up again on each tap.
+    const nowMs = Date.now();
+    const ahead = requests.filter((r) => r.fireAt.getTime() > nowMs);
+    ahead.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+    for (const request of ahead.slice(0, PENDING_LIMIT)) {
       await Notifications.scheduleNotificationAsync({
         identifier: request.identifier,
         content: request.content,

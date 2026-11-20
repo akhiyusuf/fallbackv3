@@ -76,7 +76,8 @@ function allVisibleText(): string {
 }
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  jest.clearAllMocks();
+  for (const m of [mockUseTasks, mockUseToday, mockUseConsistency, mockUseProgress, mockLogStateMutateAsync, mockMarkOffDayMutateAsync, mockSnoozeMutateAsync, mockUndoSnoozeMutateAsync]) m.mockReset();
   mockClock.today = '2026-07-16';
   useToastStore.setState({ toast: null });
   useCelebrationStore.setState({ queue: [] });
@@ -283,14 +284,14 @@ describe('Today: midnight with the screen open', () => {
   it('the header date and the list read move on when the day changes, even when nothing else re-renders', async () => {
     read([task()], [occ({ chipState: 'done' })]);
     await render(<TodayScreen />);
-    expect(screen.getByText('Thursday, July 16')).toBeTruthy();
+    expect(screen.getByText('Thu, Jul 16')).toBeTruthy();
     expect(mockUseToday).toHaveBeenLastCalledWith('2026-07-16');
     mockClock.today = '2026-07-17';
     mockUseToday.mockReturnValue({ data: [occ({ date: '2026-07-17', chipState: 'todo' })], isLoading: false, isError: false });
     await act(async () => {
       jest.advanceTimersByTime(31_000);
     });
-    expect(screen.getByText('Friday, July 17')).toBeTruthy();
+    expect(screen.getByText('Fri, Jul 17')).toBeTruthy();
     expect(mockUseToday).toHaveBeenLastCalledWith('2026-07-17');
     expect(screen.getByLabelText('Movement: Done')).toBeTruthy();
   });
@@ -321,11 +322,16 @@ describe('Today: midnight with the screen open', () => {
     expect(mockLogStateMutateAsync.mock.calls[0][0].date).toBe('2026-07-17');
   });
 
-  it('the day check stops when the screen goes away', async () => {
+  it('the day check stops when the screen goes away (no read for a new day after unmount)', async () => {
     read([task()], [occ()]);
     const view = await render(<TodayScreen />);
     await view.unmount();
-    expect(jest.getTimerCount()).toBe(0);
+    const calls = mockUseToday.mock.calls.length;
+    mockClock.today = '2026-07-17';
+    await act(async () => {
+      jest.advanceTimersByTime(120_000);
+    });
+    expect(mockUseToday.mock.calls.length).toBe(calls);
   });
 });
 
@@ -350,9 +356,7 @@ describe('Today: accessibility and wording', () => {
   it('every button on an open card and every icon button has an accessibility label', async () => {
     read([task(), task({ id: 't2', name: 'Read', timeOfDay: '07:00' })], [occ(), occ({ taskId: 't2', chipState: 'done' })]);
     await render(<TodayScreen />);
-    const unlabeled = screen
-      .UNSAFE_root.findAll((n: { props: Record<string, unknown> }) => n.props?.accessibilityRole === 'button' && typeof n.props.onPress === 'function' && !n.props.accessibilityLabel)
-      .map((n: { type: unknown }) => String(n.type));
+    const unlabeled = screen.getAllByRole('button').filter((n) => !n.props.accessibilityLabel).map((n) => String(n.type));
     expect(unlabeled).toEqual([]);
   });
 
@@ -472,17 +476,16 @@ describe('celebration host: several unlocks at once show one at a time', () => {
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
-    expect(screen.queryAllByLabelText('Nice').length).toBeLessThanOrEqual(1);
     let seen = 0;
-    for (let i = 0; i < 6 && useCelebrationStore.getState().queue.length > 0; i++) {
+    for (let i = 0; i < 12 && useCelebrationStore.getState().queue.length > 0; i++) {
       await act(async () => {
-        jest.advanceTimersByTime(5000);
+        jest.advanceTimersByTime(6000);
       });
-      const dismiss = screen.queryAllByLabelText(/./).filter((n) => n.props.accessibilityRole === 'button' && n.props.onPress);
-      expect(dismiss.length).toBeLessThanOrEqual(1);
-      if (dismiss[0]) {
+      const nice = screen.queryAllByLabelText('Nice');
+      expect(nice.length).toBeLessThanOrEqual(1);
+      if (nice[0]) {
         seen++;
-        await fireEvent.press(dismiss[0]);
+        await fireEvent.press(nice[0]);
       }
     }
     expect(seen).toBe(3);

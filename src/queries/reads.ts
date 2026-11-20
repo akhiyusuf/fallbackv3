@@ -19,6 +19,7 @@ import type {
   XpState,
 } from '@/types';
 import { QUERY_KEYS } from './index';
+import { catchUpCycles } from './mutations';
 import { recordStartDate, resolveAllOccurrences, retireDeleted, resolveRecordOccurrences, resolveTaskOccurrences, todayLocal } from './internal';
 
 /**
@@ -196,6 +197,8 @@ export function useProgress() {
   return useQuery({
     queryKey: QUERY_KEYS.progress,
     queryFn: async (): Promise<XpState> => {
+      // After weeks away the pointer may name a cycle long over: bring it up to today first.
+      await catchUpCycles();
       const settings = await repos.settings.get();
       const today = todayLocal();
       const pointer = await repos.cycleState.get();

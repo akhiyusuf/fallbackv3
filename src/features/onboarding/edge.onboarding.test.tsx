@@ -6,22 +6,16 @@
  *
  * Also: the resume pointer (junk value, unknown route).
  */
-import { makeTempDir, removeDir } from '@/db/testSupport/nodeTempFiles';
-
-const createdDirs: string[] = [];
-afterAll(() => {
-  for (const d of createdDirs) removeDir(d);
-});
-const dir = makeTempDir('fallback-onboarding-edge-');
-createdDirs.push(dir);
-(globalThis as { __obDir?: string }).__obDir = dir;
-
-jest.mock('expo-sqlite', () =>
+// The database folder is made when the sqlite double is first required (imports run before any
+// statement here), and read back lazily through globalThis.
+jest.mock('expo-sqlite', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  (require('@/db/testSupport/expoSqliteTestDouble') as typeof import('@/db/testSupport/expoSqliteTestDouble')).createExpoSqliteTestDouble({
-    directory: (globalThis as { __obDir?: string }).__obDir,
-  }),
-);
+  const { makeTempDir } = require('@/db/testSupport/nodeTempFiles') as typeof import('@/db/testSupport/nodeTempFiles');
+  const directory = makeTempDir('fallback-onboarding-edge-');
+  (globalThis as { __obDir?: string }).__obDir = directory;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return (require('@/db/testSupport/expoSqliteTestDouble') as typeof import('@/db/testSupport/expoSqliteTestDouble')).createExpoSqliteTestDouble({ directory });
+});
 jest.mock('expo-crypto', () => ({ randomUUID: () => (globalThis as unknown as { crypto: Crypto }).crypto.randomUUID() }));
 jest.mock('expo-file-system/legacy', () => require('@/db/testSupport/fileSystemTestDouble'));
 const mockSecure = new Map<string, string>();
@@ -36,6 +30,7 @@ jest.mock('@/app-shell', () => ({
 }));
 
 import React from 'react';
+import { removeDir } from '@/db/testSupport/nodeTempFiles';
 import { fireEvent, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -48,8 +43,12 @@ import { S08_COPY } from './copy';
 import { clearOnboardingProgress, getOnboardingProgress, markOnboardingProgress } from './progress';
 import { useOnboardingResumeRedirect } from './useOnboardingResume';
 
+afterAll(() => {
+  const d = (globalThis as { __obDir?: string }).__obDir;
+  if (d) removeDir(d);
+});
 function rawDb() {
-  return new DatabaseSync(`${dir}/${DB_NAME}`);
+  return new DatabaseSync(`${(globalThis as { __obDir?: string }).__obDir}/${DB_NAME}`);
 }
 function taskNames(): string[] {
   const db = rawDb();

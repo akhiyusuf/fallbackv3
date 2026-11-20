@@ -26,6 +26,8 @@ function wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+// The fake's own insert, taken once: a test that replaces it must not leak into the next.
+const realInsert = fake.repos.tasks.insert.bind(fake.repos.tasks);
 let inserted: { task: Task; steps: readonly Step[] }[] = [];
 let insertDelayMs = 0;
 function first() {
@@ -42,11 +44,10 @@ beforeEach(() => {
   });
   inserted = [];
   insertDelayMs = 0;
-  const real = fake.repos.tasks.insert.bind(fake.repos.tasks);
   fake.repos.tasks.insert = async (task: Task, steps: readonly Step[]) => {
     inserted.push({ task, steps });
     if (insertDelayMs) await new Promise((r) => setTimeout(r, insertDelayMs));
-    return real(task, steps);
+    return realInsert(task, steps);
   };
   useToastStore.setState({ toast: null });
 });
@@ -268,13 +269,12 @@ describe('to-do form edges', () => {
     expect(inserted).toHaveLength(0);
   });
 
-  it('two taps with a slow store save one to-do; the duplicate name is allowed on a later save', async () => {
+  it('two taps with a slow store save one to-do', async () => {
     insertDelayMs = 150;
     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/todo', wrapper });
     await userEvent.type(await screen.findByLabelText('Name'), 'Renew passport');
     await fireEvent.press(screen.getByLabelText('Save to-do'));
     await fireEvent.press(screen.getByLabelText('Save to-do'));
-    await screen.findByText('MARKER_TODOS', {}, { timeout: 3000 }).catch(() => undefined);
     await waitFor(() => expect(inserted).toHaveLength(1));
   });
 

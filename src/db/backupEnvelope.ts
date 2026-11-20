@@ -138,23 +138,59 @@ export function validateBackupEnvelope(value: unknown): Result<BackupEnvelope> {
 }
 
 /**
+ * Amounts that can never be negative, whatever the file says. A negative XP award would pull
+ * lifetime XP down on restore, which SCHEMA §7 only allows through the one sanctioned retraction.
+ */
+const NON_NEGATIVE_INTEGER_COLUMNS: readonly (readonly [BackupTableName, string])[] = [
+  ['xp_award', 'amount'],
+  ['day_log', 'doses_completed'],
+];
+
+/**
  * Cheap SQL-injection hardening (review note 3): column NAMES from the backup file are
  * otherwise interpolated straight into the generated `INSERT` statement. A single-statement
  * `prepare()` and the enclosing rollback-on-throw transaction already bound the blast radius
  * to "this restore, this user's own file", but allowlisting is one query per table and turns
  * a crafted/foreign-schema key into a clean, deterministic `VALIDATION_FAILED` instead of an
  * incidental one.
+ *
+ * The same pass checks each value's JSON type against the column's declared SQLite type. SQLite
+ * accepts a text in an INTEGER column without complaint, so without this a damaged file could
+ * put `"many"` into `doses_per_day` and store it: the restore "succeeds" and the app later reads
+ * garbage. A value of the wrong type refuses the whole file, before anything is written.
  */
 async function validateBackupColumns(db: DbClient, envelope: BackupEnvelope): Promise<Result<void>> {
   for (const table of BACKUP_TABLES) {
     const rows = envelope.tables[table];
     if (rows.length === 0) continue;
-    const columnInfo = await db.getAllAsync<{ name: string }>(`SELECT name FROM pragma_table_info(?)`, [table]);
-    const allowed = new Set(columnInfo.map((c) => c.name));
+    const columnInfo = await db.getAllAsync<{ name: string; type: string }>(
+      `SELECT name, type FROM pragma_table_info(?)`,
+      [table],
+    );
+    const declared = new Map(columnInfo.map((c) => [c.name, c.type.toUpperCase()]));
     for (const row of rows) {
-      for (const key of Object.keys(row)) {
-        if (!allowed.has(key)) {
+      for (const [key, value] of Object.entries(row)) {
+        const type = declared.get(key);
+        if (type === undefined) {
           return err({ code: 'VALIDATION_FAILED', message: `backup has an unrecognised column "${table}.${key}"` });
+        }
+        if (value === null) continue;
+        const wrongType = type.includes('INT')
+          ? typeof value !== 'number' || !Number.isInteger(value)
+          : type === 'REAL'
+            ? typeof value !== 'number' || !Number.isFinite(value)
+            : type === 'TEXT'
+              ? typeof value !== 'string'
+              : false;
+        if (wrongType) {
+          return err({ code: 'VALIDATION_FAILED', message: `backup value for "${table}.${key}" is not a valid ${type} value` });
+        }
+      }
+      for (const [nnTable, nnColumn] of NON_NEGATIVE_INTEGER_COLUMNS) {
+        if (nnTable !== table) continue;
+        const value = row[nnColumn];
+        if (typeof value === 'number' && value < 0) {
+          return err({ code: 'VALIDATION_FAILED', message: `backup has a negative ${table}.${nnColumn}` });
         }
       }
     }

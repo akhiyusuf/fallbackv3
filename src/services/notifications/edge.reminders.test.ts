@@ -92,6 +92,11 @@ const flush = () => new Promise<void>((resolve) => setImmediate(() => resolve())
 
 describe('reminders: edge cases without the app on screen', () => {
   beforeEach(() => {
+    // Only reminders still ahead are scheduled. Pin "now" to just before today began, so every one
+    // of today's times counts as ahead whatever time of day the suite runs.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    jest.spyOn(Date, 'now').mockReturnValue(startOfToday.getTime() - 1);
     jest.clearAllMocks();
     logsByDate.clear();
     offMarks.length = 0;
@@ -174,7 +179,7 @@ describe('reminders: edge cases without the app on screen', () => {
       await notifications.reschedule();
       const eventReminders = reminders().filter((r) => r.content.data?.kind === 'event-starting');
       expect(eventReminders).toHaveLength(1);
-      expect(eventReminders[0].identifier).toBe(`fallback-reminder:event-starting:e1:${eventDate}`);
+      expect(eventReminders[0]?.identifier).toBe(`fallback-reminder:event-starting:e1:${eventDate}`);
     });
 
     it('a course stops giving dose reminders after its end date', async () => {
@@ -223,6 +228,19 @@ describe('reminders: edge cases without the app on screen', () => {
       expect(after?.identifier).toBe(before?.identifier);
       expect(after?.trigger.date.getHours()).toBe(22);
       expect(after?.trigger.date.getMinutes()).toBe(15);
+    });
+
+    it('a time already passed today is not scheduled (Android would fire it at once), later ones are', async () => {
+      const now = new Date();
+      now.setHours(12, 0, 0, 0);
+      (Date.now as jest.Mock).mockReturnValue(now.getTime());
+      mockTasksList.mockResolvedValue([routine('early', { timeOfDay: '08:00' }), routine('evening', { timeOfDay: '20:00' })]);
+      const { notifications } = require('./index') as typeof import('./index');
+      await notifications.reschedule();
+      expect(routineDueFor('early').some((r) => r.identifier.endsWith(`:${TODAY}`))).toBe(false);
+      expect(routineDueFor('early').some((r) => r.identifier.endsWith(`:${addDays(TODAY, 1)}`))).toBe(true);
+      expect(routineDueFor('evening').some((r) => r.identifier.endsWith(`:${TODAY}`))).toBe(true);
+      expect(reminders().every((r) => r.trigger.date.getTime() > now.getTime())).toBe(true);
     });
 
     it('a 00:00 time and a 23:59 time both land on the exact minute of their day', async () => {

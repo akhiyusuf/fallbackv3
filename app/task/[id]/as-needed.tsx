@@ -3,7 +3,7 @@
  * chevron, coloured icon, name as title, "···" menu. "Log used it" is the
  * pinned action (D8); the version chooser and the editor are sheets (D3).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MoreHorizontal, Palette, PencilLine, Trash2 } from 'lucide-react-native';
@@ -82,14 +82,25 @@ export default function S23AsNeededRoutineDetail() {
     else showToast(SAVE_FAILED, 'warning');
   }
 
+  // A second tap before the first save has come back must not log a second use.
+  const logging = useRef(false);
   async function logUsedIt(marker: 'ideal' | 'fallback' | null) {
-    const result = await logUse.mutateAsync({ taskId, date: todayFn(), marker });
-    setChooserOpen(false);
-    if (result.ok) {
-      await historyQuery.refetch();
-      showToast('Logged to history', 'success', { icon: marker === 'fallback' ? 'fallback' : 'ideal' });
-    } else {
+    if (logging.current) return;
+    logging.current = true;
+    try {
+      const result = await logUse.mutateAsync({ taskId, date: todayFn(), marker });
+      setChooserOpen(false);
+      if (result.ok) {
+        await historyQuery.refetch();
+        showToast('Logged to history', 'success', { icon: marker === 'fallback' ? 'fallback' : 'ideal' });
+      } else {
+        showToast(SAVE_FAILED, 'warning');
+      }
+    } catch {
+      setChooserOpen(false);
       showToast(SAVE_FAILED, 'warning');
+    } finally {
+      logging.current = false;
     }
   }
 

@@ -37,7 +37,7 @@ export function useDayTick(): void {
     });
     return () => {
       clearInterval(id);
-      sub.remove();
+      sub?.remove();
     };
   }, []);
 }

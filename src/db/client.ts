@@ -57,7 +57,14 @@ export async function runWithBusyRetry<T>(run: () => Promise<T>, waitMs = 150): 
   try {
     return await run();
   } catch (e) {
-    if (!(e instanceof Error) || !BUSY.test(e.message)) throw e;
+    // Read the message structurally, not with `instanceof Error`: a native SQLite error can come
+    // from another JS realm (it is not `instanceof Error` under jest's VM context), and a driver
+    // may reject with a plain object that carries a `message`.
+    const message =
+      typeof e === 'object' && e !== null && typeof (e as { message?: unknown }).message === 'string'
+        ? (e as { message: string }).message
+        : undefined;
+    if (message === undefined || !BUSY.test(message)) throw e;
     await new Promise((resolve) => setTimeout(resolve, waitMs));
     return run();
   }

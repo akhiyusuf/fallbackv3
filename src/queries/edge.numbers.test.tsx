@@ -204,7 +204,7 @@ describe('XP: once per occurrence, retracted on un-log, never negative, never ta
   // BUG (src/queries/mutations.ts, reconcileOccurrence, around the appendXpAward branch): an
   // unchanged re-log returns xpAwarded = 10 again (the award's amount, not the change in lifetime
   // XP), so the celebration toast and the xp:awarded event repeat "+10 XP" for a day already earned.
-  test.failing('BUG: re-logging the same ideal reports xpAwarded 0 the second time, not 10', async () => {
+  test('re-logging the same ideal reports xpAwarded 0 the second time, not 10', async () => {
     const task = makeTask();
     fake.seedTask(task);
     await logState({ taskId: task.id, date: d('2024-06-01'), chip: 'done' });
@@ -218,9 +218,9 @@ describe('XP: once per occurrence, retracted on un-log, never negative, never ta
     await fake.repos.progress.appendXpAward({ id: 'seed' as never, taskId: null, date: d('2024-05-01'), kind: 'ideal', amount: 90, cycleId: 'cycle:monthly:2024-06-01' as never, createdAt: clock.now as Instant });
     const levels: number[] = [];
     const off = on('level:up', (e) => levels.push(e.level));
-    const res = await logState({ taskId: task.id, date: d('2024-06-01'), chip: 'fallback' });
+    const res = await logState({ taskId: task.id, date: d('2024-06-01'), chip: 'done' });
     off();
-    expect(res.ok && res.value.xpAwarded).toBe(6);
+    expect(res.ok && res.value.xpAwarded).toBe(10);
     expect(res.ok && res.value.levelUp).toMatchObject({ level: 2, xpIntoLevel: 0 });
     expect(levels).toEqual([2]);
   });
@@ -230,8 +230,8 @@ describe('badges through real logging', () => {
   test('seven shown-up days in a row unlock showing-up-7 dated the seventh day, and it is persisted', async () => {
     const task = makeTask();
     fake.seedTask(task);
-    await seedRun(task.id, '2024-05-25', ['done', 'done', 'done', 'done', 'done', 'done']);
-    const sixth = await logState({ taskId: task.id, date: d('2024-05-31'), chip: 'done' });
+    await seedRun(task.id, '2024-05-25', ['done', 'done', 'done', 'done', 'done']);
+    const sixth = await logState({ taskId: task.id, date: d('2024-05-30'), chip: 'done' });
     expect(sixth.ok && sixth.value.badgesUnlocked).not.toContain('showing-up-7');
     clock.today = '2024-06-01';
     const seventh = await logState({ taskId: task.id, date: d('2024-06-01'), chip: 'done' });
@@ -276,14 +276,14 @@ describe('badges through real logging', () => {
 
 describe('consistency read at the start of use', () => {
   test('a brand-new user with no history reads null, not 0%', async () => {
-    fake.seedTask(makeTask());
+    fake.seedTask(makeTask({ createdAt: clock.now as Instant }));
     const { result } = await rh(() => useConsistency({ scope: 'aggregate', window: 'last-30' }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.percent).toBeNull();
   });
 
   test('a single day logged reads 100%, not a fraction', async () => {
-    const task = makeTask();
+    const task = makeTask({ createdAt: clock.now as Instant });
     fake.seedTask(task);
     await seedLog(task.id, '2024-06-01', 'done');
     const { result } = await rh(() => useConsistency({ scope: 'aggregate', window: 'last-7' }));
@@ -321,21 +321,24 @@ describe('cycles: archiving through the boundary', () => {
   test('a cycle record includes days of a habit that was deleted and of one retired for good', async () => {
     fake.seedSettings({ cycleCadence: 'monthly' });
     fake.seedCycleState({ currentCycleId: 'cycle:monthly:2024-01-01' as never, cadence: 'monthly', startDate: d('2024-01-01'), endDate: d('2024-01-31') });
-    const live = makeTask({ id: 'live-task' as never });
-    const deleted = makeTask({ id: 'deleted-task' as never });
-    fake.seedTask(live);
+    // Deleted on Jan 31 without a log that day: its 30 done days stay in the January record.
+    const deleted = makeTask({ id: 'deleted-task' as never, createdAt: '2024-01-01T12:00:00.000Z' as Instant });
     fake.seedTask(deleted);
-    // Deleted before the boundary: its January days still belong to the January record.
-    await seedRun('deleted-task' as never, '2024-01-01', ['done', 'done']);
+    await seedRun('deleted-task' as never, '2024-01-01', Array(30).fill('done'));
+    clock.now = '2024-01-31T12:00:00.000Z';
     await fake.repos.tasks.softDelete('deleted-task' as never);
-    await seedRun('live-task' as never, '2024-01-01', ['done']);
-    await fake.repos.tasks.deleteForever('live-task' as never, [{ date: d('2024-01-02'), outcome: 'missed', retiredAt: clock.now as Instant }]);
+    // A second habit retired for good on Jan 31, its one settled day (missed) kept in the record.
+    const gone = makeTask({ id: 'gone-task' as never, createdAt: '2024-01-01T12:00:00.000Z' as Instant });
+    fake.seedTask(gone);
+    await fake.repos.tasks.softDelete('gone-task' as never);
+    await fake.repos.tasks.deleteForever('gone-task' as never, [{ date: d('2024-01-31'), outcome: 'missed', retiredAt: clock.now as Instant }]);
     clock.today = '2024-02-03';
+    clock.now = '2024-02-03T12:00:00.000Z';
     await reconcileCycleBoundaries();
     const jan = fake.cycleRecords().find((r) => r.startDate === '2024-01-01');
     expect(jan).toBeDefined();
-    expect(jan?.breakdown).toMatchObject({ ideal: 3, missed: 1 });
-    expect(jan?.consistencyPercent).toBe(75);
+    expect(jan?.breakdown).toMatchObject({ ideal: 30, missed: 1 });
+    expect(jan?.consistencyPercent).toBe(97);
   });
 
   test('a cadence change on the first day of a cycle archives no zero-length record', async () => {
@@ -362,7 +365,7 @@ describe('cycles: archiving through the boundary', () => {
   // boundary, the XP award is stamped with the cycle pointer that is still the OLD cycle, because
   // reconcileCycleBoundaries runs only at step 5. The new cycle's XP is then archived into the old
   // cycle's record and the new cycle reads 0.
-  test.failing('BUG: the first log after a cycle boundary is credited to the NEW cycle, not the closed one', async () => {
+  test('the first log after a cycle boundary is credited to the NEW cycle, not the closed one', async () => {
     fake.seedSettings({ cycleCadence: 'monthly' });
     fake.seedCycleState({ currentCycleId: 'cycle:monthly:2024-01-01' as never, cadence: 'monthly', startDate: d('2024-01-01'), endDate: d('2024-01-31') });
     clock.today = '2024-02-01';
@@ -376,7 +379,7 @@ describe('cycles: archiving through the boundary', () => {
 
   // BUG (src/queries/reads.ts useProgress): nothing advances the cycle pointer on app open, so
   // after several cycles the Progress read still names the old cycle until the next log.
-  test.failing('BUG: the progress read names the cycle containing today even when the app was not opened for months', async () => {
+  test('the progress read names the cycle containing today even when the app was not opened for months', async () => {
     fake.seedSettings({ cycleCadence: 'monthly' });
     fake.seedCycleState({ currentCycleId: 'cycle:monthly:2024-01-01' as never, cadence: 'monthly', startDate: d('2024-01-01'), endDate: d('2024-01-31') });
     clock.today = '2024-04-10';

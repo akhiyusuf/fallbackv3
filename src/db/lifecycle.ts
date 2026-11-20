@@ -105,7 +105,13 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
     const db = await openClient();
     const migrated = await runMigrations(db);
     if (!migrated.ok) {
-      // MIGRATION_FAILED -> calm S50, never a crash loop (docs/API.md §1.1).
+      // MIGRATION_FAILED -> calm S50, never a crash loop (docs/API.md §1.1). This connection is not
+      // handed to the proxy, so close it here; otherwise every failed open leaks one more handle.
+      try {
+        await db.closeAsync();
+      } catch {
+        /* already unusable */
+      }
       return 'corrupt';
     }
     await ensureSingletons(db);
@@ -179,7 +185,12 @@ export function createStoreLifecycle(proxy: DbClientProxy) {
     // store receipt or the entitlement row — `buildBackupEnvelope` only ever touches the
     // eleven pinned tables, `entitlement` is not among them.
     async backup(): Promise<Result<{ uri: string; createdAt: Instant }>> {
-      const envelope = await buildBackupEnvelope(proxy);
+      // One read transaction: every table is read at the same instant, so a log written while the
+      // backup runs cannot appear in one table of the file and not in the table it belongs with.
+      let envelope!: Awaited<ReturnType<typeof buildBackupEnvelope>>;
+      await proxy.withTransactionAsync(async (tx) => {
+        envelope = await buildBackupEnvelope(tx);
+      });
       // The file is named by the device-local day, not the UTC day the instant falls on.
       const filename = `fallback-backup-${toLocalDate(new Date(envelope.createdAt))}.fallbackbak`;
       const uri = `${BACKUP_DIR}${filename}`;

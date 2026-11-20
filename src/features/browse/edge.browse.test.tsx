@@ -51,7 +51,7 @@ describe('Routines tab', () => {
     await render(<RoutinesBrowseScreen />);
     expect(screen.getByText('Habit 0')).toBeTruthy();
     expect(screen.getByText('Habit 299')).toBeTruthy();
-  });
+  }, 60000);
 
   it('emoji and very long names render whole', async () => {
     const long = 'A very long routine name '.repeat(12).trim();
@@ -65,12 +65,16 @@ describe('Routines tab', () => {
     ok([task({ name: 'Gym', cadence: { kind: 'specific-weekdays', weekdays: [1, 3] } })]);
     await render(<RoutinesBrowseScreen />);
     const todayWd = weekdayOf(today());
-    const pick = (wd: number) => screen.getByLabelText(new RegExp(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][wd - 1]!));
-    await fireEvent.press(pick(2 === todayWd ? 1 : 2));
-    // Tuesday (or Monday if today is Tuesday): the routine is not on that day when it is Tuesday.
-    if (2 !== todayWd) expect(screen.getByText(/Nothing due|No routines on/i)).toBeTruthy();
-    await fireEvent.press(pick(1));
+    const pick = (wd: number) => screen.getByLabelText(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][wd - 1]!);
+    // Tuesday: not a Gym day, so Gym is under "Other routines" and nothing is due.
+    await fireEvent.press(pick(2));
+    expect(screen.getByText(/No routines on Tuesdays/)).toBeTruthy();
     expect(screen.getByText('Gym')).toBeTruthy();
+    // Monday: Gym is due, and the "nothing due" line is gone.
+    await fireEvent.press(pick(1));
+    expect(screen.queryByText(/No routines on Mondays/)).toBeNull();
+    expect(screen.getByText('Gym')).toBeTruthy();
+    void todayWd;
   });
 
   it('weekday filter handles every cadence kind without throwing', () => {

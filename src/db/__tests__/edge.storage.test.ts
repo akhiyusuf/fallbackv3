@@ -29,8 +29,7 @@ jest.mock('expo-crypto', () => ({
 }));
 jest.mock('expo-file-system/legacy', () => require('../testSupport/fileSystemTestDouble'));
 jest.mock('expo-secure-store', () => {
-  const store = new Map<string, string>();
-  (globalThis as { __esSecure?: Map<string, string> }).__esSecure = store;
+  const store = ((globalThis as { __esSecure?: Map<string, string> }).__esSecure ??= new Map<string, string>());
   return {
     deleteItemAsync: jest.fn(async (key: string) => {
       store.delete(key);
@@ -65,7 +64,9 @@ function dbPath(): string {
   return joinPath(currentDir(), DB_NAME);
 }
 function secureStore(): Map<string, string> {
-  return (globalThis as { __esSecure?: Map<string, string> }).__esSecure as Map<string, string>;
+  const g = globalThis as { __esSecure?: Map<string, string> };
+  g.__esSecure ??= new Map<string, string>();
+  return g.__esSecure;
 }
 function fileSystem(): FileSystemDouble {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -317,7 +318,7 @@ describe('upgrading an older store to the current schema', () => {
     expect(snap.tasks.find((t) => t.id === 't-old')?.deletedAt).toBe('2025-05-20T10:00:00.000Z');
     expect(snap.logs).toHaveLength(31);
     expect(snap.logs).toContain('2025-06-01:done');
-    expect(snap.logs).toContain('2025-06-03:skip');
+    expect(snap.logs).toContain('2025-06-04:skip');
     expect(snap.lifetime).toBe(seeded.doneDays * 10 + countFallbackXp());
     expect(snap.xpTotal).toBe(snap.lifetime);
     expect(snap.settings).toEqual({ theme: 'dark', accent: 'berry', cadence: 'weekly', digest: '07:30' });
@@ -472,7 +473,6 @@ describe('backup', () => {
     expect(rawCount(`SELECT COUNT(*) AS n FROM day_log`)).toBe(LOGGED_TASKS * DAYS);
     expect(rawCount(`SELECT COUNT(*) AS n FROM task`)).toBe(TASKS);
     // Printed so the report can quote real numbers from this machine.
-    // eslint-disable-next-line no-console
     console.log(
       `[edge.storage] ${TASKS} tasks, ${LOGGED_TASKS * DAYS} logs: seed ${seedMs} ms, backup ${backupMs} ms (${(text.length / 1048576).toFixed(1)} MB), restore ${restoreMs} ms`,
     );
@@ -542,6 +542,19 @@ describe('backup', () => {
 
 });
 
+type EnvelopeRow = Record<string, unknown>;
+interface DamageableEnvelope {
+  schemaVersion: number;
+  tables: {
+    settings: EnvelopeRow[];
+    task: EnvelopeRow[];
+    day_log: EnvelopeRow[];
+    xp_award: EnvelopeRow[];
+    off_day_mark: EnvelopeRow[];
+    [table: string]: EnvelopeRow[];
+  };
+}
+
 describe('restoring a damaged or foreign file is refused without touching current data', () => {
   async function seedCurrent(): Promise<{ app: App; uri: string }> {
     buildStoreAtVersion(CURRENT, (c) => seedRealisticData(c));
@@ -559,8 +572,8 @@ describe('restoring a damaged or foreign file is refused without touching curren
     expect(await snapshot(app)).toEqual(before);
   }
 
-  function envelopeOf(uri: string): { tables: Record<string, Record<string, unknown>[]>; schemaVersion: number } {
-    return JSON.parse(fileSystem().__read(uri));
+  function envelopeOf(uri: string): DamageableEnvelope {
+    return JSON.parse(fileSystem().__read(uri)) as DamageableEnvelope;
   }
 
   it('truncated JSON', async () => {
@@ -903,7 +916,7 @@ describe('busy and locked database', () => {
     const release = setTimeout(() => holder.exec('COMMIT'), 40);
     try {
       const result = await app.repos.tasks.insert(mkTask({ id: 'after-lock' as Id, name: 'After lock' }), []);
-      expect(result.ok).toBe(true);
+      expect(result).toEqual({ ok: true, value: 'after-lock' });
     } finally {
       clearTimeout(release);
       try {

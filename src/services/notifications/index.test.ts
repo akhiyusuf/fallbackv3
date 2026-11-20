@@ -70,6 +70,11 @@ const BASE_PREFS = {
 
 describe('notifications service', () => {
   beforeEach(() => {
+    // Only reminders still ahead are scheduled. Pin "now" to just before today began, so every one
+    // of today's times counts as ahead whatever time of day the suite runs.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    jest.spyOn(Date, 'now').mockReturnValue(startOfToday.getTime() - 1);
     jest.clearAllMocks();
     logsByDate.clear();
     mockGetPermissions.mockResolvedValue({ granted: true });

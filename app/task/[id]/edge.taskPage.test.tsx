@@ -60,6 +60,11 @@ async function open(id: string) {
 function visible() {
   return JSON.stringify(screen.toJSON());
 }
+/** Makes one repository write take `ms`, so a second tap lands while the first is still saving. */
+function slow<T extends object>(obj: T, key: keyof T, ms = 250) {
+  const original = obj[key] as unknown as (...a: unknown[]) => Promise<unknown>;
+  return jest.spyOn(obj as never, key as never).mockImplementation(((...a: unknown[]) => new Promise((r) => setTimeout(r, ms)).then(() => original(...a))) as never);
+}
 const DASH = /[\u2014\u2013]/;
 
 describe('task page: every kind opens', () => {
@@ -114,7 +119,8 @@ describe('task page: every kind opens', () => {
     expect(screen.getByText('Oat, 2 litres')).toBeTruthy();
     expect(screen.queryByTestId('s20-chip')).toBeNull();
     await userEvent.press(screen.getByTestId('s20-todo-done'));
-    await waitFor(async () => expect((await fake.repos.tasks.get('a' as Id))?.todoDoneAt).not.toBeNull());
+    await waitFor(() => expect(screen.getByLabelText('Mark as done').props.accessibilityState.checked).toBe(true));
+    expect((await fake.repos.tasks.get('a' as Id))?.todoDoneAt).not.toBeNull();
     expect(visible()).not.toMatch(DASH);
   });
 
@@ -126,21 +132,26 @@ describe('task page: every kind opens', () => {
     expect(screen.queryByTestId('s20-todo-done')).toBeNull();
   });
 
-  it('as-needed routine: opens with "Not due today" and no push or log buttons', async () => {
+  it('as-needed routine (its own screen): opens with an empty history and a Log used it button, no today card', async () => {
     fake.seedTask(makeTask({ id: 'a' as Id, name: 'Stretch break', isAsNeeded: true, cadence: null }));
-    await open('a');
+    await open('a/as-needed');
     expect(await screen.findByText('Stretch break')).toBeTruthy();
+    expect(screen.getByLabelText('Log used it')).toBeTruthy();
     expect(screen.queryByTestId('s20-chip')).toBeNull();
     expect(visible()).not.toMatch(DASH);
   });
 
-  it('as-needed routine: the menu has no End option', async () => {
-    fake.seedTask(makeTask({ id: 'a' as Id, name: 'Stretch break', isAsNeeded: true, cadence: null }));
-    await open('a');
+  it('as-needed routine: a double tap on Log used it (no steps) logs one use', async () => {
+    fake.seedTask(makeTask({ id: 'a' as Id, name: 'Stretch break', isAsNeeded: true, cadence: null, idealSteps: [], fallbackSteps: [] }));
+    await open('a/as-needed');
     await screen.findByText('Stretch break');
-    await userEvent.press(screen.getByLabelText('More actions'));
-    expect(await screen.findByLabelText('Delete routine')).toBeTruthy();
-    expect(screen.queryByLabelText('End routine')).toBeNull();
+    const btn = screen.getByLabelText('Log used it');
+    const spy = slow(fake.repos.asNeeded, 'append');
+    await userEvent.press(btn);
+    await userEvent.press(btn);
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Logged to history'));
+    spy.mockRestore();
+    expect(await fake.repos.asNeeded.listForTask('a' as Id)).toHaveLength(1);
   });
 });
 
@@ -158,12 +169,14 @@ describe('task page: ended, deleted, gone', () => {
   it('ended routine: double tap on Start again starts it once and clears endedOn', async () => {
     fake.seedTask(makeTask({ id: 'a' as Id, endedOn: '2026-07-10' as LocalDate }));
     await open('a');
-    const spy = jest.spyOn(fake.repos.tasks, 'update');
-    await userEvent.press(await screen.findByTestId('s20-start-again'));
-    await userEvent.press(screen.getByTestId('s20-start-again'));
-    await waitFor(async () => expect((await fake.repos.tasks.get('a' as Id))?.endedOn).toBeNull());
-    expect(spy.mock.calls.filter(([, p]) => (p as { endedOn?: unknown }).endedOn === null).length).toBeLessThanOrEqual(1);
+    const again = await screen.findByTestId('s20-start-again');
+    const spy = slow(fake.repos.tasks, 'update');
+    await userEvent.press(again);
+    await userEvent.press(again);
+    await waitFor(() => expect(screen.queryByTestId('s20-ended')).toBeNull());
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(1);
     spy.mockRestore();
+    expect((await fake.repos.tasks.get('a' as Id))?.endedOn).toBeNull();
   });
 
   it('a task in Recently deleted: shows the deleted notice, never the log buttons', async () => {
@@ -209,12 +222,11 @@ describe('task page: logging and shared state', () => {
     fake.seedTask(makeTask({ id: 'a' as Id }));
     await open('a');
     await screen.findByText('Morning workout');
-    const spy = jest.spyOn(fake.repos.logs, 'upsert');
+    const spy = slow(fake.repos.logs, 'upsert');
     const done = screen.getByLabelText('Morning workout: Done');
     await userEvent.press(done);
     await userEvent.press(done);
     await waitFor(() => expect(fake.logsFor('a' as Id).length).toBe(1));
-    await act(async () => {});
     expect(spy.mock.calls.length).toBe(1);
     spy.mockRestore();
   });
@@ -254,22 +266,17 @@ describe('task page: names and accessibility', () => {
     expect(screen.getByLabelText(`${long}: Done`)).toBeTruthy();
   });
 
-  it('every button on the page has an accessibility label (routine, multi-dose, ended)', async () => {
-    const cases = [
-      makeTask({ id: 'a' as Id, idealSteps: steps('a', 'ideal', ['One', 'Two']) }),
-      makeTask({ id: 'b' as Id, type: 'course', dosesPerDay: 2, startDate: '2026-07-10' as LocalDate, endDate: '2026-07-20' as LocalDate }),
-      makeTask({ id: 'c' as Id, endedOn: '2026-07-10' as LocalDate }),
-    ];
-    for (const task of cases) {
-      fake.reset();
-      fake.seedTask(task);
-      const view = await renderRouter(ROUTER_CONTEXT, { initialUrl: `/task/${task.id}`, wrapper });
-      await screen.findByText(task.name);
-      const bad = screen.UNSAFE_root
-        .findAll((n: { props: Record<string, unknown> }) => n.props?.accessibilityRole === 'button' && typeof n.props.onPress === 'function' && !n.props.accessibilityLabel && !n.props.testID)
-        .map((n: { type: unknown }) => String(n.type));
-      expect(bad).toEqual([]);
-      view.unmount();
-    }
+  const labelCases: Array<[string, () => ReturnType<typeof makeTask>]> = [
+    ['routine with steps', () => makeTask({ id: 'a' as Id, idealSteps: steps('a', 'ideal', ['One', 'Two']) })],
+    ['multi-dose course', () => makeTask({ id: 'a' as Id, type: 'course', dosesPerDay: 2, startDate: '2026-07-10' as LocalDate, endDate: '2026-07-20' as LocalDate })],
+    ['ended routine', () => makeTask({ id: 'a' as Id, endedOn: '2026-07-10' as LocalDate })],
+  ];
+  it.each(labelCases)('every button on the page has an accessibility label or test id: %s', async (_name, build) => {
+    const task = build();
+    fake.seedTask(task);
+    await open('a');
+    await screen.findByText(task.name);
+    const bad = screen.getAllByRole('button').filter((n) => !n.props.accessibilityLabel && !n.props.testID).map((n) => String(n.type));
+    expect(bad).toEqual([]);
   });
 });

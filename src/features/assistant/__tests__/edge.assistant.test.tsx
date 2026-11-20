@@ -92,7 +92,7 @@ async function settle() {
 }
 
 async function logsFor(taskId: string) {
-  return repos.logs.listForTask(taskId as never, { from: '1900-01-01', to: '2999-12-31' } as never);
+  return repos.logs.listForTask(taskId as never, '1900-01-01' as never, '2999-12-31' as never);
 }
 
 const logCall = (taskId: string, date: string, state: string) =>
@@ -107,6 +107,15 @@ describe('assistant tools on ended and deleted habits', () => {
     const out = await result.current.applyToolCall(logCall(task.id, '2024-06-01', 'done'));
     expect(out.applied).toBe(false);
     expect(await logsFor(task.id)).toEqual([]);
+  });
+
+  it('control: a valid log_state for today is applied and does write one row', async () => {
+    const task = makeTask();
+    fake.seedTask(task);
+    const { result } = await rh(() => useToolExecutor());
+    await settle();
+    expect((await result.current.applyToolCall(logCall(task.id, '2024-06-01', 'done'))).applied).toBe(true);
+    expect(await logsFor(task.id)).toHaveLength(1);
   });
 
   it('log_state on a deleted habit (not in the live list) is refused', async () => {
@@ -219,7 +228,7 @@ describe('BYO provider: key handling and failures', () => {
 
   beforeEach(() => {
     fetchMock = jest.fn();
-    (global as { fetch: unknown }).fetch = fetchMock;
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
     logSpies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => jest.spyOn(console, m).mockImplementation(() => {}));
   });
   afterEach(() => logSpies.forEach((s) => s.mockRestore()));

@@ -151,6 +151,11 @@ async function archiveCycleWindow(w: CycleWindow, recordEndDate: LocalDate, isSh
  * `archiveCycleWindow`'s own existence guard, a failed pointer WRITE after a successful
  * archive is also safe to retry.
  */
+/** Catches the cycle pointer up to today (archiving each cycle that ended). Safe to call any time. */
+export async function catchUpCycles(): Promise<void> {
+  await reconcileCycleBoundaries().catch(() => undefined);
+}
+
 async function reconcileCycleBoundaries(): Promise<Result<void>> {
   const settings = await repos.settings.get();
   const today = todayLocal();
@@ -253,6 +258,9 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
   const task = await liveTask(taskId);
   if (!task) return { occurrence: null, xpAwarded: 0, levelUp: null, badgesUnlocked: [] };
   const today = todayLocal();
+  // Cycle boundaries first: the first log after a cycle has ended must be stamped with the NEW
+  // cycle, never land in the one just closed. Best-effort, as below; it retries on the next write.
+  await reconcileCycleBoundaries();
   const occurrence = await resolveOneOccurrence(repos, task, date, today, pushedFrom);
   const awardDate = occurrence.pushedFrom ?? date;
 
@@ -287,10 +295,7 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
       cycleId,
       createdAt: now(),
     });
-    if (appendResult.ok) {
-      xpAwarded = amount;
-      xpChanged = true;
-    }
+    if (appendResult.ok) xpChanged = true;
   } else if (occurrence.outcome !== 'off') {
     // CR-2 — see this file's header for the exact boundary: an undone mis-tap (chip -> todo,
     // reads `pending`/`missed`) or the move-vacated case (reads `not-due`). Review pass 2,
@@ -308,6 +313,9 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
   }
 
   const lifetimeXpAfter = xpChanged ? await repos.progress.lifetimeXp() : lifetimeXpBefore;
+  // What this write actually added: re-affirming a day already earned adds nothing (no repeat
+  // "+10 XP"), a fallback raised to ideal adds the difference, a downgrade adds nothing.
+  xpAwarded = Math.max(0, lifetimeXpAfter - lifetimeXpBefore);
   const levelBefore = levelFor(lifetimeXpBefore);
   const levelAfter = levelFor(lifetimeXpAfter);
   const levelUp = xpAwarded > 0 && levelAfter.level > levelBefore.level ? levelAfter : null;
@@ -337,11 +345,6 @@ async function reconcileOccurrence(taskId: Id, date: LocalDate, pushedFrom?: Loc
   // `level:up` is emitted HERE ONLY — every caller of `reconcileOccurrence` relies on this
   // single emit (review pass 2, blocking item N5). Do not re-emit it in a calling mutation.
   if (levelUp) emit({ type: 'level:up', level: levelUp.level });
-
-  // Step 5 — cycle boundaries (archive always precedes any implicit reset). Best-effort: a
-  // boundary-reconciliation failure must not undo the log/XP/badge work already committed
-  // above; it retries on the next mutation or app foreground.
-  await reconcileCycleBoundaries();
 
   return { occurrence, xpAwarded, levelUp, badgesUnlocked };
 }
