@@ -4,11 +4,11 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { format } from 'date-fns';
 import { ArchiveRestore, DownloadCloud, Trash2, UploadCloud } from 'lucide-react-native';
-import { Share } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { S47_COPY } from '@/features/data/copy';
 import { EraseDataSheet } from '@/features/data/EraseDataSheet';
+import { offerBackupFile } from '@/features/data/offerBackupFile';
 import { emit } from '@/lib/events';
 import { createBackup, restoreBackup } from '@/services/data';
 import { QUERY_KEYS, useRecentlyDeleted, useSettings } from '@/queries';
@@ -57,11 +57,11 @@ export default function S47Data() {
     }
     await qc.invalidateQueries({ queryKey: QUERY_KEYS.settings });
     showToast(`Backed up ${formatInstant(result.value.createdAt)}`, 'success');
-    try {
-      await Share.share({ url: result.value.uri, message: result.value.uri });
-    } catch {
-      /* sharing is optional */
-    }
+    // Hand over the FILE (on Android: saved into a folder the person picks). Optional: the backup
+    // already exists on the device whatever they choose here.
+    const offered = await offerBackupFile(result.value.uri);
+    if (offered === 'saved') showToast(S47_COPY.backupSavedToast, 'success');
+    else if (offered === 'failed') showToast(S47_COPY.backupSaveFailedToast, 'warning');
   }
 
   async function pickAndRestore() {

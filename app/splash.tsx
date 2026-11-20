@@ -41,7 +41,7 @@ export default function S01Splash() {
         const elapsed = Date.now() - startedAt;
         const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
         if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
-        if (navigatedRef.current) return;
+        if (cancelled || navigatedRef.current) return;
 
         // Store read throws / detects a corrupt store -> S50, never a crash or infinite spinner.
         if (!result.ok || result.value === 'corrupt' || result.value === 'uninitialised') {

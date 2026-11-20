@@ -92,9 +92,11 @@ export default function S32AssistantConversation() {
   }
 
   useEffect(() => {
+    // A prompt that arrives in the link (any app can open fallback://) is only put in the box; the
+    // person reads it and taps Send themselves.
     if (params.opening && !sentOpeningRef.current) {
       sentOpeningRef.current = true;
-      void sendMessage(params.opening);
+      setText(params.opening);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.opening]);

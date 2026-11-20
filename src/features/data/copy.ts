@@ -45,6 +45,8 @@ export const S47_COPY = {
   eraseSubcopy: 'Permanently remove everything from this device.',
   backupSuccessPrefix: 'Backed up',
   backupFailureToast: "Couldn't back up. Try again",
+  backupSavedToast: 'Backup file saved to the folder you chose',
+  backupSaveFailedToast: "Backed up on this phone, but couldn't save a copy to that folder",
   restoreSuccessToast: 'Restored. Your data is back.',
 } as const;
 

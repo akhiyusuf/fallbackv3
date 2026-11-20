@@ -12,7 +12,7 @@ import { useCreateTask } from '@/queries';
 import type { Cadence, Importance, Necessity, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
 import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
-import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
+import { IMPORTANCE_OPTIONS, NECESSITY_OPTIONS, FIX_FIELDS, SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
 import { useToastStore } from '@/app-shell/stores/toast';
 import { Text } from '@/ui/AppText';
 
@@ -73,7 +73,10 @@ export default function S16CreateRoutine() {
     const offending = requiresIdeal && !idealEmpty ? emptyRunOccurrences(draft) : [];
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));
-    if (!validated.ok) return;
+    if (!validated.ok) {
+      showToast(FIX_FIELDS, 'warning');
+      return;
+    }
 
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {

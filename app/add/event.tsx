@@ -13,7 +13,7 @@ import { today as todayFn } from '@/lib/date';
 import type { Cadence, LocalDate, StepDraft, TaskDraft, Weekday } from '@/types';
 import { StepListEditor } from '@/features/task/StepListEditor';
 import { WEEKDAY_NAME_TO_NUM, toggleStepDay } from '@/features/task/StepScheduleSection';
-import { SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
+import { FIX_FIELDS, SAVE_FAILED, parentDaysFor, useSingleFlightSave, withoutBlankSteps } from '@/features/task/formShared';
 import { isValidLocalDateString } from '@/features/task/dateValidation';
 import { useToastStore } from '@/app-shell/stores/toast';
 
@@ -72,7 +72,10 @@ export default function S17CreateEvent() {
     const offending = repeats && tracking && idealSteps.length > 0 ? emptyRunOccurrences(draft) : [];
     setBannerDay(offending[0]);
     setErrorWeekdays(offending.map((n) => WEEKDAY_NAME_TO_NUM[n]).filter((n): n is Weekday => n !== undefined));
-    if (!validated.ok || dateInvalid) return;
+    if (!validated.ok || dateInvalid) {
+      showToast(FIX_FIELDS, 'warning');
+      return;
+    }
 
     const result = await createTask.mutateAsync(draft);
     if (result.ok) {

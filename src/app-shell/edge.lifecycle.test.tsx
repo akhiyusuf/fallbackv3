@@ -123,7 +123,13 @@ const SETTINGS_ONBOARDED = { onboardingCompletedAt: '2026-01-01T00:00:00.000Z', 
 
 /** Counts intervals this test opens and closes; unrelated timers (the renderer's own) are ignored. */
 function spyIntervals() {
-  return { setIntervalSpy: jest.spyOn(global, 'setInterval'), clearIntervalSpy: jest.spyOn(global, 'clearInterval') };
+  return { setIntervalSpy: jest.spyOn(globalThis, 'setInterval'), clearIntervalSpy: jest.spyOn(globalThis, 'clearInterval') };
+}
+
+/** The style the layout last gave the status bar: the look it is drawn in. */
+function lastStatusBarStyle(): string | undefined {
+  const last = mockStatusBar.mock.calls.at(-1)?.[0] as { style?: string } | undefined;
+  return last?.style;
 }
 
 function wrap(node: React.ReactNode, qc = new QueryClient()) {
@@ -493,7 +499,7 @@ describe('a reminder tap', () => {
     (repos.settings.get as jest.Mock).mockResolvedValue(SETTINGS_ONBOARDED);
     initNotificationsBridge(); // idempotent: a no-op when an earlier test already armed it
     expect(mockTapListeners.length).toBeGreaterThan(0);
-    tapListener = mockTapListeners[mockTapListeners.length - 1];
+    tapListener = mockTapListeners[mockTapListeners.length - 1] as (response: unknown) => void;
   });
 
   const response = (data: Record<string, unknown>) => ({ notification: { request: { content: { data } } } });
@@ -589,11 +595,9 @@ describe('the root layout (app/_layout.tsx)', () => {
 
   it('the status bar follows the saved look once the splash hydrates it (characterisation of the first-paint gap)', async () => {
     await render(<RootLayout />);
-    const before = mockStatusBar.mock.calls[mockStatusBar.mock.calls.length - 1][0] as { style?: string };
-    expect(before.style).toBeDefined();
-    await act(() => useThemeStore.getState().hydrate('dark', 'ocean'));
-    const after = mockStatusBar.mock.calls[mockStatusBar.mock.calls.length - 1][0] as { style?: string };
-    expect(after.style).toBe('light');
+    expect(lastStatusBarStyle()).toBeDefined();
+    await act(() => useThemeStore.getState().hydrate('dark', 'plum'));
+    expect(lastStatusBarStyle()).toBe('light');
   });
 
 });
@@ -602,12 +606,12 @@ describe('the root layout (app/_layout.tsx)', () => {
 
 describe('a process kill and restore', () => {
   it('a relaunch with the same database reads back the saved look and lands on Today', async () => {
-    (repos.settings.get as jest.Mock).mockResolvedValue({ ...SETTINGS_ONBOARDED, theme: 'dark', accent: 'ocean' });
+    (repos.settings.get as jest.Mock).mockResolvedValue({ ...SETTINGS_ONBOARDED, theme: 'dark', accent: 'plum' });
     useThemeStore.setState({ mode: 'auto', accent: 'forge-orange' }); // a fresh process: memory is empty
     await render(<S01Splash />);
     await advance(1000);
     expect(useThemeStore.getState().mode).toBe('dark');
-    expect(useThemeStore.getState().accent).toBe('ocean');
+    expect(useThemeStore.getState().accent).toBe('plum');
     expect(mockRouter.replace).toHaveBeenCalledWith('/today');
   });
 

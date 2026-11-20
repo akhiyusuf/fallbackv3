@@ -43,7 +43,7 @@ const config: ExpoConfig = {
 
   android: {
     package: 'com.fallback.app',
-    versionCode: 1,
+    versionCode: 2,
     // App data (the habit database and the encrypted assistant key) stays out of Google's automatic
     // device backup. The person's own backups are the files they make in Settings.
     allowBackup: false,

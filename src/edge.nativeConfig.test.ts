@@ -320,12 +320,14 @@ describeApk('built APK: merged manifest, SDK levels, bundle contents', () => {
 });
 
 describe('native share of the backup (static; the defect is in app/settings/data/index.tsx)', () => {
-  it.failing('on Android the backup share does not send the file path as the message text', () => {
-    // React Native's Share ignores `url` on Android (node_modules/react-native/Libraries/Share/Share.js
-    // forwards only title and message to the native module). So `Share.share({ url, message: uri })`
-    // shares the path as plain text, not the file. Passes while that is so; flips when fixed.
+  it('on Android the backup is saved as a file into a folder the person picks, not shared as path text', () => {
+    // React Native's Share ignores `url` on Android (it forwards only title and message), so the old
+    // `Share.share({ url, message: uri })` handed over the path as text. Fixed: offerBackupFile saves
+    // the file through Android's folder picker (Storage Access Framework).
     const src = read('app/settings/data/index.tsx');
     expect(src).not.toMatch(/message:\s*result\.value\.uri/);
+    expect(src).toMatch(/offerBackupFile\(/);
+    expect(read('src/features/data/offerBackupFile.ts')).toMatch(/StorageAccessFramework\.createFileAsync/);
   });
 });
 
@@ -398,7 +400,7 @@ describe('deep link into the assistant', () => {
     expect(streamChat).toHaveBeenCalled();
   });
 
-  it.failing('a prompt arriving by deep link (fallback://assistant/chat?opening=...) waits for the person to send it', async () => {
+  it('a prompt arriving by deep link (fallback://assistant/chat?opening=...) waits for the person to send it', async () => {
     // Any app can open fallback://; today the chat screen sends `opening` at once with no tap.
     // Passes while that happens; flips to a normal `it` once the prompt is only pre-filled.
     const Chat = (require('../app/assistant/chat') as { default: Component }).default;

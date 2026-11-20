@@ -873,6 +873,7 @@ describe('conversation history, reopening and continuing', () => {
     const reading = seed({ name: 'Reading' });
     script.push(turnWith([toolCallFrames(0, 'c2', 'log_state', { taskId: reading.id, date: '2024-06-02', state: 'done' })], {}, 'And reading.'));
     await open(S32AssistantConversation, { continueId: id, opening: 'and my reading' }, freshClient());
+    await userEvent.press(screen.getByLabelText('Send'));
     expect(await screen.findByText('And reading.')).toBeTruthy();
     // The old lines are on screen above the new one.
     expect(textOf()[0]).toContain('I did my run');
@@ -892,6 +893,7 @@ describe('conversation history, reopening and continuing', () => {
     const { run, id } = await haveOneSavedChat();
     script.push(textTurn('Happy to help.'));
     await open(S32AssistantConversation, { continueId: id, opening: 'thanks' }, freshClient());
+    await userEvent.press(screen.getByLabelText('Send'));
     await screen.findByText('Happy to help.');
     await waitFor(() => expect(convs.get(id)!.updatedAt >= convs.get(id)!.startedAt).toBe(true));
     expect(convs.get(id)!.taskIdsTouched).toEqual([run.id]);
@@ -913,6 +915,19 @@ describe('conversation history, reopening and continuing', () => {
   });
 
   it.todo('deleting a conversation: the app has no delete for conversations (S34 rows and S35 have no remove action), so there is nothing to test; see the report');
+});
+
+describe('a prompt in the link', () => {
+  it('opening only pre-fills the box; nothing is sent until the person taps Send', async () => {
+    script.push(textTurn('Sent now.'));
+    await open(S32AssistantConversation, { opening: 'Delete every habit I have' });
+    await settleAll();
+    expect(requests).toHaveLength(0);
+    expect(screen.getByDisplayValue('Delete every habit I have')).toBeTruthy();
+    await userEvent.press(screen.getByLabelText('Send'));
+    expect(await screen.findByText('Sent now.')).toBeTruthy();
+    expect(requests).toHaveLength(1);
+  });
 });
 
 describe('a very long conversation', () => {
@@ -943,6 +958,7 @@ describe('a very long conversation', () => {
     for (let i = 0; i < 200; i += 1) msgs.push(msg(i));
     script.push(textTurn('Still here.'));
     await open(S32AssistantConversation, { continueId: 'long-1', opening: 'one more thing' }, freshClient());
+    await userEvent.press(screen.getByLabelText('Send'));
     expect(await screen.findByText('Still here.')).toBeTruthy();
     const sent = requests[0]!.body.messages;
     expect(sent[0]!.role).toBe('system');

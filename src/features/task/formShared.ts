@@ -20,6 +20,8 @@ export function parentDaysFor(cadence: Cadence): readonly Weekday[] {
   return [];
 }
 
+/** Shown when Save is tapped with a form that has errors; the field message may be below the fold. */
+export const FIX_FIELDS = "Some fields need attention. Scroll to see what.";
 export const SAVE_FAILED = "Couldn't save that. Try again.";
 
 /**
