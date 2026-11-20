@@ -1346,6 +1346,38 @@ Open with the human:
 - Small spec differences: S35 cards navigate; S26 uses taps, not a slider; the
   routine "no ideal step" banner is shorter than the spec's sentence.
 
+### Round 4, twenty-seventh pass (2026-11-20): exact reminders, counts that add up, edge round 4
+
+The human: **"Should it ask?" "yessssssssss"**, **"Fix it" "yes"**, and **"also do more tests"**.
+
+- **Exact reminders (Android).** The app's own native module (`modules/exact-alarm`, no new
+  package) reports whether Android lets Fallback ring at the exact minute and opens its page.
+  Today asks once ("Get reminders right on time": Allow / Not now), only on Android with
+  notifications on and exact timing off, never over another sheet; the answer is kept in secure
+  storage and erased with everything else. Settings > Notifications keeps a "Ring reminders on
+  time" row while it is off.
+- **Breakdown counts add up.** Ideal + fallback + missed always equal the counted days (largest
+  remainder, `apportion`). Cycle records stored before this pass keep their old counts.
+- **Wording.** A round-4 wording pass made names consistent (Try again, Delete forever, full stops
+  on toasts, filler cut). It had also replaced "habit" with "task" and the "Showing up" label with
+  "Consistency", and the no-value dash with a hyphen; the main session restored all three (the
+  human's approved wording).
+
+Edge round 4 (reports `review/sonnet/40, 41, 43, 44`, `review/haiku/42, 45, 46, 47`). Fixed:
+notes saved from + land on the Notes lens; a model reply quiet for 60 s ends as offline instead of
+holding every later message; a crashed overlay tries again; Routines' day filter follows midnight;
+course doses and history logs celebrate badges and levels; a taken-back day is not pinned as a
+manual choice; old backups restore with their local days; the folder copy is named right;
+toasts read their message first to a screen reader; celebrations are announced; logging one of 150
+habits redraws one card, and Routines mounts with 7 reads instead of 454.
+
+Open with the human:
+- One of two steps, or one of three doses, counts the day as a fallback (showed up, 6 XP).
+- Early on, the ring can read 83% beside "2 of 2 days" (weighted share vs rounded days).
+- Restoring or starting again after midnight marks the days away off; a duplicate's creation day
+  counts like any new habit's.
+- Editing a schedule still rewrites how past days read (known since pass 25).
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

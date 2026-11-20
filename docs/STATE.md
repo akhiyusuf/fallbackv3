@@ -66,6 +66,8 @@ Done so far under the new process:
 - 2026-11-20, later: edge-case round 2 (twenty-fifth pass). Migration 9
   (`task.created_on`, `task.deleted_on`).
 - 2026-11-20, later: edge-case round 3 (twenty-sixth pass). versionCode 2.
+- 2026-11-20, later: exact reminders, counts that add up, edge round 4 (twenty-seventh pass).
+  Native module `modules/exact-alarm` (autolinked).
 
 Everything below this point describes the old pipeline's state and is history.
 
