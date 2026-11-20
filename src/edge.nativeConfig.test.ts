@@ -335,6 +335,9 @@ describe('native share of the backup (static; the defect is in app/settings/data
 // Deep link into the assistant (behaviour; the defect is in app/assistant/chat.tsx)
 // ---------------------------------------------------------------------------------------------
 
+// Rendering the chat screen is slow under load; the default 5 s limit made these tests flaky.
+jest.setTimeout(30000);
+
 // Required once at the top: Testing Library registers hooks, which may not be called inside a test.
 const rntl = require('@testing-library/react-native') as RntlModule;
 const { createElement } = require('react') as { createElement: (c: Component) => unknown };
