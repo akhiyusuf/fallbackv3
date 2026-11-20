@@ -6299,3 +6299,21 @@ PASS app app/settings/agents.test.tsx (7.934 s)
       at onUpdate (node_modules/react-native/Libraries/Animated/animations/TimingAnimation.js:132:67)
       at Timeout.callback [as _onTimeout] (node_modules/@react-native/jest-preset/jest/setup.js:61:31)
 
+FAIL app app/add/routine.test.tsx (18.117 s)
+  ● S16 Create Routine › an empty ideal-step run-occurrence day blocks save with the offending-day banner
+
+    thrown: "Exceeded timeout of 5000 ms for a test.
+    Add a timeout value to this test to increase the timeout, if this is a long-running test. See https://jestjs.io/docs/api#testname-fn-timeout."
+
+      68 |   });
+      69 |
+    > 70 |   it('an empty ideal-step run-occurrence day blocks save with the offending-day banner', async () => {
+         |   ^
+      71 |     await renderRouter(ROUTER_CONTEXT, { initialUrl: '/add/routine', wrapper });
+      72 |     const nameInput = await screen.findByLabelText('Routine name');
+      73 |     await userEvent.type(nameInput, 'Studying');
+
+      at it (app/add/routine.test.tsx:70:3)
+      at Object.describe (app/add/routine.test.tsx:38:1)
+
+PASS app app/settings/data/index.test.tsx (9.973 s)
