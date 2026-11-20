@@ -1,5 +1,5 @@
 /** S50 — data recovery. Stacked button pair (D11); reset is confirmed in a sheet (D3). */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RefreshCw } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
@@ -22,13 +22,20 @@ export default function S50DataRecovery() {
     if (confirmErase === '1') setEraseOpen(true);
   }, [confirmErase]);
 
+  // A second tap before the button has re-rendered as busy must not open the store twice.
+  const busy = useRef(false);
+
   async function handleTryAgain() {
+    if (busy.current) return;
+    busy.current = true;
     setRetrying(true);
-    const result = await store.open();
-    if (result.ok && result.value === 'ready') {
+    // A store that throws instead of answering is the same calm "still cannot read it", not a crash.
+    const result = await store.open().catch(() => null);
+    if (result && result.ok && result.value === 'ready') {
       router.replace('/splash');
       return;
     }
+    busy.current = false;
     setRetrying(false);
   }
 

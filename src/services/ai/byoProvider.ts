@@ -18,6 +18,8 @@ import { getByoConfig, type ByoConfig } from './secureKeyStore';
 import { parseEventStream } from './sse';
 import { TOOL_DEFINITIONS } from './toolSchemas';
 
+import { isSafeBaseUrl } from './safeBaseUrl';
+
 const FALLBACK_MODEL = 'gpt-4o-mini';
 
 /** A base URL typed or pasted with a trailing slash must not produce `//chat/completions`. */
@@ -43,6 +45,11 @@ export function createByoAssistantProvider(): AssistantProvider {
       const config = await getByoConfig();
       if (!config) {
         yield { type: 'error', code: 'VALIDATION_FAILED', message: 'No BYO key configured.' };
+        return;
+      }
+      // A config saved before the https rule could point at a plain http:// host: never send the key there.
+      if (!isSafeBaseUrl(config.baseUrl)) {
+        yield { type: 'error', code: 'VALIDATION_FAILED', message: 'Your AI address uses http://, which would send your key without protection. Change it to https:// in Settings.' };
         return;
       }
 
@@ -106,6 +113,7 @@ export function createByoAssistantProvider(): AssistantProvider {
     async transcribe({ uri, signal }): Promise<Result<string>> {
       const config = await getByoConfig();
       if (!config) return err({ code: 'VALIDATION_FAILED', message: 'No BYO key configured.' });
+      if (!isSafeBaseUrl(config.baseUrl)) return err({ code: 'VALIDATION_FAILED', message: 'Your AI address uses http://. Change it to https:// in Settings.' });
       if (!config.supportsTranscription) {
         // Uncertain/unsupported transcription must never block a BYO save or a text
         // conversation — degrade gracefully; the caller falls back to text-only input.

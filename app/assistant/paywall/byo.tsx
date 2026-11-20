@@ -9,8 +9,13 @@ import { probeByoEndpoint, setByoConfig } from '@/services/ai';
 import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { Button, Input, Screen } from '@/ui';
 import { Text } from '@/ui/AppText';
+import { isSafeBaseUrl } from '@/services/ai/safeBaseUrl';
 
-type Status = 'idle' | 'validating' | 'invalid' | 'success-full' | 'success-degraded';
+type Status = 'idle' | 'validating' | 'invalid' | 'insecure' | 'success-full' | 'success-degraded';
+
+const INSECURE_LINE =
+  'This address starts with http://, which would send your key without protection. Use an https:// address. http:// is only accepted for a model server on this phone or your home network.';
+
 
 export default function S40ByoAiKeySetup() {
   const t = useTheme();
@@ -21,6 +26,14 @@ export default function S40ByoAiKeySetup() {
   const [status, setStatus] = useState<Status>('idle');
 
   async function handleSaveAndConnect() {
+    if (/^http:\/\//i.test(baseUrl.trim()) && !isSafeBaseUrl(baseUrl)) {
+      setStatus('insecure');
+      return;
+    }
+    if (!/^https?:\/\//i.test(baseUrl.trim())) {
+      setStatus('invalid');
+      return;
+    }
     setStatus('validating');
     const probe = await probeByoEndpoint(baseUrl.trim(), apiKey.trim());
     if (!probe.ok) {
@@ -40,7 +53,7 @@ export default function S40ByoAiKeySetup() {
   }
 
   const isValidating = status === 'validating';
-  const isInvalid = status === 'invalid';
+  const isInvalid = status === 'invalid' || status === 'insecure';
   const RevealIcon = revealKey ? EyeOff : Eye;
 
   return (
@@ -73,7 +86,7 @@ export default function S40ByoAiKeySetup() {
 
       {isInvalid ? (
         <View accessibilityLiveRegion="polite" style={[styles.banner, { backgroundColor: t.color.dangerSoft ?? t.color.surface }]}>
-          <Text style={[styles.bannerText, { color: t.color.danger }]}>{S40_COPY.invalid}</Text>
+          <Text style={[styles.bannerText, { color: t.color.danger }]}>{status === 'insecure' ? INSECURE_LINE : S40_COPY.invalid}</Text>
         </View>
       ) : null}
       {status === 'success-full' ? (

@@ -27,7 +27,8 @@ jest.mock('@tanstack/react-query', () => {
   return { ...actual, QueryClient: CapturingClient };
 });
 
-// The reminder tap: the app registers one listener for it; the test calls that listener.
+// The reminder tap: the app registers one listener for it, once for the life of the module (the bridge is
+// idempotent), and the test calls that listener.
 let mockTapListener: ((response: unknown) => void) | null = null;
 jest.mock('expo-notifications', () => ({
   ...jest.requireActual('expo-notifications'),
@@ -42,7 +43,7 @@ import { router } from 'expo-router';
 import { routingQueue } from 'expo-router/build/global-state/routingQueue';
 import { store as routerStore } from 'expo-router/build/global-state/router-store';
 import { renderRouter, screen } from 'expo-router/testing-library';
-import { act, userEvent, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, userEvent, waitFor, within } from '@testing-library/react-native';
 
 import { useAddMenuStore, useCelebrationStore, useToastStore } from '@/app-shell';
 import { fake } from '@/queries/testSupport/dbMock';
@@ -96,9 +97,9 @@ const at = (d: string, h = 12) => `${d}T${String(h).padStart(2, '0')}:00:00.000Z
 // way Android does. `pressBack()` is true when NOTHING took it, which on a phone leaves the app.
 type BackListener = () => boolean | null | undefined;
 let backListeners: BackListener[] = [];
-function pressBack(): { exited: boolean } {
+async function pressBack(): Promise<{ exited: boolean }> {
   let exited = true;
-  act(() => {
+  await act(async () => {
     for (const listener of [...backListeners].reverse()) {
       if (listener()) {
         exited = false;
@@ -112,7 +113,6 @@ function pressBack(): { exited: boolean } {
 beforeEach(() => {
   routingQueue.queue = [];
   backListeners = [];
-  mockTapListener = null;
   jest.spyOn(BackHandler, 'addEventListener').mockImplementation(((_event: string, listener: BackListener) => {
     backListeners.push(listener);
     return { remove: () => void (backListeners = backListeners.filter((l) => l !== listener)) };
@@ -200,10 +200,8 @@ describe('journey 1: first launch to Progress', () => {
     await waitFor(() => expect(toast()?.message).toBe('Ideal done'));
     expect(screen.getByText('1 of 1 done')).toBeTruthy();
     // The first day is a milestone: the pop-up arrives after the log sound and a breath.
-    await waitFor(async () => {
-      await advance(400);
-      expect(screen.queryByText("You've reached First day.")).toBeTruthy();
-    });
+    await advance(3000);
+    expect(await screen.findByText("You've reached First day.")).toBeTruthy();
     expect(useCelebrationStore.getState().queue).toHaveLength(1);
     await press('Nice');
     await waitFor(() => expect(screen.queryByText("You've reached First day.")).toBeNull());
@@ -218,6 +216,8 @@ describe('journey 1: first launch to Progress', () => {
     await waitFor(() => expect(path()).toBe('/today'));
     expect(screen.getByText('1 of 1 done')).toBeTruthy();
     expect(rootStack()).toEqual(['(tabs)']);
+    // The tour is not behind Today: the phone back button leaves the app rather than walking the tour again.
+    expect(await backUntilExit()).toEqual([]);
   });
 });
 
@@ -233,8 +233,6 @@ describe('journey 2: create on the Routines tab, push to tomorrow, next day', ()
   it('creates, opens, pushes, backs out to Routines, and logs both cards the next day', async () => {
     fake.seedTask(routine('old', 'Stretch'));
     await launch('/today');
-    await advance(500);
-    console.log('DBG', path(), JSON.stringify(screen.queryAllByText(/./).map((n) => n.props.children)), JSON.stringify(screen.toJSON())?.slice(0, 200));
     await screen.findByText('Stretch');
     await openTab('Routines');
     await waitFor(() => expect(path()).toBe('/routines'));
@@ -492,9 +490,9 @@ describe('journey 5: Search, open a task, edit its schedule, Back to Search', ()
   });
 });
 
-function tapReminder(data: Record<string, unknown>) {
+async function tapReminder(data: Record<string, unknown>) {
   if (!mockTapListener) throw new Error('the app has not registered a reminder tap listener');
-  act(() => mockTapListener!({ notification: { request: { content: { data } } } }));
+  await act(async () => mockTapListener!({ notification: { request: { content: { data } } } }));
 }
 
 describe('journey 6: a reminder tap for a habit that is gone', () => {
@@ -508,7 +506,7 @@ describe('journey 6: a reminder tap for a habit that is gone', () => {
     fake.seedTask(routine('gone', 'Old habit', patch));
     await launch('/today');
     await screen.findByText('Stretch');
-    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    await tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
     await waitFor(() => expect(params()).toMatchObject({ reentry: '1', taskId: 'gone' }));
     expect(path()).toBe('/today');
     // The tap did not add a second Today on the stack.
@@ -524,7 +522,7 @@ describe('journey 6: a reminder tap for a habit that is gone', () => {
     fake.seedTask(routine('gone', 'Old habit', { deletedAt: at('2026-07-15') as never }));
     await launch('/today');
     await screen.findByText('Nothing planned for today yet.');
-    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    await tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
     expect(await screen.findByText("No workout yesterday. That's okay.")).toBeTruthy();
     expect(screen.queryByLabelText('Even the fallback counts')).toBeNull();
     await press('Dismiss');
@@ -538,7 +536,7 @@ describe('journey 6: a reminder tap for a habit that is gone', () => {
     await launch('/');
     // The layout has armed the tap listener; the store is not ready yet when the tap arrives.
     const status = jest.spyOn(store, 'status').mockReturnValue('closed' as never);
-    tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
+    await tapReminder({ kind: 'gentle-reentry', taskId: 'gone' });
     status.mockRestore();
     expect(path()).toBe('/splash');
     await waitFor(() => expect(path()).toBe('/today'), { timeout: 5000 });
@@ -562,5 +560,290 @@ describe('journey 6: a reminder tap for a habit that is gone', () => {
     await press('Back');
     await waitFor(() => expect(path()).toBe('/today'));
     expect(await screen.findByText('Stretch')).toBeTruthy();
+  });
+});
+
+/** Presses the phone's back button until the app would exit, returning the path after each press. */
+async function backUntilExit(limit = 8): Promise<string[]> {
+  const seen: string[] = [];
+  for (let i = 0; i < limit; i++) {
+    const { exited } = await pressBack();
+    if (exited) return seen;
+    await advance(50);
+    seen.push(path());
+  }
+  seen.push('DID NOT EXIT');
+  return seen;
+}
+
+/** Today > Settings > Data > Recently deleted, by the real rows. */
+async function walkToRecentlyDeleted() {
+  await userEvent.press(await screen.findByLabelText('Settings'));
+  await waitFor(() => expect(path()).toBe('/settings'));
+  await userEvent.press(await screen.findByLabelText('Data'));
+  await waitFor(() => expect(path()).toBe('/settings/data'));
+  await userEvent.press(await screen.findByTestId('s47-recently-deleted'));
+  await waitFor(() => expect(path()).toBe('/settings/data/deleted'));
+}
+
+describe('journey 7: the phone back button from deep screens', () => {
+  it('Today > Settings > Data > Recently deleted: one screen up per press, then out of the app, no loop', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await walkToRecentlyDeleted();
+    expect(await backUntilExit()).toEqual(['/settings/data', '/settings', '/today']);
+  });
+
+  it('the Android back button on a tab goes to Today first, then leaves the app', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await openTab('Events');
+    await waitFor(() => expect(path()).toBe('/events'));
+    await openTab('To-dos');
+    await waitFor(() => expect(path()).toBe('/todos'));
+    expect(await backUntilExit()).toEqual(['/today']);
+  });
+
+  it('the first launch tour: the back button walks the tour back one step at a time, and a resumed step goes to its previous step', async () => {
+    fake.seedSettings({ onboardingCompletedAt: null });
+    // A person who was killed on step 4 and resumed there: that step is the only screen in the stack.
+    await launch('/onboarding/consistency');
+    await screen.findByText('Every day counts, ideal or fallback.');
+    expect(rootStack()).toEqual(['onboarding/consistency']);
+    expect(await backUntilExit()).toEqual(['/onboarding/types', '/onboarding/hook', '/onboarding/concept']);
+  });
+
+  it('a link straight to a task (nothing behind it): the phone back button leaves the app', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/task/a');
+    await screen.findByText('Stretch');
+    expect(await backUntilExit()).toEqual([]);
+  });
+
+  it('the phone back button closes an open sheet and stays on the screen (it does not leave the task)', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await userEvent.press(await screen.findByTestId('s20-more'));
+    await userEvent.press(await screen.findByLabelText('Delete routine'));
+    const sheet = await screen.findByTestId('delete-task-sheet');
+    // Android turns the back button into the Modal's own close request while a sheet is up.
+    await act(async () => fireEvent(sheet, 'requestClose'));
+    await waitFor(() => expect(screen.queryByTestId('delete-task-sheet')).toBeNull());
+    expect(path()).toBe('/task/a');
+    expect(screen.getByText('Stretch')).toBeTruthy();
+    expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
+    expect(await backUntilExit()).toEqual(['/today']);
+  });
+});
+
+describe('journey 7b: the back stack does not grow when a screen leaves by its own button', () => {
+  // Each of these screens leaves with `router.push` or `router.replace` to a screen that is already on
+  // the stack, which stacks a second copy on top; the phone back button then walks back through copies.
+  // The right call is `router.dismissTo` (as `useOriginAwareBack` now does). Marked failing until fixed.
+  it.failing('Settings > Back (to Today) leaves Today alone on the stack', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText('Settings'));
+    await waitFor(() => expect(path()).toBe('/settings'));
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/today'));
+    await advance(100);
+    expect(rootStack()).toEqual(['(tabs)']);
+  });
+
+  it.failing('Settings > Data > Recently deleted > Back, Back leaves exactly the screens that were below', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await walkToRecentlyDeleted();
+    const stackAtDeleted = rootStack();
+    expect(stackAtDeleted).toHaveLength(4);
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/settings/data'));
+    await advance(100);
+    expect(rootStack()).toEqual(stackAtDeleted.slice(0, 3));
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/settings'));
+    await advance(100);
+    expect(rootStack()).toEqual(stackAtDeleted.slice(0, 2));
+  });
+
+  it.failing('Today > Add task > Routine > Save leaves Today alone on the stack', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await press('Add task');
+    await userEvent.press(await screen.findByTestId('add-pick-type-routine'));
+    await waitFor(() => expect(path()).toBe('/add/routine'));
+    await userEvent.type(await screen.findByLabelText('Routine name'), 'Read');
+    await press('Thu');
+    await userEvent.type(await screen.findByLabelText('Ideal step 1'), 'Read a chapter');
+    await userEvent.type(await screen.findByLabelText('Fallback step 1'), 'Read a page');
+    await press('Save routine');
+    await waitFor(() => expect(path()).toBe('/today'));
+    await advance(100);
+    expect(rootStack()).toEqual(['(tabs)']);
+  });
+
+  it.failing('Today > a task > Delete leaves Today alone on the stack', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await deleteFromTaskPage();
+    await waitFor(() => expect(path()).toBe('/today'));
+    await advance(100);
+    expect(rootStack()).toEqual(['(tabs)']);
+  });
+});
+
+/** What another screen's delete does to the shared data: the write, then every open query refreshes. */
+async function deleteElsewhere(id: string) {
+  const result = await fake.repos.tasks.softDelete(id as Id, at(clock.today) as never);
+  expect(result.ok).toBe(true);
+  await act(async () => {
+    await Promise.all(mockClients.map((c) => (c as unknown as { invalidateQueries(): Promise<void> }).invalidateQueries()));
+  });
+}
+
+describe('journey 8: a sheet is open and the screen changes underneath it', () => {
+  it('the add sheet stays usable if a link moves the app to another tab: it can be closed, and the new tab works', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await press('Add task');
+    expect(await screen.findByText('What do you want to add?')).toBeTruthy();
+    await act(async () => router.navigate('/routines' as never));
+    await waitFor(() => expect(path()).toBe('/routines'));
+    // The sheet belongs to the app shell, so it is still up; Close dismisses it and nothing else.
+    expect(screen.getByText('What do you want to add?')).toBeTruthy();
+    await press('Close');
+    await waitFor(() => expect(screen.queryByText('What do you want to add?')).toBeNull());
+    expect(path()).toBe('/routines');
+    expect(screen.getByText('Stretch')).toBeTruthy();
+    expect(rootStack()).toEqual(['(tabs)']);
+  });
+
+  it('picking a type from the add sheet after the tab changed opens the form, and Back returns to the tab it was opened over', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+    await press('Add task');
+    await screen.findByText('What do you want to add?');
+    await act(async () => router.navigate('/events' as never));
+    await waitFor(() => expect(path()).toBe('/events'));
+    await userEvent.press(await screen.findByTestId('add-pick-type-todo'));
+    await waitFor(() => expect(path()).toBe('/add/todo'));
+    expect(screen.queryByText('What do you want to add?')).toBeNull();
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/events'));
+  });
+
+  // The task page stays mounted under the tab the link opened, still holding its open sheet, and a sheet is
+  // a native overlay: on a phone it would stay showing over the new tab. (Here the covered screen is hidden
+  // from queries, so the check reads the Modal's own `visible`.) The fix belongs in `Dialog` (close on blur).
+  it.failing('a sheet open on a task page is not left showing when a link moves the app to a tab', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await userEvent.press(await screen.findByTestId('s20-more'));
+    await userEvent.press(await screen.findByLabelText('Delete routine'));
+    await screen.findByTestId('delete-task-sheet');
+    await act(async () => router.navigate('/routines' as never));
+    await waitFor(() => expect(path()).toBe('/routines'));
+    const showing = screen.queryAllByTestId('delete-task-sheet', { includeHiddenElements: true }).filter((n) => n.props.visible);
+    expect(showing).toHaveLength(0);
+  });
+
+  it('that link does not delete or change anything behind the open sheet, and Back from the tab returns through the task page', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await userEvent.press(await screen.findByTestId('s20-more'));
+    await userEvent.press(await screen.findByLabelText('Delete routine'));
+    await screen.findByTestId('delete-task-sheet');
+    await act(async () => router.navigate('/routines' as never));
+    await waitFor(() => expect(path()).toBe('/routines'));
+    expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
+    expect(screen.getByText('Stretch')).toBeTruthy();
+    // The stack is bounded and ends: it does not loop between the two.
+    const seen = await backUntilExit();
+    expect(seen.length).toBeLessThanOrEqual(4);
+    expect(seen.at(-1)).not.toBe('DID NOT EXIT');
+  });
+});
+
+describe('journey 9: a task screen left on the back stack while that task is deleted elsewhere', () => {
+  it('Search > task > icon: the icon screen and the task screen both say it was deleted, and Back lands on Search without it', async () => {
+    fake.seedTask(routine('a', 'Gym session'));
+    fake.seedTask(routine('b', 'Gentle yoga'));
+    await launch('/today');
+    await screen.findByText('Gym session');
+    await userEvent.press(await screen.findByLabelText('Search'));
+    await waitFor(() => expect(path()).toBe('/search'));
+    await userEvent.press(await screen.findByText('Gym session'));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await userEvent.press(await screen.findByTestId('s20-icon-avatar'));
+    await waitFor(() => expect(path()).toBe('/task/a/icon'));
+    await userEvent.press(await screen.findByLabelText('Indigo'));
+
+    await deleteElsewhere('a');
+    expect(await screen.findByText('“Gym session” was deleted.')).toBeTruthy();
+    expect(screen.queryByLabelText('Save')).toBeNull();
+    // Leaving the icon screen shows the task screen under it, also saying so (and nothing to log).
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    expect(await screen.findByText('“Gym session” was deleted.')).toBeTruthy();
+    expect(screen.queryByLabelText(/Gym session: Done/)).toBeNull();
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/search'));
+    expect(await screen.findByText('Gentle yoga')).toBeTruthy();
+    expect(screen.queryByText('Gym session')).toBeNull();
+    expect(rootStack()).toEqual(['(tabs)', 'search']);
+  });
+
+  it('a Save on the icon screen that lands after the delete is refused with the retry toast, and nothing is written to the deleted task', async () => {
+    fake.seedTask(routine('a', 'Gym session'));
+    await launch('/task/a/icon');
+    await userEvent.press(await screen.findByLabelText('Indigo'));
+    // The delete happens in the store but this screen has not heard yet (no refresh): Save is still on screen.
+    expect((await fake.repos.tasks.softDelete('a' as Id, at(clock.today) as never)).ok).toBe(true);
+    await userEvent.press(await screen.findByLabelText('Save'));
+    await waitFor(() => expect(toast()?.tone).toBe('warning'));
+    expect(toast()?.message).toBe("Couldn't save that. Try again.");
+    expect((await fake.repos.tasks.get('a' as Id))?.color).toBe('forge-orange');
+  });
+
+  it('a log tapped on a task page whose task was deleted a moment earlier does not write a log, and the page then shows the notice', async () => {
+    fake.seedTask(routine('a', 'Gym session'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Gym session, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    const done = await screen.findByLabelText('Gym session: Done');
+    expect((await fake.repos.tasks.softDelete('a' as Id, at(clock.today) as never)).ok).toBe(true);
+    await userEvent.press(done);
+    await waitFor(() => expect(toast()?.tone).toBe('warning'));
+    expect(fake.logsFor('a' as Id)).toHaveLength(0);
+    expect(useCelebrationStore.getState().queue).toHaveLength(0);
+    await deleteElsewhere('a').catch(() => undefined);
+  });
+
+  it('Restore on the stale task screen brings the page back to life and Today lists it again', async () => {
+    fake.seedTask(routine('a', 'Gym session'));
+    await launch('/today');
+    await userEvent.press(await screen.findByLabelText(/^Gym session, .*Opens the task/));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    await deleteElsewhere('a');
+    await userEvent.press(await screen.findByText('Restore'));
+    expect(await screen.findByLabelText('Gym session: Done')).toBeTruthy();
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/today'));
+    expect(await screen.findByText('0 of 1 done')).toBeTruthy();
   });
 });

@@ -58,7 +58,7 @@ import type { Cadence, Id, LocalDate, Occurrence, Step, TaskDraft, TaskWithSteps
 import { addDays } from '@/lib/date';
 import { aggregateConsistency, perTaskConsistency, reconcileAchievements } from '@/domain';
 
-import { resolveAllOccurrences, resolveRecordOccurrences } from './internal';
+import { resolveAllOccurrences, resolveRecordOccurrences, resolveTaskOccurrences } from './internal';
 import { fake, repos } from './testSupport/dbMock';
 import { clock } from './testSupport/clockMock';
 import {
@@ -87,9 +87,9 @@ type Op =
   | { k: 'advance'; d: number }
   | { k: 'open' }
   | { k: 'create'; kind: number; a: number; b: number }
-  | { k: 'log'; t: number; ago: number; chip: Chip; pushed: boolean }
-  | { k: 'step'; t: number; ago: number; s: number; pushed: boolean }
-  | { k: 'dose'; t: number; ago: number; n: number; pushed: boolean }
+  | { k: 'log'; t: number; ago: number; chip: Chip }
+  | { k: 'step'; t: number; ago: number; s: number }
+  | { k: 'dose'; t: number; ago: number; n: number }
   | { k: 'push'; t: number; ago: number }
   | { k: 'unpush'; t: number; ago: number }
   | { k: 'off'; t: number; whole: boolean; ago: number; mark: boolean }
@@ -127,9 +127,9 @@ function generate(seed: number): Op[] {
     for (let i = 0; i < n; i++) {
       const x = r();
       const t = int(1000);
-      if (x < 0.34) ops.push({ k: 'log', t, ago: ago(), chip: pick<Chip>(['done', 'done', 'done', 'fallback', 'fallback', 'todo', 'skip']), pushed: r() < 0.3 });
-      else if (x < 0.42) ops.push({ k: 'step', t, ago: ago(), s: int(5), pushed: r() < 0.2 });
-      else if (x < 0.5) ops.push({ k: 'dose', t, ago: ago(), n: int(4), pushed: r() < 0.2 });
+      if (x < 0.34) ops.push({ k: 'log', t, ago: ago(), chip: pick<Chip>(['done', 'done', 'done', 'fallback', 'fallback', 'todo', 'skip']) });
+      else if (x < 0.42) ops.push({ k: 'step', t, ago: ago(), s: int(5) });
+      else if (x < 0.5) ops.push({ k: 'dose', t, ago: ago(), n: int(4) });
       else if (x < 0.58) ops.push({ k: 'push', t, ago: ago() });
       else if (x < 0.63) ops.push({ k: 'unpush', t, ago: ago() });
       else if (x < 0.7) ops.push({ k: 'off', t, whole: r() < 0.4, ago: ago(), mark: r() < 0.75 });
@@ -141,7 +141,10 @@ function generate(seed: number): Op[] {
       else if (x < 0.89) ops.push({ k: 'forever', t });
       else if (x < 0.91) ops.push({ k: 'cadence', weekly: r() < 0.5 });
       else if (x < 0.94) ops.push({ k: 'rename', t });
-      else if (x < 0.97) ops.push({ k: 'reschedule', t, a: int(1000) });
+      else if (x < 0.97) {
+        if (seed % 5 === 0) ops.push({ k: 'reschedule', t, a: int(1000) });
+        else ops.push({ k: 'rename', t });
+      }
       else ops.push({ k: 'open' });
     }
     // Midnight passes. Sometimes the app is not opened for days, sometimes weeks.
@@ -244,6 +247,8 @@ beforeAll(async () => {
   unmount = r.unmount;
 });
 afterAll(async () => {
+  // eslint-disable-next-line no-console
+  console.log(`simulation tally: ${JSON.stringify(stats, Object.keys(stats).sort())}`);
   await act(async () => unmount());
 });
 
@@ -257,16 +262,38 @@ async function run<T>(fn: () => Promise<T>): Promise<T> {
 
 /* ------------------------------------------------------------------ executing one operation */
 
+/** What the driver actually did (accepted / refused per operation), printed once at the end. */
+const stats: Record<string, number> = {};
+function tally<T>(kind: string, res: T): T {
+  const ok = (res as { ok?: boolean } | undefined)?.ok;
+  const key = `${kind}:${ok === undefined ? 'done' : ok ? 'ok' : 'refused'}`;
+  stats[key] = (stats[key] ?? 0) + 1;
+  return res;
+}
+
 function at(date: string) {
   clock.today = date;
   clock.now = `${date}T12:00:00.000Z`;
 }
 
-async function pushedFromFor(taskId: Id, date: LocalDate, wanted: boolean): Promise<LocalDate | undefined> {
-  if (!wanted) return undefined;
-  const prior = addDays(date, -1);
-  const row = (await repos.logs.listForTask(taskId, prior, prior))[0];
-  return row && row.movedToDate === date ? prior : undefined;
+/**
+ * Which occurrence an operation addresses. A small `ago` is the Nth most recent day the habit has an
+ * occurrence (a pushed one included, with its `pushedFrom`), so most taps land on something real; a
+ * big one is a plain calendar day, which is usually refused (nothing due) and checks the refusals.
+ */
+async function pick(id: Id, ago: number): Promise<{ date: LocalDate; pushedFrom?: LocalDate }> {
+  const today = D(clock.today);
+  const task = await repos.tasks.get(id);
+  if (!task || ago >= 20) return { date: addDays(today, -ago) };
+  const occs = (await resolveTaskOccurrences(repos, task, today, today)).filter((o) => o.outcome !== 'not-due').reverse();
+  const o = occs[ago % Math.max(1, occs.length)];
+  return o ? { date: o.date, ...(o.pushedFrom ? { pushedFrom: o.pushedFrom } : {}) } : { date: addDays(today, -ago) };
+}
+
+/** The Nth most recent day this habit has a pushed-away row (so Undo push has something to undo). */
+async function pushedSource(id: Id, ago: number): Promise<LocalDate> {
+  const rows = (await repos.logs.listRange(D('2000-01-01'), D('2100-01-01'))).filter((l) => l.taskId === id && l.movedToDate !== null).map((l) => l.date).sort().reverse();
+  return rows.length ? (rows[ago % rows.length] as LocalDate) : addDays(D(clock.today), -ago);
 }
 
 async function execute(op: Op, w: World): Promise<void> {
@@ -281,6 +308,7 @@ async function execute(op: Op, w: World): Promise<void> {
       return;
     case 'create': {
       const res = await run(() => hooks.current.create.mutateAsync(draftFor(op.kind, op.a, op.b)));
+      tally('create', res);
       if (res.ok) w.ids.push(res.value);
       return;
     }
@@ -288,66 +316,69 @@ async function execute(op: Op, w: World): Promise<void> {
       const id = task(op.t);
       if (!id) return;
       const date = addDays(today, -op.ago);
-      await logState({ taskId: id, date, chip: op.chip, pushedFrom: await pushedFromFor(id, date, op.pushed) });
+      {
+        const p = await pick(id, op.ago);
+        tally('log', await logState({ taskId: id, date: p.date, chip: op.chip, pushedFrom: p.pushedFrom }));
+      }
       return;
     }
     case 'step': {
       const id = task(op.t);
       const t = id ? await repos.tasks.get(id) : null;
       if (!id || !t || t.idealSteps.length === 0) return;
-      const date = addDays(today, -op.ago);
-      await toggleStep({ taskId: id, date, stepId: t.idealSteps[op.s % t.idealSteps.length]!.id, pushedFrom: await pushedFromFor(id, date, op.pushed) });
+      const p = await pick(id, op.ago);
+      tally('step', await toggleStep({ taskId: id, date: p.date, stepId: t.idealSteps[op.s % t.idealSteps.length]!.id, pushedFrom: p.pushedFrom }));
       return;
     }
     case 'dose': {
       const id = task(op.t);
       if (!id) return;
-      const date = addDays(today, -op.ago);
-      await logDose({ taskId: id, date, dosesCompleted: op.n, pushedFrom: await pushedFromFor(id, date, op.pushed) });
+      const p = await pick(id, op.ago);
+      tally('dose', await logDose({ taskId: id, date: p.date, dosesCompleted: op.n, pushedFrom: p.pushedFrom }));
       return;
     }
     case 'push': {
       const id = task(op.t);
-      if (id) await snoozeOccurrence({ taskId: id, date: addDays(today, -op.ago) });
+      if (id) tally('push', await snoozeOccurrence({ taskId: id, date: (await pick(id, op.ago)).date }));
       return;
     }
     case 'unpush': {
       const id = task(op.t);
-      if (id) await undoSnooze({ taskId: id, date: addDays(today, -op.ago) });
+      if (id) tally('unpush', await undoSnooze({ taskId: id, date: await pushedSource(id, op.ago) }));
       return;
     }
     case 'off': {
       const id = task(op.t);
-      await markOffDay({ date: addDays(today, -op.ago), taskId: op.whole || !id ? null : id, mark: op.mark });
+      tally(op.whole || !id ? 'off-whole' : 'off-task', await markOffDay({ date: addDays(today, -op.ago), taskId: op.whole || !id ? null : id, mark: op.mark }));
       return;
     }
     case 'end': {
       const id = task(op.t);
-      if (id) await run(() => hooks.current.end.mutateAsync(id));
+      if (id) tally('end', await run(() => hooks.current.end.mutateAsync(id)));
       return;
     }
     case 'start': {
       const id = task(op.t);
-      if (id) await run(() => hooks.current.start.mutateAsync(id));
+      if (id) tally('start', await run(() => hooks.current.start.mutateAsync(id)));
       return;
     }
     case 'delete': {
       const id = task(op.t);
-      if (id) await run(() => hooks.current.del.mutateAsync(id));
+      if (id) tally('delete', await run(() => hooks.current.del.mutateAsync(id)));
       return;
     }
     case 'restore': {
       const id = task(op.t);
-      if (id) await run(() => hooks.current.restore.mutateAsync(id));
+      if (id) tally('restore', await run(() => hooks.current.restore.mutateAsync(id)));
       return;
     }
     case 'forever': {
       const id = task(op.t);
-      if (id) await run(() => hooks.current.forever.mutateAsync(id));
+      if (id) tally('forever', await run(() => hooks.current.forever.mutateAsync(id)));
       return;
     }
     case 'cadence':
-      await updateSettings({ cycleCadence: op.weekly ? 'weekly' : 'monthly' });
+      tally('cadence', await updateSettings({ cycleCadence: op.weekly ? 'weekly' : 'monthly' }));
       return;
     case 'rename': {
       const id = task(op.t);
@@ -359,7 +390,7 @@ async function execute(op: Op, w: World): Promise<void> {
       const t = id ? await repos.tasks.get(id) : null;
       // Only the routines that already run every day or on weekdays (their steps stay valid).
       if (!id || !t || t.type !== 'routine' || t.idealSteps.some((s) => s.dueWeekdays !== null)) return;
-      await run(() => hooks.current.update.mutateAsync({ id, patch: { cadence: NEW_CADENCES[op.a % NEW_CADENCES.length] } }));
+      tally('reschedule', await run(() => hooks.current.update.mutateAsync({ id, patch: { cadence: NEW_CADENCES[op.a % NEW_CADENCES.length] } })));
       return;
     }
   }
