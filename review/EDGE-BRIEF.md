@@ -64,3 +64,14 @@ reports for your area (`review/haiku/*.md`, `review/sonnet/*.md`) and do not rep
 Reports are numbered 32-39. File ownership in your own brief overrides earlier rounds.
 The full suite is now ~2140 tests; never run it whole while other agents work (it takes
 over 10 minutes under load): run only your files.
+
+## Round 4 (2026-11-20, "also do more tests")
+New this pass (main session, twenty-seventh pass): Android exact reminders (the app's own native
+module `modules/exact-alarm`, `src/services/exactAlarms`, a one-time ask on Today in
+`src/features/notifications/ExactRemindersAsk.tsx`, a row in Settings > Notifications), and the
+consistency breakdown now always adds up to the counted days (`apportion` in
+`src/domain/consistency.ts`, largest remainder). Round 4 angles: the new features, an independent
+code review of rounds 2-3, undo everywhere, a week of real use through the screens, UI speed with
+many habits, wording consistency, screen-level accessibility, backups with every new column.
+Reports are numbered 40-47. Read earlier reports for your area; do not repeat them. Ownership in
+your own brief overrides earlier rounds. Never run the whole suite (over 2,500 tests).
