@@ -1305,6 +1305,47 @@ Open with the human:
   heavy record); fine for now, a candidate if logging ever feels slow.
 - A pop-up message may read "Dismiss" to a screen reader (check on the phone).
 
+### Round 4, twenty-sixth pass (2026-11-20): edge-case round 3
+
+The human: **"do more tests"** (again). Round 3 tested the tests and the parts
+untouched so far (reports `review/sonnet/32, 33, 36, 38` and
+`review/haiku/34, 35, 37, 39`).
+
+Fixed:
+- Backups on Android (main session): React Native's Share sends text only, so
+  the backup "share" handed over the file's path. Now Android's folder picker
+  opens and the backup FILE is written where the person chooses
+  (`src/features/data/offerBackupFile.ts`). Adding expo-sharing was blocked in
+  this session, so the built-in Storage Access Framework is used.
+- Assistant: model-created routines were all refused (schema vs validator);
+  turns are queued; Continue keeps the new message; only the newest 40
+  messages are sent; a quadratic guardrail pattern removed; an outside
+  `fallback://` link only fills the message box, while buttons inside the app
+  still send in one tap (main session: `inAppOpening.ts`).
+- Races: writes run one at a time (`writeQueue.ts`), so double taps or two
+  screens cannot report an award twice or fire two level-ups; a hung write
+  holds the queue for at most 10 s (main session).
+- Lifecycle: the repairs (expiry sweep, cycle catch-up, XP heal) also run on
+  foreground, single-flight, heal after catch-up; a reminder tap during the
+  splash opens its screen (main session); overlays fail quietly.
+- Android config: 18 unused permissions blocked; versionCode 2.
+- Browser: weekday chips fit at 320 px; an invalid Save explains itself.
+- Fuzzing: an infinite or NaN XP no longer hangs `levelFor`; malformed drafts
+  and backup files are refused, never thrown on.
+- Mutation testing: 226 planted bugs, 57 gaps closed with new tests; the cycle
+  walk cannot loop forever (main session).
+- Spec coverage: 273-row traceability table, 62 tests for the gaps.
+
+Open with the human:
+- Release signing uses the public debug key (fine for testing only); R8 is off
+  (APK about 55 MB); exact alarms are not requested on Android 14+, so
+  reminders may arrive late; a home-network http model server is blocked by
+  Android's cleartext rule; sounds play with the ringer off (by request).
+- The breakdown counts on S25/S26 can add to more than the counted days on a
+  day with both an ideal and a fallback (rounding each separately).
+- Small spec differences: S35 cards navigate; S26 uses taps, not a slider; the
+  routine "no ideal step" banner is shorter than the spec's sentence.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
