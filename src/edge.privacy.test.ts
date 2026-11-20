@@ -255,7 +255,7 @@ describe('static: SecureStore keys and Erase all data', () => {
 
   it('uses exactly the SecureStore keys that Erase all data clears', () => {
     expect(secureFiles.sort()).toEqual(
-      ['src/db/lifecycle.ts', 'src/features/agents/store.ts', 'src/features/onboarding/progress.ts', 'src/services/ai/secureKeyStore.ts', 'src/services/sfx/index.ts'].sort(),
+      ['src/db/lifecycle.ts', 'src/features/agents/store.ts', 'src/features/notifications/ExactRemindersAsk.tsx', 'src/features/onboarding/progress.ts', 'src/services/ai/secureKeyStore.ts', 'src/services/sfx/index.ts'].sort(),
     );
     expect([...used].sort()).toEqual([...erased].sort());
   });

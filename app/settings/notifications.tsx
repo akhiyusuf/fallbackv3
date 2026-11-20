@@ -1,6 +1,6 @@
 /** S42 — Notifications. One grouped list per section (D7); switches as row accessories. */
-import { useEffect } from 'react';
-import { View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AppState, View } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 
 import { useToastStore } from '@/app-shell';
@@ -10,6 +10,7 @@ import { NotificationSample } from '@/features/notifications/NotificationSample'
 import { useSettings, useTasks, useUpdateSettings } from '@/queries';
 import { initNotificationsBridge } from '@/services/notifications';
 import { initWidgetsBridge } from '@/services/widgets';
+import { exactRemindersAllowed, openExactReminderSettings } from '@/services/exactAlarms';
 import { EmptyLine, ListGroup, ListRow, Screen, Select, Skeleton, Switch } from '@/ui';
 import type { NotificationPrefs } from '@/types';
 
@@ -30,6 +31,15 @@ function shortDate(date: string): string {
 }
 
 export default function S42NotificationsSettings() {
+  // Android may hold reminders back unless the person allows exact timing; read again on return
+  // from the system page.
+  const [exactAllowed, setExactAllowed] = useState(() => exactRemindersAllowed());
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setExactAllowed(exactRemindersAllowed());
+    });
+    return () => sub?.remove();
+  }, []);
   const router = useRouter();
   const settingsQuery = useSettings();
   const tasksQuery = useTasks();
@@ -114,6 +124,15 @@ export default function S42NotificationsSettings() {
       {prefs.master ? (
         <>
           <ListGroup title={S42_COPY.remindersSection}>
+            {exactAllowed ? null : (
+              <ListRow
+                label={S42_COPY.exactTimingLabel}
+                sublabel={S42_COPY.exactTimingOff}
+                onPress={() => openExactReminderSettings()}
+                accessibilityLabel={`${S42_COPY.exactTimingLabel}. ${S42_COPY.exactTimingOff}`}
+                testID="s42-exact-timing"
+              />
+            )}
             {toggle(S42_COPY.reminderRows.routineDue, 'routineDue')}
             {toggle(S42_COPY.reminderRows.eventStarting, 'eventStarting')}
             {toggle(S42_COPY.reminderRows.courseDose, 'courseDose')}

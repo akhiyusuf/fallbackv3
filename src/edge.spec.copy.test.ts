@@ -3,8 +3,18 @@
  * longest-run or days-in-a-row concept appear nowhere (verifiable by copy inspection)". The grep was
  * clean when checked this round, but no test guarded it. This test reads the real source files.
  */
-import { readdirSync, readFileSync, statSync } from 'fs';
-import { join } from 'path';
+// The app's tsconfig has no Node types, so the few Node calls used here are typed by hand (as in
+// src/edge.privacy.test.ts).
+interface NodeFs {
+  readdirSync(path: string): string[];
+  readFileSync(path: string, encoding: 'utf8'): string;
+  statSync(path: string): { isDirectory(): boolean };
+}
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { readdirSync, readFileSync, statSync } = require('fs') as NodeFs;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { join } = require('path') as { join(...parts: string[]): string };
+declare const __dirname: string;
 
 const ROOTS = ['src', 'app'].map((d) => join(__dirname, '..', d));
 
@@ -29,7 +39,7 @@ function hitsFor(pattern: RegExp): string[] {
   for (const file of FILES) {
     readFileSync(file, 'utf8')
       .split('\n')
-      .forEach((line, i) => {
+      .forEach((line: string, i: number) => {
         // Only text a person can read: skip code comments and identifiers, keep string literals.
         if (pattern.test(line) && /['"`>]/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
       });

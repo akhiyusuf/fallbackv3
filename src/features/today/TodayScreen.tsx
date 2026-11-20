@@ -48,6 +48,7 @@ import { StatHero } from './StatHero';
 import { TodayTaskCard } from './TodayTaskCard';
 import { useTodayRows, type TodayRow } from './useTodayRows';
 import { Text } from '@/ui/AppText';
+import { ExactRemindersAsk } from '@/features/notifications/ExactRemindersAsk';
 
 const STAT_WINDOW_DAYS = 30;
 
@@ -264,6 +265,8 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
       </ScrollView>
 
       {isBlankSlate ? null : <Fab accessibilityLabel={S09_COPY.addTaskLabel} onPress={openAddMenu} />}
+      {/* Android only, once: let reminders ring on the minute. */}
+      <ExactRemindersAsk />
     </View>
   );
 }

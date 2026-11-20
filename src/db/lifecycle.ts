@@ -40,6 +40,7 @@ const SECURE_STORE_KEYS = [
   'fallback.onboarding.progress',
   'fallback.sounds',
   'fallback.agentAccess',
+  'fallback.exactRemindersAsked',
 ] as const;
 
 const BACKUP_DIR = FileSystem.documentDirectory ?? '';

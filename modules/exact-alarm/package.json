@@ -1,0 +1,6 @@
+{
+  "name": "exact-alarm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fallback's own native module: whether Android lets the app ring reminders at the exact minute, and the setting to allow it."
+}

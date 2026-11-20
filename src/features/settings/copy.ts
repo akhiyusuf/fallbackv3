@@ -21,6 +21,8 @@ export const S41_COPY = {
 } as const;
 
 export const S42_COPY = {
+  exactTimingLabel: 'Ring reminders on time',
+  exactTimingOff: 'Off: Android may hold them back a few minutes. Tap to allow.',
   title: 'Notifications',
   masterLabel: 'Notifications',
   masterOnSubcopy: 'Reminders and encouragement, on your terms.',
