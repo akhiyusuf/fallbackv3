@@ -1,0 +1,48 @@
+# Edge-case campaign brief (2026-11-20)
+
+The human is using the APK for a week and asked for rigorous edge-case testing across the
+whole app, by Haiku and Sonnet agents. Eight agents run at the same time, one area each.
+
+## The app
+Fallback: a phones-only habit tracker (Expo SDK 57, RN 0.86, expo-router, TanStack Query,
+zustand, expo-sqlite). "Every habit has an ideal and a fallback." Read `docs/DESIGN_DECISIONS.md`
+(newest passes at the end of the Round 4 section: push to tomorrow is additive, emergency day off
+replaces Skip, Recently deleted, End routine vs Delete) before testing behaviour.
+
+Key facts:
+- Occurrences are resolved per (task, date) in `src/queries/internal.ts` from logs, off marks and
+  the pure domain in `src/domain/`. Push to tomorrow is ADDITIVE (`Occurrence.pushedFrom`; a second
+  occurrence on D+1). XP is keyed by `occurrence.pushedFrom ?? date`.
+- The record (consistency, trend, badges, cycle records) = live tasks + soft-deleted tasks up to
+  their deletion day + anonymous `retired_day` rows (`resolveRecordOccurrences`). Today and lists
+  read live tasks only. Ended tasks (`endedOn`) are due on nothing after their last day.
+- DB writes are serialized (`DbClientProxy.serial`). Writes to a deleted task are refused.
+
+## Rules (all agents)
+- Do NOT commit or push. The main session integrates.
+- Never write to `design-input/**`. Do not edit `CLAUDE.md` or config.
+- Use they/them for the user. No em dashes in any visible wording you add or change.
+- Stay in YOUR area. Write NEW test files named in your brief. You may fix a real bug in source
+  files your brief says you own; for a bug elsewhere, write a failing test marked `it.failing(...)`
+  or `it.skip` with a comment, and describe it in your report instead of editing that file.
+- Never weaken an existing assertion to make it pass. If an existing test encodes old behaviour
+  that a design decision changed on purpose, say so in the report, don't silently rewrite it.
+- RNTL v14: `render`, `fireEvent`, `unmount`, `renderRouter` and `userEvent` calls are async and
+  must be awaited. Reset jest mocks in `beforeEach` (`mockReset`), or mock-once values leak.
+- Test harnesses to copy: fake repos `src/queries/testSupport/fakeRepos.ts` + clock mock (see
+  `src/queries/endedAndRetired.test.tsx`), real SQLite (`src/db/__tests__/retiredDays.test.ts`,
+  `recentlyDeleted.test.ts`), screens (`app/task/[id]/endRoutine.test.tsx`,
+  `app/settings/data/deleted.test.tsx`).
+- Run only your own files, with few workers, because seven other agents share the machine:
+  `timeout 500 npx jest --selectProjects app <path> --maxWorkers=2 --forceExit 2>&1 | tail -60`
+  (domain-only tests: `--selectProjects domain`). Run `npx tsc --noEmit` before finishing; it must
+  have no errors in your files.
+- Think like a real person using the app all week: midnight passing with the app open, logging
+  late, changing their mind, double taps, killing the app mid-save, leap days, month ends, time
+  zone or clock changes, empty states, very long names, hundreds of habits, emoji in names.
+
+## Report
+Write `review/<haiku|sonnet>/<number>-<area>.md`: every test (one line each, grouped), the
+result, each bug with cause, fix and file:line (or why you left it), and what you could not test
+(say plainly what needs a real phone). Reply with a short summary: tests added, bugs fixed, bugs
+left for the main session.
