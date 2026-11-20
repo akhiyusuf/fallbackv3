@@ -94,8 +94,13 @@ function AppShell() {
           })}
         />
       </ErrorBoundary>
-      <AddMenuHost />
-      <CelebrationHost />
+      {/* The overlays get their own boundaries: a fault in one of them must not take the app down. */}
+      <ErrorBoundary quiet>
+        <AddMenuHost />
+      </ErrorBoundary>
+      <ErrorBoundary quiet>
+        <CelebrationHost />
+      </ErrorBoundary>
       <Toast />
     </ThemeContext.Provider>
   );

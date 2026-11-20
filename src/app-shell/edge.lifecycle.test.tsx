@@ -545,8 +545,8 @@ describe('a reminder tap', () => {
     expect(takePendingTapRoute()).toBeNull();
   });
 
-  it.failing(
-    'BUG (src/services/notifications/index.ts, tap listener): a tap that lands while the splash is still in its minimum-display wait is overwritten by Today',
+  it(
+    'a tap that lands while the splash is still in its minimum-display wait opens its screen, not Today',
     async () => {
       (store.status as jest.Mock).mockReturnValue('ready');
       await render(<S01Splash />); // store answers; the 400 ms minimum has not passed yet

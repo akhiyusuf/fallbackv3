@@ -90,7 +90,7 @@ Test file names are relative to the repo root. `titles` means the test title was
 | F6.9 | "Nothing due right now" when routines exist but none due | PRD F6 | `src/features/today/TodayScreen.test.tsx`, `src/features/browse/edge.browse.test.tsx` | COVERED |
 | F7.1 | Sheet offers edit, duplicate, icon and colour, snooze, delete | PRD F7 | `app/task/[id]/index.test.tsx`, `app/task/[id]/icon.test.tsx`, `app/task/[id]/delete.test.tsx` | COVERED |
 | F7.2 | Action row: exactly two slots (Duplicate + one snooze slot) in all three renderings | PRD F7 | `src/features/task/snoozeSlot.test.ts` (9 tests), `app/task/[id]/index.test.tsx` ('snooze row renders DISABLED (not hidden)') | COVERED |
-| F7.3 | No "Move to another day" action anywhere | PRD F7 (narrowed) | `app/task/[id]/index.test.tsx` (asserts the move action is absent) | COVERED |
+| F7.3 | No "Move to another day" action anywhere | PRD F7 (narrowed) | `app/task/[id]/index.test.tsx` mentions the removed "Move day" action; the absence assertion was not read | PARTIAL |
 | F7.4 | Snooze acts only on the occurrence shown in the sheet; not from heatmap | PRD F7 | `app/task/[id]/index.test.tsx` ('heatmap past-cell tap opens the drill-down popover') | PARTIAL |
 | F7.5 | One hop forward only, target computed D to D+1 | PRD F7 | `src/queries/moveSemantics.test.ts`, `src/queries/mutations.invariants.test.ts` | COVERED |
 | F7.6 | Snoozable from pending, ideal, fallback, missed, off; not-due disabled | PRD F7 | `src/features/task/snoozeSlot.test.ts`, `src/queries/moveSemantics.test.ts` | COVERED |
@@ -120,7 +120,7 @@ Test file names are relative to the repo root. `titles` means the test title was
 | F9.2 | No-account and on-device promise stated plainly | PRD F9 | `app/onboarding/hook.test.tsx` and `app/onboarding/types.test.tsx` (copy); not confirmed line by line | PARTIAL |
 | F9.3 | OS permission primed before the system prompt; usable if declined | PRD F9 | `app/onboarding/notifications-primer.test.tsx`, `app/settings/notifications.test.tsx` | COVERED |
 | F9.4 | Skippable; does not recur after completion | PRD F9 | `app/onboarding/hook.test.tsx` ('"Skip" persists onboardingCompletedAt'), `app/coldStart.test.tsx` | COVERED |
-| F9.5 | VoiceOver, TalkBack, Dynamic Type | PRD F9 | `src/ui/edge.a11y.test.tsx`, `app/onboarding/order.test.tsx` | COVERED (automated) + DEVICE (real screen reader) |
+| F9.5 | VoiceOver, TalkBack, Dynamic Type | PRD F9 | `src/ui/edge.a11y.test.tsx` | COVERED (automated) + DEVICE (real screen reader) |
 | F9.6 | Killed mid-onboarding resumes on next launch | PRD F9 edge | `src/features/onboarding/useOnboardingResume.test.tsx`, `src/features/onboarding/edge.onboarding.test.tsx` | COVERED |
 | F9.7 | Erase or reinstall may re-show onboarding | PRD F9 edge | `app/settings/data/erase.test.tsx` (fresh state); re-show not asserted | PARTIAL |
 | F23.1 | Each sub-step toggled per occurrence; subset of the parent's occurrences | PRD F23 | `src/domain/validation.test.ts`, `src/edge.spec.routines.test.ts` | COVERED |
@@ -163,7 +163,7 @@ Test file names are relative to the repo root. `titles` means the test title was
 | F16.2 | Creates and edits tasks mid-conversation across types; drafts pairs | PRD F16 | `src/features/assistant/__tests__/toolExecutor.test.tsx`, `src/features/assistant/__tests__/edge.assistant.test.tsx` | COVERED |
 | F16.3 | Switch voice and text within one conversation | PRD F16 | `app/assistant/chat.test.tsx`, `app/assistant/mic-primer.test.tsx` ('primer — tap Allow, granted -> listening') | COVERED |
 | F16.4 | Disambiguates same-named tasks | PRD F16 | `src/features/assistant/__tests__/ClarificationModal.test.tsx`, `src/features/assistant/__tests__/edge.assistant.test.tsx` | COVERED |
-| F16.5 | Undo on edits | PRD F16 | `app/assistant/chat.test.tsx` ('Undo' edit banner); `src/features/assistant/__tests__/edge.assistantChat.test.tsx` | PARTIAL |
+| F16.5 | Undo on edits | PRD F16 | `src/features/assistant/__tests__/edge.assistantChat.test.tsx` (not read for the undo case) | PARTIAL |
 | F16.6 | Browsable, reopenable conversation history | PRD F16 | `app/assistant/history/index.test.tsx`, `src/edge.spec.s35.test.tsx` (NEW) | COVERED (NEW for S35) |
 | F16.7 | Gated: subscription or BYO key; paywall copy explains | PRD F16 | `app/assistant/paywall/index.test.tsx`, `app/assistant/chat.test.tsx` ('an ENTITLEMENT_REQUIRED error mid-chat routes to the paywall') | COVERED |
 | F16.8 | Guardrails: refuse harmful categories; still create literal neutral tasks | PRD F16 R15 | `src/services/ai/__tests__/guardrails.test.ts` (four canonical fixtures), `src/features/assistant/__tests__/edge.assistant.test.tsx` | COVERED |
@@ -191,7 +191,7 @@ Test file names are relative to the repo root. `titles` means the test title was
 | F21.3 | Honour theme and fixed signal colours | PRD F21 | `src/services/widgets/index.test.ts` ('theme auto resolves against the OS scheme'), `src/services/widgets/snapshot.test.ts` ('only the three FILLED signal colours') | COVERED |
 | F21.4 | Refresh on change; widget refreshes on return to app | PRD F21 | `src/services/widgets/edge.widgets.test.ts`, `src/services/widgets/index.test.ts` ('store:ready republishes') | COVERED |
 | F24 | Sub-step scheduling for Courses and Events | PRD F24 | `app/add/edge.forms.test.tsx` (no-empty validation, form level); Event and Course grid specifics not confirmed | PARTIAL |
-| F26 | Extended cadences (weekly, bi-weekly, monthly, yearly) and repeating Events | PRD F26 | `src/domain/occurrence.test.ts` ('bi-weekly cadence skips alternate weeks', 'monthly on a day the month does not have'), `app/add/edge.forms.test.tsx` | COVERED |
+| F26 | Extended cadences (weekly, bi-weekly, monthly, yearly) and repeating Events | PRD F26 | `src/domain/occurrence.test.ts` ('bi-weekly cadence skips alternate weeks', 'monthly on a day the month does not have'). Repeating Event form not confirmed | PARTIAL |
 | F26-a | Closed picker: no custom recurrence beyond the R23 set | PRD F26 | not confirmed | PARTIAL |
 | F27.1 | As-needed routine created; a Routine, not a To-do or a fifth type | PRD F27 | `app/add/edge.forms.test.tsx` ('as-needed with nothing but a name saves'), `app/add/routine.test.tsx` ('as-needed toggle hides the cadence') | COVERED |
 | F27.2 | Appears in Routines browse; never listed as due on Today | PRD F27 | `src/features/browse/RoutinesBrowseScreen.test.tsx`, `src/features/today/TodayScreen.test.tsx` | COVERED |
@@ -327,7 +327,7 @@ Each is pinned by an `it.failing` test or listed here with its evidence. None ar
 
 ## 6. New tests (this round)
 
-All in `src/` and `app/`'s tests folder; none change existing files. Run with `--selectProjects app`. 62 tests in 10 files, all passing; 3 of them are `it.failing` (B1, B2, B3).
+All ten are new files under `src/`. The S35, S26, S32, S39, S40 and S43 files import their screens from `app/` by relative path. No existing file was changed. Run with `--selectProjects app`. 62 tests in 10 files, all passing; 3 of them are `it.failing` (B1, B2, B3).
 
 | File | Tests | What it covers |
 |---|---|---|
@@ -342,7 +342,7 @@ All in `src/` and `app/`'s tests folder; none change existing files. Run with `-
 | `src/edge.spec.asneeded.test.tsx` | 6 | F27 and F13: 12 uses earn 0 XP; "fallback" marker earns 0; plain use is one reference row; never due, no occurrences; deleted routine refuses a use; a real routine's XP is unchanged by as-needed uses |
 | `src/edge.spec.copy.test.ts` | 3 | F5: scans every feature and app source file for "streak", "in a row", "days running"; guard against an empty scan |
 
-Note for the main session: `src/edge.spec.asneeded.test.tsx` prints React "not wrapped in act(...)" warnings from the mutation hook's cache invalidation. The assertions are unaffected. The same warning pattern is in the existing `src/queries/edge.logging.test.tsx` helpers.
+Note for the main session: `src/edge.spec.asneeded.test.tsx` prints React "not wrapped in act(...)" warnings from the mutation hook's cache invalidation. The assertions are unaffected.
 
 ## 7. Shared files touched
 
@@ -350,12 +350,12 @@ None. No source file, no existing test, no `design-input/`, no `docs/`, no confi
 
 ## 8. What I read and found fine
 
-- `docs/EDGE-BRIEF.md` (review/EDGE-BRIEF.md, all rounds), `review/haiku/BRIEF.md`
+- `review/EDGE-BRIEF.md` (all rounds), `review/haiku/BRIEF.md`
 - `docs/PRD.md` sections 3 to 3B (F1–F31 acceptance and edge bullets) and the PRD's §7 open decisions list
 - `docs/DESIGN_DECISIONS.md` Round 4 passes 19 to 25 and "Still open with the human"
 - `design-input/fallback-handoff/uploads/ALLSCREENS_1.md`, states and interactions of S01–S50 (read only)
 - Source read for the gap checks: `app/assistant/history/[id].tsx`, `src/features/search/SearchScreen.tsx`, `src/ui/TrendGraph.tsx`, `app/progress/trend.tsx`, `app/assistant/paywall/byo.tsx`, `app/assistant/paywall/plan.tsx`, `src/features/assistant/copy.ts` (S39, S40, S44 copy), `app/assistant/chat.tsx`, `src/theme/index.ts`, `app/_layout.tsx`, `src/domain/validation.ts`, `src/domain/achievements.ts`, `src/queries/mutations.ts` (`useLogAsNeededUse`), `src/queries/testSupport/fakeRepos.ts`, `src/ui/StateChip.tsx`, `src/ui/LogControl.tsx`, `app/add/routine.tsx`, `src/features/task/StepScheduleSection.tsx`, `src/features/task/StepListEditor.tsx`
-- Test titles: all 2,223 `it`/`describe` lines were indexed and grepped per requirement. Full files read: the six test harnesses copied for the new tests.
+- Test titles: all 2,223 `it`/`describe` lines were indexed and grepped per requirement. Test bodies were read only for the harnesses I copied and for the files named in the table.
 
 ## 9. Not done or unsure
 

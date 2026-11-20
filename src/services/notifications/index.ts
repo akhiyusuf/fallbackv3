@@ -65,6 +65,16 @@ function routeForTap(data: Record<string, unknown> | undefined): string {
 }
 
 let pendingTapRoute: string | null = null;
+/** Set once the splash has sent the person to their first screen; until then a tap is held for it. */
+let launchRouted = false;
+
+/**
+ * The splash calls this with false when it starts (a launch is under way: hold taps for it) and
+ * with true right after it navigates, so later taps open their screen directly.
+ */
+export function setLaunchRouted(routed: boolean): void {
+  launchRouted = routed;
+}
 
 /**
  * The screen a reminder tap asked for while the app was still starting, once. The splash opens it
@@ -359,7 +369,9 @@ export function initNotificationsBridge(): () => void {
     const route = routeForTap(data);
     // A tap that opened the app from closed arrives while the splash is still opening the
     // database: hand the route to the splash instead of opening Today on a store not yet ready.
-    if (store.status() !== 'ready') {
+    // Also while the splash is still waiting out its minimum display: its own navigation to Today
+    // would otherwise replace the screen the tap opened.
+    if (store.status() !== 'ready' || !launchRouted) {
       pendingTapRoute = route;
       return;
     }

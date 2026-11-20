@@ -12,6 +12,8 @@ import { Text } from '@/ui/AppText';
 
 interface Props {
   readonly children: ReactNode;
+  /** For an overlay (celebrations, the add menu): on a fault it just goes away, the screen stays. */
+  readonly quiet?: boolean;
 }
 
 interface State {
@@ -34,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   override render(): ReactNode {
     if (this.state.error) {
-      return <Fallback onRetry={this.reset} />;
+      return this.props.quiet ? null : <Fallback onRetry={this.reset} />;
     }
     return this.props.children;
   }

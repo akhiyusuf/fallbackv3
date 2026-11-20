@@ -182,7 +182,9 @@ describe('notifications service', () => {
   });
 
   it('initNotificationsBridge registers a tap listener that deep-links a gentle-reentry tap to /today?reentry=1&taskId=<id>', async () => {
-    const { initNotificationsBridge } = require('./index') as typeof import('./index');
+    const { initNotificationsBridge, setLaunchRouted } = require('./index') as typeof import('./index');
+    // The app is open and past its splash (which marks the launch routed).
+    setLaunchRouted(true);
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const dispose = initNotificationsBridge();
 
@@ -196,7 +198,9 @@ describe('notifications service', () => {
   });
 
   it('a tap on a plain routine-due notification opens Today with no query params', async () => {
-    const { initNotificationsBridge } = require('./index') as typeof import('./index');
+    const { initNotificationsBridge, setLaunchRouted } = require('./index') as typeof import('./index');
+    // The app is open and past its splash (which marks the launch routed).
+    setLaunchRouted(true);
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     const dispose = initNotificationsBridge();
 

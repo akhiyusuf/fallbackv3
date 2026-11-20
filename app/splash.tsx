@@ -14,7 +14,7 @@ import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 import { useThemeStore } from '@/app-shell';
 import { runStartupRepairs } from '@/app-shell/repairs';
 import { billing } from '@/services/billing';
-import { takePendingTapRoute } from '@/services/notifications';
+import { setLaunchRouted, takePendingTapRoute } from '@/services/notifications';
 import { store, repos } from '@/db';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
@@ -36,6 +36,12 @@ export default function S01Splash() {
 
     async function boot() {
       try {
+        // A launch is under way: a reminder tap now is held for the route below, not pushed and then replaced.
+        try {
+          setLaunchRouted(false);
+        } catch {
+          /* best-effort: never a reason to send a working store to recovery */
+        }
         const result = await store.open();
 
         const elapsed = Date.now() - startedAt;
@@ -87,6 +93,11 @@ export default function S01Splash() {
           router.replace((tapRoute ?? '/today') as never);
         } else {
           router.replace('/onboarding/concept');
+        }
+        try {
+          setLaunchRouted(true);
+        } catch {
+          /* taps keep being held for the next launch, which is still correct */
         }
       } catch {
         // `repos.settings.get()` throws (by design) if the singleton is somehow missing
