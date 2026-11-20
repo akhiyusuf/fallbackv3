@@ -38,7 +38,7 @@ async function buildTuesdayGap() {
   await userEvent.press(screen.getByLabelText('Mon'));
   await userEvent.press(screen.getByLabelText('Tue'));
   await userEvent.type(await screen.findByLabelText('Ideal step 1'), 'Review notes');
-  await userEvent.press(screen.getAllByLabelText('Add step')[0]!);
+  await userEvent.press(screen.getAllByLabelText(/^Add step/)[0]!);
   await userEvent.type(await screen.findByLabelText('Ideal step 2'), 'Practice problems');
   await userEvent.press(within(screen.getByLabelText('Days for Review notes')).getByLabelText('Tue'));
   await userEvent.press(within(screen.getByLabelText('Days for Practice problems')).getByLabelText('Tue'));

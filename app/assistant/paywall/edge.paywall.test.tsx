@@ -167,7 +167,7 @@ describe('S44 subscription screen', () => {
   it('a subscriber with an unknown renewal date sees a dash, never an invented date', async () => {
     useEntitlementStore.getState().patchEntitlement({ source: 'subscription', plan: 'monthly', status: 'active', renewsOn: null });
     await render(<S44Manage />);
-    expect(await screen.findByText('-')).toBeTruthy();
+    expect(await screen.findByText('–')).toBeTruthy();
   });
 
   it('offline on open: the retry banner; Retry loads it', async () => {
