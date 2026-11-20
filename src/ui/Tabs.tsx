@@ -123,10 +123,12 @@ export function Tabs({ items, value, onChange, accessibilityLabel, disabled = fa
             accessibilityRole="tab"
             accessibilityState={{ selected, disabled }}
             accessibilityLabel={item.label}
+            // The tab is 36 tall inside a 44 bar: the slop makes its touch target 44.
+            hitSlop={{ top: 4, bottom: 4 }}
             // Before the bar has measured itself the chosen option draws its own highlight.
             style={[styles.tab, selected && !measured && { backgroundColor: t.color.bgAlt, borderColor: t.color.border }]}
           >
-            <Text numberOfLines={1} style={[styles.label, { color: selected ? t.color.text : t.color.textMuted, fontWeight: selected ? '700' : '500' }]}>
+            <Text numberOfLines={2} style={[styles.label, { color: selected ? t.color.text : t.color.textMuted, fontWeight: selected ? '700' : '500' }]}>
               {item.label}
             </Text>
           </Pressable>

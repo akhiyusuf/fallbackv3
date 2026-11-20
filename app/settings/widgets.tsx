@@ -57,8 +57,11 @@ export default function S46Widgets() {
   async function handleSave() {
     if (!editing) return;
     const nextConfig: WidgetConfig = { size: editing, mode: draftMode, fixedTaskId: draftMode === 'fixed-task' ? draftTaskId : null };
-    const result = await updateSettings.mutateAsync({ widgets: [...widgets.filter((w) => w.size !== editing), nextConfig] });
-    if (!result.ok) {
+    const saved = await updateSettings.mutateAsync({ widgets: [...widgets.filter((w) => w.size !== editing), nextConfig] }).then(
+      (r) => r.ok,
+      () => false,
+    );
+    if (!saved) {
       showToast(S46_COPY.errorToast, 'warning');
       return;
     }

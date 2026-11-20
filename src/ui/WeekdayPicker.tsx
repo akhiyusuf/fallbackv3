@@ -70,7 +70,7 @@ export function WeekdayPicker({ selected, onChange, mode = 'multi', disabledDays
         })}
       </View>
       {error ? (
-        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.danger }]}>
+        <Text accessibilityRole="alert" style={[styles.error, { color: t.color.dangerText }]}>
           {error}
         </Text>
       ) : null}

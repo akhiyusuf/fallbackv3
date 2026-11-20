@@ -37,6 +37,7 @@ const mockHydrateTheme = jest.fn();
 jest.mock('@/app-shell', () => ({
   useToastStore: (selector: (s: { show: typeof mockShowToast }) => unknown) => selector({ show: mockShowToast }),
   useThemeStore: { getState: () => ({ hydrate: mockHydrateTheme }) },
+  useEntitlementStore: { getState: () => ({ entitlement: { source: 'none' }, patchEntitlement: jest.fn() }) },
 }));
 
 import S47Data from './index';

@@ -17,7 +17,7 @@ import { newId } from '@/lib/id';
 import { designateCarrier, isDue, occurrencesBetween, purgeCutoff, reconcileAchievements, resolveOccurrence, resolvePushedOccurrence } from '@/domain';
 import type { Carrier } from '@/domain';
 import { ok } from '@/types';
-import type { DayLog, Instant, LocalDate, Occurrence, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
+import type { DayLog, Instant, LocalDate, Occurrence, OffDayMark, Repositories, Result, RetiredDay, TaskWithSteps } from '@/types';
 
 export function todayLocal(): LocalDate {
   return clockToday();
@@ -48,32 +48,57 @@ function iterationFrom(task: TaskWithSteps, notBefore: LocalDate): LocalDate {
   return notBefore;
 }
 
-/**
- * Every due occurrence of ONE task between its own earliest possible date and `to`, resolved.
- * Fetches `[from − 1, to]` — the single extra leading day is exactly enough to see every
- * possible inbound pointer into the window (one-hop: only `D − 1` can ever point at `D`).
- */
-export async function resolveTaskOccurrences(
-  repos: Repositories,
-  task: TaskWithSteps,
-  to: LocalDate,
-  today: LocalDate,
-): Promise<Occurrence[]> {
+/** The span one task is resolved over: its own start (or `floor`, when later) to `to`, or null for none. */
+interface TaskSpan {
+  readonly notBefore: LocalDate;
+  readonly from: LocalDate;
+  readonly to: LocalDate;
+}
+
+function spanFor(task: TaskWithSteps, to: LocalDate, floor?: LocalDate): TaskSpan | null {
   const notBefore = creationLocalDate(task);
-  const from = iterationFrom(task, notBefore);
+  let from = iterationFrom(task, notBefore);
   // An ended habit has nothing after its last day, not even a day pushed onto the next one.
   if (task.endedOn && task.endedOn < to) to = task.endedOn;
-  if (from > to) return [];
+  // A later `floor` only trims the days at the start: every date from `floor` on resolves exactly
+  // as it would over the whole history (a date's outcome reads its own row, the row before it
+  // and its off marks, never anything older).
+  if (floor !== undefined && floor > from) from = floor;
+  if (from > to) return null;
+  return { notBefore, from, to };
+}
 
+const NO_MARKS: readonly OffDayMark[] = [];
+
+function groupOffMarks(marks: readonly OffDayMark[]): Map<LocalDate, OffDayMark[]> {
+  const byDate = new Map<LocalDate, OffDayMark[]>();
+  for (const m of marks) {
+    const bucket = byDate.get(m.date);
+    if (bucket) bucket.push(m);
+    else byDate.set(m.date, [m]);
+  }
+  return byDate;
+}
+
+/**
+ * Resolves one task over a span from rows ALREADY read. `offByDate` holds only the marks of one
+ * date per key, so each date sees exactly the marks that can matter to it (the domain looks at
+ * `mark.date === date` and nothing else), without scanning every mark for every date.
+ */
+function resolveSpan(
+  task: TaskWithSteps,
+  span: TaskSpan,
+  today: LocalDate,
+  logs: readonly DayLog[],
+  offByDate: ReadonlyMap<LocalDate, readonly OffDayMark[]>,
+): Occurrence[] {
+  const { notBefore, from, to } = span;
   const dueDates = occurrencesBetween(task, from, to, notBefore);
-
-  const searchFrom = addDays(from, -1);
-  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, searchFrom, to), repos.offDays.listRange(from, to)]);
   const logByDate = new Map(logs.map((l) => [l.date, l]));
 
   const allDates = new Set<LocalDate>(dueDates);
   for (const l of logs) {
-    // A row just outside [from, to] (at `from − 1`) can still point INTO the window.
+    // A row just outside [from, to] (at `from - 1`) can still point INTO the window.
     if (l.movedToDate !== null && l.movedToDate >= from && l.movedToDate <= to) allDates.add(l.movedToDate);
   }
 
@@ -81,6 +106,7 @@ export async function resolveTaskOccurrences(
     const log = logByDate.get(date) ?? null;
     const priorLog = logByDate.get(addDays(date, -1)) ?? null;
     const movedInLog = priorLog && priorLog.movedToDate === date ? priorLog : null;
+    const offMarks = offByDate.get(date) ?? NO_MARKS;
     const own = resolveOccurrence({ task, date, today, log, offMarks, notBefore, movedInLog });
     // Additive push: when the day keeps its own occurrence, the one pushed into it is a second
     // occurrence that day, never merged into the first.
@@ -88,6 +114,64 @@ export async function resolveTaskOccurrences(
       return [own, resolvePushedOccurrence({ task, date, today, sourceLog: movedInLog, offMarks, notBefore })];
     }
     return [own];
+  });
+}
+
+/**
+ * Every due occurrence of ONE task between its own earliest possible date (or `floor`, when
+ * later) and `to`, resolved. Fetches `[from - 1, to]` — the single extra leading day is exactly
+ * enough to see every possible inbound pointer into the window (one-hop: only `D - 1` can ever
+ * point at `D`).
+ */
+export async function resolveTaskOccurrences(
+  repos: Repositories,
+  task: TaskWithSteps,
+  to: LocalDate,
+  today: LocalDate,
+  floor?: LocalDate,
+): Promise<Occurrence[]> {
+  const span = spanFor(task, to, floor);
+  if (!span) return [];
+  const [logs, offMarks] = await Promise.all([repos.logs.listForTask(task.id, addDays(span.from, -1), span.to), repos.offDays.listRange(span.from, span.to)]);
+  return resolveSpan(task, span, today, logs, groupOffMarks(offMarks));
+}
+
+/**
+ * Resolves many tasks with TWO reads in all (one range of logs, one of off marks) instead of two
+ * per task. Each task is handed exactly the rows its own per-task read would have returned
+ * (its own logs from `from - 1` to its `to`), so the result is identical, task by task.
+ */
+async function resolveMany(
+  repos: Repositories,
+  items: readonly { readonly task: TaskWithSteps; readonly to: LocalDate }[],
+  today: LocalDate,
+  floor?: LocalDate,
+): Promise<Occurrence[][]> {
+  const spans = items.map((i) => spanFor(i.task, i.to, floor));
+  let lo: LocalDate | null = null;
+  let hi: LocalDate | null = null;
+  for (const s of spans) {
+    if (!s) continue;
+    if (lo === null || s.from < lo) lo = s.from;
+    if (hi === null || s.to > hi) hi = s.to;
+  }
+  if (lo === null || hi === null) return items.map(() => []);
+
+  const [logs, offMarks] = await Promise.all([repos.logs.listRange(addDays(lo, -1), hi), repos.offDays.listRange(lo, hi)]);
+  const logsByTask = new Map<string, DayLog[]>();
+  for (const l of logs) {
+    const bucket = logsByTask.get(l.taskId);
+    if (bucket) bucket.push(l);
+    else logsByTask.set(l.taskId, [l]);
+  }
+  const offByDate = groupOffMarks(offMarks);
+
+  return items.map((item, i) => {
+    const span = spans[i];
+    if (!span) return [];
+    const floorDate = addDays(span.from, -1);
+    const mine = (logsByTask.get(item.task.id) ?? []).filter((l) => l.date >= floorDate && l.date <= span.to);
+    return resolveSpan(item.task, span, today, mine, offByDate);
   });
 }
 
@@ -177,11 +261,13 @@ export async function resolveWriteTarget(
   return { occurrence, carrier, targetDate: date, existing: log };
 }
 
-/** Every due occurrence of EVERY live (non-deleted) task, for the aggregate scope. */
-export async function resolveAllOccurrences(repos: Repositories, to: LocalDate, today: LocalDate): Promise<Occurrence[]> {
+/**
+ * Every due occurrence of EVERY live (non-deleted) task, for the aggregate scope. With `floor`,
+ * only the dates from `floor` on (the same occurrences the whole history would give for them).
+ */
+export async function resolveAllOccurrences(repos: Repositories, to: LocalDate, today: LocalDate, floor?: LocalDate): Promise<Occurrence[]> {
   const tasks = await repos.tasks.list();
-  const perTask = await Promise.all(tasks.map((t) => resolveTaskOccurrences(repos, t, to, today)));
-  return perTask.flat();
+  return (await resolveMany(repos, tasks.map((task) => ({ task, to })), today, floor)).flat();
 }
 
 /**
@@ -193,13 +279,19 @@ export function deletionDay(task: TaskWithSteps): LocalDate | null {
   return task.deletedAt ? toLocalDate(new Date(task.deletedAt)) : null;
 }
 
+/** Keeps what a deleted task's record shows: days before its deletion day, and that day only if logged. */
+function deletedRecordOf(task: TaskWithSteps, occs: readonly Occurrence[]): Occurrence[] {
+  const day = deletionDay(task);
+  if (!day) return [];
+  return occs.filter((o) => o.date < day || (o.date === day && (o.outcome === 'ideal' || o.outcome === 'fallback')));
+}
+
 /** A deleted task's past occurrences, as they stood when it was deleted. */
 export async function resolveDeletedTaskRecord(repos: Repositories, task: TaskWithSteps, to: LocalDate, today: LocalDate): Promise<Occurrence[]> {
   const day = deletionDay(task);
   if (!day) return [];
   const upTo = day < to ? day : to;
-  const occs = await resolveTaskOccurrences(repos, task, upTo, today);
-  return occs.filter((o) => o.date < day || (o.date === day && (o.outcome === 'ideal' || o.outcome === 'fallback')));
+  return deletedRecordOf(task, await resolveTaskOccurrences(repos, task, upTo, today));
 }
 
 /** A retired day as an occurrence, for the record only (it belongs to no task anywhere). */
@@ -222,11 +314,26 @@ function retiredAsOccurrence(day: RetiredDay, index: number): Occurrence {
  * deleted for good. Consistency, trend, records and badges read this; Today and the lists read
  * `resolveAllOccurrences` (live tasks only).
  */
-export async function resolveRecordOccurrences(repos: Repositories, to: LocalDate, today: LocalDate): Promise<Occurrence[]> {
-  const [live, deleted, retired] = await Promise.all([resolveAllOccurrences(repos, to, today), repos.tasks.listDeleted(), repos.retiredDays.list()]);
-  const fromDeleted = (await Promise.all(deleted.map((t) => resolveDeletedTaskRecord(repos, t, to, today)))).flat();
-  const fromRetired = retired.filter((d) => d.date <= to).map(retiredAsOccurrence);
-  return [...live, ...fromDeleted, ...fromRetired];
+export async function resolveRecordOccurrences(repos: Repositories, to: LocalDate, today: LocalDate, floor?: LocalDate): Promise<Occurrence[]> {
+  const [live, deleted, retired] = await Promise.all([repos.tasks.list(), repos.tasks.listDeleted(), repos.retiredDays.list()]);
+  const items = [
+    ...live.map((task) => ({ task, to })),
+    ...deleted.map((task) => {
+      const day = deletionDay(task);
+      return { task, to: day && day < to ? day : to };
+    }),
+  ];
+  // One pair of range reads for every habit, live and deleted.
+  const resolved = await resolveMany(repos, items, today, floor);
+  const fromLive = resolved.slice(0, live.length).flat();
+  const fromDeleted = deleted.flatMap((task, i) => deletedRecordOf(task, resolved[live.length + i] ?? []));
+  // Ids are the position among the days up to `to` (not among the trimmed ones), so a trimmed
+  // read gives each retired day the id it would have had in the whole record.
+  const fromRetired = retired
+    .filter((d) => d.date <= to)
+    .map(retiredAsOccurrence)
+    .filter((o) => floor === undefined || o.date >= floor);
+  return [...fromLive, ...fromDeleted, ...fromRetired];
 }
 
 /**

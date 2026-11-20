@@ -39,15 +39,18 @@ describe('withOrigin', () => {
 describe('useOriginAwareBack', () => {
   afterEach(() => jest.clearAllMocks());
 
-  it('replaces to the origin route when `from` names a static, always-reachable screen', async () => {
+  it('pops back to the origin route when `from` names a static, always-reachable screen', async () => {
+    const dismissTo = jest.fn();
     const replace = jest.fn();
-    mockUseRouter.mockReturnValue({ replace, back: jest.fn(), canGoBack: () => true });
+    mockUseRouter.mockReturnValue({ dismissTo, replace, back: jest.fn(), canGoBack: () => true });
     mockUseLocalSearchParams.mockReturnValue({ from: 'today' });
 
     const back = await renderBack('/search');
     back();
 
-    expect(replace).toHaveBeenCalledWith('/today');
+    // Not `replace`: that would stack a second copy of the origin over the first.
+    expect(dismissTo).toHaveBeenCalledWith('/today');
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('falls back to the navigation stack when there is no static origin mapping', async () => {

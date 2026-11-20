@@ -60,6 +60,8 @@ export interface Palette {
   off: string; offDeep: string; offSoft: string;
   celebrationGold: string; goldDeep: string; goldSoft: string;
   danger: string; dangerSoft: string; dangerDeep: string;
+  /** Error text on the page or a card (the solid `danger` is for buttons, under white text). 4.5:1 on bg and bgAlt. */
+  dangerText: string;
   xp: string; xpFill: string; iconOnSignal: string; textOnAccent: string;
 }
 
@@ -92,6 +94,7 @@ const LIGHT: Palette = {
   danger: '#D93636',
   dangerSoft: '#FFECEC',
   dangerDeep: '#C42727',
+  dangerText: '#C42727',
 
   xp: '#7D5F14',
   xpFill: '#DCB863',
@@ -126,6 +129,7 @@ const DARK: Palette = {
   danger: '#D93636',
   dangerSoft: '#3A2222',
   dangerDeep: '#FF7A7A',
+  dangerText: '#FF7A7A',
 
   xp: '#DDBE79',
   xpFill: '#CBA24C',

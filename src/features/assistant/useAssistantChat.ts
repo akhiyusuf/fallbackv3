@@ -94,7 +94,8 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
         setClarification({ question: call.args.question, options: call.args.options });
         return;
       }
-      const result = await applyToolCall(call);
+      // The person's own latest words, so a delete can be checked against what they named (see toolExecutor).
+      const result = await applyToolCall(call, { personSaid: lastUserTextRef.current ?? '' });
       if (!result.applied) {
         // Dropped: malformed, invalid, or aimed at something that is gone or ended. Never a
         // half-written task, and never silence either: say so, calmly.
@@ -230,6 +231,7 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
         toolCalls: [],
         createdAt: now(),
       };
+      lastUserTextRef.current = resolutionMessage.text;
       historyRef.current = [...historyRef.current, resolutionMessage];
       await persistTurn(resolutionMessage);
       await streamAndApply();

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 
+import { useEntitlementStore } from '@/app-shell';
 import { useAgentAccessStore } from '@/features/agents/store';
 import { eraseAllData } from '@/services/data';
 import { useSoundStore } from '@/services/sfx';
@@ -23,6 +24,13 @@ export function EraseDataSheet({ visible, onClose, fromRecovery = false }: { rea
       // from before the erase shows until the next launch.
       useSoundStore.setState({ on: true });
       useAgentAccessStore.getState().reset();
+      // The BYO key went with the data. A store subscription is the store's, not ours, so it stays.
+      const entitlement = useEntitlementStore.getState().entitlement;
+      useEntitlementStore.getState().patchEntitlement({
+        hasByoKey: false,
+        byoSupportsTranscription: false,
+        source: entitlement.source === 'byo-key' ? 'none' : entitlement.source,
+      });
       onClose();
       // Start again from the splash with nothing behind it: Back must not return to the
       // screens that showed the erased data.

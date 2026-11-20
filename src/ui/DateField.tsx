@@ -188,7 +188,7 @@ function PickerField({ kind, label, value, onChange, placeholder, helper, error,
         </>
       )}
       {error ? (
-        <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.danger }]}>
+        <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.dangerText }]}>
           {error}
         </Text>
       ) : helper ? (

@@ -11,6 +11,7 @@ import type {
   DateRange,
   Id,
   LocalDate,
+  Occurrence,
   Settings,
   TaskType,
   TaskWithSteps,
@@ -64,7 +65,10 @@ export function useToday(date: LocalDate) {
     queryKey: QUERY_KEYS.today(date),
     queryFn: async () => {
       const today = todayLocal();
-      return resolveAllOccurrences(repos, date, today);
+      // Only `date`'s own occurrences are read (the Today screen shows nothing else): resolving
+      // every habit's whole history to show one day is the cost this avoids. A day pushed onto
+      // `date` from the day before is still there (the day before is read as the pointer).
+      return resolveAllOccurrences(repos, date, today, date);
     },
   });
 }
@@ -76,7 +80,7 @@ export function useTaskOccurrences(taskId: Id, range: DateRange) {
       const task = await repos.tasks.get(taskId);
       if (!task) return [];
       const today = todayLocal();
-      const occs = await resolveTaskOccurrences(repos, task, range.to, today);
+      const occs = await resolveTaskOccurrences(repos, task, range.to, today, range.from);
       return occs.filter((o) => o.date >= range.from && o.date <= range.to);
     },
   });
@@ -92,13 +96,41 @@ export function useConsistency(input: { scope: ConsistencyScope; window: Consist
       if (scope === 'per-task') {
         if (!taskId) throw new Error('taskId is required for per-task scope');
         const task = await repos.tasks.get(taskId);
-        const occs = task ? await resolveTaskOccurrences(repos, task, today, today) : [];
-        return perTaskConsistency({ taskId, occurrences: occs, window, today });
+        return withGrowingFloor(window, today, async (floor) => {
+          const occs = task ? await resolveTaskOccurrences(repos, task, today, today, floor) : [];
+          return perTaskConsistency({ taskId, occurrences: occs, window, today });
+        });
       }
-      const occs = await resolveRecordOccurrences(repos, today, today);
-      return aggregateConsistency({ occurrences: occs, window, today });
+      return withGrowingFloor(window, today, async (floor) => {
+        const occs = await resolveRecordOccurrences(repos, today, today, floor);
+        return aggregateConsistency({ occurrences: occs, window, today });
+      });
     },
   });
+}
+
+/**
+ * A "last 7 / last 30 counted days" window walks back from today and stops at the Nth counted
+ * day, so it rarely needs more than a few weeks of the record. Read a short stretch first and
+ * widen (finally to the whole history) only while the walk has not yet found N counted days.
+ * When it has, every date it looked at is inside the stretch read, so the answer is exactly the
+ * one the whole history gives. `all-time` needs everything and reads it in one go.
+ */
+const FLOOR_DAYS_PER_COUNTED_DAY = [3, 30] as const;
+
+async function withGrowingFloor(
+  window: ConsistencyWindow,
+  today: LocalDate,
+  run: (floor: LocalDate | undefined) => Promise<ConsistencyResult>,
+): Promise<ConsistencyResult> {
+  const cap = window === 'last-7' ? 7 : window === 'last-30' ? 30 : null;
+  if (cap !== null) {
+    for (const k of FLOOR_DAYS_PER_COUNTED_DAY) {
+      const result = await run(libAddDays(today, -(cap * k)));
+      if (result.denominator >= cap) return result;
+    }
+  }
+  return run(undefined);
 }
 
 /** S25's aggregate disclosure table. */
@@ -163,6 +195,26 @@ function bucketRanges(from: LocalDate, to: LocalDate, granularity: TrendGranular
   return out;
 }
 
+/** Splits occurrences into the given (ascending, disjoint) buckets by date, keeping their order. */
+function partitionByBucket(occs: readonly Occurrence[], buckets: readonly DateRange[]): Occurrence[][] {
+  const out: Occurrence[][] = buckets.map(() => []);
+  for (const o of occs) {
+    let lo = 0;
+    let hi = buckets.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const b = buckets[mid] as DateRange;
+      if (o.date < b.from) hi = mid - 1;
+      else if (o.date > b.to) lo = mid + 1;
+      else {
+        (out[mid] as Occurrence[]).push(o);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 /** F28 — all-time trend, granularity coarsens automatically, never a user control. */
 export function useTrend() {
   return useQuery({
@@ -177,8 +229,11 @@ export function useTrend() {
       const occs = await resolveRecordOccurrences(repos, today, today);
 
       const buckets = bucketRanges(earliest, today, granularity);
-      return buckets.map((range) => {
-        const r = aggregateConsistency({ occurrences: occs, window: range, today });
+      // Each bucket is given only the occurrences dated inside it (aggregate reads nothing else),
+      // so the whole record is walked once, not once per bucket.
+      const perBucket = partitionByBucket(occs, buckets);
+      return buckets.map((range, i) => {
+        const r = aggregateConsistency({ occurrences: perBucket[i] ?? [], window: range, today });
         return {
           bucketKey: range.from,
           label: range.from,

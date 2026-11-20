@@ -51,6 +51,18 @@ interface MinimalPurchase {
   readonly jwsRepresentationIOS?: string;
   readonly transactionReceipt?: string;
   readonly expirationDateIOS?: number | null;
+  readonly revocationDateIOS?: number | null;
+  readonly purchaseState?: string;
+}
+
+/** A purchase record that grants Fallback AI right now. The store normally leaves out expired, refunded and
+ *  pending ones, but a cached answer (offline, or a clock that has moved on) can still carry them. */
+function isActivePurchase(p: MinimalPurchase): boolean {
+  if (planForSku(p.productId ?? '') === null) return false;
+  if (typeof p.revocationDateIOS === 'number' && p.revocationDateIOS > 0) return false;
+  if (typeof p.expirationDateIOS === 'number' && Number.isFinite(p.expirationDateIOS) && p.expirationDateIOS <= Date.now()) return false;
+  if (typeof p.purchaseState === 'string' && /pending|deferred/i.test(p.purchaseState)) return false;
+  return true;
 }
 
 function receiptOf(purchase: MinimalPurchase): string | null {
@@ -73,11 +85,16 @@ async function requestBiometricConfirmation(): Promise<Result<void>> {
     // No biometric enrolled — the device passcode fallback is offered by the OS prompt
     // itself when `disableDeviceFallback` is left false; still calm, never blocking.
   }
-  const result = await LocalAuthentication.authenticateAsync({
-    promptMessage: 'Confirm your Fallback AI subscription',
-    disableDeviceFallback: false,
-    cancelLabel: 'Cancel',
-  });
+  let result: Awaited<ReturnType<typeof LocalAuthentication.authenticateAsync>>;
+  try {
+    result = await LocalAuthentication.authenticateAsync({
+      promptMessage: 'Confirm your Fallback AI subscription',
+      disableDeviceFallback: false,
+      cancelLabel: 'Cancel',
+    });
+  } catch (cause) {
+    return err({ code: 'CANCELLED', message: 'Biometric confirmation could not start.', cause: 'biometric' });
+  }
   if (!result.success) {
     // `cause: 'biometric'` tells the screen this was the identity check, not the store sheet being closed.
     return err({ code: 'CANCELLED', message: result.error ?? 'Biometric confirmation was not completed.', cause: 'biometric' });
@@ -86,6 +103,50 @@ async function requestBiometricConfirmation(): Promise<Result<void>> {
 }
 
 let listening = false;
+let purchaseInFlight: Promise<Result<void>> | null = null;
+
+async function runPurchase(plan: Plan): Promise<Result<void>> {
+  const biometric = await requestBiometricConfirmation();
+  if (!biometric.ok) return biometric;
+
+  const sku = plan === 'monthly' ? SKUS.monthly : SKUS.annual;
+  try {
+    await requestPurchase({
+      request: { apple: { sku }, google: { skus: [sku] } },
+      type: 'subs',
+    } as never);
+    // The actual completion is delivered async via `purchaseUpdatedListener` (expo-iap's
+    // documented event-based contract) — a short settle window lets that listener land
+    // and stamp `latestReceipt` before this call resolves for the caller (S39's
+    // "Verifying…" state already covers this visually).
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const refreshed = await billing.refreshEntitlement();
+    if (!refreshed.ok) return refreshed;
+    // The store accepted the request but nothing is active: the purchase is waiting for approval
+    // (ask-to-buy, a slow payment). It is not a success and nothing is lost; the listener turns
+    // Fallback AI on when the store confirms.
+    if (!isSubscribedNow()) return err({ code: 'ENTITLEMENT_REQUIRED', message: 'Purchase is pending approval.', cause: 'pending' });
+    return ok(undefined);
+  } catch (cause) {
+    const code = (cause as { code?: string })?.code ?? '';
+    if (/cancel/i.test(code)) {
+      return err({ code: 'CANCELLED', message: 'Purchase was cancelled. Nothing was charged.', cause });
+    }
+    if (/already.?owned/i.test(code)) {
+      // They already own it (a second device, a purchase that finished late): make sure it is on.
+      const refreshed = await billing.refreshEntitlement();
+      if (refreshed.ok && isSubscribedNow()) return ok(undefined);
+    }
+    if (/defer|pending/i.test(code)) return err({ code: 'ENTITLEMENT_REQUIRED', message: 'Purchase is pending approval.', cause: 'pending' });
+    if (/network/i.test(code)) return err({ code: 'NETWORK_UNAVAILABLE', message: "Couldn't complete the purchase. Nothing was charged.", cause });
+    return err({ code: 'UNKNOWN', message: "Couldn't complete the purchase. Nothing was charged.", cause });
+  }
+}
+
+function isSubscribedNow(): boolean {
+  const status = useEntitlementStore.getState().entitlement.status;
+  return status === 'active' || status === 'trial';
+}
 
 export const billing: BillingProvider = {
   // Called once at launch (app/splash.tsx). It connects to the store and listens for purchases,
@@ -107,6 +168,9 @@ export const billing: BillingProvider = {
             // A failed finalize doesn't lose the purchase — the store replays it on next
             // launch (expo-iap's own documented iOS behaviour); nothing to surface here.
           }
+          // A purchase that was waiting for approval (a parent, a slow bank) lands here later:
+          // turn Fallback AI on without the person having to do anything.
+          await billing.refreshEntitlement();
         })();
       });
       purchaseErrorListener(() => {
@@ -141,36 +205,20 @@ export const billing: BillingProvider = {
     }
   },
 
-  async purchase(plan): Promise<Result<void>> {
-    const biometric = await requestBiometricConfirmation();
-    if (!biometric.ok) return biometric;
-
-    const sku = plan === 'monthly' ? SKUS.monthly : SKUS.annual;
-    try {
-      await requestPurchase({
-        request: { apple: { sku }, google: { skus: [sku] } },
-        type: 'subs',
-      } as never);
-      // The actual completion is delivered async via `purchaseUpdatedListener` (expo-iap's
-      // documented event-based contract) — a short settle window lets that listener land
-      // and stamp `latestReceipt` before this call resolves for the caller (S39's
-      // "Verifying…" state already covers this visually).
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      await billing.refreshEntitlement();
-      return ok(undefined);
-    } catch (cause) {
-      const code = (cause as { code?: string })?.code ?? '';
-      if (/cancel/i.test(code)) {
-        return err({ code: 'CANCELLED', message: 'Purchase was cancelled. Nothing was charged.', cause });
-      }
-      return err({ code: 'UNKNOWN', message: "Couldn't complete the purchase. Nothing was charged.", cause });
-    }
+  // A second tap on Buy while the first is still going joins it: one biometric prompt, one store sheet, one charge.
+  purchase(plan): Promise<Result<void>> {
+    if (purchaseInFlight) return purchaseInFlight;
+    const run = runPurchase(plan).finally(() => {
+      purchaseInFlight = null;
+    });
+    purchaseInFlight = run;
+    return run;
   },
 
   async restore(): Promise<Result<boolean>> {
     try {
       const purchases = (await getAvailablePurchases()) as readonly MinimalPurchase[];
-      const active = purchases.find((p) => planForSku(p.productId ?? '') !== null);
+      const active = purchases.find(isActivePurchase);
       if (active) {
         const receipt = receiptOf(active);
         if (receipt) latestReceipt = receipt;
@@ -193,9 +241,12 @@ export const billing: BillingProvider = {
       // connected it yet, and without this the check failed quietly and showed "Free plan".
       await initConnection();
       const purchases = (await getAvailablePurchases()) as readonly MinimalPurchase[];
-      const active = purchases.find((p) => planForSku(p.productId ?? '') !== null);
+      const active = purchases.find(isActivePurchase);
       if (!active) {
-        useEntitlementStore.getState().patchEntitlement({ source: 'none', plan: null, status: 'none', renewsOn: null, trialEndsOn: null });
+        // Expired, refunded or never bought: the receipt goes too, so nothing is forwarded for it.
+        latestReceipt = null;
+        const current = useEntitlementStore.getState().entitlement;
+        useEntitlementStore.getState().patchEntitlement({ source: current.hasByoKey ? 'byo-key' : 'none', plan: null, status: 'none', renewsOn: null, trialEndsOn: null });
         return ok(undefined);
       }
       const receipt = receiptOf(active);

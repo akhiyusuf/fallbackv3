@@ -10,7 +10,28 @@ import { FONT_SIZE, RADIUS, SPACE, useTheme } from '@/theme';
 import { Button, Input, Screen } from '@/ui';
 import { Text } from '@/ui/AppText';
 
-type Status = 'idle' | 'validating' | 'invalid' | 'success-full' | 'success-degraded';
+type Status = 'idle' | 'validating' | 'invalid' | 'insecure' | 'success-full' | 'success-degraded';
+
+const INSECURE_LINE =
+  'This address starts with http://, which would send your key without protection. Use an https:// address. http:// is only accepted for a model server on this phone or your home network.';
+
+/** True for an address where the key stays on this device or the home network: loopback, a private range or a .local name. */
+function isLocalHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h === '::1' || h.endsWith('.local') || h.endsWith('.localhost')) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a === 127 || a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31);
+}
+
+/** The key goes in an Authorization header to this address, so it must be https unless it never leaves the home network. */
+function isSafeBaseUrl(raw: string): boolean {
+  const m = /^(https?):\/\/(?:[^/@]*@)?(\[[^\]]+\]|[^/:?#]+)/i.exec(raw.trim());
+  if (!m) return false;
+  if (m[1]!.toLowerCase() === 'https') return true;
+  return isLocalHost(m[2]!);
+}
 
 export default function S40ByoAiKeySetup() {
   const t = useTheme();
@@ -21,6 +42,14 @@ export default function S40ByoAiKeySetup() {
   const [status, setStatus] = useState<Status>('idle');
 
   async function handleSaveAndConnect() {
+    if (/^http:\/\//i.test(baseUrl.trim()) && !isSafeBaseUrl(baseUrl)) {
+      setStatus('insecure');
+      return;
+    }
+    if (!/^https?:\/\//i.test(baseUrl.trim())) {
+      setStatus('invalid');
+      return;
+    }
     setStatus('validating');
     const probe = await probeByoEndpoint(baseUrl.trim(), apiKey.trim());
     if (!probe.ok) {
@@ -40,7 +69,7 @@ export default function S40ByoAiKeySetup() {
   }
 
   const isValidating = status === 'validating';
-  const isInvalid = status === 'invalid';
+  const isInvalid = status === 'invalid' || status === 'insecure';
   const RevealIcon = revealKey ? EyeOff : Eye;
 
   return (
@@ -73,7 +102,7 @@ export default function S40ByoAiKeySetup() {
 
       {isInvalid ? (
         <View accessibilityLiveRegion="polite" style={[styles.banner, { backgroundColor: t.color.dangerSoft ?? t.color.surface }]}>
-          <Text style={[styles.bannerText, { color: t.color.danger }]}>{S40_COPY.invalid}</Text>
+          <Text style={[styles.bannerText, { color: t.color.danger }]}>{status === 'insecure' ? INSECURE_LINE : S40_COPY.invalid}</Text>
         </View>
       ) : null}
       {status === 'success-full' ? (

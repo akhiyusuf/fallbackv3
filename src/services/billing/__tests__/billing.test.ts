@@ -117,9 +117,9 @@ describe('billing (F17) — expo-iap + biometric gate', () => {
 
   it('B1/B2 — refreshEntitlement() populates renewsOn from the purchase record when the platform exposes one, never a fabricated date', async () => {
     mockGetAvailablePurchases.mockResolvedValue([
-      { productId: 'fallback.ai.annual', purchaseToken: 'tok-2', expirationDateIOS: new Date(2026, 7, 20, 12, 0, 0).getTime() },
+      { productId: 'fallback.ai.annual', purchaseToken: 'tok-2', expirationDateIOS: new Date(2099, 7, 20, 12, 0, 0).getTime() },
     ]);
     await billing.refreshEntitlement();
-    expect(useEntitlementStore.getState().entitlement.renewsOn).toBe('2026-08-20');
+    expect(useEntitlementStore.getState().entitlement.renewsOn).toBe('2099-08-20');
   });
 });

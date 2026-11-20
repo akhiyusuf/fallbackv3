@@ -1,5 +1,5 @@
 /** S39 — Choose plan and confirm    route: /assistant/paywall/plan */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import { Fingerprint, ScanFace } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
@@ -13,6 +13,9 @@ import { Text } from '@/ui/AppText';
 
 type Plan = 'annual' | 'monthly';
 
+/** The store accepted the request but is waiting on someone (ask-to-buy, a slow payment). */
+const PENDING_LINE = "Your purchase is waiting for approval. Fallback AI turns on by itself once the store confirms it. Nothing else is needed.";
+
 export default function S39ChoosePlanAndConfirm() {
   const t = useTheme();
   const router = useRouter();
@@ -22,14 +25,25 @@ export default function S39ChoosePlanAndConfirm() {
   const [biometricFailed, setBiometricFailed] = useState(false);
   const [purchaseError, setPurchaseError] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [pending, setPending] = useState(false);
+  // A second tap in the same moment (before the button has re-rendered as busy) must not start a second purchase.
+  const busy = useRef(false);
 
   async function handleConfirm() {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(false);
     setVerifying(true);
     setBiometricFailed(false);
     setPurchaseError(false);
     const result = await billing.purchase(plan);
+    busy.current = false;
     setVerifying(false);
     if (!result.ok) {
+      if (result.error.cause === 'pending') {
+        setPending(true);
+        return;
+      }
       // Closing the store's own sheet is the person changing their mind: no message. Only a failed identity check gets one.
       if (result.error.code === 'CANCELLED') setBiometricFailed(result.error.cause === 'biometric');
       else setPurchaseError(true);
@@ -69,6 +83,11 @@ export default function S39ChoosePlanAndConfirm() {
 
       {biometricFailed ? <InlineRetryBanner message={S39_COPY.biometricFailed} onRetry={handleConfirm} retryLabel="Try again" tone="warning" /> : null}
       {purchaseError ? <InlineRetryBanner message={S39_COPY.purchaseError} onRetry={handleConfirm} retryLabel={S39_COPY.retry} tone="warning" /> : null}
+      {pending ? (
+        <Text style={[styles.subcopy, { color: t.color.text }]} accessibilityLiveRegion="polite" testID="s39-pending">
+          {PENDING_LINE}
+        </Text>
+      ) : null}
       {success ? (
         <Text style={[styles.success, { color: t.color.idealDeep }]} accessibilityLiveRegion="polite">
           {S39_COPY.success}

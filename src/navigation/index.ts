@@ -93,7 +93,11 @@ export function useOriginAwareBack(fallback: string): () => void {
   return useCallback(() => {
     const originHref = origin ? ORIGIN_ROUTES[origin] : undefined;
     if (originHref) {
-      router.replace(originHref);
+      // Pop back to the screen that opened this one (it is still on the stack, with its tab, search
+      // text and scroll as they were); only when it is not there does this go to it fresh.
+      // `replace` would stack a second copy of the origin on top of the first, so the phone's back
+      // button then walked back through copies of the same screens.
+      router.dismissTo(originHref);
       return;
     }
     if (router.canGoBack()) {
