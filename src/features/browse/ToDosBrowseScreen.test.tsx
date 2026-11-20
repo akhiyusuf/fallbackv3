@@ -88,7 +88,7 @@ describe('S13 — To-dos & Notes Browse', () => {
     const user = userEvent.setup();
     await render(<ToDosBrowseScreen />);
     await user.press(screen.getByRole('checkbox', { name: /Renew passport/ }));
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Done'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Done.'));
     expect(play).toHaveBeenCalledWith('todo_done');
     const toast = useToastStore.getState().toast;
     expect(toast?.action?.label).toBe('Undo');
@@ -165,7 +165,7 @@ describe('S13 — To-dos & Notes Browse', () => {
     const user = userEvent.setup();
     await render(<ToDosBrowseScreen />);
     await user.press(screen.getByRole('checkbox', { name: 'Renew passport' }));
-    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Done'));
+    await waitFor(() => expect(useToastStore.getState().toast?.message).toBe('Done.'));
     const undo = useToastStore.getState().toast?.action?.onPress;
     await act(async () => {
       undo?.();

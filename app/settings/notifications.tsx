@@ -96,7 +96,7 @@ export default function S42NotificationsSettings() {
     courseEndingSoon: { title: `${courseName} is ending soon`, body: `Runs through ${course?.endDate ? shortDate(course.endDate) : 'Friday'}.`, when: 'now' },
     gentleReentry: { title: 'A quiet invitation back', body: 'Yesterday slipped by. Today is a fresh one. Even the fallback counts.', when: 'now' },
     milestoneReached: { title: 'Milestone reached', body: "You've hit a new level or badge.", when: 'now' },
-    dailyDigest: { title: 'Your day, at a glance', body: "Check in on today's tasks.", when: formatTimeOfDay(prefs.dailyDigestTime) },
+    dailyDigest: { title: 'Your day, at a glance', body: "Check in on today's habits.", when: formatTimeOfDay(prefs.dailyDigestTime) },
   };
 
   const toggle = (label: string, key: keyof NotificationPrefs) => {

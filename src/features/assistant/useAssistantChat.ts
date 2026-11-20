@@ -41,7 +41,7 @@ export const DROPPED_CALL_LINE = "I couldn't do that one. It may have ended, bee
 export const UNSUPPORTED_CALL_LINE =
   "I can't do that one from here yet. To end a routine, push it to tomorrow or take the day off, open the routine and use End routine, Push to tomorrow or Emergency day off. Nothing was changed.";
 
-export const DELETE_NEEDS_NAME_LINE = 'To delete a task, say its name, like "delete Morning run". Nothing was changed.';
+export const DELETE_NEEDS_NAME_LINE = 'To delete a habit, say its name, like "delete Morning run". Nothing was changed.';
 
 /** How many of the latest messages go to the model on each turn. A very long chat is trimmed, never sent whole. */
 export const HISTORY_LIMIT = 40;
@@ -65,6 +65,22 @@ function parseClarification(args: unknown): ClarificationState | null {
   return valid.length === 0 ? null : { question, options: valid };
 }
 
+
+/** How long a reply may go quiet (no new piece of text or action) before it is ended as offline. */
+export const STREAM_IDLE_MS = 60_000;
+
+/** The iterator's next step, or 'timeout' if nothing arrives within `ms`. */
+async function nextWithin<T>(iterator: AsyncIterator<T>, ms: number): Promise<IteratorResult<T> | 'timeout'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), ms);
+  });
+  try {
+    return await Promise.race([iterator.next(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 export function useAssistantChat(options?: UseAssistantChatOptions) {
   const { applyToolCall } = useToolExecutor();
   const [items, setItems] = useState<TranscriptItem[]>([]);
@@ -210,7 +226,23 @@ export function useAssistantChat(options?: UseAssistantChatOptions) {
       // person: the same calm banner and Try again, never an unhandled rejection out of a tap.
       try {
         const provider = await getAssistantProvider();
-        for await (const event of provider.streamChat({ conversationId: conversationId, messages: trimHistory(historyRef.current), signal: undefined })) {
+        // A reply that goes quiet for STREAM_IDLE_MS is ended (the connection is dropped and the
+        // person sees the offline line with Try again); otherwise one stalled connection would hold
+        // every later turn in the queue for good.
+        const controller = new AbortController();
+        const iterator = provider
+          .streamChat({ conversationId: conversationId, messages: trimHistory(historyRef.current), signal: controller.signal })
+          [Symbol.asyncIterator]();
+        for (;;) {
+          const step = await nextWithin(iterator, STREAM_IDLE_MS);
+          if (step === 'timeout') {
+            controller.abort();
+            void Promise.resolve(iterator.return?.(undefined)).catch(() => undefined);
+            setOffline(true);
+            break;
+          }
+          if (step.done) break;
+          const event = step.value;
           if (event.type === 'text-delta') {
             assistantText += event.delta;
           } else if (event.type === 'tool-call') {

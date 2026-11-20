@@ -12,7 +12,7 @@
 
 export const S09_COPY = {
   title: 'Today',
-  statLabel: 'Consistency',
+  statLabel: 'Showing up',
   statHelper: 'Share of due days you did the ideal or the fallback.',
   dueSection: 'Due today',
   firstHabitBody: 'Do the ideal or the fallback today. Either one counts.',
@@ -50,7 +50,7 @@ export const S09_COPY = {
   settingsLabel: 'Settings',
   addTaskLabel: 'Add task',
 
-  firstHabitBannerPrefix: 'Your first task is set.',
+  firstHabitBannerPrefix: 'Your first habit is set.',
   firstHabitBannerSuffix: '',
 } as const;
 

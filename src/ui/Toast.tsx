@@ -22,6 +22,15 @@ export const TAB_BAR_HEIGHT = 68;
 const FAB_RESERVE = 56 + SPACE.s2;
 const ACTION_BAR_HEIGHT = 44 + 4 + SPACE.s3 * 2;
 
+/**
+ * What a screen reader says for the toast: the message, then its detail. A message that already ends
+ * in a full stop is not given a second mark before the detail ("Ideal done. +10 XP", not "Ideal done., +10 XP").
+ */
+export function spokenMessage(message: string, detail?: string): string {
+  if (!detail) return message;
+  return `${message}${/[.!?…]$/.test(message) ? '' : ','} ${detail}`;
+}
+
 export function Toast() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -32,7 +41,7 @@ export function Toast() {
 
   useEffect(() => {
     if (!toast) return;
-    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility?.(toast.message);
+    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility?.(spokenMessage(toast.message, toast.detail));
     const timer = setTimeout(hide, toast.action ? AUTO_DISMISS_WITH_ACTION_MS : AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
   }, [toast, hide]);
@@ -58,7 +67,7 @@ export function Toast() {
     <View
       accessible
       accessibilityRole="alert"
-      accessibilityLabel={[toast.message, toast.detail].filter(Boolean).join(', ')}
+      accessibilityLabel={spokenMessage(toast.message, toast.detail)}
       accessibilityLiveRegion="polite"
       accessibilityActions={actions}
       onAccessibilityAction={(event) => {

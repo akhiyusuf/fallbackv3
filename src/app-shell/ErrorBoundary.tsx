@@ -34,6 +34,36 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private reset = (): void => this.setState({ error: null });
 
+  // A quiet boundary (an overlay) must not stay gone for good: it tries its child again when the
+  // parent re-renders it, and on its own after a short wait that grows each time it fails again.
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryDelay = 1000;
+
+  override componentDidUpdate(prevProps: Props, prevState: State): void {
+    if (!this.props.quiet) return;
+    if (this.state.error && !prevState.error) {
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        this.retryDelay = Math.min(this.retryDelay * 2, 60_000);
+        this.reset();
+      }, this.retryDelay);
+    } else if (this.state.error && prevState.error && prevProps.children !== this.props.children) {
+      this.clearRetry();
+      this.reset();
+    } else if (!this.state.error && prevState.error === null) {
+      this.retryDelay = 1000;
+    }
+  }
+
+  override componentWillUnmount(): void {
+    this.clearRetry();
+  }
+
+  private clearRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
   override render(): ReactNode {
     if (this.state.error) {
       return this.props.quiet ? null : <Fallback onRetry={this.reset} />;

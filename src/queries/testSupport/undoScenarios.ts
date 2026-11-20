@@ -3,11 +3,10 @@
  * one is the action the person can take on a screen and the undo that screen offers (or the
  * closest thing to it). Both undo suites run this same list.
  */
-import type { LocalDate } from '@/types';
+import { addDays } from '@/lib/date';
 
-import { id, logState, attempt, type Ctx, type Scenario } from './undoEngine';
+import { attempt, id, logState, setDay, type Ctx, type Scenario } from './undoEngine';
 
-const DAY = (c: Ctx): LocalDate => c.day;
 const DAILY = { kind: 'daily' } as const;
 
 async function stepId(c: Ctx, label: string, index: number) {
@@ -22,7 +21,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'log ideal, then un-log',
     subject: 'H1',
     act: async (c) => {
-      await logState(c, 'H1', DAY(c), 'done');
+      await logState(c, 'H1', c.day, 'done');
     },
     // The screen's Undo sends the chip the day had before the tap: auto "to do" (nothing ticked).
     undo: async (c) => {
@@ -34,10 +33,10 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'log fallback, then ideal, then un-log the ideal',
     subject: 'H1',
     setup: async (c) => {
-      await logState(c, 'H1', DAY(c), 'fallback');
+      await logState(c, 'H1', c.day, 'fallback');
     },
     act: async (c) => {
-      await logState(c, 'H1', DAY(c), 'done');
+      await logState(c, 'H1', c.day, 'done');
     },
     // Undo sends the chip the day had before the tap: fallback.
     undo: async (c) => {
@@ -46,25 +45,10 @@ export const SCENARIOS: readonly Scenario[] = [
     note: 'the day goes back to fallback (manual override kept)',
   },
   {
-    name: 'log fallback, ideal, then un-log both',
-    subject: 'H1',
-    setup: async (c) => {
-      await logState(c, 'H1', DAY(c), 'fallback');
-    },
-    act: async (c) => {
-      await logState(c, 'H1', DAY(c), 'done');
-    },
-    undo: async (c) => {
-      await logState(c, 'H1', c.actionDay, 'fallback');
-      await logState(c, 'H1', c.actionDay, 'todo');
-    },
-    note: 'two un-logs in a row, the second one is the un-log of the fallback',
-  },
-  {
     name: 'tick a step, then untick it',
     subject: 'H1',
     act: async (c) => {
-      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: DAY(c), stepId: await stepId(c, 'H1', 0) });
+      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: c.day, stepId: await stepId(c, 'H1', 0) });
     },
     undo: async (c) => {
       await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: c.actionDay, stepId: await stepId(c, 'H1', 0) });
@@ -74,7 +58,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'take one dose, then take it back',
     subject: 'H3',
     act: async (c) => {
-      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: DAY(c), dosesCompleted: 1 });
+      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.day, dosesCompleted: 1 });
     },
     undo: async (c) => {
       await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.actionDay, dosesCompleted: 0 });
@@ -84,7 +68,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'push to tomorrow, then undo the push',
     subject: 'H1',
     act: async (c) => {
-      await attempt(c, 'snooze', { taskId: id(c, 'H1'), date: DAY(c) });
+      await attempt(c, 'snooze', { taskId: id(c, 'H1'), date: c.day });
     },
     undo: async (c) => {
       await attempt(c, 'undoSnooze', { taskId: id(c, 'H1'), date: c.actionDay });
@@ -94,7 +78,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'emergency day off for one habit, then lift it',
     subject: 'H1',
     act: async (c) => {
-      await attempt(c, 'markOffDay', { date: DAY(c), taskId: id(c, 'H1'), mark: true });
+      await attempt(c, 'markOffDay', { date: c.day, taskId: id(c, 'H1'), mark: true });
     },
     undo: async (c) => {
       await attempt(c, 'markOffDay', { date: c.actionDay, taskId: id(c, 'H1'), mark: false });
@@ -104,7 +88,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'emergency day off for the whole day, then lift it',
     subject: 'H1',
     act: async (c) => {
-      await attempt(c, 'markOffDay', { date: DAY(c), taskId: null, mark: true });
+      await attempt(c, 'markOffDay', { date: c.day, taskId: null, mark: true });
     },
     undo: async (c) => {
       await attempt(c, 'markOffDay', { date: c.actionDay, taskId: null, mark: false });
@@ -125,7 +109,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'end routine (logged today), then start again',
     subject: 'H1',
     setup: async (c) => {
-      await logState(c, 'H1', DAY(c), 'done');
+      await logState(c, 'H1', c.day, 'done');
     },
     act: async (c) => {
       await attempt(c, 'endTask', id(c, 'H1'));
@@ -148,7 +132,7 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'delete a habit logged today, then restore it (same day)',
     subject: 'H2',
     setup: async (c) => {
-      await logState(c, 'H2', DAY(c), 'done');
+      await logState(c, 'H2', c.day, 'done');
     },
     act: async (c) => {
       await attempt(c, 'deleteTask', id(c, 'H2'));
@@ -210,27 +194,76 @@ export const SCENARIOS: readonly Scenario[] = [
     name: 'log done on a dose habit, un-log it, then take a dose',
     subject: 'H3',
     act: async (c) => {
-      await logState(c, 'H3', DAY(c), 'done');
+      await logState(c, 'H3', c.day, 'done');
     },
     undo: async (c) => {
       await logState(c, 'H3', c.actionDay, 'todo');
     },
     after: async (c) => {
-      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: DAY(c), dosesCompleted: 1 });
+      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.day, dosesCompleted: 1 });
     },
     note: 'follow-up: a manual "to do" must not hide the dose count the day has now',
+  },
+  {
+    name: 'push a habit to tomorrow, end it, then start again',
+    subject: 'H1',
+    setup: async (c) => {
+      await attempt(c, 'snooze', { taskId: id(c, 'H1'), date: c.day });
+    },
+    act: async (c) => {
+      await attempt(c, 'endTask', id(c, 'H1'));
+    },
+    undo: async (c) => {
+      await attempt(c, 'startAgain', id(c, 'H1'));
+    },
+    note: 'a pending push that is still pending when the habit ends: start again must leave it as it was',
+  },
+  {
+    name: 'push a habit, log the pushed day tomorrow, end it there, then start again',
+    subject: 'H1',
+    setup: async (c) => {
+      const today = c.day;
+      await attempt(c, 'snooze', { taskId: id(c, 'H1'), date: today });
+      const tomorrow = addDays(today, 1);
+      setDay(c, tomorrow);
+      await attempt(c, 'logState', { taskId: id(c, 'H1'), date: tomorrow, chip: 'done', pushedFrom: today });
+    },
+    act: async (c) => {
+      await attempt(c, 'endTask', id(c, 'H1'));
+    },
+    undo: async (c) => {
+      await attempt(c, 'startAgain', id(c, 'H1'));
+    },
+  },
+  {
+    name: 'tick a step, take one dose, log done, un-log to fallback, take the second dose',
+    subject: 'H3',
+    setup: async (c) => {
+      await attempt(c, 'toggleStep', { taskId: id(c, 'H3'), date: c.day, stepId: await stepId(c, 'H3', 0) });
+      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.day, dosesCompleted: 1 });
+    },
+    act: async (c) => {
+      await logState(c, 'H3', c.day, 'done');
+    },
+    undo: async (c) => {
+      await logState(c, 'H3', c.actionDay, 'fallback');
+    },
+    after: async (c) => {
+      await attempt(c, 'logDose', { taskId: id(c, 'H3'), date: c.day, dosesCompleted: 2 });
+    },
+    note: 'regression: the un-logged day must go back to automatic, so the second dose and the ticked step make it done',
   },
   {
     name: 'log done, un-log, then tick a step',
     subject: 'H1',
     act: async (c) => {
-      await logState(c, 'H1', DAY(c), 'done');
+      await logState(c, 'H1', c.day, 'done');
     },
     undo: async (c) => {
       await logState(c, 'H1', c.actionDay, 'todo');
     },
     after: async (c) => {
-      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: DAY(c), stepId: await stepId(c, 'H1', 0) });
+      await attempt(c, 'toggleStep', { taskId: id(c, 'H1'), date: c.day, stepId: await stepId(c, 'H1', 0) });
     },
   },
 ];

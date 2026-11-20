@@ -348,7 +348,7 @@ describe('large text: labels that must wrap are not capped to one line', () => {
   });
 });
 
-describe('a11y: the toast is a labelled alert in every theme (its message sits inside the Dismiss button: see the report)', () => {
+describe('a11y: the toast is a labelled alert in every theme', () => {
   it.each(COMBOS.map((c) => [`${c.scheme} / ${c.accent}`, c] as const))('%s', async (_name, c) => {
     useToastStore.getState().show('Couldn\u2019t save that. Try again.', 'warning');
     await render(
@@ -356,12 +356,14 @@ describe('a11y: the toast is a labelled alert in every theme (its message sits i
         <Toast />
       </ThemeContext.Provider>,
     );
-    // The alert view is not an accessibility element itself (its Dismiss button is), so it is found
-    // by its label; it must still carry the alert role and a polite live region.
+    // The alert is the one focus stop: it carries the alert role, a polite live region and the message
+    // as its label, so focus reads the message first. Dismiss is a named action on it, not a focus stop.
     const alert = screen.getByLabelText('Couldn\u2019t save that. Try again.');
     expect(alert.props.accessibilityRole).toBe('alert');
     expect(alert.props.accessibilityLiveRegion).toBe('polite');
-    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
+    expect(alert.props.accessible).toBe(true);
+    expect(alert.props.accessibilityActions).toEqual([{ name: 'dismiss', label: 'Dismiss' }]);
+    expect(screen.getByLabelText('Dismiss')).toBeTruthy();
     const strings = spokenAndVisibleStrings(hostNodes(screen.toJSON() as ReactTestRendererJSON));
     expect(strings.flatMap((s) => wordingProblems(s))).toEqual([]);
     useToastStore.getState().hide();

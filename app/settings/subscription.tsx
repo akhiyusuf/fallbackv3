@@ -137,7 +137,7 @@ function trialLine(trialEndsOn: string | null): string {
 }
 
 function renewLine(renewsOn: string | null): string {
-  if (!renewsOn) return '-';
+  if (!renewsOn) return '–';
   return format(parseLocalDate(renewsOn as never), 'MMM d, yyyy');
 }
 

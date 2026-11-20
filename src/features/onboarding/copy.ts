@@ -12,7 +12,7 @@ export const ONBOARDING_SHELL_COPY = {
 
 export const S02_COPY = {
   headline: 'Something beats nothing.',
-  body: 'Build tasks that survive your worst days, not just your best ones.',
+  body: 'Build habits that survive your worst days, not just your best ones.',
   compareTitle: 'The same week, twice',
   withoutLabel: 'The full version or nothing',
   withoutCount: '3 of 7 days',
@@ -21,7 +21,7 @@ export const S02_COPY = {
 } as const;
 
 export const S03_COPY = {
-  headline: 'A plan A and a plan B for every task.',
+  headline: 'a plan A and a plan B for every habit.',
   body: 'Too tired for the full thing? Do the fallback. You still showed up.',
   exampleName: 'Morning workout',
   idealText: 'Full workout, 30 minutes',
@@ -65,14 +65,14 @@ export const S06_COPY = {
   ],
   previewLabel: 'Preview',
   remindersSectionLabel: 'Reminders',
-  remindersRowLabel: 'Gentle nudges for due tasks',
+  remindersRowLabel: 'Gentle nudges for due habits',
   remindersHelper: 'You can change this anytime in Settings.',
   saveFailure: "Couldn't save that. Try again.",
 } as const;
 
 export const S07_COPY = {
   headline: 'Gentle nudges, never nagging.',
-  body: "A quiet reminder when a task is due, and one invitation back after an off day.",
+  body: "A quiet reminder when a habit is due, and one invitation back after an off day. That's it.",
   previewApp: 'Fallback',
   previewTimestamp: 'now',
   previewTitle: 'Time for your evening walk',
@@ -82,7 +82,7 @@ export const S07_COPY = {
 } as const;
 
 export const S08_COPY = {
-  headline: 'Add your first task.',
+  headline: 'Add your first habit.',
   body: "We'll start with a daily routine. Give it an ideal and a fallback. You can add events, courses and to-dos after setup.",
   lastStep: 'Last step',
   tiles: [

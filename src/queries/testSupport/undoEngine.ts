@@ -220,7 +220,17 @@ export function normalise(value: unknown, labels: ReadonlyMap<string, string>): 
     }
     return out;
   }
-  if (typeof value === 'string') return labels.get(value) ?? value;
+  if (typeof value === 'string') {
+    // SQLite keeps lists (completed steps, weekdays, settings) as JSON text: look inside them too.
+    if (value.startsWith('[') || value.startsWith('{')) {
+      try {
+        return normalise(JSON.parse(value), labels);
+      } catch {
+        /* not JSON after all: compare as text */
+      }
+    }
+    return labels.get(value) ?? value;
+  }
   return value;
 }
 

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { PALETTES } from '@/theme/tokens';
 import { useToastStore } from '@/app-shell/stores/toast';
 
-import { Toast } from './Toast';
+import { spokenMessage, Toast } from './Toast';
 
 const DANGER_FAMILY = new Set([PALETTES.light.danger, PALETTES.light.dangerDeep, PALETTES.light.dangerSoft]);
 
@@ -21,6 +21,12 @@ describe('Toast', () => {
     await render(<Toast />);
     await act(async () => useToastStore.getState().show('Today marked off. Nothing due counts against your %.'));
     expect(alertFor('Today marked off. Nothing due counts against your %.')).toBeTruthy();
+  });
+
+  it('says the message and its detail without a doubled mark ("Ideal done. +10 XP")', () => {
+    expect(spokenMessage('Ideal done.', '+10 XP')).toBe('Ideal done. +10 XP');
+    expect(spokenMessage('Routine deleted', '+10 XP')).toBe('Routine deleted, +10 XP');
+    expect(spokenMessage('Saved.')).toBe('Saved.');
   });
 
   it('dismisses on tap', async () => {

@@ -99,7 +99,7 @@ export default function S16CreateRoutine() {
       <ListGroup footer="As-needed routines have no schedule and no consistency tracking. You log them from the Routines list when the situation comes up.">
         <ListRow
           label="As-needed"
-          sublabel="For something occasional, not a daily task"
+          sublabel="For something occasional, not a daily habit"
           right={<Switch value={isAsNeeded} onValueChange={setIsAsNeeded} accessibilityLabel="As-needed routine" testID="as-needed-switch" />}
         />
       </ListGroup>

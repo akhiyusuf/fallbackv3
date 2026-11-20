@@ -35,7 +35,7 @@ describe('assistant: a reply that never finishes', () => {
   // for good. Since round 3 every later turn waits behind it (enqueueTurn, line 91-ish): the person's
   // next message, and Try again, never reach the model. Fix: give each turn a deadline (an
   // AbortController, say 60 s) that ends it as offline so the chain moves on.
-  it.failing('the next message still goes out after the first reply has stalled for five minutes', async () => {
+  it('the next message still goes out after the first reply has stalled for five minutes', async () => {
     jest.useFakeTimers();
     try {
       let calls = 0;

@@ -76,7 +76,7 @@ export const S27_COPY = {
   ] as const,
   tabs: { all: 'All', earned: 'Earned', locked: 'Locked' } as const,
   categoryHeaders: {
-    'showing-up': 'Consistency',
+    'showing-up': 'Showing up',
     'fallback-wins': 'Fallback wins',
     milestones: 'Milestones',
     tenure: 'Tenure',
@@ -140,7 +140,7 @@ export const S28_COPY = {
    * nearly all of them (review pass 1, blocking item 5). Every level-up therefore gets this
    * tone-matched, non-pinned body instead (judgment call, same category as `OTHER_LOCKED_HINT`).
    */
-  levelUpBody: (level: number) => `Level ${level}. That's consistency, not luck.`,
+  levelUpBody: (level: number) => `Level ${level}. That's real consistency showing up, not luck.`,
   /** Not pinned by the design pass (the spec's "3 fresh badges" is that same worked example's
    *  count) — this module has no reachable-badges count to report, so this is generic,
    *  tone-matched forward copy (judgment call). */

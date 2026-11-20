@@ -214,7 +214,7 @@ async function rescheduleOnce(): Promise<Result<void>> {
         const date = addDays(todayDate, i);
         requests.push({
           identifier: `${REMINDER_PREFIX}daily-digest:${date}`,
-          content: { title: 'Your day, at a glance', body: "Check in on today's tasks." },
+          content: { title: 'Your day, at a glance', body: "Check in on today's habits." },
           fireAt: triggerDateFor(date, settings.notifications.dailyDigestTime),
         });
       }

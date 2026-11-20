@@ -57,7 +57,7 @@ beforeEach(() => {
   fake.seedTask(makeTask({ ...base, id: 'note-1' as never, name: 'Old note', isNote: true }));
 });
 
-it.failing('a note saved from Today lands on the Notes lens even when the To-dos tab was visited before', async () => {
+it('a note saved from Today lands on the Notes lens even when the To-dos tab was visited before', async () => {
   await renderRouter(CTX, { initialUrl: '/today', wrapper });
   await act(async () => router.navigate('/todos' as never));
   await screen.findByText('Renew passport'); // the To-dos tab is now mounted, on the To-dos lens

@@ -79,7 +79,7 @@ describe('S16 Create Routine', () => {
     const idealInput = await screen.findByLabelText('Ideal step 1');
     await userEvent.type(idealInput, 'Review notes');
     // The per-step day grid only appears with two or more ideal steps.
-    await userEvent.press(screen.getAllByLabelText('Add step')[0]!);
+    await userEvent.press(screen.getAllByLabelText(/^Add step/)[0]!);
     await userEvent.type(await screen.findByLabelText('Ideal step 2'), 'Practice problems');
     // Turn both steps off for Tuesday, leaving Tuesday with zero due ideal steps.
     await userEvent.press(within(screen.getByLabelText('Days for Review notes')).getByLabelText('Tue'));

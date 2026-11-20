@@ -20,7 +20,7 @@ function Host() {
   return <Text>menu</Text>;
 }
 
-it.failing('a quiet boundary shows its child again once the child renders fine', async () => {
+it('a quiet boundary shows its child again once the child renders fine', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
   shouldThrow = true;
   const view = await render(

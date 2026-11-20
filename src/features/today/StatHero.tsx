@@ -30,7 +30,7 @@ export function StatHero({ percent, loading = false, label, detail, detailLines 
           percent={percent ?? 0}
           size={76}
           strokeWidth={8}
-          label={percent === null ? '-' : `${percent}%`}
+          label={percent === null ? '–' : `${percent}%`}
           labelColor={t.accent.onLarge}
           labelSize={20}
           color={t.accent.onLarge}

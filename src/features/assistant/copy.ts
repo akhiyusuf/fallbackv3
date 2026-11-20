@@ -97,7 +97,7 @@ export const S38_COPY = {
   subcopy: 'Speak naturally. Fallback AI turns it into routines, events and courses, each with an ideal and a fallback.',
   benefits: [
     { title: "Talk, don't type", body: 'Say what you want in your own words.' },
-    { title: 'Ideal and fallback, written for you', body: 'Every task comes with both.' },
+    { title: 'Ideal and fallback, written for you', body: 'Every habit comes with both.' },
     { title: 'A whole week in one go', body: 'Routines, events and courses together.' },
   ] as const,
   cardA: {
@@ -120,7 +120,7 @@ export const S38_COPY = {
     finePrint: "If your provider can't turn speech into text, you can still type.",
   },
   footerDisclosure:
-    'While subscribed, your conversation messages are processed by our AI provider to generate responses. That is separate from your task data, which never leaves this device.',
+    'While subscribed, your conversation messages are processed by our AI provider to generate responses. That is separate from your habit data, which never leaves this device.',
   restoreNoneFound: 'No active subscription found.',
 } as const;
 

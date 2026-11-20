@@ -9,7 +9,7 @@ export const S10_COPY = {
   otherSection: 'Other routines',
   logUsedIt: 'Log used it',
   emptyNoRoutinesHeadline: 'Create your first routine',
-  emptyNoRoutinesSubcopy: 'Routines are the day-to-day tasks you show up for. Give one an ideal and a fallback.',
+  emptyNoRoutinesSubcopy: 'Routines are the day-to-day habits you show up for. Give one an ideal and a fallback.',
   emptyNoRoutinesAction: 'New routine',
   emptyNothingDueSubcopyPrefix: 'No routines on ',
   emptyNothingDueSubcopySuffix: 's. Enjoy the rest day, or add one to fill it.',
@@ -44,7 +44,7 @@ export const S12_COPY = {
   noActiveHeadline: 'No active courses right now.',
   noActiveSubcopy: "Start a new one whenever you're ready.",
   noCoursesAtAllHeadline: 'Start your first course',
-  noCoursesAtAllSubcopy: "Courses are tasks with an end date, like a medication or a 30-day challenge. Start one when you're ready.",
+  noCoursesAtAllSubcopy: "Courses are habits with an end date, like a medication or a 30-day challenge. Start one when you're ready.",
   newCourse: 'New course',
 } as const;
 

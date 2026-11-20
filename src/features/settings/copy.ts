@@ -7,7 +7,7 @@ export const S41_COPY = {
   title: 'Settings',
   profileName: 'Your progress',
   levelPrefix: 'Level',
-  statSuffix: '% consistency, last 30 days',
+  statSuffix: '% showing up, last 30 days',
   statLoadError: "Couldn't load your stats",
   retry: 'Try again',
   sections: [

@@ -1,6 +1,6 @@
 /** M3 — S13 To-dos. Segmented To-dos/Notes (D9); rows in one grouped list (D7). */
 import { play } from '@/services/sfx';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Check, StickyNote } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -33,6 +33,11 @@ export default function ToDosBrowseScreen() {
   const showToast = useToastStore((s) => s.show);
   const params = useLocalSearchParams<{ lens?: string }>();
   const [lens, setLens] = useState<Lens>(params.lens === 'notes' ? 'notes' : 'todos');
+  // The tab stays mounted once visited, so a later arrival (a note saved from the + menu) only
+  // changes the param: follow it, or the new item lands on the other lens and looks lost.
+  useEffect(() => {
+    if (params.lens === 'notes' || params.lens === 'todos') setLens(params.lens);
+  }, [params.lens]);
 
   const all = tasksQuery.data ?? [];
   const shown = lens === 'todos' ? all.filter((tk) => !isNote(tk)) : all.filter(isNote);

@@ -4,7 +4,8 @@
  * Every string literal and JSX text node in the app's own code (`src/` and `app/`, not tests) is
  * read from the TypeScript syntax tree, so comments and identifiers are never checked. The rules
  * below lock in the decisions made in review/haiku/45-wording.md:
- *  - one name per concept: "task" (never "habit"), "Consistency" (never "Showing up" as a label),
+ *  - one name per concept (main session, twenty-seventh pass: "habit" and the "Showing up" label are the
+ *    human's approved wording and stay; the round-4 pass had replaced them),
  *    "Emergency day off", "Push to tomorrow", "Recently deleted", "Delete forever", "Try again"
  *    (never "Retry"), American "color" and "and" (never "&") in labels
  *  - toasts end with a full stop (or an ellipsis when something is still in progress)
@@ -21,7 +22,7 @@ const nodeFs = require('fs') as {
   statSync(p: string): { isDirectory(): boolean };
 };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const nodePath = require('path') as { join(...parts: string[]): string; resolve(...parts: string[]): string };
+const nodePath = require('path') as { join(...parts: string[]): string; resolve(...parts: string[]): string; relative(from: string, to: string): string };
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ts = require('typescript') as typeof import('typescript');
 
@@ -77,11 +78,11 @@ const SHOWN: Literal[] = SCAN_DIRS.flatMap(listFiles)
 
 /** Each rule is a phrase for the report and the test that must find no matches. */
 const BANNED_IN_COPY: { phrase: string; test: (text: string) => boolean }[] = [
-  { phrase: 'the word "habit" (the app says task)', test: (t) => /\bhabits?\b/i.test(t) },
   { phrase: 'British "colour" (the app says color)', test: (t) => /colour/i.test(t) },
   { phrase: '"Retry" (the app says Try again)', test: (t) => /^Retry\b/.test(t) },
   { phrase: '"Could not" (the app says Couldn\'t)', test: (t) => /Could not/.test(t) },
-  { phrase: 'an en dash or em dash', test: (t) => /[–—]/.test(t) },
+  // The no-value mark is one short dash (–), a mark not prose (twenty-fourth pass); em dashes never.
+  { phrase: 'an em dash, or an en dash inside words', test: (t) => /—/.test(t) || (/–/.test(t) && t.trim() !== '–') },
   { phrase: 'a curly quote or apostrophe', test: (t) => /[‘’“”]/.test(t) },
   { phrase: 'an exclamation mark', test: (t) => /\w!/.test(t) },
   { phrase: 'three dots (use the ellipsis character)', test: (t) => /\.\.\./.test(t) },
@@ -138,9 +139,9 @@ describe('round 4 wording: the same thing has the same words and marks everywher
     const settings = require('@/features/settings/copy') as { S49_COPY: { title: string } };
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const dataCopy = require('@/features/data/copy') as { S45_COPY: { title: string } };
-    expect(today.S09_COPY.statLabel).toBe('Consistency');
+    expect(today.S09_COPY.statLabel).toBe('Showing up');
     expect(today.S09_COPY.offToggleLabel).toBe('Emergency day off');
-    expect(today.S09_COPY.firstHabitBannerPrefix).toBe('Your first task is set.');
+    expect(today.S09_COPY.firstHabitBannerPrefix).toBe('Your first habit is set.');
     expect(data.S47_COPY.recentlyDeleted).toBe('Recently deleted');
     expect(data.S50_COPY.headline).toBe("We couldn't read your data on this device.");
     expect(dataCopy.S45_COPY.title).toBe('Account and sync');
