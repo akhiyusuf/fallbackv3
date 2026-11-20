@@ -5,6 +5,7 @@
  */
 export * from './reads';
 export * from './mutations';
+export { healMissingXp } from './healXp';
 
 /**
  * ARCHITECTURE.md §11: "Query keys come from `QUERY_KEYS` only." Review pass 1, blocking

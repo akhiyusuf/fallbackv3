@@ -58,6 +58,8 @@ const config: ExpoConfig = {
     blockedPermissions: [
       // Zero analytics / zero tracking is a ship-blocking PRD constraint (§4, §5).
       'com.google.android.gms.permission.AD_ID',
+      // "Draw over other apps": merged in by a library, used by nothing in Fallback.
+      'android.permission.SYSTEM_ALERT_WINDOW',
     ],
   },
 

@@ -66,6 +66,9 @@ export const useAgentAccessStore = create<AgentAccessState>((set) => ({
     saveChoices();
   },
   setPermission: (scope, value) => {
+    // Only the choices each scope offers: "Delete tasks" can never be set to Allow, whoever asks.
+    const spec = AGENT_SCOPES.find((x) => x.key === scope);
+    if (!spec || !spec.choices.includes(value)) return;
     set((s) => ({ permissions: { ...s.permissions, [scope]: value } }));
     saveChoices();
   },

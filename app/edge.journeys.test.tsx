@@ -268,9 +268,211 @@ describe('journey 2: create on the Routines tab, push to tomorrow, next day', ()
     expect(screen.getAllByLabelText(/From yesterday/)).toHaveLength(1);
     for (const button of await screen.findAllByLabelText(/^(Read|Stretch): Done/)) await userEvent.press(button);
     await waitFor(() => expect(screen.getByText('3 of 3 done')).toBeTruthy());
-    const rows = fake.logsFor(taskId as Id).filter((l) => l.date === D2);
-    expect(rows).toHaveLength(2);
-    expect(rows.every((l) => l.chipState === 'done')).toBe(true);
-    expect(rows.map((l) => l.pushedFrom ?? null).sort()).toEqual([null, D1].sort());
+    // Each card has its own row: today's own on D2, the pushed one on its source day (D1, moved to D2).
+    const logs = fake.logsFor(taskId as Id);
+    expect(logs.find((l) => l.date === D2)?.chipState).toBe('done');
+    expect(logs.find((l) => l.date === D1)).toMatchObject({ movedToDate: D2, chipState: 'done' });
+  });
+});
+
+async function openFromList(name: string, tab: 'Routines' | 'Events' | 'Courses' | 'To-dos' = 'Routines') {
+  await openTab(tab);
+  await userEvent.press(await screen.findByText(name));
+  await waitFor(() => expect(path()).toMatch(/^\/task\//));
+}
+
+describe('journey 3: end a routine, find it under Ended, start it again', () => {
+  it('ends from the page, lists it under Ended, hides it from Today, then Start again brings it back', async () => {
+    fake.seedTask(routine('a', 'Stretch'));
+    fake.seedTask(routine('b', 'Journal', { name: 'Journal' }));
+    await launch('/today');
+    expect(await screen.findByText('0 of 2 done')).toBeTruthy();
+
+    await openFromList('Stretch');
+    await userEvent.press(await screen.findByTestId('s20-more'));
+    await userEvent.press(await screen.findByLabelText('End routine'));
+    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('End routine'));
+    expect(await screen.findByTestId('s20-ended')).toBeTruthy();
+    expect(screen.getByText('Ended Jul 15')).toBeTruthy();
+    expect((await fake.repos.tasks.get('a' as Id))?.endedOn).toBe('2026-07-15');
+    // Still on the page it was ended from; Back goes to the list it was opened from.
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/routines'));
+    const ended = await screen.findByTestId('ended-section');
+    expect(within(ended).getByText('Stretch')).toBeTruthy();
+    expect(within(ended).getByText('Ended Jul 15')).toBeTruthy();
+    // Today only asks for the routine that is still running.
+    await openTab('Today');
+    expect(await screen.findByText('0 of 1 done')).toBeTruthy();
+    expect(screen.queryByText('Stretch')).toBeNull();
+
+    // Open it again from Ended, and start it again.
+    await openTab('Routines');
+    await userEvent.press(await within(await screen.findByTestId('ended-section')).findByText('Stretch'));
+    await waitFor(() => expect(path()).toMatch(/^\/task\//));
+    await userEvent.press(await screen.findByTestId('s20-start-again'));
+    await waitFor(() => expect(screen.queryByTestId('s20-ended')).toBeNull());
+    expect((await fake.repos.tasks.get('a' as Id))?.endedOn ?? null).toBeNull();
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/routines'));
+    expect(screen.queryByTestId('ended-section')).toBeNull();
+    await openTab('Today');
+    expect(await screen.findByText('0 of 2 done')).toBeTruthy();
+    expect(screen.getByText('Stretch')).toBeTruthy();
+    // The days it was ended did not become misses: the record has nothing missed for it.
+    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
+    await waitFor(() => expect(path()).toBe('/progress'));
+    expect(await screen.findByText('Your consistency')).toBeTruthy();
+  });
+});
+
+function dayLog(taskId: string, date: string, chip: 'done' | 'fallback' = 'done') {
+  return {
+    id: `log-${taskId}-${date}` as Id, taskId: taskId as Id, date: date as LocalDate, chipState: chip, isManualOverride: true,
+    completedStepIds: [], dosesCompleted: 0, movedToDate: null, createdAt: at(date, 8) as never, updatedAt: at(date, 8) as never,
+  };
+}
+/** The All tasks / All time number on Progress: the "(n) of (m) counted days" line. */
+async function allTimeCountedDays(): Promise<string> {
+  await userEvent.press(await screen.findByLabelText('All tasks'));
+  await userEvent.press(await screen.findByLabelText('All time'));
+  const line = await screen.findByText(/counted days/);
+  return String(line.props.children);
+}
+async function deleteFromTaskPage(noun = 'routine') {
+  await userEvent.press(await screen.findByTestId('s20-more'));
+  await userEvent.press(await screen.findByLabelText(`Delete ${noun}`));
+  await userEvent.press(within(await screen.findByTestId('delete-task-sheet')).getByLabelText(`Delete ${noun}`));
+}
+async function openRecentlyDeleted() {
+  await userEvent.press(await screen.findByLabelText('Settings'));
+  await waitFor(() => expect(path()).toBe('/settings'));
+  await userEvent.press(await screen.findByLabelText('Data'));
+  await waitFor(() => expect(path()).toBe('/settings/data'));
+  await userEvent.press(await screen.findByTestId('s47-recently-deleted'));
+  await waitFor(() => expect(path()).toBe('/settings/data/deleted'));
+}
+
+describe('journey 4: delete, Undo, delete, restore from Settings, delete forever, the record stays', () => {
+  it('walks every way back from a delete and keeps counting the days that were logged', async () => {
+    fake.seedTask(routine('a', 'Stretch', { createdAt: at('2026-07-10', 8) as never }));
+    for (const d of ['2026-07-12', '2026-07-13', '2026-07-14']) await fake.repos.logs.upsert(dayLog('a', d));
+    await fake.repos.logs.upsert(dayLog('a', '2026-07-15', 'fallback'));
+    await launch('/today');
+    await screen.findByText('Stretch');
+
+    // The record before anything is deleted.
+    await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
+    await waitFor(() => expect(path()).toBe('/progress'));
+    const before = await allTimeCountedDays();
+    expect(before).toMatch(/of \d+ counted days/);
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/today'));
+
+    // Delete from the task page opened on Today: lands on Today with an Undo toast.
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toMatch(/^\/task\//));
+    await deleteFromTaskPage();
+    await waitFor(() => expect(path()).toBe('/today'));
+    expect(toast()?.message).toBe('Moved to Recently deleted');
+    expect(await screen.findByText('Nothing planned for today yet.')).toBeTruthy();
+    expect(screen.queryByText('Stretch')).toBeNull();
+
+    // Undo from the toast: it is back on Today, whole.
+    await press('Undo');
+    await waitFor(() => expect(toast()?.message).toBe('Restored “Stretch”'));
+    expect(await screen.findByText('Stretch')).toBeTruthy();
+    expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
+
+    // Delete again, then restore from Settings > Data > Recently deleted.
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await waitFor(() => expect(path()).toMatch(/^\/task\//));
+    await deleteFromTaskPage();
+    await waitFor(() => expect(path()).toBe('/today'));
+    await openRecentlyDeleted();
+    await userEvent.press(await screen.findByTestId('deleted-row-a'));
+    await userEvent.press(within(await screen.findByTestId('deleted-item-sheet')).getByText('Restore'));
+    await waitFor(() => expect(toast()?.message).toBe('Restored “Stretch”'));
+    expect(await screen.findByText(/Nothing here/)).toBeTruthy();
+    expect((await fake.repos.tasks.get('a' as Id))?.deletedAt ?? null).toBeNull();
+
+    // Delete a third time and delete it for good.
+    await userEvent.press(await screen.findByLabelText('Back'));
+    await waitFor(() => expect(path()).toBe('/settings/data'));
+    await userEvent.press(await screen.findByLabelText('Back'));
+    await waitFor(() => expect(path()).toBe('/settings'));
+    await userEvent.press(await screen.findByLabelText('Back'));
+    await waitFor(() => expect(path()).toBe('/today'));
+    await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
+    await deleteFromTaskPage();
+    await waitFor(() => expect(path()).toBe('/today'));
+    await openRecentlyDeleted();
+    await userEvent.press(await screen.findByTestId('deleted-row-a'));
+    await userEvent.press(within(await screen.findByTestId('deleted-item-sheet')).getByText('Delete forever'));
+    await userEvent.press(within(await screen.findByTestId('deleted-confirm-one')).getByLabelText('Delete forever'));
+    await waitFor(() => expect(toast()?.message).toBe('Deleted for good'));
+    expect(await fake.repos.tasks.get('a' as Id)).toBeNull();
+
+    // The days it was logged still count: Progress (from the Settings profile row) shows the same counted days.
+    await userEvent.press(await screen.findByLabelText('Back'));
+    await waitFor(() => expect(path()).toBe('/settings/data'));
+    await userEvent.press(await screen.findByLabelText('Back'));
+    await waitFor(() => expect(path()).toBe('/settings'));
+    await userEvent.press(await screen.findByText(/^Level \d/));
+    await waitFor(() => expect(path()).toBe('/progress'));
+    expect(params()).toMatchObject({ from: 'settings' });
+    expect(await allTimeCountedDays()).toBe(before);
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/settings'));
+  });
+});
+
+function twoStepRoutine(id: string, name: string) {
+  const step = (role: 'ideal' | 'fallback', i: number, text: string) => ({ id: `${id}-${role}-${i}` as Id, taskId: id as Id, role, text, position: i, dueWeekdays: null });
+  return routine(id, name, {
+    cadence: { kind: 'specific-weekdays', weekdays: [1, 2, 3, 4, 5] },
+    idealSteps: [step('ideal', 0, 'Warm up'), step('ideal', 1, 'Main set')],
+    fallbackSteps: [step('fallback', 0, 'Just stretch')],
+  });
+}
+
+describe('journey 5: Search, open a task, edit its schedule, Back to Search', () => {
+  it('keeps the search (text and result) when Back comes from the task', async () => {
+    fake.seedTask(twoStepRoutine('a', 'Gym session'));
+    fake.seedTask(routine('b', 'Gentle yoga'));
+    await launch('/today');
+    await screen.findByText('Gym session');
+    await userEvent.press(await screen.findByLabelText('Search'));
+    await waitFor(() => expect(path()).toBe('/search'));
+    expect(params()).toMatchObject({ from: 'today' });
+    await userEvent.type(await screen.findByLabelText('Search tasks'), 'gym');
+    expect(screen.queryByText('Gentle yoga')).toBeNull();
+    await userEvent.press(await screen.findByText('Gym session'));
+    await waitFor(() => expect(path()).toBe('/task/a'));
+    expect(params()).toMatchObject({ from: 'search' });
+
+    // Edit the step schedule: "Main set" does not run on Friday.
+    await userEvent.press(await screen.findByLabelText(/Step schedule/));
+    const picker = await screen.findByLabelText('Main set schedule');
+    await userEvent.press(within(picker).getByLabelText('Fri'));
+    await userEvent.press(await screen.findByText('Save schedule'));
+    await waitFor(async () => {
+      const steps = (await fake.repos.tasks.get('a' as Id))!.idealSteps;
+      expect(steps.find((s) => s.text === 'Main set')?.dueWeekdays).toEqual([1, 2, 3, 4]);
+      expect(steps.find((s) => s.text === 'Warm up')?.dueWeekdays).toBeNull();
+    });
+    await waitFor(() => expect(screen.queryByText('Save schedule')).toBeNull());
+
+    // Back: the Search screen the person left, with their text still in the box.
+    await press('Back');
+    await waitFor(() => expect(path()).toBe('/search'));
+    expect(rootStack()).toEqual(['(tabs)', 'search']);
+    expect(screen.getByLabelText('Search tasks').props.value).toBe('gym');
+    expect(screen.getByText('Gym session')).toBeTruthy();
+    expect(screen.queryByText('Gentle yoga')).toBeNull();
+    // And Back from Search is Today, with nothing left on top of it.
+    await press('Back to Today');
+    await waitFor(() => expect(path()).toBe('/today'));
+    expect(rootStack()).toEqual(['(tabs)']);
   });
 });

@@ -13,15 +13,15 @@
  *    an en dash, a double space, a trailing space or a placeholder word
  *  - labels that must wrap at large text sizes are not capped to one line
  */
-import { act, render, screen } from '@testing-library/react-native';
+import { render, screen } from '@testing-library/react-native';
 import { StyleSheet, View } from 'react-native';
 import type { ReactTestRendererJSON } from 'react-test-renderer';
 import { Plus, X } from 'lucide-react-native';
 
 import { useToastStore } from '@/app-shell/stores/toast';
 import { makeTask } from '@/features/task/testSupport/taskFixture';
-import { buildTheme, contrast, MIN_TAP_TARGET, ThemeContext, THEME_ORDER, type Theme } from '@/theme';
-import type { AccentKey, ColorScheme, LocalDate } from '@/types';
+import { buildTheme, contrast, MIN_TAP_TARGET, ThemeContext, THEME_ORDER, type ColorScheme, type Theme } from '@/theme';
+import type { AccentKey, LocalDate } from '@/types';
 
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -231,7 +231,7 @@ describe('a11y: states are exposed', () => {
 });
 
 describe('a11y: touch targets of primary controls are at least 44 x 44', () => {
-  it.each(COMBOS.slice(0, 2).map((c) => [`${c.scheme} / ${c.accent}`, c] as const))('%s', async (_name, c) => {
+  it.each(COMBOS.map((c) => [`${c.scheme} / ${c.accent}`, c] as const))('%s', async (_name, c) => {
     const nodes = await renderGalleryIn(c.theme);
     const small: string[] = [];
     for (const p of nodes.filter(isPressable)) {
@@ -263,8 +263,8 @@ describe('a11y: contrast of text on its surfaces, from the theme tokens (WCAG 4.
       ['accent text on accent tint', [a.text, a.soft]],
       ['button label on accent fill', [a.on, a.fill]],
       ['white on danger button', [c.textOnAccent, c.danger]],
-      ['error text on page', [c.dangerText, c.bg]],
-      ['error text on card', [c.dangerText, c.bgAlt]],
+      ['error text on page', [c.dangerDeep, c.bg]],
+      ['error text on card', [c.dangerDeep, c.bgAlt]],
       ['ideal chip text', [c.idealDeep, c.idealSoft]],
       ['fallback chip text', [c.fallbackDeep, c.fallbackSoft]],
       ['off chip text', [c.offDeep, c.offSoft]],
@@ -327,6 +327,16 @@ describe('large text: labels that must wrap are not capped to one line', () => {
     expect(capped).toEqual([]);
   });
 
+  it('the plan hint under Done / Fallback may wrap to two lines (it explains the choice)', async () => {
+    await render(
+      <ThemeContext.Provider value={buildTheme('light')}>
+        <LogControl accessibilityLabel="Stretch" value={null} onChange={noop} idealHint="Ten minutes after waking up" fallbackHint="Two stretches" />
+      </ThemeContext.Provider>,
+    );
+    const hint = screen.getByText('Ten minutes after waking up');
+    expect(hint.props.numberOfLines).toBeGreaterThanOrEqual(2);
+  });
+
   it('tab labels may wrap to two lines at large text (never cut to one line with an ellipsis)', async () => {
     await render(
       <ThemeContext.Provider value={buildTheme('light')}>
@@ -339,7 +349,7 @@ describe('large text: labels that must wrap are not capped to one line', () => {
   });
 });
 
-describe('a11y: the toast is a labelled alert in every theme', () => {
+describe('a11y: the toast is a labelled alert in every theme (its message sits inside the Dismiss button: see the report)', () => {
   it.each(COMBOS.map((c) => [`${c.scheme} / ${c.accent}`, c] as const))('%s', async (_name, c) => {
     useToastStore.getState().show('Couldn\u2019t save that. Try again.', 'warning');
     await render(
@@ -347,8 +357,12 @@ describe('a11y: the toast is a labelled alert in every theme', () => {
         <Toast />
       </ThemeContext.Provider>,
     );
-    const alert = screen.getByRole('alert');
-    expect(alert).toBeTruthy();
+    // The alert view is not an accessibility element itself (its Dismiss button is), so it is found
+    // by its label; it must still carry the alert role and a polite live region.
+    const alert = screen.getByLabelText('Couldn\u2019t save that. Try again.');
+    expect(alert.props.accessibilityRole).toBe('alert');
+    expect(alert.props.accessibilityLiveRegion).toBe('polite');
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
     const strings = spokenAndVisibleStrings(hostNodes(screen.toJSON() as ReactTestRendererJSON));
     expect(strings.flatMap((s) => wordingProblems(s))).toEqual([]);
     useToastStore.getState().hide();

@@ -120,7 +120,7 @@ export function LogButtons({ value, onChange, disabled = false, accessibilityLab
           <Text style={[styles.buttonLabel, { color: v.deep }]}>{label}</Text>
         </View>
         {hint ? (
-          <Text numberOfLines={1} style={[styles.buttonHint, { color: v.deep }]}>
+          <Text numberOfLines={2} style={[styles.buttonHint, { color: v.deep }]}>
             {hint}
           </Text>
         ) : null}

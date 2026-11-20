@@ -36,6 +36,8 @@ export interface DatasetSpec {
   readonly offDayRate?: number;
   /** Chance a day is an off mark on one habit. */
   readonly taskOffRate?: number;
+  /** Deleted habits were deleted this many days ago or fewer (Recently deleted keeps 30). Default: any time. */
+  readonly deletedWithinDays?: number;
   /** Also make one-off events, courses and as-needed habits (the random identity tests). */
   readonly exotic?: boolean;
 }
@@ -150,7 +152,9 @@ export function buildDataset(seed: number, spec: DatasetSpec): Dataset {
       }
     }
     if (kind === 'deleted') {
-      const deletedOn = addDays(createdOn, 3 + Math.floor(rng() * Math.max(4, spanDays * 0.6)));
+      const deletedOn = spec.deletedWithinDays
+        ? addDays(today, -(1 + Math.floor(rng() * spec.deletedWithinDays)))
+        : addDays(createdOn, 3 + Math.floor(rng() * Math.max(4, spanDays * 0.6)));
       const day = deletedOn < today ? deletedOn : addDays(today, -1);
       task = { ...task, deletedAt: `${day}T${String(8 + Math.floor(rng() * 10)).padStart(2, '0')}:00:00.000Z` as Instant };
       lastDay = day;

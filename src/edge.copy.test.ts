@@ -16,10 +16,8 @@
  *  - placeholder leftovers: TODO, FIXME, XXX, lorem, ipsum, undefined, null, NaN, [object Object],
  *    or an unfilled {template} token
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative, resolve } from 'path';
 
-import { importanceLabel, necessityLabel, cadenceLabel, cadenceHintLower, formatHeaderDate, formatTimeOfDay, formatWeekdaySet, taskTypeLabel, cadenceRunsOnWeekday } from '@/features/browse/format';
+import { importanceLabel, necessityLabel, cadenceLabel, cadenceHintLower, formatHeaderDate, formatTimeOfDay, formatWeekdaySet, taskTypeLabel } from '@/features/browse/format';
 import { dueSectionLabel } from '@/features/browse/copy';
 import { tenureBodyFor, formatOneDecimal } from '@/features/progress/copy';
 import { resultsCountLabel } from '@/features/search/copy';
@@ -27,6 +25,25 @@ import { reentryStatLine, statLine } from '@/features/today/copy';
 import { cadenceSummary } from '@/features/task/cadenceLabel';
 import { dayLongLabel, shortDateLabel, todayLongLabel } from '@/features/task/dateLabel';
 import type { Cadence, Importance, LocalDate, Necessity, TaskType, Weekday } from '@/types';
+
+// Node built-ins, typed here because the project does not load the node type package.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodeFs = require('fs') as {
+  existsSync(p: string): boolean;
+  readdirSync(p: string): string[];
+  readFileSync(p: string, encoding: string): string;
+  statSync(p: string): { isDirectory(): boolean };
+};
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodePath = require('path') as {
+  join(...parts: string[]): string;
+  relative(from: string, to: string): string;
+  resolve(...parts: string[]): string;
+};
+const { existsSync, readdirSync, readFileSync, statSync } = nodeFs;
+const { join, relative, resolve } = nodePath;
+
+declare const __dirname: string;
 
 const ROOT = resolve(__dirname, '..');
 const SCAN_DIRS = [join(ROOT, 'src'), join(ROOT, 'app')];

@@ -59,7 +59,7 @@ async function ensureChannel(): Promise<void> {
  */
 function routeForTap(data: Record<string, unknown> | undefined): string {
   if (data?.kind === 'gentle-reentry' && typeof data.taskId === 'string') {
-    return `/today?reentry=1&taskId=${data.taskId}`;
+    return `/today?reentry=1&taskId=${encodeURIComponent(data.taskId)}`;
   }
   return '/today';
 }

@@ -65,7 +65,7 @@ export function Input({
         {right}
       </View>
       {error ? (
-        <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.dangerText }]}>
+        <Text accessibilityRole="alert" style={[styles.helper, { color: t.color.dangerDeep }]}>
           {error}
         </Text>
       ) : helper ? (

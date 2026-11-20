@@ -162,7 +162,9 @@ describe('static: app.config.ts permissions', () => {
   const androidBlock = cfg.slice(cfg.indexOf('android: {'), cfg.indexOf('plugins: ['));
 
   it('declares exactly the five Android permissions the features use', () => {
-    const perms = [...androidBlock.matchAll(/'((?:android|com\.android)\.[\w.]+)'/g)].map((m) => m[1]).sort();
+    // Only the requested list; `blockedPermissions` names what is kept OUT.
+    const requested = /permissions:\s*\[([\s\S]*?)\]/.exec(androidBlock)?.[1] ?? '';
+    const perms = [...requested.matchAll(/'((?:android|com\.android)\.[\w.]+)'/g)].map((m) => m[1]).sort();
     expect(perms).toEqual(
       [
         'android.permission.POST_NOTIFICATIONS',
@@ -216,13 +218,12 @@ describe('static: generated Android manifest (gitignored build output, checked w
   (present ? it : it.skip)('declares no permission outside app.config.ts and the known library set', () => {
     const cfg = read('app.config.ts');
     const allowed = new Set([...FROM_LIBRARIES, ...[...cfg.matchAll(/'((?:android|com\.android)\.[\w.]+)'/g)].map((m) => m[1]!)]);
-    // SYSTEM_ALERT_WINDOW is a known defect, tracked by the it.failing below, so it is excluded here.
-    expect(declared.filter((p) => !allowed.has(p) && p !== 'android.permission.SYSTEM_ALERT_WINDOW')).toEqual([]);
+    expect(declared.filter((p) => !allowed.has(p))).toEqual([]);
   });
 
-  // Defect: the release build asks for "draw over other apps". No feature uses it and no library in
-  // node_modules declares it. Kept as it.failing until the source is found and removed.
-  (present ? it.failing : it.skip)('does not ask for SYSTEM_ALERT_WINDOW (draw over other apps)', () => {
+  // Was a defect: the release build asked for "draw over other apps". Now removed with a merge rule
+  // in the manifest and blocked in app.config.ts, so a fresh prebuild keeps it out too.
+  (present ? it : it.skip)('does not ask for SYSTEM_ALERT_WINDOW (draw over other apps)', () => {
     expect(declared).not.toContain('android.permission.SYSTEM_ALERT_WINDOW');
   });
 });
@@ -321,7 +322,7 @@ describe('static: route params and notification taps', () => {
 
   // Defect (low): routeForTap puts the task id into the URL without encoding it. The id comes from the
   // app's own notification data, so this is hygiene, not an outside attack. Kept as it.failing.
-  it.failing('encodes the task id in the gentle re-entry route', () => {
+  it('encodes the task id in the gentle re-entry route', () => {
     const src = read('src/services/notifications/index.ts');
     expect(src).toContain('encodeURIComponent(data.taskId)');
   });
@@ -535,7 +536,7 @@ describe('agent access (MCP) feature', () => {
 
   // Defect (policy): the store itself accepts any value for any scope, so "delete: allow" is one call
   // away. The screen hides it; the store does not enforce it. Kept as it.failing until the store checks.
-  it.failing('the store refuses to pre-approve delete (the screen rule is enforced in the store too)', () => {
+  it('the store refuses to pre-approve delete (the screen rule is enforced in the store too)', () => {
     useAgentAccessStore.getState().reset();
     useAgentAccessStore.getState().setPermission('delete', 'allow');
     expect(useAgentAccessStore.getState().permissions.delete).not.toBe('allow');

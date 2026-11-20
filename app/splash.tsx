@@ -15,7 +15,7 @@ import { useThemeStore } from '@/app-shell';
 import { billing } from '@/services/billing';
 import { takePendingTapRoute } from '@/services/notifications';
 import { store, repos } from '@/db';
-import { catchUpCycles, sweepExpiredDeleted } from '@/queries';
+import { catchUpCycles, healMissingXp, sweepExpiredDeleted } from '@/queries';
 import { IndeterminateBar } from '@/features/data/IndeterminateBar';
 import { S01_COPY } from '@/features/data/copy';
 import { SPACE, useTheme } from '@/theme';
@@ -59,6 +59,8 @@ export default function S01Splash() {
           void Promise.resolve(sweepExpiredDeleted()).catch(() => undefined);
           // Cycles that ended while the app was closed are archived now, not at the next log.
           void Promise.resolve(catchUpCycles()).catch(() => undefined);
+          // A log whose XP never landed (the app was killed between the two writes) gets it now.
+          void Promise.resolve(healMissingXp(repos)).catch(() => undefined);
         } catch {
           /* the sweep never blocks start-up */
         }
