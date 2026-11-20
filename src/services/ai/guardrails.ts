@@ -68,7 +68,7 @@ const RULES: readonly Rule[] = [
   },
   {
     category: 'medical-advice',
-    patterns: [/\b(right dose|correct dosage|is .* the right dose|diagnos|should i take|is it safe to take)\b/i],
+    patterns: [/\b(right dose|correct dosage|diagnos|should i take|is it safe to take)\b/i],
   },
   {
     category: 'disordered-eating',

@@ -197,7 +197,7 @@ describe('fuzz: guardrail classifier (services/ai/guardrails.ts)', () => {
   // square of the input length: about 1 s at 72 KB of "is " and several seconds at 150 KB. A long
   // paste in the chat composer can freeze the JS thread. Expected fix: bound the gap (e.g. .{0,200})
   // or test for "the right dose" first.
-  it.failing('a 150 KB input of "is " is classified in under 2 seconds (no quadratic scan)', () => {
+  it('a 150 KB input of "is " is classified in under 2 seconds (no quadratic scan)', () => {
     const started = Date.now();
     classifyGuardrail('is '.repeat(50_000));
     expect(Date.now() - started).toBeLessThan(2000);
