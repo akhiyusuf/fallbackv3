@@ -1,6 +1,6 @@
 /**
  * Ended habits in the browse lists, through the real screens and the fake repos: an ended routine
- * or repeating event sits only in "Ended"; an ended course counts as past; opening one reaches the
+ * or repeating event sits only in "Paused"; an ended course counts as past; opening one reaches the
  * task page with its Start again; old rows with no endedOn still behave.
  */
 jest.mock('expo-crypto', () => ({ randomUUID: () => '00000000-0000-4000-8000-000000000000' }));
@@ -49,16 +49,16 @@ const repeatingEvent = (id: string, name: string, patch = {}) =>
   makeTask({ id: id as Id, type: 'event', name, eventDate: null, cadence: { kind: 'daily' }, idealSteps: [], fallbackSteps: [], ...patch });
 
 describe('Routines', () => {
-  it('an ended routine shows only under Ended (with "Ended Jul 10"), not in Due, Other or As needed', async () => {
+  it('an ended routine shows only under Ended (with "Paused since Jul 10"), not in Due, Other or As needed', async () => {
     fake.seedTask(makeTask({ id: 'a' as Id, name: 'Running one' }));
     fake.seedTask(makeTask({ id: 'b' as Id, name: 'Stopped one', endedOn: D('2026-07-10') }));
     fake.seedTask(makeTask({ id: 'c' as Id, name: 'Stopped as needed', isAsNeeded: true, cadence: null, endedOn: D('2026-07-10') }));
     await renderRouter(CONTEXT, { initialUrl: '/routines', wrapper });
     const section = await screen.findByTestId('ended-section');
-    expect(within(section).getByText('Ended')).toBeTruthy();
+    expect(within(section).getByText('Paused')).toBeTruthy();
     expect(within(section).getByText('Stopped one')).toBeTruthy();
     expect(within(section).getByText('Stopped as needed')).toBeTruthy();
-    expect(within(section).getAllByText(/Ended Jul 10/).length).toBe(2);
+    expect(within(section).getAllByText(/Paused since Jul 10/).length).toBe(2);
     expect(screen.getAllByText('Stopped one')).toHaveLength(1);
     expect(screen.getAllByText('Stopped as needed')).toHaveLength(1);
     expect(screen.getByText('Running one')).toBeTruthy();
@@ -88,8 +88,8 @@ describe('Routines', () => {
     await renderRouter(CONTEXT, { initialUrl: '/routines', wrapper });
     await userEvent.press(await screen.findByText('Running one'));
     await userEvent.press(await screen.findByTestId('s20-more'));
-    await userEvent.press(await screen.findByLabelText('End routine'));
-    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('End routine'));
+    await userEvent.press(await screen.findByLabelText('Pause routine'));
+    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('Pause routine'));
     await screen.findByTestId('s20-ended');
     await userEvent.press(screen.getByLabelText('Back'));
     const section = await screen.findByTestId('ended-section');
@@ -105,7 +105,7 @@ describe('Events', () => {
     await renderRouter(CONTEXT, { initialUrl: '/events', wrapper });
     const section = await screen.findByTestId('ended-section');
     expect(within(section).getByText('Old club')).toBeTruthy();
-    expect(within(section).getByText('Ended Jul 1')).toBeTruthy();
+    expect(within(section).getByText('Paused since Jul 1')).toBeTruthy();
     expect(screen.getAllByText('Old club')).toHaveLength(1);
     expect(screen.getByText('Weekly standup')).toBeTruthy();
     expect(screen.getByText('Dentist')).toBeTruthy();
@@ -124,15 +124,17 @@ describe('Courses', () => {
   const course = (id: string, name: string, patch = {}) =>
     makeTask({ id: id as Id, type: 'course', name, startDate: D('2026-07-01'), endDate: D('2026-09-01'), ...NONE, ...patch });
 
-  it('an ended course is under Past, not Active; a running one stays Active', async () => {
+  // Twenty-eighth pass: a paused course is neither running nor finished. It sits in its own Paused
+  // section on the Active lens, never under Past.
+  it('a paused course is in the Paused section on Active, not under Past; a running one stays Active', async () => {
     fake.seedTask(course('c1', 'Running course'));
     fake.seedTask(course('c2', 'Stopped course', { endedOn: D('2026-07-10') }));
     await renderRouter(CONTEXT, { initialUrl: '/courses', wrapper });
     await screen.findByText('Running course');
-    expect(screen.queryByText('Stopped course')).toBeNull();
+    expect(await screen.findByTestId('ended-section')).toBeTruthy();
+    expect(within(screen.getByTestId('ended-section')).getByText('Stopped course')).toBeTruthy();
     await userEvent.press(screen.getByLabelText('Past'));
-    expect(await screen.findByText('Stopped course')).toBeTruthy();
-    expect(screen.queryByText('Running course')).toBeNull();
+    expect(screen.queryByText('Stopped course')).toBeNull();
   });
 });
 

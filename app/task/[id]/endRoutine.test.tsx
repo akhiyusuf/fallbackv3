@@ -1,5 +1,5 @@
 /**
- * "End routine" vs "Delete", as the task screen sees it: which kinds can be ended, the confirm
+ * "Pause routine" vs "Delete", as the task screen sees it: which kinds can be ended, the confirm
  * sheet, the Ended card and Start again, what an ended task hides, the menu swap, the delete
  * sheet's "End instead" line, and double taps.
  */
@@ -24,7 +24,7 @@ import { fake } from '@/queries/testSupport/dbMock';
 import { clock } from '@/queries/testSupport/clockMock';
 import { err } from '@/types';
 import type { Id, LocalDate, TaskWithSteps } from '@/types';
-import { END_COPY } from './index';
+import { ALL_REQUIRED_COPY, END_COPY } from './index';
 
 const NOW = '2026-07-16T12:00:00.000Z';
 const originalTasks = { ...fake.repos.tasks };
@@ -60,9 +60,9 @@ async function openMenu() {
 }
 async function endIt(noun = 'routine') {
   await openMenu();
-  await userEvent.press(await screen.findByLabelText(`End ${noun}`));
+  await userEvent.press(await screen.findByLabelText(`Pause ${noun}`));
   const sheet = await screen.findByTestId('s20-end-confirm');
-  await userEvent.press(within(sheet).getByLabelText(`End ${noun}`));
+  await userEvent.press(within(sheet).getByLabelText(`Pause ${noun}`));
 }
 const stored = async () => (await fake.repos.tasks.get(ID))!;
 
@@ -79,8 +79,8 @@ describe('which kinds get "End"', () => {
     await open(task);
     await openMenu();
     expect(await screen.findByLabelText(`Delete ${noun}`)).toBeTruthy();
-    expect(!!screen.queryByLabelText(`End ${noun}`)).toBe(offered);
-    expect(screen.queryByLabelText('Start again')).toBeNull();
+    expect(!!screen.queryByLabelText(`Pause ${noun}`)).toBe(offered);
+    expect(screen.queryByLabelText('Resume')).toBeNull();
   });
 });
 
@@ -88,7 +88,7 @@ describe('end confirm sheet', () => {
   it('shows the copy, and Cancel closes it without ending', async () => {
     await open(makeTask({ id: ID }));
     await openMenu();
-    await userEvent.press(await screen.findByLabelText('End routine'));
+    await userEvent.press(await screen.findByLabelText('Pause routine'));
     const sheet = await screen.findByTestId('s20-end-confirm');
     expect(within(sheet).getByText(END_COPY.confirmTitle('routine'))).toBeTruthy();
     expect(within(sheet).getByText(END_COPY.confirmBody('routine'))).toBeTruthy();
@@ -103,7 +103,7 @@ describe('end confirm sheet', () => {
     await open(makeTask({ id: ID }));
     await endIt();
     expect(await screen.findByTestId('s20-ended')).toBeTruthy();
-    expect(screen.getByText('Ended Jul 15')).toBeTruthy();
+    expect(screen.getByText('Paused since Jul 15')).toBeTruthy();
     expect(screen.getByText(END_COPY.endedBody)).toBeTruthy();
     expect((await stored()).endedOn).toBe('2026-07-15');
     expect(toast()?.message).toBe(END_COPY.endedToast);
@@ -115,7 +115,7 @@ describe('end confirm sheet', () => {
     await userEvent.press(await screen.findByLabelText(/^Morning workout: Done/));
     await waitFor(async () => expect((await fake.repos.logs.listForTask(ID, '2026-07-16' as LocalDate, '2026-07-16' as LocalDate)).length).toBe(1));
     await endIt();
-    expect(await screen.findByText('Ended Jul 16')).toBeTruthy();
+    expect(await screen.findByText('Paused since Jul 16')).toBeTruthy();
     expect((await stored()).endedOn).toBe('2026-07-16');
   });
 
@@ -132,9 +132,9 @@ describe('end confirm sheet', () => {
     const spy = jest.fn(originalTasks.update);
     fake.repos.tasks.update = spy;
     await openMenu();
-    await userEvent.press(await screen.findByLabelText('End routine'));
+    await userEvent.press(await screen.findByLabelText('Pause routine'));
     const sheet = await screen.findByTestId('s20-end-confirm');
-    const button = within(sheet).getByLabelText('End routine');
+    const button = within(sheet).getByLabelText('Pause routine');
     await act(async () => {
       fireEvent.press(button);
       fireEvent.press(button);
@@ -151,7 +151,7 @@ describe('an ended task', () => {
   it('shows the Ended card and hides Today logging, Time and Priority', async () => {
     await open(ended({ timeOfDay: '07:30' }));
     expect(screen.getByTestId('s20-ended')).toBeTruthy();
-    expect(screen.getByText('Ended Jul 10')).toBeTruthy();
+    expect(screen.getByText('Paused since Jul 10')).toBeTruthy();
     expect(screen.queryByText('Today')).toBeNull();
     expect(screen.queryByTestId('s20-chip')).toBeNull();
     expect(screen.queryByText('Time')).toBeNull();
@@ -170,15 +170,15 @@ describe('an ended task', () => {
     await open(makeTask({ id: ID, endedOn: undefined as unknown as null }));
     expect(screen.queryByTestId('s20-ended')).toBeNull();
     await openMenu();
-    expect(await screen.findByLabelText('End routine')).toBeTruthy();
+    expect(await screen.findByLabelText('Pause routine')).toBeTruthy();
   });
 
   it('the menu offers Start again instead of End', async () => {
     await open(ended());
     await openMenu();
     // The Ended card's button and the menu entry.
-    expect(await screen.findAllByLabelText('Start again')).toHaveLength(2);
-    expect(screen.queryByLabelText('End routine')).toBeNull();
+    expect(await screen.findAllByLabelText('Resume')).toHaveLength(2);
+    expect(screen.queryByLabelText('Pause routine')).toBeNull();
     expect(screen.getByLabelText('Delete routine')).toBeTruthy();
   });
 
@@ -200,14 +200,14 @@ describe('an ended task', () => {
     expect(toast()?.tone).toBe('success');
     expect((await stored()).endedOn ?? null).toBeNull();
     await openMenu();
-    expect(await screen.findByLabelText('End routine')).toBeTruthy();
-    expect(screen.queryByLabelText('Start again')).toBeNull();
+    expect(await screen.findByLabelText('Pause routine')).toBeTruthy();
+    expect(screen.queryByLabelText('Resume')).toBeNull();
   });
 
   it('Start again from the menu works the same', async () => {
     await open(ended());
     await openMenu();
-    const entries = await screen.findAllByLabelText('Start again');
+    const entries = await screen.findAllByLabelText('Resume');
     expect(entries).toHaveLength(2);
     await userEvent.press(entries.find((e) => e.props.testID !== 's20-start-again') ?? entries[1]!);
     await waitFor(() => expect(screen.queryByTestId('s20-ended')).toBeNull());
@@ -240,7 +240,7 @@ describe('an ended task', () => {
     await open(makeTask({ id: ID, type: 'course', name: 'Spanish', startDate: '2026-07-01' as LocalDate, endDate: '2026-09-01' as LocalDate, endedOn: '2026-07-10' as LocalDate, ...NOT_ROUTINE }));
     expect(screen.getByTestId('s20-ended')).toBeTruthy();
     await openMenu();
-    expect(await screen.findAllByLabelText('Start again')).toHaveLength(2);
+    expect(await screen.findAllByLabelText('Resume')).toHaveLength(2);
     expect(screen.getByLabelText('Delete course')).toBeTruthy();
   });
 });
@@ -286,5 +286,30 @@ describe('wording', () => {
       DELETE_COPY.endInstead('routine'),
     ];
     for (const s of all) expect(s).not.toMatch(/[—–]/);
+  });
+});
+
+describe('"Every dose / every step needed" switch (twenty-eighth pass)', () => {
+  it('a three-dose course offers "Every dose needed", off by default, and turning it on is saved', async () => {
+    await open(makeTask({ id: ID, type: 'course', name: 'Antibiotic', dosesPerDay: 3, startDate: '2026-07-01' as LocalDate, endDate: '2026-07-30' as LocalDate, idealSteps: [] }));
+    const sw = await screen.findByTestId('s20-all-required-switch');
+    expect(screen.getByText(ALL_REQUIRED_COPY.offSub)).toBeTruthy();
+    await fireEvent(sw, 'valueChange', true);
+    await waitFor(async () => expect((await fake.repos.tasks.get(ID))?.allRequired).toBe(true));
+    expect(await screen.findByText(ALL_REQUIRED_COPY.onSub)).toBeTruthy();
+  });
+
+  it('a routine with two ideal steps offers "Every step needed"; one with a single step does not', async () => {
+    const steps = [
+      { id: 's1' as never, taskId: ID, role: 'ideal' as const, text: 'Run', position: 0, dueWeekdays: null },
+      { id: 's2' as never, taskId: ID, role: 'ideal' as const, text: 'Stretch', position: 1, dueWeekdays: null },
+    ];
+    await open(makeTask({ id: ID, name: 'Workout', idealSteps: steps }));
+    expect(await screen.findByText(ALL_REQUIRED_COPY.steps)).toBeTruthy();
+  });
+
+  it('a routine with one ideal step has no such switch', async () => {
+    await open(makeTask({ id: ID, name: 'Walk' }));
+    expect(screen.queryByTestId('s20-all-required-switch')).toBeNull();
   });
 });

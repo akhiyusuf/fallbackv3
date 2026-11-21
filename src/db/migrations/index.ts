@@ -12,6 +12,7 @@ import { MIGRATION_006_SETTINGS_ACCENT_EXT } from './006_settings_accent_ext';
 import { MIGRATION_007_TASK_PRIORITY_RANK } from './007_task_priority_rank';
 import { MIGRATION_008_TASK_ENDED_AND_RETIRED_DAYS } from './008_task_ended_and_retired_days';
 import { MIGRATION_009_TASK_LOCAL_DAYS } from './009_task_local_days';
+import { MIGRATION_010_TASK_ALL_REQUIRED } from './010_task_all_required';
 import type { Migration } from './types';
 
 export type { Migration } from './types';
@@ -26,6 +27,7 @@ export const MIGRATIONS: readonly Migration[] = [
   MIGRATION_007_TASK_PRIORITY_RANK,
   MIGRATION_008_TASK_ENDED_AND_RETIRED_DAYS,
   MIGRATION_009_TASK_LOCAL_DAYS,
+  MIGRATION_010_TASK_ALL_REQUIRED,
 ];
 
 export const CURRENT_SCHEMA_VERSION: number = MIGRATIONS[MIGRATIONS.length - 1]!.version;

@@ -156,7 +156,7 @@ describe('task page: every kind opens', () => {
 });
 
 describe('task page: ended, deleted, gone', () => {
-  it('ended routine: "Ended" card with Start again, no Today card, no priority block', async () => {
+  it('ended routine: "Paused" card with Start again, no Today card, no priority block', async () => {
     fake.seedTask(makeTask({ id: 'a' as Id, endedOn: '2026-07-10' as LocalDate }));
     await open('a');
     expect(await screen.findByTestId('s20-ended')).toBeTruthy();

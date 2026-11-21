@@ -404,7 +404,7 @@ function flatten(node: unknown, out: { label?: string; text?: string }[]) {
 function routineSections(): string {
   const items: { label?: string; text?: string }[] = [];
   flatten(screen.toJSON(), items);
-  const heads = /^(Due (?!today)\w+|Other routines|As needed|Ended)$/;
+  const heads = /^(Due (?!today)\w+|Other routines|As needed|Paused)$/;
   const names = ['Stretch', 'Gym', 'Meditate'];
   const sections: { head: string; names: string[] }[] = [];
   for (const it of items) {
@@ -782,17 +782,17 @@ describe('a week of real use, Monday to Sunday', () => {
     await userEvent.press(await screen.findByLabelText(/^Stretch, .*Opens the task/));
     await waitFor(() => expect(path()).toMatch(/^\/task\//));
     await userEvent.press(await screen.findByTestId('s20-more'));
-    await userEvent.press(await screen.findByLabelText('End routine'));
-    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('End routine'));
+    await userEvent.press(await screen.findByLabelText('Pause routine'));
+    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('Pause routine'));
     await settle();
-    await expectSeen('Stretch ended on the day it was last logged', 'Ended Jul 18', () => String(screen.getByText(/^Ended Jul \d+$/).props.children));
+    await expectSeen('Stretch ended on the day it was last logged', 'Paused since Jul 18', () => String(screen.getByText(/^Paused since Jul \d+$/).props.children));
     record('stored endedOn', SAT, (await fake.repos.tasks.get('stretch' as Id))?.endedOn);
     await press('Back');
     await settle();
     await openTab('Routines');
     // Saturday: Stretch is ended, Gym is Mon-Fri, so nothing is due; Gym sits under Other routines.
-    await sectionsCheck('Routines sections on Saturday after ending Stretch', 'Due Saturday: (none) | Other routines: Gym | As needed: Meditate | Ended: Stretch', 'Sat');
-    await expectSeen('Ended card meta', true, () => screen.queryAllByText('Ended Jul 18').length > 0);
+    await sectionsCheck('Routines sections on Saturday after ending Stretch', 'Due Saturday: (none) | Other routines: Gym | As needed: Meditate | Paused: Stretch', 'Sat');
+    await expectSeen('Ended card meta', true, () => screen.queryAllByText('Paused since Jul 18').length > 0);
     await openTab('Today');
     // Ending does not take today's logged Stretch away: it is still ideal on Today.
     await expectSeen('Today after ending Stretch (its logged day stays)', ['Stretch: I', 'Antibiotic: F'], todayRows);
@@ -838,7 +838,7 @@ describe('a week of real use, Monday to Sunday', () => {
     action('Sun', '15:00', 'Routines tab; Progress (All tasks and Stretch alone)');
     setClock(SUN!, 15, 0);
     await openTab('Routines');
-    await sectionsCheck('Routines sections on Sunday', 'Due Sunday: (none) | Other routines: Gym | As needed: Meditate | Ended: Stretch', 'Sun');
+    await sectionsCheck('Routines sections on Sunday', 'Due Sunday: (none) | Other routines: Gym | As needed: Meditate | Paused: Stretch', 'Sun');
     await expectSeen('Ended Stretch week strip (Jul 13..19; Sunday is after its end)', 'IFOIII-', () => strip(within(screen.getByLabelText(/^Stretch, /))));
     await expectSeen('Gym week strip', 'I-OFI--', () => strip(within(screen.getByLabelText(/^Gym, /))));
     await openTab('Today');
@@ -861,7 +861,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await userEvent.press(within(await screen.findByTestId('delete-task-sheet')).getByLabelText('Delete routine'));
     await settle();
     await waitFor(() => expect(path()).toBe('/routines'));
-    await expectSeen('Routines without Gym', 'Due Sunday: (none) | As needed: Meditate | Ended: Stretch', routineSections);
+    await expectSeen('Routines without Gym', 'Due Sunday: (none) | As needed: Meditate | Paused: Stretch', routineSections);
     await expectSeen('Gym is in Recently deleted, not gone', true, () => fake.logsFor(gymId as Id).length >= 3);
     await openTab('Today');
     await openProgress('All tasks');
@@ -889,7 +889,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await waitFor(() => expect(path()).toBe('/today'));
     await settle();
     await openTab('Routines');
-    await expectSeen('Routines with Gym restored', 'Due Sunday: (none) | Other routines: Gym | As needed: Meditate | Ended: Stretch', routineSections);
+    await expectSeen('Routines with Gym restored', 'Due Sunday: (none) | Other routines: Gym | As needed: Meditate | Paused: Stretch', routineSections);
     await expectSeen('restored Gym keeps its week (Jul 13..19)', 'I-OFI--', () => strip(within(screen.getByLabelText(/^Gym, /))));
     await openTab('Today');
 

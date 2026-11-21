@@ -18,6 +18,7 @@ function computeAutoChip(
   completedStepIds: readonly string[],
   dosesRequired: number,
   dosesCompleted: number,
+  allRequired = false,
 ): 'todo' | 'done' | 'fallback' {
   const completed = new Set(completedStepIds);
   const totalIdeal = dueIdealIds.length;
@@ -29,6 +30,9 @@ function computeAutoChip(
 
   const allIdealComplete = totalIdeal === 0 || completedIdealCount === totalIdeal;
   if (allIdealComplete && dosesOk) return 'done';
+  // "Every dose / every step needed" (the task's own switch): part of it is not a fallback, the day
+  // stays to do and becomes a miss once it is over. The Fallback chip itself still logs a fallback.
+  if (allRequired) return 'todo';
   if (completedIdealCount > 0 || dosesCompleted > 0) return 'fallback';
   return 'todo';
 }
@@ -95,7 +99,7 @@ function resolveDueOccurrence(
     };
   }
 
-  const autoChip = computeAutoChip(dueIdealIds, completedStepIds, dosesRequired, dosesCompleted);
+  const autoChip = computeAutoChip(dueIdealIds, completedStepIds, dosesRequired, dosesCompleted, task.allRequired ?? false);
   // A manual chip wins until the user changes it again (docs/SCHEMA.md §4 `is_manual_override`).
   const effectiveChip: ChipState =
     effectiveLog && effectiveLog.isManualOverride && effectiveLog.chipState !== null ? effectiveLog.chipState : autoChip;
@@ -208,6 +212,6 @@ export function resolvePushedOccurrence(input: {
 }
 
 /** Auto-log rule (F3): all due ideal steps complete -> ideal; >=1 but not all -> fallback; 0 -> todo. */
-export function autoChipState(occurrence: Occurrence): 'todo' | 'done' | 'fallback' {
-  return computeAutoChip(occurrence.dueIdealStepIds, occurrence.completedStepIds, occurrence.dosesRequired, occurrence.dosesCompleted);
+export function autoChipState(occurrence: Occurrence, allRequired = false): 'todo' | 'done' | 'fallback' {
+  return computeAutoChip(occurrence.dueIdealStepIds, occurrence.completedStepIds, occurrence.dosesRequired, occurrence.dosesCompleted, allRequired);
 }

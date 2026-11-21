@@ -511,6 +511,20 @@ export default function S20ManageTask() {
               label="Can be pushed to tomorrow"
               right={<Switch value={task.snoozable} onValueChange={(v) => void patch({ snoozable: v })} accessibilityLabel="Can be pushed to tomorrow" testID="s20-snoozable-switch" />}
             />
+            {isMultiDose || task.idealSteps.length > 1 ? (
+              <ListRow
+                label={isMultiDose ? ALL_REQUIRED_COPY.doses : ALL_REQUIRED_COPY.steps}
+                sublabel={task.allRequired ? ALL_REQUIRED_COPY.onSub : ALL_REQUIRED_COPY.offSub}
+                right={
+                  <Switch
+                    value={!!task.allRequired}
+                    onValueChange={(v) => void patch({ allRequired: v })}
+                    accessibilityLabel={isMultiDose ? ALL_REQUIRED_COPY.doses : ALL_REQUIRED_COPY.steps}
+                    testID="s20-all-required-switch"
+                  />
+                }
+              />
+            ) : null}
             {showScheduleEditor ? <ListRow icon={CalendarDays} label="Step schedule" sublabel="Which days each step applies" onPress={openSchedule} chevron={false} /> : null}
           </ListGroup>
         </View>
@@ -586,7 +600,7 @@ export default function S20ManageTask() {
           ...(canEnd
             ? [
                 endedOn === null
-                  ? { key: 'end', icon: CircleStop, label: `End ${noun}`, onPress: () => setEndOpen(true) }
+                  ? { key: 'end', icon: CircleStop, label: END_COPY.menuLabel(noun), onPress: () => setEndOpen(true) }
                   : { key: 'start-again', icon: RotateCcw, label: END_COPY.startAgain, onPress: () => void onStartAgain() },
               ]
             : []),
@@ -630,7 +644,7 @@ export default function S20ManageTask() {
         onClose={() => setEndOpen(false)}
         title={END_COPY.confirmTitle(noun)}
         message={END_COPY.confirmBody(noun)}
-        confirmLabel={`End ${noun}`}
+        confirmLabel={END_COPY.confirmLabel(noun)}
         onConfirm={() => void onEnd()}
         loading={endTask.isPending}
         testID="s20-end-confirm"
@@ -687,14 +701,29 @@ function DayLogSheet({
   );
 }
 
+export const ALL_REQUIRED_COPY = {
+  doses: 'Every dose needed',
+  steps: 'Every step needed',
+  onSub: 'Doing only part of it counts as a miss.',
+  offSub: 'Doing part of it counts as a fallback.',
+} as const;
+
+/**
+ * Pause (stored as `endedOn`) is for an emergency or a hard stretch: nothing is due and the days
+ * away never count against the person. Delete is for something they no longer need. Each sheet
+ * names the other, so neither is picked to dodge a day (twenty-eighth pass, the human's call).
+ */
 export const END_COPY = {
-  confirmTitle: (noun: string) => `End this ${noun}?`,
-  confirmBody: (noun: string) => `It moves to Ended and nothing is due from now on. Every day you've logged still counts. You can start this ${noun} again any time.`,
-  endedTitle: (date: string) => `Ended ${date}`,
-  endedBody: "Nothing is due from here on. The days before still count in your consistency.",
-  startAgain: 'Start again',
-  endedToast: 'Ended. Its past days still count.',
-  startedToast: 'Started again from today.',
+  menuLabel: (noun: string) => `Pause ${noun}`,
+  confirmTitle: (noun: string) => `Pause this ${noun}?`,
+  confirmBody: (noun: string) =>
+    `Pausing is for an emergency or a hard stretch. Nothing is due while it's paused, and those days don't count against you. If you no longer need this ${noun}, delete it instead.`,
+  confirmLabel: (noun: string) => `Pause ${noun}`,
+  endedTitle: (date: string) => `Paused since ${date}`,
+  endedBody: "Nothing is due while it's paused. Resume when you're ready; the days away won't count against you.",
+  startAgain: 'Resume',
+  endedToast: "Paused. Nothing is due until you resume it.",
+  startedToast: 'Resumed from today.',
 } as const;
 
 const styles = StyleSheet.create({

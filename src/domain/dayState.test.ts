@@ -275,3 +275,34 @@ describe('autoChipState — F3, reused by the mutation layer after a step toggle
     expect(autoChipState({ taskId: 't' as never, date: 'x' as never, outcome: 'pending', dueIdealStepIds: [], completedStepIds: [], chipState: null, dosesRequired: 1, dosesCompleted: 0 })).toBe('todo');
   });
 });
+
+describe('"Every dose / every step needed" (twenty-eighth pass, the task switch)', () => {
+  const course = (allRequired: boolean) =>
+    makeTask({ type: 'course', dosesPerDay: 3, idealSteps: [], startDate: d('2024-05-01'), endDate: d('2024-12-31'), allRequired });
+  const twoSteps = (allRequired: boolean) =>
+    makeTask({
+      allRequired,
+      idealSteps: [
+        { id: 'i1' as never, taskId: 't1' as never, role: 'ideal', text: 'Run', position: 0, dueWeekdays: null },
+        { id: 'i2' as never, taskId: 't1' as never, role: 'ideal', text: 'Stretch', position: 1, dueWeekdays: null },
+      ],
+    });
+
+  test('off (the default): one dose of three, or one step of two, is a fallback', () => {
+    expect(resolveOccurrence({ task: course(false), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ dosesCompleted: 1 }), offMarks: [] }).outcome).toBe('fallback');
+    expect(resolveOccurrence({ task: twoSteps(false), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ completedStepIds: ['i1' as never] }), offMarks: [] }).outcome).toBe('fallback');
+  });
+
+  test('on: part of it is a miss once the day is over, still to do while it is today', () => {
+    expect(resolveOccurrence({ task: course(true), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ dosesCompleted: 2 }), offMarks: [] }).outcome).toBe('missed');
+    expect(resolveOccurrence({ task: course(true), date: d('2024-06-01'), today: d('2024-06-01'), log: log({ dosesCompleted: 2 }), offMarks: [] }).outcome).toBe('pending');
+    expect(resolveOccurrence({ task: twoSteps(true), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ completedStepIds: ['i1' as never] }), offMarks: [] }).outcome).toBe('missed');
+  });
+
+  test('on: all of it is ideal, and pressing Fallback still logs a fallback', () => {
+    expect(resolveOccurrence({ task: course(true), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ dosesCompleted: 3 }), offMarks: [] }).outcome).toBe('ideal');
+    expect(
+      resolveOccurrence({ task: course(true), date: d('2024-06-01'), today: d('2024-06-02'), log: log({ dosesCompleted: 1, chipState: 'fallback', isManualOverride: true }), offMarks: [] }).outcome,
+    ).toBe('fallback');
+  });
+});

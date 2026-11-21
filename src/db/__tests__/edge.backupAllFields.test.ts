@@ -11,7 +11,7 @@ import { makeTempDir, removeDir, joinPath } from '../testSupport/nodeTempFiles';
 import { DatabaseSync } from 'node:sqlite';
 
 import { DB_NAME } from '../client';
-import { MIGRATIONS } from '../migrations';
+import { CURRENT_SCHEMA_VERSION, MIGRATIONS } from '../migrations';
 import type { LocalDate } from '@/types';
 
 const createdDirs: string[] = [];
@@ -267,6 +267,8 @@ const TASKS_V9: Row[] = [
     // Stored as the device saw the day; deliberately NOT the UTC date of created_at (23:30Z).
     created_on: '2026-01-16',
     deleted_on: null,
+    // Migration 10: every dose needed.
+    all_required: 1,
   },
   {
     // Ended AND soft-deleted: its local deletion day differs from the UTC day of deleted_at.
@@ -566,7 +568,7 @@ async function recordOf(app: App): Promise<string[]> {
 describe('backup and restore with every column', () => {
   it('seeds every column of every backed-up table with a non-default value (the seed is the test)', () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     seedFull(dir);
     const problems: string[] = [];
     withRaw(dir, (conn) => {
@@ -588,14 +590,14 @@ describe('backup and restore with every column', () => {
 
   it('the backed-up table list is the whole schema minus the pinned exclusions (a new table must be decided)', () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     const tables = withRaw(dir, (conn) => userTables(conn));
     expect(tables.filter((t) => !(BACKED_UP as readonly string[]).includes(t) && !(NOT_BACKED_UP as readonly string[]).includes(t))).toEqual([]);
   });
 
   it('backup, erase and restore reproduce every field of every backed-up row', async () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     seedFull(dir);
     const app = await start(dir);
     const before = snapshot(dir);
@@ -607,7 +609,7 @@ describe('backup and restore with every column', () => {
     const uri = backup.ok ? backup.value.uri : '';
     const text = fileDouble().__read(uri);
     const envelope = JSON.parse(text) as { schemaVersion: number; tables: Rows };
-    expect(envelope.schemaVersion).toBe(9);
+    expect(envelope.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(Object.keys(envelope.tables).sort()).toEqual([...BACKED_UP].sort());
     // Excluded by design: no chat, no entitlement, no receipt.
     expect(text).not.toContain('chat-marker-123');
@@ -627,7 +629,7 @@ describe('backup and restore with every column', () => {
 
   it('a backup larger than 5 MB round-trips exactly', async () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     const bigNote = 'Line é☕ with "quotes" and\nnewlines. '.repeat(9000); // about 0.3 MB of text per habit
     withRaw(dir, (conn) => {
       insertRows(conn, 'settings', [SETTINGS_V9], true);
@@ -659,7 +661,7 @@ describe('backup and restore with every column', () => {
 
   it('the file is named by the device-local day of the backup, in the zone the phone is in at that moment', async () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     const instant = '2026-11-20T23:30:00.000Z';
     setClock(instant);
     const app = await start(dir);
@@ -850,7 +852,7 @@ describe('the backup file written through the Android folder picker', () => {
 
   it('the saved file is byte-identical to the backup, including non-ASCII names, and restores', async () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     seedFull(dir);
     const instant = '2026-11-20T23:30:00.000Z';
     setClock(instant);
@@ -883,7 +885,7 @@ describe('the backup file written through the Android folder picker', () => {
 
   it('a non-ASCII backup file name keeps its characters and the saved file is byte-identical', async () => {
     const dir = newDir();
-    createStoreAt(dir, 9);
+    createStoreAt(dir, CURRENT_SCHEMA_VERSION);
     await start(dir);
     configureSaf();
     // eslint-disable-next-line @typescript-eslint/no-require-imports

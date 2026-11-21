@@ -43,7 +43,7 @@ describe('Routines tab', () => {
     ok([task()]);
     await render(<RoutinesBrowseScreen />);
     expect(screen.getByText('Movement')).toBeTruthy();
-    expect(screen.queryByText('Ended')).toBeNull();
+    expect(screen.queryByText('Paused')).toBeNull();
   });
 
   it('300 routines render without throwing and every name is present', async () => {
@@ -91,9 +91,9 @@ describe('Routines tab', () => {
     ok([task({ id: 'a', name: 'Older', endedOn: '2026-03-02' }), task({ id: 'b', name: 'Newer', endedOn: '2026-05-09' })]);
     await render(<RoutinesBrowseScreen />);
     expect(screen.queryByText('Create your first routine')).toBeNull();
-    expect(screen.getByText('Ended')).toBeTruthy();
-    expect(screen.getByText('Ended May 9')).toBeTruthy();
-    expect(screen.getByText('Ended Mar 2')).toBeTruthy();
+    expect(screen.getByText('Paused')).toBeTruthy();
+    expect(screen.getByText('Paused since May 9')).toBeTruthy();
+    expect(screen.getByText('Paused since Mar 2')).toBeTruthy();
     const names = screen.getAllByText(/Older|Newer/).map((n) => n.props.children);
     expect(names.indexOf('Newer')).toBeLessThan(names.indexOf('Older'));
     // An ended routine is never in the weekday "Due" list.
@@ -135,7 +135,7 @@ describe('Events tab', () => {
   it('an ended repeating event appears only under Ended', async () => {
     ok([task({ id: 'e1', type: 'event', name: 'Book club', cadence: { kind: 'weekly', weekday: 2 }, endedOn: '2026-02-01' })]);
     await render(<EventsBrowseScreen />);
-    expect(screen.getByText('Ended Feb 1')).toBeTruthy();
+    expect(screen.getByText('Paused since Feb 1')).toBeTruthy();
     expect(screen.getAllByText('Book club')).toHaveLength(1);
   });
 
@@ -159,14 +159,15 @@ describe('Courses tab', () => {
     expect(screen.getByText(/Starts /)).toBeTruthy();
   });
 
-  it('a course ended early is under Past and says it ended on the day it was ended, not its planned last day', async () => {
-    const ended = addDays(today(), -1);
-    ok([course({ endedOn: ended, endDate: addDays(today(), 30) })]);
+  it('a paused course shows under Paused with the day it was paused, not under Past', async () => {
+    const paused = addDays(today(), -1);
+    ok([course({ endedOn: paused, endDate: addDays(today(), 30) })]);
     await render(<CoursesBrowseScreen />);
-    await fireEvent.press(screen.getByText('Past'));
     const { format } = require('date-fns');
     const { parseLocalDate } = require('@/lib/date');
-    expect(screen.getByText(new RegExp(`Completed ${format(parseLocalDate(ended), 'MMM d')}`))).toBeTruthy();
+    expect(screen.getByText(new RegExp(`Paused since ${format(parseLocalDate(paused), 'MMM d')}`))).toBeTruthy();
+    await fireEvent.press(screen.getByText('Past'));
+    expect(screen.queryByText(/Completed/)).toBeNull();
   });
 
   it('a one-day course says "1 day", not "1 days"', async () => {
@@ -273,7 +274,7 @@ describe('Search', () => {
     await render(<SearchScreen />);
     await fireEvent.changeText(input(), 'piano');
     expect(screen.getByText('Piano')).toBeTruthy();
-    expect(screen.getByText('Ended')).toBeTruthy();
+    expect(screen.getByText('Paused')).toBeTruthy();
   });
 
   it('no matches then Clear all brings everything back', async () => {
@@ -323,7 +324,7 @@ describe('Priorities ordering', () => {
   it('ended, finished to-dos, notes, past events and finished courses drop out; live ones stay', () => {
     const g = groupByImportance(
       [
-        task({ id: '1', name: 'Ended', endedOn: '2026-05-01' }),
+        task({ id: '1', name: 'Paused', endedOn: '2026-05-01' }),
         task({ id: '2', name: 'Done todo', type: 'todo', todoDoneAt: '2026-05-01T00:00:00.000Z' }),
         task({ id: '3', name: 'Note', type: 'todo', isNote: true }),
         task({ id: '4', name: 'Past event', type: 'event', eventDate: '2026-05-31' }),

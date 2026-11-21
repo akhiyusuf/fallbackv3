@@ -18,6 +18,7 @@ import { StatusPill, metaParts } from '@/features/task/TaskDetails';
 import { BROWSE_SHARED_COPY, S12_COPY } from './copy';
 import { Fab, FAB_CLEARANCE } from './Fab';
 import { BrowseHeader } from './BrowseHeader';
+import { EndedSection } from './EndedSection';
 
 type Lens = 'active' | 'past';
 
@@ -29,9 +30,11 @@ export default function CoursesBrowseScreen() {
   const todayDate = today();
 
   const all = tasksQuery.data ?? [];
-  // A course stopped early with "End course" is finished, the same as one past its end date.
-  const isOver = (c: (typeof all)[number]) => !!c.endedOn || (c.endDate !== null && c.endDate < todayDate);
-  const active = all.filter((c) => !isOver(c));
+  // A paused course is neither running nor finished: it has its own Paused section. Past is only a
+  // course whose last day has gone by.
+  const isOver = (c: (typeof all)[number]) => !c.endedOn && c.endDate !== null && c.endDate < todayDate;
+  const paused = all.filter((c) => !!c.endedOn);
+  const active = all.filter((c) => !c.endedOn && !isOver(c));
   const past = all.filter(isOver);
   const shown = lens === 'active' ? active : past;
   const nextToFinish = [...active].filter((c) => c.endDate !== null).sort((a, b) => ((a.endDate as LocalDate) < (b.endDate as LocalDate) ? -1 : 1))[0];
@@ -87,6 +90,7 @@ export default function CoursesBrowseScreen() {
                 shown.map((c) => <CourseRow key={c.id} task={c} today={todayDate} isPast={lens === 'past'} onPress={() => openTask(c.id)} />)
               )}
             </View>
+            {lens === 'active' ? <EndedSection tasks={paused} onOpen={openTask} /> : null}
           </WeekStripsProvider>
         )}
       </ScrollView>

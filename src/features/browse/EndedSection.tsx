@@ -1,6 +1,6 @@
 /**
- * Ended. Habits the person stopped with "End routine" (or "End event"): no longer due, their
- * past days still in the record. Opening one shows its history and "Start again".
+ * Paused. Habits the person paused (for an emergency or a hard stretch): nothing is due and the
+ * days away do not count. Opening one shows its history and "Resume".
  */
 import { StyleSheet, View } from 'react-native';
 import { format } from 'date-fns';
@@ -14,8 +14,8 @@ import { TaskCard } from '@/features/task/TaskCard';
 import { metaParts } from '@/features/task/TaskDetails';
 
 export const ENDED_COPY = {
-  heading: 'Ended',
-  meta: (endedOn: LocalDate) => `Ended ${format(parseLocalDate(endedOn), 'MMM d')}`,
+  heading: 'Paused',
+  meta: (endedOn: LocalDate) => `Paused since ${format(parseLocalDate(endedOn), 'MMM d')}`,
 } as const;
 
 export function EndedSection({ tasks, onOpen }: { readonly tasks: readonly TaskWithSteps[]; readonly onOpen: (id: string) => void }) {

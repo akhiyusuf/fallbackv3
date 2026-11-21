@@ -165,7 +165,7 @@ async function lastWeek(from: string, to: string) {
 
 /* ------------------------------------------------------------------ End routine */
 
-describe('End routine', () => {
+describe('Pause routine', () => {
   it('with today not logged: it ends yesterday, its past still counts, and it is due on nothing from today', async () => {
     const task = await seedHabit();
     const before = await aggregate();
@@ -224,7 +224,7 @@ describe('End routine', () => {
 
 /* ------------------------------------------------------------------ Start again */
 
-describe('Start again', () => {
+describe('Resume', () => {
   it('brings it back from today, and the days it was ended are off (neither missed nor done)', async () => {
     const task = await seedHabit();
     await mutate(useEndTask, task.id); // ended May 31

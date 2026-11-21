@@ -97,6 +97,12 @@ export interface Task {
    * The device-local day the task was created / deleted, fixed when it happened (migration 9).
    * Optional: absent on objects built before it existed; readers fall back to the instant.
    */
+  /**
+   * "Every dose / every step needed": when on, doing only part of the day does not count as a
+   * fallback; the day is a miss unless it is all done (or the Fallback chip is pressed). Off by
+   * default (migration 10). Optional: absent on objects built before it existed.
+   */
+  readonly allRequired?: boolean;
   readonly createdOn?: LocalDate | null;
   readonly deletedOn?: LocalDate | null;
 

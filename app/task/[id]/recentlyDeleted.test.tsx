@@ -77,7 +77,7 @@ describe('Delete sheet: wording', () => {
     expect(within(sheet).getByText('Delete this routine?')).toBeTruthy();
     expect(
       within(sheet).getByText(
-        "\"Morning workout\" goes to Recently deleted for 30 days. The days you've logged still count. Only stopping? End the routine instead and it stays in your list.",
+        "\"Morning workout\" goes to Recently deleted for 30 days. The days you've logged still count. Delete it if you no longer need it. For an emergency or a hard stretch, pause the routine instead.",
       ),
     ).toBeTruthy();
     expect(within(sheet).queryByText(/can't be undone/)).toBeNull();

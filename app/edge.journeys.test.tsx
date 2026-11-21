@@ -283,17 +283,17 @@ describe('journey 3: end a routine, find it under Ended, start it again', () => 
 
     await openFromList('Stretch');
     await userEvent.press(await screen.findByTestId('s20-more'));
-    await userEvent.press(await screen.findByLabelText('End routine'));
-    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('End routine'));
+    await userEvent.press(await screen.findByLabelText('Pause routine'));
+    await userEvent.press(within(await screen.findByTestId('s20-end-confirm')).getByLabelText('Pause routine'));
     expect(await screen.findByTestId('s20-ended')).toBeTruthy();
-    expect(screen.getByText('Ended Jul 15')).toBeTruthy();
+    expect(screen.getByText('Paused since Jul 15')).toBeTruthy();
     expect((await fake.repos.tasks.get('a' as Id))?.endedOn).toBe('2026-07-15');
     // Still on the page it was ended from; Back goes to the list it was opened from.
     await press('Back');
     await waitFor(() => expect(path()).toBe('/routines'));
     const ended = await screen.findByTestId('ended-section');
     expect(within(ended).getByText('Stretch')).toBeTruthy();
-    expect(within(ended).getByText('Ended Jul 15')).toBeTruthy();
+    expect(within(ended).getByText('Paused since Jul 15')).toBeTruthy();
     // Today only asks for the routine that is still running.
     await openTab('Today');
     expect(await screen.findByText('0 of 1 done')).toBeTruthy();

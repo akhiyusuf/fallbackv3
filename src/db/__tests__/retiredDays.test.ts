@@ -477,7 +477,7 @@ describe('backup -> erase -> restore keeps retired days and ended habits', () =>
   it('a v8 backup with ended habits and retired days restores them exactly (record signature unchanged)', async () => {
     newDatabaseDir();
     const app = await reopen(T0);
-    const ended = buildTask({ name: 'Ended', endedOn: '2026-03-05' as LocalDate });
+    const ended = buildTask({ name: 'Paused', endedOn: '2026-03-05' as LocalDate });
     expect((await app.repos.tasks.insert(ended, buildSteps(ended.id))).ok).toBe(true);
     await logDay(app.repos, ended.id, '2026-03-02', 'done');
     const gone = await seedHabitWithHistory(app, 'Gone for good');

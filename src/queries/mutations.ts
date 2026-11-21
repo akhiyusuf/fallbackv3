@@ -669,7 +669,7 @@ async function logStateRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: Lo
     chipState: null,
     dosesRequired: task.dosesPerDay,
     dosesCompleted: existing?.dosesCompleted ?? 0,
-  });
+  }, task.allRequired ?? false);
   const persistResult = await repos.logs.upsert({
     id: existing?.id ?? newId(),
     taskId: input.taskId,
@@ -728,7 +728,7 @@ async function toggleStepRaw(input: { taskId: Id; date: LocalDate; pushedFrom?: 
     chipState: null,
     dosesRequired: task.dosesPerDay,
     dosesCompleted: existing?.dosesCompleted ?? 0,
-  });
+  }, task.allRequired ?? false);
 
   const nowIso = now();
   const persistResult = await repos.logs.upsert({
