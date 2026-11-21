@@ -861,7 +861,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await expectSeen('Progress, all tasks, 30 days (Sun)', progSun, progressRead);
     await press('Stretch');
     // Stretch alone: Mon I, Tue F, Wed off, Thu I (late), Fri I, Sat I: 4 ideal + 1 fallback = 5 of 5; one off day.
-    await expectSeen('Progress, Stretch only', '100 percent; 4 ideal + 1 fallback = 5 of 5 counted days; Ideal 4, Fallback 1, Off 1, Missed 0', progressRead);
+    await expectSeen('Progress, Stretch only', '100 percent; Last 30 days: 4 ideal days, 1 fallback; Ideal 4, Fallback 1, Off 1, Missed 0', progressRead);
     await closeProgress();
 
     action('Sun', '15:30', 'delete Gym from its page (Routines > Other routines), look, then restore from Recently deleted');

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { on } from '@/lib/events';
 import { diffDays, endOfMonth, endOfWeek, now, startOfMonth, startOfWeek, addDays as libAddDays } from '@/lib/date';
 import { repos } from '@/db';
-import { aggregateConsistency, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
+import { aggregateConsistency, countingDate, currentCycleWindow, dayFractions, levelFor, perTaskConsistency, reconcileAchievements } from '@/domain';
 import type {
   ConsistencyResult,
   ConsistencyScope,
@@ -205,8 +205,9 @@ function partitionByBucket(occs: readonly Occurrence[], buckets: readonly DateRa
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       const b = buckets[mid] as DateRange;
-      if (o.date < b.from) hi = mid - 1;
-      else if (o.date > b.to) lo = mid + 1;
+      const date = countingDate(o);
+      if (date < b.from) hi = mid - 1;
+      else if (date > b.to) lo = mid + 1;
       else {
         (out[mid] as Occurrence[]).push(o);
         break;

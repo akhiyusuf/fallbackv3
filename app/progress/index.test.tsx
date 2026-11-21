@@ -55,7 +55,7 @@ describe('S25 — Consistency Dashboard', () => {
     };
     await render(<S25ConsistencyDashboard />);
     expect(screen.getByText('87%')).toBeTruthy();
-    expect(screen.getByText('22 ideal + 4 fallback = 26 of 30 counted days')).toBeTruthy();
+    expect(screen.getByText('Last 30 days: 22 ideal days, 4 fallback, 4 missed')).toBeTruthy();
     expect(screen.getByText(/4 days were off, not counted either way\./)).toBeTruthy();
   });
 
@@ -70,7 +70,7 @@ describe('S25 — Consistency Dashboard', () => {
     mockConsistency.current = { scope: 'per-task', percent: 100, numerator: 26, denominator: 26, breakdown: breakdown(22, 4, 4, 0), countedDates: [] };
     await render(<S25ConsistencyDashboard />);
     await userEvent.setup().press(screen.getByLabelText('30 days'));
-    expect(screen.getByText('22 ideal + 4 fallback = 26 of 26 counted days')).toBeTruthy();
+    expect(screen.getByText('Last 30 days: 22 ideal days, 4 fallback')).toBeTruthy();
     expect(screen.getByText(/This task's whole history so far is shorter than 30 days\./)).toBeTruthy();
   });
 

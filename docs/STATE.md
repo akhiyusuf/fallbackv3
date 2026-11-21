@@ -72,6 +72,8 @@ Done so far under the new process:
   and Pause/Resume vs Delete framing (twenty-eighth pass).
 - 2026-11-21, later: the line under the consistency percent counts full, partial and missed days
   (twenty-ninth pass).
+- 2026-11-21, later: a pushed habit counts for the day it was pushed from, so one habit and all
+  habits read the same days (thirtieth pass).
 
 Everything below this point describes the old pipeline's state and is history.
 

@@ -13,7 +13,7 @@
 
 import type { DayCounts } from '@/types';
 
-import { dayCountsLine } from './dayCountsLine';
+import { dayCountsLine, habitDaysLine } from './dayCountsLine';
 
 export const S25_COPY = {
   appBarTitle: 'Your consistency',
@@ -33,8 +33,8 @@ export const S25_COPY = {
   retryLabel: 'Try again',
   offNotePerTask: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} off, not counted either way.`,
   offNoteAggregate: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} fully off, not counted either way.`,
-  perTaskSubcopy: (ideal: number, fallback: number, numerator: number, denominator: number) =>
-    `${ideal} ideal + ${fallback} fallback = ${numerator} of ${denominator} counted days`,
+  /** Thirtieth pass: the same shape as the all-habits line ("Last 30 days: 1 ideal day, 2 missed"). */
+  perTaskSubcopy: (ideal: number, fallback: number, missed: number, period: string) => habitDaysLine({ ideal, fallback, missed }, period),
   /** Twenty-ninth pass: whole days, never a weighted "≈27.5 of 30" (see dayCountsLine.ts). */
   aggregateSubcopy: (days: DayCounts, period: string) => dayCountsLine(days, period),
   aggregateUnitCaption: 'A full day had every habit due done, ideal or fallback. A partial day had some of them.',

@@ -8,11 +8,23 @@ import type { DayCounts } from '@/types';
 
 /** "17 full days, 13 partial, 2 missed". The first part names the unit; parts at zero are left out. */
 export function dayCountsPhrase(days: DayCounts): string {
-  const parts: [number, string][] = [
+  return countsPhrase([
     [days.full, 'full'],
     [days.partial, 'partial'],
     [days.missed, 'missed'],
-  ];
+  ]);
+}
+
+/** One habit: "1 ideal day, 2 missed" (thirtieth pass), the same shape as the all-habits line. */
+export function habitDaysLine(counts: { ideal: number; fallback: number; missed: number }, period: string): string {
+  return `${period}: ${countsPhrase([
+    [counts.ideal, 'ideal'],
+    [counts.fallback, 'fallback'],
+    [counts.missed, 'missed'],
+  ])}`;
+}
+
+function countsPhrase(parts: readonly [number, string][]): string {
   const shown = parts.filter(([n]) => n > 0);
   if (shown.length === 0) return 'no counted days';
   return shown.map(([n, word], i) => (i === 0 ? `${n} ${word} ${n === 1 ? 'day' : 'days'}` : `${n} ${word}`)).join(', ');

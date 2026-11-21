@@ -1416,6 +1416,21 @@ because x was the weighted total rounded to whole days. The human chose full/par
 - The percent itself is unchanged (same formula, same badges, trend and records). The trend table and
   cycle records still show day credits; they were not part of this ask.
 
+### Round 4, thirtieth pass (2026-11-21): a pushed habit counts for the day it came from
+
+The human's phone, one daily Workout: Workout alone read 33% ("1 ideal + 0 fallback = 1 of 3 counted
+days") and All tasks read 50% ("1 full day, 1 missed") for the same single habit. Cause, reproduced in
+`src/queries/pushedDayCounting.test.tsx`: done on day 1, pushed to tomorrow on day 2, nothing on day 3.
+Per habit counted occurrences (day 3's own and the pushed one: two misses); all habits grouped by the
+date an occurrence sits on (day 3: one missed day), and day 2 itself was in neither.
+
+- `countingDate(o) = o.pushedFrom ?? o.date` (src/domain/consistency.ts): a pushed occurrence counts for
+  the day it was pushed from, in both scopes, the disclosure fractions and the trend buckets. Done the
+  next day, that day was kept; not done, it was missed. XP was already keyed the same way. The "each
+  counting toward consistency" rule of the twentieth pass still holds. Badges were not changed.
+- One habit's line now has the same shape as the all-habits one: "Last 30 days: 1 ideal day, 2 missed".
+- The "0 days were off" note is no longer shown; the Off tile already says 0.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is

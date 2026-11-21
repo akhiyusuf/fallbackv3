@@ -58,6 +58,13 @@ export default function S25ConsistencyDashboard() {
   const isLoading = consistencyQuery.isLoading || (scope === 'per-task' && tasksQuery.isLoading);
   const result = consistencyQuery.data;
   const truncated = result ? truncatedWindowDays(window, result.denominator) : null;
+  // Thirtieth pass: no "0 days were off" note; the Off tile already says 0.
+  const notes = result
+    ? [
+        result.breakdown.off === 0 ? null : scope === 'per-task' ? S25_COPY.offNotePerTask(result.breakdown.off) : S25_COPY.offNoteAggregate(result.breakdown.off),
+        scope === 'per-task' && truncated !== null ? S25_COPY.truncatedWindowNote(truncated) : null,
+      ].filter((n): n is string => !!n)
+    : [];
 
   return (
     <Screen title={S25_COPY.appBarTitle} level="page" onBack={goBack}>
@@ -98,7 +105,7 @@ export default function S25ConsistencyDashboard() {
           label="Showed up"
           detail={
             scope === 'per-task'
-              ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator)
+              ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.breakdown.missed, PERIOD_LABEL[window])
               : S25_COPY.aggregateSubcopy(result.days ?? NO_DAYS, PERIOD_LABEL[window])
           }
           detailLines={2}
@@ -136,14 +143,7 @@ export default function S25ConsistencyDashboard() {
                 : `Consistency breakdown: ${result.percent} percent, ideal ${result.breakdown.ideal}, fallback ${result.breakdown.fallback}, off ${result.breakdown.off}, missed ${result.breakdown.missed}`
             }
           />
-          <Text style={[styles.note, { color: t.color.textMuted }]}>
-            {[
-              scope === 'per-task' ? S25_COPY.offNotePerTask(result.breakdown.off) : S25_COPY.offNoteAggregate(result.breakdown.off),
-              scope === 'per-task' && truncated !== null ? S25_COPY.truncatedWindowNote(truncated) : null,
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          </Text>
+          {notes.length > 0 ? <Text style={[styles.note, { color: t.color.textMuted }]}>{notes.join(' ')}</Text> : null}
         </Card>
         </>
       ) : null}

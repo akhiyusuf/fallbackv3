@@ -24,6 +24,17 @@ import type {
 const RESOLVED = new Set(['ideal', 'fallback', 'missed']);
 const SHOWN_UP = new Set(['ideal', 'fallback']);
 
+/**
+ * The day an occurrence counts for (thirtieth pass). A habit pushed to tomorrow counts for the day it
+ * was pushed FROM: done tomorrow, that day was kept; not done, that day was missed. Its XP is keyed
+ * the same way. Counting it on the day it landed made one habit read 1 of 3 on its own and 1 of 2
+ * under all habits (a day with its own and the pushed occurrence is one calendar day but two
+ * occurrences), and left the pushed-from day out of the record entirely.
+ */
+export function countingDate(o: Occurrence): LocalDate {
+  return o.pushedFrom ?? o.date;
+}
+
 function isDateRange(w: ConsistencyWindow | DateRange): w is DateRange {
   return typeof w === 'object';
 }
@@ -52,11 +63,12 @@ export function perTaskConsistency(input: {
 
   let rows: readonly Occurrence[];
   let cap: number | null;
+  const counted = mine.map((o) => ({ o, date: countingDate(o) }));
   if (isDateRange(window)) {
-    rows = sortDatesDesc(mine.filter((o) => o.date >= window.from && o.date <= window.to));
+    rows = sortDatesDesc(counted.filter((r) => r.date >= window.from && r.date <= window.to)).map((r) => r.o);
     cap = null;
   } else {
-    rows = sortDatesDesc(mine);
+    rows = sortDatesDesc(counted).map((r) => r.o);
     cap = countCap(window);
   }
 
@@ -75,7 +87,7 @@ export function perTaskConsistency(input: {
       continue;
     }
     denom++;
-    countedDates.push(o.date);
+    countedDates.push(countingDate(o));
     if (o.outcome === 'ideal') idealCount++;
     else if (o.outcome === 'fallback') fallbackCount++;
     else if (o.outcome === 'missed') missedCount++;
@@ -116,9 +128,10 @@ function groupByDate(occurrences: readonly Occurrence[]): Map<LocalDate, Occurre
   const map = new Map<LocalDate, Occurrence[]>();
   for (const o of occurrences) {
     if (o.outcome === 'not-due') continue;
-    const bucket = map.get(o.date);
+    const date = countingDate(o);
+    const bucket = map.get(date);
     if (bucket) bucket.push(o);
-    else map.set(o.date, [o]);
+    else map.set(date, [o]);
   }
   return map;
 }
