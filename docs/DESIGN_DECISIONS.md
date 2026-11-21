@@ -1378,6 +1378,26 @@ Open with the human:
   counts like any new habit's.
 - Editing a schedule still rewrites how past days read (known since pass 25).
 
+### Round 4, twenty-eighth pass (2026-11-21): partial days switch, Pause vs Delete
+
+The human's answers to the three open questions from the twenty-seventh pass:
+
+1. **Partial days get a switch, per habit.** "Every dose needed" (courses with more than one dose a
+   day) or "Every step needed" (routines with more than one ideal step), in the habit's settings,
+   off by default. Off: doing part of it is a fallback, as before. On: doing part of it is a miss
+   once the day is over (still to do while it is today); doing all of it is ideal, and the Fallback
+   chip still logs a fallback. Migration 10 (`task.all_required`, default 0); the flag travels in
+   backups. `computeAutoChip`/`autoChipState` take it. Flipping it rereads past partial days, the
+   same way a schedule edit does.
+2. **Ring % vs "x of y days"** was not clear to the human; explained in chat (the ring gives part
+   credit for a part-done day, the count counts whole days). No change unless they ask.
+3. **Days away marked off after restoring: yes.** And to stop needless skipping, the two ways to
+   step away are framed by purpose: **Pause** (was "End routine") is for an emergency or a hard
+   stretch: nothing is due and the days away do not count; **Resume** starts it again from today.
+   **Delete** is for something no longer needed. Each confirm sheet points to the other. Paused
+   courses have their own Paused section on Courses > Active (no longer under Past, never
+   "Completed"); Search and the lists say "Paused" / "Paused since <date>".
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
