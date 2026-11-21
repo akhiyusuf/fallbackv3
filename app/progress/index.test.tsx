@@ -87,7 +87,7 @@ describe('S25 — Consistency Dashboard', () => {
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
     await user.press(screen.getByLabelText('All tasks'));
-    expect(screen.getByText('A full day had every habit due done, ideal or fallback. The bar shares each day out across its habits.')).toBeTruthy();
+    expect(screen.getByText('A full day had every habit due done, ideal or fallback. A partial day had some of them.')).toBeTruthy();
     expect(screen.getByText('Last 30 days: 25 full days, 5 partial')).toBeTruthy();
     expect(screen.getByLabelText(/^Full days: 25/)).toBeTruthy();
     expect(screen.getByLabelText(/^Partial: 5/)).toBeTruthy();
@@ -111,7 +111,8 @@ describe('S25 — Consistency Dashboard', () => {
     // Bug (review pass 1, blocking item 1): total = denominator(7) + off(0) = 7, and
     // ideal+fallback+off = 7 -> a WRONGLY fully-filled bar despite Missed = 1. Fixed total =
     // ideal+fallback+missed+off = 6+1+1+0 = 8, so ideal+fallback+off (7) / 8 < 100%.
-    mockConsistency.current = { scope: 'aggregate', percent: 93, numerator: 6.5, denominator: 7, breakdown: breakdown(6, 1, 0, 1), countedDates: [] };
+    // Twenty-ninth pass: the all-habits bar shows whole days, so a missed day is what leaves it unfilled.
+    mockConsistency.current = { scope: 'aggregate', percent: 93, numerator: 6.5, denominator: 7, breakdown: breakdown(6, 1, 0, 1), countedDates: [], days: { full: 6, partial: 0, missed: 1 } };
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
     await user.press(screen.getByLabelText('All tasks'));

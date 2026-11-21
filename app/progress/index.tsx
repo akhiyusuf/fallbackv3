@@ -106,8 +106,7 @@ export default function S25ConsistencyDashboard() {
         />
         <View style={styles.tiles}>
           {scope === 'aggregate' ? (
-            // Whole days, the same ones the line above names (twenty-ninth pass). The bar below still
-            // shares each day out across its habits.
+            // Whole days, the same ones the line above names (twenty-ninth pass).
             <>
               <StatTile icon={CheckCheck} color={t.color.ideal} value={String((result.days ?? NO_DAYS).full)} label="Full days" />
               <StatTile icon={Check} color={t.color.fallback} value={String((result.days ?? NO_DAYS).partial)} label="Partial" />
@@ -125,12 +124,10 @@ export default function S25ConsistencyDashboard() {
         </View>
         <Card style={styles.card}>
           <ConsistencyBreakdownBar
-            breakdown={result.breakdown}
-            total={
-              scope === 'aggregate'
-                ? result.breakdown.ideal + result.breakdown.fallback + result.breakdown.missed + result.breakdown.off
-                : result.denominator + result.breakdown.off
-            }
+            // All habits: the bar shows the same whole days as the tiles (full green, partial blue,
+            // off grey, missed empty). One habit: ideal, fallback, off and missed occurrences.
+            breakdown={scope === 'aggregate' ? { ideal: (result.days ?? NO_DAYS).full, fallback: (result.days ?? NO_DAYS).partial, off: result.breakdown.off, missed: (result.days ?? NO_DAYS).missed } : result.breakdown}
+            total={result.denominator + result.breakdown.off}
             unitCaption={scope === 'aggregate' ? S25_COPY.aggregateUnitCaption : undefined}
             showLegend={false}
             accessibilityLabel={

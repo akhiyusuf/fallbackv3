@@ -70,6 +70,8 @@ Done so far under the new process:
   Native module `modules/exact-alarm` (autolinked).
 - 2026-11-21: partial-days switch ("Every dose/step needed", migration 10 `task.all_required`)
   and Pause/Resume vs Delete framing (twenty-eighth pass).
+- 2026-11-21, later: the line under the consistency percent counts full, partial and missed days
+  (twenty-ninth pass).
 
 Everything below this point describes the old pipeline's state and is history.
 

@@ -37,7 +37,7 @@ export const S25_COPY = {
     `${ideal} ideal + ${fallback} fallback = ${numerator} of ${denominator} counted days`,
   /** Twenty-ninth pass: whole days, never a weighted "≈27.5 of 30" (see dayCountsLine.ts). */
   aggregateSubcopy: (days: DayCounts, period: string) => dayCountsLine(days, period),
-  aggregateUnitCaption: 'A full day had every habit due done, ideal or fallback. The bar shares each day out across its habits.',
+  aggregateUnitCaption: 'A full day had every habit due done, ideal or fallback. A partial day had some of them.',
   /** ALLSCREENS 2008-2012: appended when the counted-day window truncates because the task's
    *  whole history so far is shorter than the fixed 7/30-day preset. */
   truncatedWindowNote: (windowDays: number) => `This task's whole history so far is shorter than ${windowDays} days.`,

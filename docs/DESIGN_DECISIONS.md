@@ -1398,6 +1398,24 @@ The human's answers to the three open questions from the twenty-seventh pass:
    courses have their own Paused section on Courses > Active (no longer under Past, never
    "Completed"); Search and the lists say "Paused" / "Paused since <date>".
 
+### Round 4, twenty-ninth pass (2026-11-21): the line under the percent counts real days
+
+The human found "2 of 2 days" beside 83% confusing and asked how it would look after a year. A
+simulated year (4 habits, each done about 85% of the time): the old line disagreed with the percent on
+about two days in three, by up to 5 points, and "27 of 30 days" appeared in months with no missed day,
+because x was the weighted total rounded to whole days. The human chose full/partial days:
+
+- `aggregateConsistency` also returns `days: { full, partial, missed }` (full + partial + missed =
+  the counted days). Full: every resolved habit got its ideal or fallback. Partial: some. Missed: none.
+  Off habits leave a day's count alone; fully off days stay in Off.
+- Today: "Last 30 days: 17 full days, 13 partial" (kinds at zero are left out; the first carries
+  "days"). The re-entry banner: "Your consistency is intact: 83%. Last 30 days: 17 full days, 4 partial."
+- Progress, all habits: the same line for each period ("Last 7 days", "Last 30 days", "All time"); the
+  tiles are Full days / Partial / Off / Missed, and the bar shows those same days (full green, partial
+  blue, off grey, missed empty). One habit is unchanged: its counts were already whole.
+- The percent itself is unchanged (same formula, same badges, trend and records). The trend table and
+  cycle records still show day credits; they were not part of this ask.
+
 ### What the architect needs to know from round 4
 
 - **A bundled font.** The preview loads Nunito as a web font. On a device it is
