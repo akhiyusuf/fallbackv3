@@ -66,14 +66,13 @@ describe('aggregate breakdown, 3 days each with one ideal and one fallback', () 
     expect(agg.breakdown.ideal + agg.breakdown.fallback + agg.breakdown.missed).toBe(3);
   });
 
-  it('S25: the four tiles read ideal + fallback + missed = 3, with no decimals', async () => {
+  it('S25: all habits counts whole days (twenty-ninth pass): 3 full days, tiles add up, no decimals', async () => {
     await render(<Progress />);
     await userEvent.press(screen.getAllByRole('radio')[0]!); // Everything
-    const label = screen.getByLabelText(/^Consistency breakdown:/).props.accessibilityLabel as string;
-    const n = (k: string) => Number(new RegExp(`${k} (\\d+)`).exec(label)![1]);
-    expect(n('ideal') + n('fallback') + n('missed')).toBe(3);
-    expect(screen.getByText(/of 3 counted days/)).toBeTruthy();
-    expect(screen.queryByText(/\d\.\d(?!.*counted)/)).toBeNull();
+    expect(screen.getByText('Last 30 days: 3 full days')).toBeTruthy();
+    const tile = (l: string) => Number(/: (\d+)/.exec(String(screen.getByLabelText(new RegExp(`^${l}: `)).props.accessibilityLabel))![1]);
+    expect(tile('Full days') + tile('Partial') + tile('Missed')).toBe(3);
+    expect(screen.queryByText(/\d\.\d/)).toBeNull();
   });
 
   it('S26 trend table: the row for the bucket adds up to its counted days', async () => {

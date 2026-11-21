@@ -29,6 +29,18 @@ export interface ConsistencyResult {
   readonly breakdown: ConsistencyBreakdown;
   /** The calendar days that the counted-day window actually spans, for display and drill-down. */
   readonly countedDates: readonly LocalDate[];
+  /**
+   * Aggregate only: the counted days as real, whole days (twenty-ninth pass). A full day is one where
+   * every resolved habit got its ideal or its fallback; a partial day had some of them; a missed day
+   * had none. full + partial + missed === denominator. Absent on per-task results.
+   */
+  readonly days?: DayCounts;
+}
+
+export interface DayCounts {
+  readonly full: number;
+  readonly partial: number;
+  readonly missed: number;
 }
 
 /**

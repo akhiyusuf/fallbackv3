@@ -10,6 +10,10 @@
  * "31" is that fixture's specific illustrative value, not a literal string to reproduce).
  */
 
+import type { DayCounts } from '@/types';
+
+import { dayCountsLine } from '@/features/progress/dayCountsLine';
+
 export const S09_COPY = {
   title: 'Today',
   statLabel: 'Showing up',
@@ -39,7 +43,6 @@ export const S09_COPY = {
   reentrySubcopy: "Rest is part of the rhythm. One off day doesn't undo anything.",
   reentryCta: 'Even the fallback counts',
   reentryStatPrefix: 'Your consistency is intact: ',
-  reentryStatSuffix: ' you showed up, ideal or fallback.',
 
   readFailure: "Couldn't load today's tasks. Your data is safe on this device.",
   retry: 'Try again',
@@ -54,22 +57,20 @@ export const S09_COPY = {
   firstHabitBannerSuffix: '',
 } as const;
 
+/** The period the Today stat covers, named in the line under it. */
+function periodLabel(windowDays: number): string {
+  return `Last ${windowDays} days`;
+}
+
 /**
- * "{x} of the last {n} days", or "{x} of {counted} days in the last {n}" when only some of those
- * days had something due. The percent beside it is x / counted, so the words must name `counted`:
- * "17 of the last 30 days" next to 83% reads as a mistake.
+ * Builds the stat-chip detail line: "Last 30 days: 17 full days, 13 partial" (twenty-ninth pass).
+ * Whole days only, so nothing beside the percent invites a division that does not match it.
  */
-function daysPhrase(x: number, counted: number, windowDays: number): string {
-  const c = Math.round(counted);
-  return c >= windowDays ? `${x} of the last ${windowDays} days` : `${x} of ${c} ${c === 1 ? 'day' : 'days'} in the last ${windowDays}`;
+export function statLine(days: DayCounts, windowDays: number): string {
+  return dayCountsLine(days, periodLabel(windowDays));
 }
 
-/** Builds the stat-chip detail line. */
-export function statLine(x: number, counted: number, windowDays: number): string {
-  return daysPhrase(x, counted, windowDays);
-}
-
-/** Builds the re-entry-state re-worded stat line — see this file's header note. */
-export function reentryStatLine(percent: number, x: number, counted: number, windowDays: number): string {
-  return `${S09_COPY.reentryStatPrefix}${percent}% · ${daysPhrase(x, counted, windowDays)}${S09_COPY.reentryStatSuffix}`;
+/** Builds the re-entry-state stat line: "Your consistency is intact: 83%. Last 30 days: 17 full days, 4 partial." */
+export function reentryStatLine(percent: number, days: DayCounts, windowDays: number): string {
+  return `${S09_COPY.reentryStatPrefix}${percent}%. ${dayCountsLine(days, periodLabel(windowDays))}.`;
 }

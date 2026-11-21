@@ -11,6 +11,10 @@
  * reasonable, non-pinned copy (judgment call — see build report).
  */
 
+import type { DayCounts } from '@/types';
+
+import { dayCountsLine } from './dayCountsLine';
+
 export const S25_COPY = {
   appBarTitle: 'Your consistency',
   scopeTabs: { perTask: 'One task', aggregate: 'All tasks' } as const,
@@ -31,9 +35,9 @@ export const S25_COPY = {
   offNoteAggregate: (n: number) => `${n} ${n === 1 ? 'day was' : 'days were'} fully off, not counted either way.`,
   perTaskSubcopy: (ideal: number, fallback: number, numerator: number, denominator: number) =>
     `${ideal} ideal + ${fallback} fallback = ${numerator} of ${denominator} counted days`,
-  aggregateSubcopy: (numerator: number, denominator: number) =>
-    `≈${formatOneDecimal(numerator)} of ${denominator} counted days (weighted by that day's tasks)`,
-  aggregateUnitCaption: 'Ideal and fallback are rounded day credits. Off is a day count.',
+  /** Twenty-ninth pass: whole days, never a weighted "≈27.5 of 30" (see dayCountsLine.ts). */
+  aggregateSubcopy: (days: DayCounts, period: string) => dayCountsLine(days, period),
+  aggregateUnitCaption: 'A full day had every habit due done, ideal or fallback. The bar shares each day out across its habits.',
   /** ALLSCREENS 2008-2012: appended when the counted-day window truncates because the task's
    *  whole history so far is shorter than the fixed 7/30-day preset. */
   truncatedWindowNote: (windowDays: number) => `This task's whole history so far is shorter than ${windowDays} days.`,

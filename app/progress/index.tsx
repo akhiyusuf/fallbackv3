@@ -27,6 +27,9 @@ const WINDOW_ITEMS = [
 ];
 
 /** The fixed 7/30-day windows truncate when the task's history is shorter than the preset. */
+const NO_DAYS = { full: 0, partial: 0, missed: 0 } as const;
+const PERIOD_LABEL: Record<ConsistencyWindow, string> = { 'last-7': 'Last 7 days', 'last-30': 'Last 30 days', 'all-time': 'All time' };
+
 function truncatedWindowDays(window: ConsistencyWindow, denominator: number): number | null {
   if (window === 'last-7' && denominator < 7) return 7;
   if (window === 'last-30' && denominator < 30) return 30;
@@ -96,16 +99,29 @@ export default function S25ConsistencyDashboard() {
           detail={
             scope === 'per-task'
               ? S25_COPY.perTaskSubcopy(result.breakdown.ideal, result.breakdown.fallback, result.numerator, result.denominator)
-              : S25_COPY.aggregateSubcopy(result.numerator, result.denominator)
+              : S25_COPY.aggregateSubcopy(result.days ?? NO_DAYS, PERIOD_LABEL[window])
           }
           detailLines={2}
           accessibilityLabel={`${result.percent} percent ${S25_COPY.numeralLabel}`}
         />
         <View style={styles.tiles}>
-          <StatTile icon={CheckCheck} color={t.color.ideal} value={formatOneDecimal(result.breakdown.ideal)} label="Ideal" />
-          <StatTile icon={Check} color={t.color.fallback} value={formatOneDecimal(result.breakdown.fallback)} label="Fallback" />
-          <StatTile icon={Minus} color={t.color.surface} ink={t.color.textMuted} value={formatOneDecimal(result.breakdown.off)} label="Off" />
-          <StatTile value={formatOneDecimal(result.breakdown.missed)} label="Missed" />
+          {scope === 'aggregate' ? (
+            // Whole days, the same ones the line above names (twenty-ninth pass). The bar below still
+            // shares each day out across its habits.
+            <>
+              <StatTile icon={CheckCheck} color={t.color.ideal} value={String((result.days ?? NO_DAYS).full)} label="Full days" />
+              <StatTile icon={Check} color={t.color.fallback} value={String((result.days ?? NO_DAYS).partial)} label="Partial" />
+              <StatTile icon={Minus} color={t.color.surface} ink={t.color.textMuted} value={String(result.breakdown.off)} label="Off" />
+              <StatTile value={String((result.days ?? NO_DAYS).missed)} label="Missed" />
+            </>
+          ) : (
+            <>
+              <StatTile icon={CheckCheck} color={t.color.ideal} value={formatOneDecimal(result.breakdown.ideal)} label="Ideal" />
+              <StatTile icon={Check} color={t.color.fallback} value={formatOneDecimal(result.breakdown.fallback)} label="Fallback" />
+              <StatTile icon={Minus} color={t.color.surface} ink={t.color.textMuted} value={formatOneDecimal(result.breakdown.off)} label="Off" />
+              <StatTile value={formatOneDecimal(result.breakdown.missed)} label="Missed" />
+            </>
+          )}
         </View>
         <Card style={styles.card}>
           <ConsistencyBreakdownBar
@@ -117,7 +133,11 @@ export default function S25ConsistencyDashboard() {
             }
             unitCaption={scope === 'aggregate' ? S25_COPY.aggregateUnitCaption : undefined}
             showLegend={false}
-            accessibilityLabel={`Consistency breakdown: ${result.percent} percent, ideal ${result.breakdown.ideal}, fallback ${result.breakdown.fallback}, off ${result.breakdown.off}, missed ${result.breakdown.missed}`}
+            accessibilityLabel={
+              scope === 'aggregate'
+                ? `Consistency breakdown: ${result.percent} percent. ${S25_COPY.aggregateSubcopy(result.days ?? NO_DAYS, PERIOD_LABEL[window])}, ${result.breakdown.off} off`
+                : `Consistency breakdown: ${result.percent} percent, ideal ${result.breakdown.ideal}, fallback ${result.breakdown.fallback}, off ${result.breakdown.off}, missed ${result.breakdown.missed}`
+            }
           />
           <Text style={[styles.note, { color: t.color.textMuted }]}>
             {[

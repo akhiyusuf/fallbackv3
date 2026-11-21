@@ -103,7 +103,7 @@ describe('S09 — Today', () => {
     board.chip = 'todo';
     useToastStore.setState({ toast: null });
     useCelebrationStore.setState({ queue: [] });
-    mockUseConsistency.mockReturnValue({ isLoading: false, data: { percent: 84, numerator: 26.3, denominator: 31 } });
+    mockUseConsistency.mockReturnValue({ isLoading: false, data: { percent: 84, numerator: 26.3, denominator: 31, days: { full: 22, partial: 8, missed: 1 } } });
     mockUseProgress.mockReturnValue({ isLoading: false, data: undefined });
   });
 
@@ -328,7 +328,7 @@ describe('S09 — Today', () => {
     const push = jest.spyOn(router, 'push').mockImplementation(() => {});
     await render(<TodayScreen reentryOverride reentryTaskIdOverride="t1" />);
     expect(screen.getByText("No workout yesterday. That's okay.")).toBeTruthy();
-    expect(screen.getByText('Your consistency is intact: 84% · 26 of the last 30 days you showed up, ideal or fallback.')).toBeTruthy();
+    expect(screen.getByText('Your consistency is intact: 84%. Last 30 days: 22 full days, 8 partial, 1 missed.')).toBeTruthy();
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Even the fallback counts'));
     expect(push).toHaveBeenCalledWith('/task/t1?from=today');

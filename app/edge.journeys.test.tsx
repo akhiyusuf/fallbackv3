@@ -325,11 +325,11 @@ function dayLog(taskId: string, date: string, chip: 'done' | 'fallback' = 'done'
     completedStepIds: [], dosesCompleted: 0, movedToDate: null, createdAt: at(date, 8) as never, updatedAt: at(date, 8) as never,
   };
 }
-/** The All tasks / All time number on Progress: the "(n) of (m) counted days" line. */
+/** The All tasks / All time line on Progress: "All time: n full days, ..." (twenty-ninth pass). */
 async function allTimeCountedDays(): Promise<string> {
   await userEvent.press(await screen.findByLabelText('All tasks'));
   await userEvent.press(await screen.findByLabelText('All time'));
-  const line = await screen.findByText(/counted days/);
+  const line = await screen.findByText(/^All time: /);
   return String(line.props.children);
 }
 async function deleteFromTaskPage(noun = 'routine') {
@@ -358,7 +358,7 @@ describe('journey 4: delete, Undo, delete, restore from Settings, delete forever
     await userEvent.press((await screen.findAllByLabelText(/^Showing up/))[0]!);
     await waitFor(() => expect(path()).toBe('/progress'));
     const before = await allTimeCountedDays();
-    expect(before).toMatch(/of \d+ counted days/);
+    expect(before).toMatch(/^All time: \d+ (full|partial|missed) days?/);
     await press('Back');
     await waitFor(() => expect(path()).toBe('/today'));
 

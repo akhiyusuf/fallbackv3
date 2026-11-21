@@ -365,20 +365,29 @@ function ring(): string {
   return m ? `${m[1]}%` : 'No data yet';
 }
 function xOfY(): string {
-  const n = screen.getByText(/(days? in the last 30|of the last 30 days|^No data yet$)/);
+  const n = screen.getByText(/^(Last 30 days: .*|No data yet)$/);
   return String(n.props.children);
 }
 const levelOnToday = () => String(screen.getByText(/^Level \d+$/).props.children);
 
-/** Does "x of y days" agree with the percent beside it, to within the rounding of x? */
+/**
+ * Does the day line agree with the percent beside it? (Twenty-ninth pass: the line counts whole
+ * days.) A full day gives full credit, a missed day none, and a partial day something strictly in
+ * between, so the percent must sit between full/counted and (full + partial)/counted, and is 100
+ * only with no partial or missed day.
+ */
 function agrees(ringText: string, line: string): boolean {
   const pct = /^(\d+)%$/.exec(ringText);
-  const m = /^(\d+) of (\d+) days?/.exec(line);
-  if (!pct || !m) return ringText === 'No data yet' && line === 'No data yet';
-  const x = Number(m[1]);
-  const y = Number(m[2]);
-  // x is the weighted sum rounded to a whole day, so it can be off by half a day.
-  return Math.abs((x / y) * 100 - Number(pct[1])) <= 50 / y + 0.5;
+  if (!pct) return ringText === 'No data yet' && line === 'No data yet';
+  const count = (word: string) => Number(new RegExp(`(\\d+) ${word}`).exec(line)?.[1] ?? 0);
+  const full = count('full');
+  const partial = count('partial');
+  const missed = count('missed');
+  const y = full + partial + missed;
+  if (y === 0) return false;
+  const p = Number(pct[1]);
+  if (partial === 0) return Math.abs((full / y) * 100 - p) <= 0.5;
+  return p >= (full / y) * 100 - 0.5 && p <= ((full + partial) / y) * 100 + 0.5 && p !== 100;
 }
 
 async function todaySnapshot(expected: { rows: string[]; done: string; ring: string; line: string; off?: number; level?: string }, bug?: Record<string, string>) {
@@ -386,8 +395,8 @@ async function todaySnapshot(expected: { rows: string[]; done: string; ring: str
   await expectSeen('Today list and order', expected.rows, todayRows, bug?.rows);
   await expectSeen('Today done count', expected.done, doneCount, bug?.done);
   await expectSeen('Showing up ring', expected.ring, ring, bug?.ring);
-  await expectSeen('"x of y days in the last 30" line', expected.line, xOfY, bug?.line);
-  await expectSeen('ring and line agree (to the rounding of x)', true, () => agrees(ring(), xOfY()), bug?.agree);
+  await expectSeen('"Last 30 days: full, partial, missed" line', expected.line, xOfY, bug?.line);
+  await expectSeen('ring and day line agree', true, () => agrees(ring(), xOfY()), bug?.agree);
   if (expected.off !== undefined) await expectSeen('cards showing "Off today"', expected.off, offPills);
   if (expected.level) await expectSeen('Level row on Today', expected.level, levelOnToday);
 }
@@ -436,8 +445,12 @@ function progressRead(): string {
   if (!pct) return 'NO RING';
   const p = String(pct.props.accessibilityLabel).replace(' showed up', '');
   const tile = (l: string) => String(screen.getByLabelText(new RegExp(`^${l}: `)).props.accessibilityLabel).replace(`${l}: `, '');
-  const counted = screen.queryByText(/counted days/);
-  return `${p}; ${counted ? String(counted.props.children) : '?'}; Ideal ${tile('Ideal')}, Fallback ${tile('Fallback')}, Off ${tile('Off')}, Missed ${tile('Missed')}`;
+  const counted = screen.queryByText(/counted days|^Last \d+ days: |^All time: /);
+  const line = counted ? String(counted.props.children) : '?';
+  if (screen.queryAllByLabelText(/^Full days: /).length > 0) {
+    return `${p}; ${line}; Full ${tile('Full days')}, Partial ${tile('Partial')}, Off ${tile('Off')}, Missed ${tile('Missed')}`;
+  }
+  return `${p}; ${line}; Ideal ${tile('Ideal')}, Fallback ${tile('Fallback')}, Off ${tile('Off')}, Missed ${tile('Missed')}`;
 }
 async function openProgress(scope?: 'All tasks' | string) {
   await userEvent.press((await screen.findAllByLabelText(STAT_LABEL))[0]!);
@@ -516,7 +529,7 @@ describe('a week of real use, Monday to Sunday', () => {
     const popM1 = await dismissCelebrations();
     await expectSeen('pop-ups after the first log', ["You've reached First day."], () => popM1);
     // Only Stretch resolved: day fraction 1/1 -> 100 percent, "1 of 1 day".
-    await todaySnapshot({ rows: ['Stretch: I', 'Gym: open', 'Antibiotic: open'], done: '1 of 3', ring: '100%', line: '1 of 1 day in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Gym: open', 'Antibiotic: open'], done: '1 of 3', ring: '100%', line: 'Last 30 days: 1 full day' });
 
     action('Mon', '08:20', 'Gym: tick Warm up, then Lift (task page)');
     await userEvent.press(await screen.findByLabelText(/^Gym, .*Opens the task/));
@@ -528,7 +541,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await press('Lift');
     await dismissCelebrations();
     await backToToday();
-    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: open'], done: '2 of 3', ring: '100%', line: '1 of 1 day in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: open'], done: '2 of 3', ring: '100%', line: 'Last 30 days: 1 full day' });
     await expectSeen('lifetime XP after Stretch 10 + Gym 6 + 4', 20, () => fake.xpAwards().reduce((s, a) => s + a.amount, 0));
 
     action('Mon', '14:00', 'Antibiotic: dose 1 of 3 (task page), then Routines and Courses tabs');
@@ -539,7 +552,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await dismissCelebrations();
     await backToToday();
     // Some but not all doses = a fallback by rule (6 XP). 3 of 3 handled.
-    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: F'], done: '3 of 3', ring: '100%', line: '1 of 1 day in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: F'], done: '3 of 3', ring: '100%', line: 'Last 30 days: 1 full day' });
     await openTab('Routines');
     await expectSeen('Routines sections on Monday', 'Due Monday: Gym, Stretch | As needed: Meditate', routineSections);
     await expectSeen('Routines: Stretch week strip (Jul 7..13)', '------I', () => strip(within(screen.getByLabelText(/^Stretch, /))));
@@ -557,7 +570,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await backToToday();
     action('Mon', '22:30', 'late evening check');
     setClock(MON, 22, 30);
-    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: I'], done: '3 of 3', ring: '100%', line: '1 of 1 day in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: I'], done: '3 of 3', ring: '100%', line: 'Last 30 days: 1 full day' });
     await expectSeen('lifetime XP Monday: three ideals', 30, () => fake.xpAwards().reduce((s, a) => s + a.amount, 0));
     await openTab('Courses');
     await expectSeen('Courses: Antibiotic week strip after all doses', '------I', () => strip(within(screen.getByLabelText(/^Antibiotic, /))));
@@ -583,7 +596,7 @@ describe('a week of real use, Monday to Sunday', () => {
       rows: ['Stretch: open', 'Gym: open', 'Antibiotic: open', 'Team sync: open'],
       done: '0 of 4',
       ring: '100%',
-      line: '1 of 1 day in the last 30',
+      line: 'Last 30 days: 1 full day',
     });
 
     action('Tue', '08:40', 'Stretch: Fallback; Gym: Push to tomorrow');
@@ -592,7 +605,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await press('Gym: Push to tomorrow');
     await dismissCelebrations();
     // Gym leaves Tuesday (not due, not missed). 6 XP for the fallback.
-    await todaySnapshot({ rows: ['Stretch: F', 'Antibiotic: open', 'Team sync: open'], done: '1 of 3', ring: '100%', line: '2 of 2 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: F', 'Antibiotic: open', 'Team sync: open'], done: '1 of 3', ring: '100%', line: 'Last 30 days: 2 full days' });
 
     action('Tue', '15:00', 'Antibiotic: doses 1 and 2 only (forgets the third); Team sync is forgotten');
     setClock(TUE!, 15, 0);
@@ -602,7 +615,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await press('Dose 2 of 3: Done');
     await dismissCelebrations();
     await backToToday();
-    await todaySnapshot({ rows: ['Stretch: F', 'Antibiotic: F', 'Team sync: open'], done: '2 of 3', ring: '100%', line: '2 of 2 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: F', 'Antibiotic: F', 'Team sync: open'], done: '2 of 3', ring: '100%', line: 'Last 30 days: 2 full days' });
 
     action('Tue', '22:30', 'late evening check');
     setClock(TUE!, 22, 30);
@@ -630,7 +643,7 @@ describe('a week of real use, Monday to Sunday', () => {
       rows: ['Stretch: open', 'Gym: open', 'Gym (from yesterday): open', 'Antibiotic: open'],
       done: '0 of 4',
       ring: '83%',
-      line: '2 of 2 days in the last 30',
+      line: 'Last 30 days: 1 full day, 1 partial',
     });
     await expectSeen('Gym (pushed from yesterday) is labelled', true, () => screen.queryAllByLabelText(/^Gym, .*From yesterday/).length === 1);
 
@@ -638,7 +651,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await press('Emergency day off, the whole day');
     // Everything off: not counted for or against. The percent and the line do not move.
     await todaySnapshot(
-      { rows: ['Stretch: open', 'Gym: open', 'Gym (from yesterday): open', 'Antibiotic: open'], done: '0 of 4', ring: '83%', line: '2 of 2 days in the last 30', off: 4 },
+      { rows: ['Stretch: open', 'Gym: open', 'Gym (from yesterday): open', 'Antibiotic: open'], done: '0 of 4', ring: '83%', line: 'Last 30 days: 1 full day, 1 partial', off: 4 },
     );
 
     action('Wed', '12:00', 'Meditate (as-needed): Log used it');
@@ -682,7 +695,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await moveTo(FRI!, 8, 30);
     action('Fri', '08:30', 'opens the app after the forgotten Thursday');
     // Counted days: Mon 1, Tue 2/3, Thu 0 (all three missed); Wed was off. sum 1.667 over 3 = 56 percent; x = 2: "2 of 3 days".
-    await todaySnapshot({ rows: ['Stretch: open', 'Gym: open', 'Antibiotic: open'], done: '0 of 3', ring: '56%', line: '2 of 3 days in the last 30', level: 'Level 1' });
+    await todaySnapshot({ rows: ['Stretch: open', 'Gym: open', 'Antibiotic: open'], done: '0 of 3', ring: '56%', line: 'Last 30 days: 1 full day, 1 partial, 1 missed', level: 'Level 1' });
     await openTab('Routines');
     await expectSeen('Stretch week strip with Thursday missed (Jul 11..17)', '--IFOXo', () => strip(within(screen.getByLabelText(/^Stretch, /))));
     await expectSeen('Gym week strip with Thursday missed', '--I-OXo', () => strip(within(screen.getByLabelText(/^Gym, /))));
@@ -711,7 +724,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await expectSeen('Gym week strip after the late log', '--I-OFo', () => strip(within(screen.getByLabelText(/^Gym, /))));
     await openTab('Today');
     // Thursday: Stretch I, Gym F, Antibiotic missed = 2/3. Days: Mon 1, Tue .667, Thu .667: 2.333 / 3 = 78 percent; x = 2.
-    await todaySnapshot({ rows: ['Stretch: open', 'Gym: open', 'Antibiotic: open'], done: '0 of 3', ring: '78%', line: '2 of 3 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: open', 'Gym: open', 'Antibiotic: open'], done: '0 of 3', ring: '78%', line: 'Last 30 days: 1 full day, 2 partial' });
 
     action('Fri', '09:00', 'Stretch Done; Gym tick Warm up and Lift; Antibiotic dose 3 at once');
     await press('Stretch: Done');
@@ -732,7 +745,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await expectSeen('pop-ups on Friday (Comeback, once)', ['Badge earned: Comeback.'], () => popF, 'B4a-comeback-popup');
     await backToToday();
     // Friday all ideal = 1. Days: Mon 1, Tue .667, Thu .667, Fri 1 = 3.333 / 4 = 83 percent; x = 3.
-    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: I'], done: '3 of 3', ring: '83%', line: '3 of 4 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Gym: I', 'Antibiotic: I'], done: '3 of 3', ring: '83%', line: 'Last 30 days: 2 full days, 2 partial' });
     await expectSeen('lifetime XP Friday (58 + 10 + 10 + 10)', 88, () => fake.xpAwards().reduce((s, a) => s + a.amount, 0));
 
     action('Fri', '15:00', 'tick Buy stamps on To-dos; Progress (All tasks)');
@@ -746,7 +759,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await expectSeen('to-dos are not on Today', ['Stretch: I', 'Gym: I', 'Antibiotic: I'], todayRows);
     await openProgress('All tasks');
     // ideal credit 1 + 0 + 1/3 + 1 = 2.33, fallback 0 + 2/3 + 1/3 = 1, missed 4 - 3.33 = .67: shared out 2 / 1 / 1; Wed was the one off day.
-    await expectSeen('Progress, all tasks, 30 days (Fri)', '83 percent; ≈3.3 of 4 counted days (weighted by that day\'s tasks); Ideal 2, Fallback 1, Off 1, Missed 1', progressRead);
+    await expectSeen('Progress, all tasks, 30 days (Fri)', '83 percent; Last 30 days: 2 full days, 2 partial; Full 2, Partial 2, Off 1, Missed 0', progressRead);
     await closeProgress();
 
     action('Fri', '22:30', 'late evening check');
@@ -762,7 +775,7 @@ describe('a week of real use, Monday to Sunday', () => {
     /* ================================================================ SATURDAY 18 */
     await moveTo(SAT!, 8, 30);
     action('Sat', '08:30', 'midnight passed');
-    await todaySnapshot({ rows: ['Stretch: open', 'Antibiotic: open'], done: '0 of 2', ring: '83%', line: '3 of 4 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: open', 'Antibiotic: open'], done: '0 of 2', ring: '83%', line: 'Last 30 days: 2 full days, 2 partial' });
 
     action('Sat', '08:40', 'Stretch: Done; Antibiotic dose 1');
     await press('Stretch: Done');
@@ -775,7 +788,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await expectSeen('pop-ups Saturday (level 2, once)', ["You're now Level 2."], () => popS, 'B4b-levelup-popup');
     await backToToday();
     // Saturday: Stretch I, Antibiotic F (dose 1) = 1. Days 5: 4.333 / 5 = 87 percent; x = 4.
-    await todaySnapshot({ rows: ['Stretch: I', 'Antibiotic: F'], done: '2 of 2', ring: '87%', line: '4 of 5 days in the last 30', level: 'Level 2' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Antibiotic: F'], done: '2 of 2', ring: '87%', line: 'Last 30 days: 3 full days, 2 partial', level: 'Level 2' });
 
     action('Sat', '14:00', 'End routine Stretch (it is logged today, so it ends today)');
     setClock(SAT!, 14, 0);
@@ -807,7 +820,7 @@ describe('a week of real use, Monday to Sunday', () => {
 
     action('Sat', '22:30', 'late evening check');
     setClock(SAT!, 22, 30);
-    await todaySnapshot({ rows: ['Stretch: I', 'Antibiotic: I'], done: '2 of 2', ring: '87%', line: '4 of 5 days in the last 30' });
+    await todaySnapshot({ rows: ['Stretch: I', 'Antibiotic: I'], done: '2 of 2', ring: '87%', line: 'Last 30 days: 3 full days, 2 partial' });
     await openAchievements();
     await expectSeen('Achievements Saturday: level card (108 XP)', 'Level 2, Warming up. 8 of 250 XP', () => achievementsRead().level);
     await backToToday();
@@ -822,7 +835,7 @@ describe('a week of real use, Monday to Sunday', () => {
     /* ================================================================ SUNDAY 19 */
     await moveTo(SUN!, 9, 0);
     action('Sun', '09:00', 'midnight passed');
-    await todaySnapshot({ rows: ['Antibiotic: open'], done: '0 of 1', ring: '87%', line: '4 of 5 days in the last 30', level: 'Level 2' });
+    await todaySnapshot({ rows: ['Antibiotic: open'], done: '0 of 1', ring: '87%', line: 'Last 30 days: 3 full days, 2 partial', level: 'Level 2' });
 
     action('Sun', '09:10', 'Antibiotic: dose 1, then dose 3');
     await userEvent.press(await screen.findByLabelText(/^Antibiotic, .*Opens the task/));
@@ -832,7 +845,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await dismissCelebrations();
     await backToToday();
     // Sunday 1: 5.333 / 6 = 89 percent; x = 5.
-    await todaySnapshot({ rows: ['Antibiotic: I'], done: '1 of 1', ring: '89%', line: '5 of 6 days in the last 30' });
+    await todaySnapshot({ rows: ['Antibiotic: I'], done: '1 of 1', ring: '89%', line: 'Last 30 days: 4 full days, 2 partial' });
     await expectSeen('lifetime XP Sunday (108 + 10)', 118, () => fake.xpAwards().reduce((s, a) => s + a.amount, 0));
 
     action('Sun', '15:00', 'Routines tab; Progress (All tasks and Stretch alone)');
@@ -844,7 +857,7 @@ describe('a week of real use, Monday to Sunday', () => {
     await openTab('Today');
     await openProgress('All tasks');
     // ideal 1 + 0 + 1/3 + 1 + 1 + 1 = 4.33, fallback 1, missed 6 - 5.33 = .67 -> 4 / 1 / 1; one fully-off day.
-    const progSun = "89 percent; ≈5.3 of 6 counted days (weighted by that day's tasks); Ideal 4, Fallback 1, Off 1, Missed 1";
+    const progSun = "89 percent; Last 30 days: 4 full days, 2 partial; Full 4, Partial 2, Off 1, Missed 0";
     await expectSeen('Progress, all tasks, 30 days (Sun)', progSun, progressRead);
     await press('Stretch');
     // Stretch alone: Mon I, Tue F, Wed off, Thu I (late), Fri I, Sat I: 4 ideal + 1 fallback = 5 of 5; one off day.
@@ -895,7 +908,7 @@ describe('a week of real use, Monday to Sunday', () => {
 
     action('Sun', '22:30', 'late evening check');
     setClock(SUN!, 22, 30);
-    await todaySnapshot({ rows: ['Antibiotic: I'], done: '1 of 1', ring: '89%', line: '5 of 6 days in the last 30', level: 'Level 2' });
+    await todaySnapshot({ rows: ['Antibiotic: I'], done: '1 of 1', ring: '89%', line: 'Last 30 days: 4 full days, 2 partial', level: 'Level 2' });
     await openProgress('All tasks');
     await expectSeen('Progress after the restore: unchanged', progSun, progressRead);
     await closeProgress();

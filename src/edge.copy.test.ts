@@ -151,11 +151,13 @@ describe('copy sweep: copy builders, called over a grid of inputs', () => {
     }
     for (const n of [0, 1, 2, 2.5, 3.14159, 100]) outputs.push({ label: `formatOneDecimal(${n})`, text: formatOneDecimal(n) });
     for (const n of numbers) outputs.push({ label: `resultsCountLabel(${n})`, text: resultsCountLabel(n) });
-    for (const x of [0, 1, 17]) {
-      for (const counted of [0, 1, 5, WINDOW]) {
-        if (x > counted && counted > 0) continue;
-        outputs.push({ label: `statLine(${x}, ${counted}, ${WINDOW})`, text: statLine(x, counted, WINDOW) });
-        outputs.push({ label: `reentryStatLine(50, ${x}, ${counted}, ${WINDOW})`, text: reentryStatLine(50, x, counted, WINDOW) });
+    for (const full of [0, 1, 17]) {
+      for (const partial of [0, 1, 5]) {
+        for (const missed of [0, 1, 2]) {
+          const days = { full, partial, missed };
+          outputs.push({ label: `statLine(${JSON.stringify(days)}, ${WINDOW})`, text: statLine(days, WINDOW) });
+          outputs.push({ label: `reentryStatLine(50, ${JSON.stringify(days)}, ${WINDOW})`, text: reentryStatLine(50, days, WINDOW) });
+        }
       }
     }
     const bad = outputs.flatMap((o) => {

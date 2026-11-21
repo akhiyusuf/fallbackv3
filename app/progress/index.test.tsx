@@ -82,13 +82,19 @@ describe('S25 — Consistency Dashboard', () => {
     expect(screen.queryByText("Couldn't load your consistency right now.")).toBeNull();
   });
 
-  it('aggregate scope states the differing units explicitly in the caption', async () => {
-    mockConsistency.current = { scope: 'aggregate', percent: 92, numerator: 27.5, denominator: 30, breakdown: breakdown(24, 4, 3, 3), countedDates: [] };
+  it('aggregate scope counts whole days: the line, the tiles and the caption agree (twenty-ninth pass)', async () => {
+    mockConsistency.current = { scope: 'aggregate', percent: 92, numerator: 27.5, denominator: 30, breakdown: breakdown(24, 4, 3, 3), countedDates: [], days: { full: 25, partial: 5, missed: 0 } };
     const user = userEvent.setup();
     await render(<S25ConsistencyDashboard />);
     await user.press(screen.getByLabelText('All tasks'));
-    expect(screen.getByText('Ideal and fallback are rounded day credits. Off is a day count.')).toBeTruthy();
-    expect(screen.getByText('≈27.5 of 30 counted days (weighted by that day\'s tasks)')).toBeTruthy();
+    expect(screen.getByText('A full day had every habit due done, ideal or fallback. The bar shares each day out across its habits.')).toBeTruthy();
+    expect(screen.getByText('Last 30 days: 25 full days, 5 partial')).toBeTruthy();
+    expect(screen.getByLabelText(/^Full days: 25/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Partial: 5/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Missed: 0/)).toBeTruthy();
+    expect(screen.queryByText(/≈|counted days \(weighted/)).toBeNull();
+    await user.press(screen.getByLabelText('All time'));
+    expect(screen.getByText('All time: 25 full days, 5 partial')).toBeTruthy();
   });
 
   it('the breakdown bar total leaves room for the missed remainder unfilled (never fully filled when missed > 0)', async () => {

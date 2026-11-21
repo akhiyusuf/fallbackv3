@@ -10,7 +10,6 @@ import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { Bell, LifeBuoy, ListOrdered, Search as SearchIcon, Settings as SettingsIcon, Sprout, Trophy, X } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { roundHalfUp } from '@/lib/number';
 import { useConsistency, useLogState, useMarkOffDay, useProgress } from '@/queries';
 import { useTakeDayOff } from '@/features/task/useTakeDayOff';
 import { usePushToTomorrow } from '@/features/task/usePushToTomorrow';
@@ -51,6 +50,7 @@ import { Text } from '@/ui/AppText';
 import { ExactRemindersAsk } from '@/features/notifications/ExactRemindersAsk';
 
 const STAT_WINDOW_DAYS = 30;
+const NO_DAYS = { full: 0, partial: 0, missed: 0 } as const;
 
 export interface TodayScreenProps {
   readonly reentryOverride?: boolean;
@@ -193,7 +193,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
                 <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>{S09_COPY.reentrySubcopy}</Text>
                 {percent !== null && consistency.data ? (
                   <Text style={[styles.bannerBody, { color: t.color.textMuted }]}>
-                    {reentryStatLine(percent, roundHalfUp(consistency.data.numerator), consistency.data.denominator, STAT_WINDOW_DAYS)}
+                    {reentryStatLine(percent, consistency.data.days ?? NO_DAYS, STAT_WINDOW_DAYS)}
                   </Text>
                 ) : null}
               </View>
@@ -210,7 +210,7 @@ export default function TodayScreen({ reentryOverride, justAddedOverride, reentr
             percent={percent}
             loading={consistency.isLoading}
             label={S09_COPY.statLabel}
-            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(roundHalfUp(consistency.data.numerator), consistency.data.denominator, STAT_WINDOW_DAYS)}
+            detail={percent === null || !consistency.data ? S09_COPY.noDataStat : statLine(consistency.data.days ?? NO_DAYS, STAT_WINDOW_DAYS)}
             onPress={() => router.push(ROUTES.progress as Href)}
             accessibilityLabel={`${S09_COPY.statLabel}: ${percent === null ? S09_COPY.noDataStat : `${percent} percent`}. ${S09_COPY.statHelper}`}
           />

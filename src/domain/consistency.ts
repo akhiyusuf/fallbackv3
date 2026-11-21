@@ -145,6 +145,9 @@ export function aggregateConsistency(input: {
   let fallbackCreditSum = 0;
   let offDayCount = 0;
   const countedDates: LocalDate[] = [];
+  let fullDays = 0;
+  let partialDays = 0;
+  let missedDays = 0;
 
   for (const date of dates) {
     if (cap !== null && denom >= cap) break;
@@ -162,6 +165,10 @@ export function aggregateConsistency(input: {
       countedDates.push(date);
       idealCreditSum += idealHere / total;
       fallbackCreditSum += fallbackHere / total;
+      const shownUpHere = idealHere + fallbackHere;
+      if (shownUpHere === total) fullDays++;
+      else if (shownUpHere === 0) missedDays++;
+      else partialDays++;
       continue;
     }
 
@@ -188,6 +195,7 @@ export function aggregateConsistency(input: {
     denominator: denom,
     breakdown,
     countedDates: countedDates.reverse(),
+    days: { full: fullDays, partial: partialDays, missed: missedDays },
   };
 }
 
